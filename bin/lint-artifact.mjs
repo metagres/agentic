@@ -14,6 +14,8 @@ import {
   loadContract,
   makeCtx,
 } from '../src/scripts/lib/context.mjs';
+// sdlc-hardening: schema
+import { validateArtifactSchema } from '../src/scripts/lib/schema.mjs';
 
 function usage(code = 2) {
   console.log(
@@ -143,9 +145,12 @@ try {
 }
 
 let findings = [];
-
 try {
-  findings = runChecks(artifact, contract, ctx, { gate });
+  const schemaFindings = validateArtifactSchema(contractName, artifact, cwd);
+  findings = [
+    ...schemaFindings,
+    ...runChecks(artifact, contract, ctx, { gate }),
+  ];
 } catch (err) {
   console.log(
     JSON.stringify(

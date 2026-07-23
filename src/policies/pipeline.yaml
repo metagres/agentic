@@ -1,0 +1,51 @@
+version: 1
+
+stages:
+  requirements:
+    artifact: requirements.yaml
+    contract: requirements-contract.yaml
+    schema: requirements.schema.yaml
+    template: requirements.yaml
+    review_target: requirements
+    delta_phase: Requirements
+    produces_delta: true
+
+  design:
+    artifact: design.yaml
+    contract: design-contract.yaml
+    schema: design.schema.yaml
+    template: design.yaml
+    review_target: design
+    delta_phase: Design
+    requires:
+      - requirements
+    produces_delta: true
+
+  planning:
+    artifact: plan.yaml
+    contract: plan-contract.yaml
+    schema: plan.schema.yaml
+    template: plan.yaml
+    review_target: plan
+    delta_phase: Planning
+    requires:
+      - design
+      - requirements
+    produces_delta: true
+
+  implementation:
+    artifact: plan.yaml
+    contract: implementation-contract.yaml
+    schema: plan.schema.yaml
+    review_target: implementation
+    requires:
+      - planning
+
+  knowledge-extraction:
+    output: docs-delta.yaml
+    requires:
+      - implementation
+    source_artifacts:
+      - requirements.yaml
+      - design.yaml
+      - plan.yaml

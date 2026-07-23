@@ -2,6 +2,9 @@
 import { writeJson, EXIT } from './lib/cli.mjs';
 import { resolveWorkflow, listWorkflows } from './workflows/index.mjs';
 import { runStatus } from './workflows/status.mjs';
+// sdlc-hardening: utilities
+import { runDoctor } from './workflows/doctor.mjs';
+import { runDocsInit } from './workflows/docs-init.mjs';
 import { VERSION } from './lib/version.mjs';
 
 const argv = process.argv.slice(2);
@@ -11,6 +14,14 @@ const utilities = [
   {
     id: 'status',
     description: 'Show pipeline state for a change directory.',
+  },
+  {
+    id: 'doctor',
+    description: 'Check contracts, schemas, policies, templates, and docs index.',
+  },
+  {
+    id: 'docs-init',
+    description: 'Bootstrap docs/current/index.md for a target project.',
   },
 ];
 
@@ -74,6 +85,14 @@ if (command === '--list-workflows') {
 
 if (command === 'status') {
   runStatus(argv.slice(1));
+}
+
+if (command === 'doctor') {
+  runDoctor(argv.slice(1));
+}
+
+if (command === 'docs-init') {
+  runDocsInit(argv.slice(1));
 }
 
 const workflow = resolveWorkflow(command);

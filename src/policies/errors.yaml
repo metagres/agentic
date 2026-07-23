@@ -1,0 +1,90 @@
+version: 1
+
+errors:
+  MISSING_CHANGE_DIR:
+    message: A change directory is required.
+    fix: Use --dir <change-dir>.
+
+  AMBIGUOUS_CHANGE_DIR:
+    message: Multiple change directories match the provided value.
+    fix: Choose one of the candidates.
+
+  CHANGE_DIR_NOT_FOUND:
+    message: No matching change directory was found.
+    fix: Create a change directory or provide a valid --dir value.
+
+  CONTRACT_MISSING:
+    message: Required contract not found.
+    fix: Restore the contract file or deploy the runtime again.
+
+  ARTIFACT_NOT_FOUND:
+    message: Required artifact not found.
+    fix: Run the corresponding stage first.
+
+  ARTIFACT_PARSE_FAILED:
+    message: Artifact YAML could not be parsed.
+    fix: Fix the YAML syntax.
+
+  CONTRACT_INVALID:
+    message: Contract is invalid.
+    fix: Fix the contract YAML and validate contracts.
+
+  CHECK_RUN_FAILED:
+    message: Contract check execution failed.
+    fix: Inspect the failing check handler and parameters.
+
+  CANNOT_ACCEPT:
+    message: The artifact cannot be accepted yet.
+    fix: Resolve blocking findings and complete semantic validation.
+
+  REVIEW_NOT_PASSING:
+    message: Review is not passing.
+    fix: Resolve blocking findings and complete semantic validation.
+
+  CONFLICTING_DECISION:
+    message: Conflicting review decision flags.
+    fix: Use either --accept or --reject, not both.
+
+  UNKNOWN_COMMAND:
+    message: Unknown workflow or command.
+    fix: Use --list-workflows to see available workflows.
+
+  UNKNOWN_STAGE:
+    message: Unknown stage.
+    fix: Use a known stage name.
+
+  UNKNOWN_STEP:
+    message: Unknown step.
+    fix: Use a known step name.
+
+  INTERNAL_ERROR:
+    message: Internal error.
+    fix: Inspect the error details.
+
+  PLAN_NOT_FOUND:
+    message: plan.yaml not found.
+    fix: Run the planning stage first.
+
+  TASK_NOT_FOUND:
+    message: Task not found in plan.yaml.
+    fix: Use a valid TASK-NNN id.
+
+  INVALID_TASK_STATUS:
+    message: Invalid task status.
+    fix: Use pending, in_progress, done, blocked, or skipped.
+
+  MISSING_TASK_UPDATE_FIELDS:
+    message: Task update requires both --task-id and --status.
+    fix: Provide both --task-id and --status.
+
+  CANNOT_COMPLETE:
+    message: Knowledge extraction cannot complete.
+    fix: Resolve validation errors and mark entries extracted.
+
+  IMPLEMENTATION_NOT_ACCEPTED:
+    message: Implementation review is not accepted.
+    fix: Complete implementation review before completing knowledge extraction.
+
+  ILLEGAL_STATUS_TRANSITION:
+    message: Illegal lifecycle status transition.
+    fix: Follow the lifecycle defined in src/policies/lifecycle.yaml.

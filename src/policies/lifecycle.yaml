@@ -1,0 +1,43 @@
+version: 1
+
+artifact_status:
+  initial: draft
+  transitions:
+    draft:
+      - ready-for-review
+      - rejected
+    ready-for-review:
+      - accepted
+      - rejected
+      - draft
+    accepted:
+      - draft
+      - ready-for-review
+      - rejected
+    rejected:
+      - draft
+      - ready-for-review
+    blocked:
+      - draft
+      - ready-for-review
+
+implementation_status:
+  initial: pending
+  transitions:
+    pending:
+      - in_progress
+      - ready-for-review
+      - rejected
+    in_progress:
+      - ready-for-review
+      - pending
+      - rejected
+    ready-for-review:
+      - accepted
+      - rejected
+    accepted:
+      - in_progress
+      - rejected
+    rejected:
+      - in_progress
+      - ready-for-review

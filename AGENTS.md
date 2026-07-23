@@ -106,20 +106,6 @@ Do not add new top-level fields unless explicitly approved.
 
 Put domain-specific values inside `data`.
 
-Do not reintroduce removed fields such as:
-
-```text
-workflow_type
-stage
-status
-result
-next_action
-next
-gate_status
-instructions_for_llm
-skill_instructions
-```
-
 ---
 
 ## 5. Contract rules
@@ -437,4 +423,93 @@ node bin/deploy-to-agent.mjs \
   --project-root /tmp/test-project \
   --bundle \
   --clean
+```
+---
+
+## 10. Hardening extensions
+
+The toolkit now includes schema and policy layers.
+
+### Schemas
+
+Schemas live in:
+
+```text
+src/schemas/
+```
+
+Validate schemas with:
+
+```bash
+npm run validate:schemas
+```
+
+Schema validation checks artifact shape. Contract validation still checks relationships, traceability, and domain rules.
+
+### Policies
+
+Policies live in:
+
+```text
+src/policies/
+```
+
+Current policies:
+
+```text
+pipeline.yaml
+review-targets.yaml
+lifecycle.yaml
+requirements-policy.yaml
+semantic-policy.yaml
+errors.yaml
+ids.yaml
+```
+
+Validate policies with:
+
+```bash
+npm run validate:policies
+```
+
+### New utilities
+
+Check project configuration:
+
+```bash
+node src/scripts/sdlc.mjs doctor
+node src/scripts/sdlc.mjs doctor --strict
+```
+
+Bootstrap living docs index:
+
+```bash
+node src/scripts/sdlc.mjs docs-init
+node src/scripts/sdlc.mjs docs-init --force
+```
+
+### Review behavior
+
+Review rounds are recorded by default.
+
+Use:
+
+```bash
+sdlc review --target requirements --dir <change-dir> --dry-run
+```
+
+for a non-persisted review inspection.
+
+### Definition of done update
+
+For schema, policy, contract, or workflow changes, run:
+
+```bash
+npm run validate
+```
+
+For broader validation, run:
+
+```bash
+npm run check:all
 ```

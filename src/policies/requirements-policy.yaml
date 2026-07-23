@@ -1,0 +1,37 @@
+version: 1
+
+discovery:
+  lenses:
+    - stakeholder
+    - scope
+    - interface
+    - behavior
+    - design
+    - constraint
+    - failure
+    - outcome
+
+  clarity:
+    clear:
+      required_lenses:
+        - failure
+        - constraint
+      min_resolved_questions: 3
+
+    partial:
+      required_lenses:
+        - stakeholder
+        - interface
+        - failure
+        - constraint
+      min_resolved_questions: 5
+
+    vague:
+      required_lenses:
+        - stakeholder
+        - scope
+        - interface
+        - behavior
+        - failure
+        - constraint
+      min_resolved_questions: 8

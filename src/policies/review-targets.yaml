@@ -1,0 +1,26 @@
+version: 1
+
+targets:
+  requirements:
+    artifact: requirements.yaml
+    contract: requirements-contract.yaml
+    review_file: requirements-review.yaml
+    status_field: status
+
+  design:
+    artifact: design.yaml
+    contract: design-contract.yaml
+    review_file: design-review.yaml
+    status_field: status
+
+  plan:
+    artifact: plan.yaml
+    contract: plan-contract.yaml
+    review_file: plan-review.yaml
+    status_field: status
+
+  implementation:
+    artifact: plan.yaml
+    contract: implementation-contract.yaml
+    review_file: implementation-review.yaml
+    status_field: implementation_status

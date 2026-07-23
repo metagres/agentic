@@ -189,7 +189,29 @@ export function runKnowledgeExtraction(argv) {
       };
     });
 
-    entries.forEach((entry) => {
+    // sdlc-hardening: archive
+const newKeys = new Set(entries.map((entry) => entry.key));
+const archivedEntries = Array.isArray(existing?.archived_entries)
+  ? existing.archived_entries.slice()
+  : [];
+
+for (const oldEntry of existingEntries) {
+  const alreadyArchived = archivedEntries.some(
+    (a) => a?.key === oldEntry.key || a?.original_entry?.key === oldEntry.key
+  );
+
+  if (!newKeys.has(oldEntry.key) && !alreadyArchived) {
+    archivedEntries.push({
+      id: oldEntry.id,
+      key: oldEntry.key,
+      archived_reason: 'removed_from_source_artifact',
+      archived_at: today(),
+      original_entry: oldEntry,
+    });
+  }
+}
+
+entries.forEach((entry) => {
       const label = `${entry.source_artifact} ${entry.id}`;
 
       if (!entry.target_doc || typeof entry.target_doc !== 'string') {
@@ -451,6 +473,7 @@ export function runKnowledgeExtraction(argv) {
         },
         validation_errors: validationErrors,
         entries,
+        archived_entries: archivedEntries,
       };
 
       writeYamlAtomic(docsDeltaPath, doc);
@@ -498,6 +521,7 @@ export function runKnowledgeExtraction(argv) {
       },
       validation_errors: validationErrors,
       entries,
+      archived_entries: archivedEntries,
     };
 
     writeYamlAtomic(docsDeltaPath, doc);

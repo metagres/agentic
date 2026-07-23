@@ -11,16 +11,26 @@
     "sdlc": "src/scripts/sdlc.mjs"
   },
   "scripts": {
-    "test": "node --test \"test/**/*.test.mjs\"",
+    "test": "node --test test/unit/*.test.mjs test/e2e/*.test.mjs",
     "deploy": "node bin/deploy-to-agent.mjs",
     "sdlc": "node src/scripts/sdlc.mjs",
     "build": "node bin/build-runtime.mjs",
     "validate:contracts": "node bin/validate-contracts.mjs",
     "validate:templates": "node bin/validate-templates.mjs",
     "lint:artifact": "node bin/lint-artifact.mjs",
-    "validate": "npm run validate:contracts && npm run validate:templates && npm test"
+    "validate": "npm run validate:schemas && npm run validate:policies && npm run validate:contracts && npm run validate:templates && npm test",
+    "test:unit": "node --test test/unit/*.test.mjs",
+    "test:e2e": "node --test test/e2e/*.test.mjs",
+    "test:contracts": "node --test test/unit/contracts.test.mjs test/unit/contract-handlers.test.mjs",
+    "validate:schemas": "node bin/validate-schemas.mjs",
+    "validate:policies": "node bin/validate-policies.mjs",
+    "validate:fixtures": "npm run test:contracts",
+    "check:all": "npm run validate && npm run test:e2e",
+    "deploy:smoke": "node bin/deploy-to-agent.mjs --dest .tmp/agent --project-root .tmp/project --bundle --clean"
   },
   "dependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "ignore": "^7.0.6",
     "yaml": "^2.5.1"
   },

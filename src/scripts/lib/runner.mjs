@@ -11,9 +11,12 @@ import {
   parseYamlString,
 } from './yaml-io.mjs';
 import { runChecks } from './contract-checks.mjs';
+// sdlc-hardening: schema
+import { validateArtifactSchema } from './schema.mjs';
 import {
   safeReadYaml,
   loadContract,
+  requireContract,
   makeCtx,
   semanticSummary,
   loadReviewReport,
@@ -347,9 +350,14 @@ function completeStep(env) {
 }
 
 function finalizeArtifact(env) {
-  const findings = runChecks(env.artifact, env.contract, env.ctx, {
-    gate: 'finalize',
-  });
+  env.contract = requireContract(env.stage.contractFile, env.cwd, env.warnings);
+  const schemaFindings = validateArtifactSchema(env.stage.id, env.artifact, env.cwd);
+  const findings = [
+    ...schemaFindings,
+    ...runChecks(env.artifact, env.contract, env.ctx, {
+      gate: 'finalize',
+    }),
+  ];
 
   const blocking = findings.filter((f) => f.severity === 'blocking');
   const semantic = semanticSummary(env.artifact, env.contract);
@@ -834,7 +842,7 @@ export function runAuthoringStage(stageId, argv) {
           : {},
         errors: [
           {
-            code: 'INTERNAL_ERROR',
+            code: err.code || 'INTERNAL_ERROR',
             message: err.message,
           },
         ],

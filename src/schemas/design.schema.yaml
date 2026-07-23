@@ -1,0 +1,79 @@
+$schema: http://json-schema.org/draft-07/schema#
+title: Design Artifact
+type: object
+additionalProperties: true
+required:
+  - metadata
+  - context_summary
+  - components
+  - data_models
+  - apis
+  - flows
+  - decisions
+  - traceability
+  - delta
+  - semantic_validation
+properties:
+  metadata:
+    type: object
+    additionalProperties: true
+    required:
+      - id
+      - title
+      - stage
+      - status
+      - version
+      - created
+      - updated
+      - based_on_requirements
+      - delta_reviewed
+    properties:
+      id:
+        type: string
+        pattern: '^DES-[0-9]{3}$'
+      title:
+        type: string
+      stage:
+        type: string
+        const: design
+      status:
+        type: string
+        enum:
+          - draft
+          - ready-for-review
+          - accepted
+          - rejected
+          - blocked
+      version:
+        type: string
+        pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
+      created:
+        type: string
+        pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+      updated:
+        type: string
+        pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+      based_on_requirements:
+        type:
+          - string
+          - "null"
+      delta_reviewed:
+        type: boolean
+  context_summary:
+    type: string
+  components:
+    type: array
+  data_models:
+    type: array
+  apis:
+    type: array
+  flows:
+    type: array
+  decisions:
+    type: array
+  traceability:
+    type: array
+  delta:
+    type: array
+  semantic_validation:
+    type: array

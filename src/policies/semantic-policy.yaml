@@ -1,0 +1,9 @@
+version: 1
+
+semantic_validation:
+  default_min_evidence_chars: 20
+  allowed_statuses:
+    - pass
+    - fail
+    - waived
+  blocking_requires_pass: true

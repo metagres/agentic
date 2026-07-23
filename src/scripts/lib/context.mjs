@@ -52,6 +52,16 @@ export function loadContract(contractFile, cwd, warnings = []) {
   };
 }
 
+export function requireContract(contractFile, cwd, warnings = []) {
+  const contract = loadContract(contractFile, cwd, warnings);
+  if (!contract || !Array.isArray(contract.checks) || contract.checks.length === 0) {
+    const err = new Error(`Required contract not found or empty: ${contractFile}`);
+    err.code = 'CONTRACT_MISSING';
+    throw err;
+  }
+  return contract;
+}
+
 export function makeCtx(cwd, changeRoot) {
   function resolveFile(relPath) {
     if (path.isAbsolute(relPath)) {
@@ -94,7 +104,7 @@ export function makeCtx(cwd, changeRoot) {
   };
 }
 
-export function semanticSummary(artifact, contract) {
+export function semanticSummary(artifact, contract, options = {}) {
   const checks = contract?.semantic_checks || [];
 
   const results = Array.isArray(artifact?.semantic_validation)
@@ -125,7 +135,8 @@ export function semanticSummary(artifact, contract) {
 
     const evidence = String(result.evidence || '').trim();
 
-    if (evidence.length < 20) {
+    const minEvidenceChars = Number(options.minEvidenceChars || 20);
+      if (evidence.length < minEvidenceChars) {
       failed.add(check.id);
     }
 

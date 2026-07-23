@@ -214,6 +214,7 @@ function main() {
   }
 
   ensureDir(destAbs);
+ensureDir(projectRootAbs);
 
   let bundled = false;
 
@@ -276,6 +277,13 @@ function main() {
 
   copyDir(path.join(root, 'src', 'contracts'), path.join(runtimeAbs, 'contracts'));
   copyDir(path.join(root, 'src', 'templates'), path.join(runtimeAbs, 'templates'));
+// sdlc-hardening: data
+if (fs.existsSync(path.join(root, 'src', 'schemas'))) {
+  copyDir(path.join(root, 'src', 'schemas'), path.join(runtimeAbs, 'schemas'));
+}
+if (fs.existsSync(path.join(root, 'src', 'policies'))) {
+  copyDir(path.join(root, 'src', 'policies'), path.join(runtimeAbs, 'policies'));
+}
 
   const generatedSkills = [];
 
@@ -287,6 +295,8 @@ function main() {
       cliPath,
       runtimeRoot,
       templatesRoot,
+  schemasRoot: `${agentPrefix}${runtimeDir}/schemas`,
+  policiesRoot: `${agentPrefix}${runtimeDir}/policies`,
     });
 
     fs.writeFileSync(path.join(skillDir, 'SKILL.md'), content, 'utf8');
@@ -306,6 +316,10 @@ function main() {
     cliPath,
     runtimeRoot,
     templatesRoot,
+
+    schemasRoot: `${agentPrefix}${runtimeDir}/schemas`,
+
+    policiesRoot: `${agentPrefix}${runtimeDir}/policies`,
     bundled,
     skills: generatedSkills,
   };

@@ -1,39 +1,51 @@
 import { nextId, nextIdsFromArrays, today } from '../lib/ids.mjs';
 import { deltaComplete, titleFromRequest } from '../lib/stage-helpers.mjs';
+// sdlc-hardening: policy
+import { loadRequirementsPolicy } from '../lib/policy-loader.mjs';
 
 function discoveryGate(artifact) {
   const log = Array.isArray(artifact?.discovery_log)
     ? artifact.discovery_log
     : [];
-
   const resolved = log.filter((entry) => entry?.resolved === true);
   const lenses = new Set(resolved.map((entry) => entry?.lens));
-
   const clarity = artifact?.metadata?.clarity || 'partial';
 
-  const requiredByClarity = {
-    clear: ['failure', 'constraint'],
-    partial: ['stakeholder', 'interface', 'failure', 'constraint'],
-    vague: [
-      'stakeholder',
-      'scope',
-      'interface',
-      'behavior',
-      'failure',
-      'constraint',
-    ],
+  let policy = null;
+  try {
+    policy = loadRequirementsPolicy(process.cwd());
+  } catch {
+    policy = null;
+  }
+
+  const fallback = {
+    clear: {
+      required_lenses: ['failure', 'constraint'],
+      min_resolved_questions: 3,
+    },
+    partial: {
+      required_lenses: ['stakeholder', 'interface', 'failure', 'constraint'],
+      min_resolved_questions: 5,
+    },
+    vague: {
+      required_lenses: [
+        'stakeholder',
+        'scope',
+        'interface',
+        'behavior',
+        'failure',
+        'constraint',
+      ],
+      min_resolved_questions: 8,
+    },
   };
 
-  const required = requiredByClarity[clarity] || requiredByClarity.partial;
+  const clarityPolicy =
+    policy?.discovery?.clarity?.[clarity] || fallback[clarity] || fallback.partial;
+
+  const required = clarityPolicy.required_lenses || [];
   const missing = required.filter((lens) => !lenses.has(lens));
-
-  const minimumByClarity = {
-    clear: 3,
-    partial: 5,
-    vague: 8,
-  };
-
-  const minimum = minimumByClarity[clarity] || 5;
+  const minimum = Number(clarityPolicy.min_resolved_questions || 5);
 
   return {
     passed: missing.length === 0 && resolved.length >= minimum,

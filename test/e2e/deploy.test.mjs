@@ -51,6 +51,12 @@ test('deploy-to-agent generates runtime and skills without .opencode hardcoding'
   assert.ok(
     fs.existsSync(path.join(dest, 'sdlc', 'templates', 'requirements.yaml'))
   );
+assert.ok(
+  fs.existsSync(path.join(dest, 'sdlc', 'schemas', 'requirements.schema.yaml'))
+);
+assert.ok(
+  fs.existsSync(path.join(dest, 'sdlc', 'policies', 'pipeline.yaml'))
+);
 
   assert.ok(
     fs.existsSync(

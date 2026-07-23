@@ -3,6 +3,8 @@ import path from 'node:path';
 import { parseArgs, writeJson, EXIT } from '../lib/cli.mjs';
 import { safeReadYaml } from '../lib/context.mjs';
 import { requireChangeRoot } from '../lib/change-root.mjs';
+// sdlc-hardening: pipeline
+import { loadPipeline } from '../lib/policy-loader.mjs';
 
 function usage(code = EXIT.ok) {
   writeJson(
@@ -78,13 +80,22 @@ export function runStatus(argv) {
     'knowledge-extraction': knowledgeStatus,
   };
 
-  const order = [
-    'requirements',
-    'design',
-    'planning',
-    'implementation',
-    'knowledge-extraction',
-  ];
+  let order;
+  try {
+    order = Object.keys(loadPipeline(cwd).stages || {});
+  } catch {
+    order = [];
+  }
+
+  if (!Array.isArray(order) || order.length === 0) {
+    order = [
+      'requirements',
+      'design',
+      'planning',
+      'implementation',
+      'knowledge-extraction',
+    ];
+  }
 
   const rejected = order.find((key) => pipeline[key] === 'rejected');
 
