@@ -79,16 +79,13 @@ function usage(code = EXIT.usage, message = null, targets = FALLBACK_TARGETS) {
         known_targets: Object.keys(targets),
       },
       errors:
-        code === EXIT.ok
-          ? []
-          : [
-              {
-                code: 'USAGE',
-                message:
-                  message ||
-                  'review requires --target <requirements|design|plan|implementation> and --dir <change-dir>',
-              },
-            ],
+code === EXIT.ok
+? []
+: [makeError('USAGE', {
+message:
+message ||
+'review requires --target <requirements|design|plan|implementation> and --dir <change-dir>',
+})],
       warnings: [],
     },
     code
@@ -134,12 +131,7 @@ export function runReview(argv) {
           target,
           target_artifact: cfg.artifact,
         },
-        errors: [
-          {
-            code: 'MISSING_CHANGE_DIR',
-            message: 'A change directory is required. Use --dir <change-dir>.',
-          },
-        ],
+        errors: [makeError('MISSING_CHANGE_DIR')],
         warnings: [],
       },
       EXIT.usage
@@ -163,15 +155,13 @@ export function runReview(argv) {
             candidates: err.candidates || [],
           },
           errors: [
-            {
-              code:
-                err.candidates && err.candidates.length > 0
-                  ? 'AMBIGUOUS_CHANGE_DIR'
-                  : 'CHANGE_DIR_NOT_FOUND',
-              message: err.message,
-              candidates: err.candidates || [],
-            },
-          ],
+makeError(
+err.candidates && err.candidates.length > 0
+? 'AMBIGUOUS_CHANGE_DIR'
+: 'CHANGE_DIR_NOT_FOUND',
+{ message: err.message, candidates: err.candidates || [] }
+),
+],
           warnings: [],
         },
         EXIT.ambiguous
@@ -192,12 +182,7 @@ export function runReview(argv) {
           target_artifact: cfg.artifact,
           change_root: changeRoot,
         },
-        errors: [
-          {
-            code: 'CONFLICTING_DECISION',
-            message: 'Use either --accept or --reject, not both.',
-          },
-        ],
+        errors: [makeError('CONFLICTING_DECISION')],
         warnings: [],
       },
       EXIT.usage
@@ -221,12 +206,7 @@ export function runReview(argv) {
             artifact: artifactPath,
             change_root: changeRoot,
           },
-          errors: [
-            {
-              code: 'ARTIFACT_NOT_FOUND',
-              message: `No ${cfg.artifact} found in ${changeRoot}.`,
-            },
-          ],
+          errors: [makeError('ARTIFACT_NOT_FOUND', { message: `No ${cfg.artifact} found in ${changeRoot}.` })],
           warnings: [],
         },
         EXIT.actionFailed
@@ -294,12 +274,7 @@ export function runReview(argv) {
             artifact: artifactPath,
             change_root: changeRoot,
           },
-          errors: [
-            {
-              code: 'CHECK_RUN_FAILED',
-              message: err.message,
-            },
-          ],
+          errors: [makeError('CHECK_RUN_FAILED', { message: err.message })],
           warnings,
         },
         EXIT.internal
@@ -311,16 +286,51 @@ export function runReview(argv) {
     const blocking = findings.filter((f) => f.severity === 'blocking');
     const nonBlocking = findings.filter((f) => f.severity !== 'blocking');
 
-    let semanticOptions = {};
-    try {
-      const semanticPolicy = loadSemanticPolicy(cwd);
-      semanticOptions = {
-        minEvidenceChars:
-          semanticPolicy?.semantic_validation?.default_min_evidence_chars,
-      };
-    } catch {
-      semanticOptions = {};
-    }
+    let semanticPolicy;
+try {
+semanticPolicy = loadSemanticPolicy(cwd);
+} catch (err) {
+writeJson(
+{
+...base,
+state: 'blocked',
+instructions: err.message,
+data: {
+target,
+target_artifact: cfg.artifact,
+artifact: artifactPath,
+change_root: changeRoot,
+},
+errors: [makeError('POLICY_INVALID', { message: err.message })],
+warnings,
+},
+EXIT.internal
+);
+return;
+}
+const minEvidenceChars =
+semanticPolicy?.semantic_validation?.default_min_evidence_chars;
+if (!(Number(minEvidenceChars) > 0)) {
+writeJson(
+{
+...base,
+state: 'blocked',
+instructions:
+'semantic-policy.yaml must define semantic_validation.default_min_evidence_chars as a positive number.',
+data: {
+target,
+target_artifact: cfg.artifact,
+artifact: artifactPath,
+change_root: changeRoot,
+},
+errors: [makeError('POLICY_INVALID')],
+warnings,
+},
+EXIT.internal
+);
+return;
+}
+const semanticOptions = { minEvidenceChars };
 
     const semantic = semanticSummary(artifact, contract, semanticOptions);
     const currentStatus = artifact?.metadata?.[cfg.status_field];
@@ -404,10 +414,7 @@ let lifecycle = {};
         state = 'blocked';
         instructions = `The ${target} artifact cannot be accepted yet. It must be ready-for-review, have no blocking findings, and have complete semantic validation.`;
 
-        errors.push({
-          code: 'CANNOT_ACCEPT',
-          message: `ready_for_review=${readyForReview}, blocking=${blocking.length}, semantic_complete=${semantic.complete}`,
-        });
+        errors.push(makeError('CANNOT_ACCEPT', { message: `ready_for_review=${readyForReview}, blocking=${blocking.length}, semantic_complete=${semantic.complete}` }));
       }
     } else if (args.reject) {
       decision = 'rejected';
@@ -448,10 +455,7 @@ let lifecycle = {};
       }
 
       if (!canAccept) {
-        errors.push({
-          code: 'REVIEW_NOT_PASSING',
-          message: `ready_for_review=${readyForReview}, blocking=${blocking.length}, semantic_complete=${semantic.complete}`,
-        });
+        errors.push(makeError('REVIEW_NOT_PASSING', { message: `ready_for_review=${readyForReview}, blocking=${blocking.length}, semantic_complete=${semantic.complete}` }));
       }
     }
 
@@ -575,12 +579,7 @@ const debug = args.debug
           target_artifact: cfg.artifact,
           change_root: changeRoot,
         },
-        errors: [
-          {
-            code: 'INTERNAL_ERROR',
-            message: err.message,
-          },
-        ],
+        errors: [makeError('INTERNAL_ERROR', { message: err.message })],
         warnings: [],
       },
       EXIT.internal

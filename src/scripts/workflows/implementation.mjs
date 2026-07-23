@@ -159,12 +159,7 @@ export function runImplementation(argv) {
             change_root: changeRoot,
             plan: planPath,
           },
-          errors: [
-            {
-              code: 'PLAN_NOT_FOUND',
-              message: `No plan.yaml found in ${changeRoot}.`,
-            },
-          ],
+          errors: [makeError('PLAN_NOT_FOUND', { message: `No plan.yaml found in ${changeRoot}.` })],
           warnings: [],
         },
         EXIT.actionFailed
@@ -192,12 +187,7 @@ export function runImplementation(argv) {
               change_root: changeRoot,
               plan: planPath,
             },
-            errors: [
-              {
-                code: 'MISSING_TASK_UPDATE_FIELDS',
-                message: 'Updating a task requires both --task-id and --status.',
-              },
-            ],
+            errors: [makeError('MISSING_TASK_UPDATE_FIELDS')],
             warnings: [],
           },
           EXIT.usage
@@ -220,12 +210,7 @@ export function runImplementation(argv) {
               task_id: taskId,
               allowed_task_status: ALLOWED_TASK_STATUS,
             },
-            errors: [
-              {
-                code: 'INVALID_TASK_STATUS',
-                message: `Invalid task status: ${status}`,
-              },
-            ],
+            errors: [makeError('INVALID_TASK_STATUS', { message: `Invalid task status: ${status}` })],
             warnings: [],
           },
           EXIT.usage
@@ -246,12 +231,7 @@ export function runImplementation(argv) {
               task_id: taskId,
               known_task_ids: plan.tasks.map((t) => t?.id).filter(Boolean),
             },
-            errors: [
-              {
-                code: 'TASK_NOT_FOUND',
-                message: `Task ${taskId} not found in plan.yaml.`,
-              },
-            ],
+            errors: [makeError('TASK_NOT_FOUND', { message: `Task ${taskId} not found in plan.yaml.` })],
             warnings: [],
           },
           EXIT.actionFailed
@@ -414,12 +394,7 @@ plan.metadata.implementation_status = nextImplementationStatus;
         data: {
           change_root: changeRoot,
         },
-        errors: [
-          {
-            code: 'INTERNAL_ERROR',
-            message: err.message,
-          },
-        ],
+        errors: [makeError('INTERNAL_ERROR', { message: err.message })],
         warnings: [],
       },
       EXIT.internal

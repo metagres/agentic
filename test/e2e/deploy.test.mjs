@@ -59,10 +59,44 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
     );
   }
 
-  assert.ok(
-    fs.existsSync(path.join(dest, 'skills', 'requirements-authoring', 'SKILL.md')),
-    'missing generated skills'
-  );
+  const expectedContracts = [
+'requirements-contract.yaml',
+'design-contract.yaml',
+'plan-contract.yaml',
+'implementation-contract.yaml'
+];
+for (const file of expectedContracts) {
+assert.ok(
+fs.existsSync(path.join(dest, 'sdlc', 'contracts', file)),
+`missing deployed contract: ${file}`
+);
+}
+
+const expectedTemplates = [
+'requirements.yaml',
+'design.yaml',
+'plan.yaml',
+'docs-current-index.md'
+];
+for (const file of expectedTemplates) {
+assert.ok(
+fs.existsSync(path.join(dest, 'sdlc', 'templates', file)),
+`missing deployed template: ${file}`
+);
+}
+
+assert.ok(
+fs.existsSync(path.join(dest, 'sdlc', 'manifest.json')),
+'missing deployed manifest'
+);
+assert.ok(
+fs.existsSync(path.join(dest, 'sdlc', 'scripts', 'sdlc.mjs')),
+'missing runtime CLI'
+);
+assert.ok(
+fs.existsSync(path.join(dest, 'skills', 'requirements-authoring', 'SKILL.md')),
+'missing generated skills'
+);
 
   const cliPath = path.join(dest, 'sdlc', 'scripts', 'sdlc.mjs');
   const cli = spawnSync(process.execPath, [cliPath, '--list-workflows'], {

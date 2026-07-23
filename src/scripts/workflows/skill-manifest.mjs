@@ -121,6 +121,7 @@ export const skillDefinitions = [
       'node "$SDLC_CLI" design --dir <change-dir> --append-delta < delta.yaml',
       'node "$SDLC_CLI" design --dir <change-dir> --complete-step --step delta',
       'node "$SDLC_CLI" design --dir <change-dir> --finalize',
+'node "$SDLC_CLI" design --dir <change-dir> --strict',
     ],
   },
   {
@@ -176,6 +177,7 @@ export const skillDefinitions = [
       'node "$SDLC_CLI" planning --dir <change-dir> --append-delta < delta.yaml',
       'node "$SDLC_CLI" planning --dir <change-dir> --complete-step --step delta',
       'node "$SDLC_CLI" planning --dir <change-dir> --finalize',
+'node "$SDLC_CLI" planning --dir <change-dir> --strict',
     ],
   },
   {
@@ -243,6 +245,7 @@ export const skillDefinitions = [
       'node "$SDLC_CLI" review --target plan --dir <change-dir> --dry-run',
       'node "$SDLC_CLI" review --target implementation --dir <change-dir> --dry-run',
 'node "$SDLC_CLI" review --target requirements --dir <change-dir> --strict',
+'node "$SDLC_CLI" doctor',
     ],
   },
   {

@@ -90,3 +90,43 @@ errors:
   TEMPLATES_MISSING:
     message: No templates directory found.
     fix: Deploy or restore the runtime templates.
+
+  USAGE:
+    message: Invalid command usage.
+    fix: Check required flags and try again.
+  UNKNOWN_STAGE_FILTER:
+    message: Unknown stage filter.
+    fix: Use --stage requirements, design, or planning.
+  MISSING_EXTRACTION_NOTE:
+    message: Marking a docs-delta entry extracted requires a note.
+    fix: Provide --note with at least 10 characters.
+  MISSING_MARK_TARGET:
+    message: Marking extracted requires an entry id or target doc.
+    fix: Provide --entry-id or --target-doc.
+  ENTRY_ID_NOT_FOUND:
+    message: No docs-delta entry matched the provided entry id.
+    fix: Use a valid DD-... entry id from docs-delta.yaml.
+  TARGET_DOC_NOT_FOUND:
+    message: No docs-delta entries matched the provided target doc.
+    fix: Use a target_doc listed in docs-delta.yaml.
+  UNPLANNED_FILE:
+    message: A task changed a file not listed in the plan.
+    fix: Update the plan or explain the incidental change.
+  PREVIOUS_STAGE_NOT_READY:
+    message: A previous stage artifact is not ready or accepted.
+    fix: Complete the previous stage before finalizing this stage.
+  REQUIREMENTS_NOT_READY:
+    message: Requirements are not ready or accepted.
+    fix: Complete requirements before finalizing downstream stages.
+  ARTIFACT_INITIALIZED:
+    message: A new artifact was initialized.
+    fix: Continue the workflow and fill in the artifact.
+  DOCS_DELTA_VALIDATION:
+    message: Docs-delta validation found problems.
+    fix: Fix docs-delta entries before completing knowledge extraction.
+  NODE_VERSION_UNSUPPORTED:
+    message: Node.js version is not supported.
+    fix: Use Node.js 20 or newer.
+  MANIFEST_INVALID:
+    message: Deployed runtime manifest is invalid.
+    fix: Redeploy the runtime with bin/deploy-to-agent.mjs.

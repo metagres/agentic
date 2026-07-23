@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import { parseArgs, writeJson, EXIT } from '../lib/cli.mjs';
 import { writeYamlAtomic } from '../lib/yaml-io.mjs';
-import { safeReadYaml } from '../lib/context.mjs';
+import { safeReadYaml, requireContract } from '../lib/context.mjs';
 import { requireChangeRoot } from '../lib/change-root.mjs';
 
 import {
@@ -15,21 +15,24 @@ import { loadPipeline } from '../lib/policy-loader.mjs';
 import { makeError } from '../lib/error-catalog.mjs';
 
 const FALLBACK_STAGE_ARTIFACTS = [
-  {
-    stage: 'requirements',
-    file: 'requirements.yaml',
-    phase: 'Requirements',
-  },
-  {
-    stage: 'design',
-    file: 'design.yaml',
-    phase: 'Design',
-  },
-  {
-    stage: 'planning',
-    file: 'plan.yaml',
-    phase: 'Planning',
-  },
+{
+stage: 'requirements',
+file: 'requirements.yaml',
+phase: 'Requirements',
+contract: 'requirements-contract.yaml',
+},
+{
+stage: 'design',
+file: 'design.yaml',
+phase: 'Design',
+contract: 'design-contract.yaml',
+},
+{
+stage: 'planning',
+file: 'plan.yaml',
+phase: 'Planning',
+contract: 'plan-contract.yaml',
+},
 ];
 
 function getStageArtifacts(cwd) {
@@ -47,10 +50,11 @@ function getStageArtifacts(cwd) {
           sourceArtifacts.includes(cfg.artifact)
         ) {
           out.push({
-            stage: stageId,
-            file: cfg.artifact,
-            phase: cfg.delta_phase,
-          });
+stage: stageId,
+file: cfg.artifact,
+phase: cfg.delta_phase,
+contract: cfg.contract,
+});
         }
       }
     }
@@ -140,12 +144,7 @@ const stageFilter = args.stage;
         data: {
           known_stages: stageArtifacts.map((cfg) => cfg.stage),
         },
-        errors: [
-          {
-            code: 'UNKNOWN_STAGE_FILTER',
-            message: `Unknown stage filter: ${stageFilter}`,
-          },
-        ],
+        errors: [makeError('UNKNOWN_STAGE_FILTER', { message: `Unknown stage filter: ${stageFilter}` })],
         warnings: [],
       },
       EXIT.usage
@@ -155,6 +154,34 @@ const stageFilter = args.stage;
   try {
     const collected = [];
     const warnings = [];
+
+if (args.complete) {
+for (const cfg of stageArtifacts) {
+if (stageFilter && cfg.stage !== stageFilter) continue;
+if (!cfg.contract) continue;
+const contractArtifactPath = path.join(changeRoot, cfg.file);
+if (!safeReadYaml(contractArtifactPath)) continue;
+try {
+requireContract(cfg.contract, cwd, warnings);
+} catch (err) {
+writeJson(
+{
+...base,
+state: 'blocked',
+instructions: err.message,
+data: {
+change_root: changeRoot,
+missing_contract: cfg.contract,
+},
+errors: [makeError('CONTRACT_MISSING', { message: err.message })],
+warnings,
+},
+EXIT.internal
+);
+return;
+}
+}
+}
 
     for (const cfg of stageArtifacts) {
       if (stageFilter && cfg.stage !== stageFilter) continue;
@@ -381,13 +408,7 @@ if (args['mark-extracted']) {
               change_root: changeRoot,
               docs_delta: docsDeltaPath,
             },
-            errors: [
-              {
-                code: 'MISSING_EXTRACTION_NOTE',
-                message:
-                  '--mark-extracted requires --note with at least 10 characters.',
-              },
-            ],
+            errors: [makeError('MISSING_EXTRACTION_NOTE')],
             warnings,
           },
           EXIT.usage
@@ -420,12 +441,7 @@ if (args['mark-extracted']) {
                 entry_id: entryId,
                 entries,
               },
-              errors: [
-                {
-                  code: 'ENTRY_ID_NOT_FOUND',
-                  message: `No docs-delta entry found with id: ${entryId}`,
-                },
-              ],
+              errors: [makeError('ENTRY_ID_NOT_FOUND', { message: `No docs-delta entry found with id: ${entryId}` })],
               warnings,
             },
             EXIT.actionFailed
@@ -455,12 +471,7 @@ if (args['mark-extracted']) {
                 target_doc: targetDoc,
                 entries,
               },
-              errors: [
-                {
-                  code: 'TARGET_DOC_NOT_FOUND',
-                  message: `No docs-delta entries found for target_doc: ${targetDoc}`,
-                },
-              ],
+              errors: [makeError('TARGET_DOC_NOT_FOUND', { message: `No docs-delta entries found for target_doc: ${targetDoc}` })],
               warnings,
             },
             EXIT.actionFailed
@@ -477,13 +488,7 @@ if (args['mark-extracted']) {
               change_root: changeRoot,
               docs_delta: docsDeltaPath,
             },
-            errors: [
-              {
-                code: 'MISSING_MARK_TARGET',
-                message:
-                  '--mark-extracted requires --entry-id or --target-doc.',
-              },
-            ],
+            errors: [makeError('MISSING_MARK_TARGET')],
             warnings,
           },
           EXIT.usage
@@ -541,15 +546,7 @@ if (args['mark-extracted']) {
             validation_errors: validationErrors,
             entries,
           },
-          errors: [
-            {
-              code: 'CANNOT_COMPLETE',
-              message:
-                `all_extracted=${allExtracted}, ` +
-                `validation_errors=${validationErrors.length}, ` +
-                `implementation_accepted=${implementationOk}`,
-            },
-          ],
+          errors: [makeError('CANNOT_COMPLETE', { message: `all_extracted=${allExtracted}, validation_errors=${validationErrors.length}, implementation_accepted=${implementationOk}` })],
           warnings,
         },
         EXIT.actionFailed
@@ -633,12 +630,7 @@ if (strictErrors.length > 0) {
         data: {
           change_root: changeRoot,
         },
-        errors: [
-          {
-            code: 'INTERNAL_ERROR',
-            message: err.message,
-          },
-        ],
+        errors: [makeError('INTERNAL_ERROR', { message: err.message })],
         warnings: [],
       },
       EXIT.internal

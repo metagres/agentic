@@ -22,7 +22,8 @@ const commands = [
   ['review', '--help'],
   ['knowledge-extraction', '--help'],
   ['status'],
-  ['doctor'],
+['status', '--help'],
+['doctor'],
 ];
 
 for (const args of commands) {

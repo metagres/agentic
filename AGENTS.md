@@ -568,3 +568,16 @@ src/policies/ids.yaml
 ```
 
 When adding new error codes or ID prefixes, update these catalogs and relevant tests.
+
+## 12. Docs-delta archive, conformance, and editor notes
+
+- Gate operations fail closed when required contracts are missing. This includes review, finalize, lint, and `knowledge-extraction --complete`.
+- `docs-delta.yaml` preserves removed entries under `archived_entries`. Archived entries are historical and are not treated as pending extraction work.
+- Contract fixture manifest lives at `test/contracts/manifest.yaml`. Add contract fixtures under `test/contracts/<contract>/` and update the manifest.
+- CLI envelope conformance is tested by `test/e2e/cli-envelope.test.mjs`.
+- Full pipeline conformance is tested by `test/e2e/full-pipeline.test.mjs`.
+- Reject/recover behavior is tested by `test/e2e/reject-recover.test.mjs`.
+- Review history behavior is tested by `test/e2e/review-history.test.mjs`.
+- Run `npm run deploy:smoke` or `npm run check:all` when deployment, schemas, policies, contracts, templates, or skills change.
+- Templates include `yaml-language-server` schema hints for editors.
+- `sdlc doctor` checks Node version, contracts, schemas, policies, templates, CLI envelope schema, deployed manifest consistency, docs index, and optional `--dir` validity.
