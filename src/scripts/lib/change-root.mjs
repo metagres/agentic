@@ -3,6 +3,7 @@ import {
   ResolveRootError,
 } from './resolve-root.mjs';
 import { writeJson, EXIT } from './cli.mjs';
+import { makeError } from './error-catalog.mjs';
 
 export function requireChangeRoot(args, cwd, base) {
   if (!args.dir) {
@@ -12,12 +13,7 @@ export function requireChangeRoot(args, cwd, base) {
         state: 'blocked',
         instructions: 'Provide --dir <change-dir>.',
         data: {},
-        errors: [
-          {
-            code: 'MISSING_CHANGE_DIR',
-            message: 'A change directory is required. Use --dir <change-dir>.',
-          },
-        ],
+        errors: [makeError('MISSING_CHANGE_DIR')],
         warnings: [],
       },
       EXIT.usage
@@ -29,6 +25,11 @@ export function requireChangeRoot(args, cwd, base) {
     return resolveRootOrError(String(args.dir), { cwd });
   } catch (err) {
     if (err instanceof ResolveRootError) {
+      const code =
+        err.candidates && err.candidates.length > 0
+          ? 'AMBIGUOUS_CHANGE_DIR'
+          : 'CHANGE_DIR_NOT_FOUND';
+
       writeJson(
         {
           ...base,
@@ -38,14 +39,10 @@ export function requireChangeRoot(args, cwd, base) {
             candidates: err.candidates || [],
           },
           errors: [
-            {
-              code:
-                err.candidates && err.candidates.length > 0
-                  ? 'AMBIGUOUS_CHANGE_DIR'
-                  : 'CHANGE_DIR_NOT_FOUND',
+            makeError(code, {
               message: err.message,
               candidates: err.candidates || [],
-            },
+            }),
           ],
           warnings: [],
         },
@@ -53,7 +50,6 @@ export function requireChangeRoot(args, cwd, base) {
       );
       return null;
     }
-
     throw err;
   }
 }

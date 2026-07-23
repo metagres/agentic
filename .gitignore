@@ -8,3 +8,4 @@ package-lock.json
 llm_context.txt
 review.txt
 .tmp/
+temp/

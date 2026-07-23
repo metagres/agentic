@@ -5,6 +5,9 @@ import { writeYamlAtomic } from '../lib/yaml-io.mjs';
 import { safeReadYaml } from '../lib/context.mjs';
 import { requireChangeRoot } from '../lib/change-root.mjs';
 import { today } from '../lib/ids.mjs';
+import { loadLifecycle } from '../lib/policy-loader.mjs';
+import { assertTransition } from '../lib/lifecycle.mjs';
+import { makeError } from '../lib/error-catalog.mjs';
 
 const ALLOWED_TASK_STATUS = [
   'pending',
@@ -301,17 +304,56 @@ export function runImplementation(argv) {
     const progress = computeProgress(plan);
 
     const previousImplementationStatus =
-      plan.metadata.implementation_status || null;
+  plan.metadata.implementation_status || null;
 
-    if (progress.complete) {
-      plan.metadata.implementation_status = 'ready-for-review';
-    } else if (progress.in_progress > 0 || progress.done > 0) {
-      plan.metadata.implementation_status = 'in_progress';
-    } else if (mutation && previousImplementationStatus === 'accepted') {
-      plan.metadata.implementation_status = 'in_progress';
-    } else if (!previousImplementationStatus) {
-      plan.metadata.implementation_status = 'pending';
-    }
+let nextImplementationStatus = previousImplementationStatus;
+if (progress.complete) {
+  nextImplementationStatus = 'ready-for-review';
+} else if (progress.in_progress > 0 || progress.done > 0) {
+  nextImplementationStatus = 'in_progress';
+} else if (mutation && previousImplementationStatus === 'accepted') {
+  nextImplementationStatus = 'in_progress';
+} else if (!previousImplementationStatus) {
+  nextImplementationStatus = 'pending';
+}
+
+if (
+  previousImplementationStatus &&
+  nextImplementationStatus &&
+  previousImplementationStatus !== nextImplementationStatus
+) {
+  try {
+    assertTransition(
+      loadLifecycle(cwd),
+      'implementation_status',
+      previousImplementationStatus,
+      nextImplementationStatus
+    );
+  } catch (err) {
+    writeJson(
+      {
+        ...base,
+        state: 'blocked',
+        instructions: err.message,
+        data: {
+          change_root: changeRoot,
+          plan: planPath,
+        },
+        errors: [
+          makeError(err.code || 'ILLEGAL_STATUS_TRANSITION', {
+            message: err.message,
+          }),
+        ],
+        warnings,
+      },
+      EXIT.actionFailed
+    );
+    return;
+  }
+}
+
+plan.metadata.implementation_status = nextImplementationStatus;
+
 
     plan.metadata.updated = today();
 

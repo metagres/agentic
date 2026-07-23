@@ -21,7 +21,6 @@ tasks:
     acceptance_ids:
       - AC-001
       - AC-002
-    implementation_note: "Implemented endpoint and verified with tests."
     files_changed:
       - path: src/devices.js
         operation: create

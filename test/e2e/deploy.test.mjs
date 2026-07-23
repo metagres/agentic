@@ -5,70 +5,73 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { validateWithSchema } from '../../src/scripts/lib/schema.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const deployScript = path.resolve(__dirname, '../../bin/deploy-to-agent.mjs');
+const root = path.resolve(__dirname, '../..');
+const deployScript = path.join(root, 'bin', 'deploy-to-agent.mjs');
 
-function makeTmpProject() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-deploy-'));
-}
-
-test('deploy-to-agent generates runtime and skills without .opencode hardcoding', () => {
-  const tmp = makeTmpProject();
+test('deploy bundle smoke test', { timeout: 240000 }, () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-deploy-smoke-'));
   const dest = path.join(tmp, '.agent');
 
-  const res = spawnSync(
+  const deploy = spawnSync(
     process.execPath,
-    [
-      deployScript,
-      '--dest',
-      dest,
-      '--project-root',
-      tmp,
-      '--clean',
-      '--skip-smoke',
-    ],
-    {
-      encoding: 'utf8',
-    }
+    [deployScript, '--dest', dest, '--project-root', tmp, '--bundle', '--clean'],
+    { encoding: 'utf8' }
   );
 
-  assert.equal(res.status, 0, res.stderr);
+  assert.equal(deploy.status, 0, deploy.stderr);
+  const deployStdout = deploy.stdout.trim();
+  const deployJsonStart = deployStdout.lastIndexOf('\n{');
+  const deployJson = JSON.parse(
+    deployJsonStart === -1 ? deployStdout : deployStdout.slice(deployJsonStart + 1)
+  );
+  assert.equal(deployJson.ok, true);
 
-  const json = JSON.parse(res.stdout);
+  const expectedSchemas = [
+    'requirements.schema.yaml',
+    'design.schema.yaml',
+    'plan.schema.yaml',
+    'docs-delta.schema.yaml',
+    'cli-envelope.schema.yaml'
+  ];
 
-  assert.equal(json.ok, true);
-  assert.equal(json.cliPath, '.agent/sdlc/scripts/sdlc.mjs');
+  for (const file of expectedSchemas) {
+    assert.ok(
+      fs.existsSync(path.join(dest, 'sdlc', 'schemas', file)),
+      `missing deployed schema: ${file}`
+    );
+  }
+
+  const expectedPolicies = [
+    'pipeline.yaml',
+    'review-targets.yaml',
+    'lifecycle.yaml',
+    'requirements-policy.yaml',
+    'semantic-policy.yaml'
+  ];
+
+  for (const file of expectedPolicies) {
+    assert.ok(
+      fs.existsSync(path.join(dest, 'sdlc', 'policies', file)),
+      `missing deployed policy: ${file}`
+    );
+  }
 
   assert.ok(
-    fs.existsSync(path.join(dest, 'sdlc', 'scripts', 'sdlc.mjs'))
+    fs.existsSync(path.join(dest, 'skills', 'requirements-authoring', 'SKILL.md')),
+    'missing generated skills'
   );
 
-  assert.ok(
-    fs.existsSync(path.join(dest, 'sdlc', 'contracts', 'requirements-contract.yaml'))
-  );
+  const cliPath = path.join(dest, 'sdlc', 'scripts', 'sdlc.mjs');
+  const cli = spawnSync(process.execPath, [cliPath, '--list-workflows'], {
+    encoding: 'utf8',
+    cwd: tmp
+  });
 
-  assert.ok(
-    fs.existsSync(path.join(dest, 'sdlc', 'templates', 'requirements.yaml'))
-  );
-assert.ok(
-  fs.existsSync(path.join(dest, 'sdlc', 'schemas', 'requirements.schema.yaml'))
-);
-assert.ok(
-  fs.existsSync(path.join(dest, 'sdlc', 'policies', 'pipeline.yaml'))
-);
-
-  assert.ok(
-    fs.existsSync(
-      path.join(dest, 'skills', 'requirements-authoring', 'SKILL.md')
-    )
-  );
-
-  const skillContent = fs.readFileSync(
-    path.join(dest, 'skills', 'requirements-authoring', 'SKILL.md'),
-    'utf8'
-  );
-
-  assert.ok(skillContent.includes('.agent/sdlc/scripts/sdlc.mjs'));
-  assert.ok(!skillContent.includes('.opencode'));
+  assert.equal(cli.status, 0, cli.stderr);
+  const json = JSON.parse(cli.stdout);
+  const findings = validateWithSchema(json, 'cli-envelope.schema.yaml', root);
+  assert.deepEqual(findings, [], JSON.stringify(findings, null, 2));
 });

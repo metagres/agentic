@@ -22,6 +22,22 @@ cases:
       blocking_includes:
         - ac_ids_reference
 
+  - name: requirements_invalid_given_when_then
+    contract: requirements
+    artifact: requirements/invalid-given-when-then.yaml
+    gate: review
+    expect:
+      blocking_includes:
+        - given_when_then
+
+  - name: requirements_invalid_forbidden_word
+    contract: requirements
+    artifact: requirements/invalid-forbidden-word.yaml
+    gate: review
+    expect:
+      blocking_includes:
+        - forbidden_words_problem_statement
+
   - name: design_valid
     contract: design
     artifact: design/valid.yaml
@@ -40,6 +56,26 @@ cases:
     expect:
       blocking_includes:
         - component_id_format
+
+  - name: design_invalid_traceability_reference
+    contract: design
+    artifact: design/invalid-traceability-reference.yaml
+    gate: review
+    refs:
+      requirements.yaml: requirements/valid.yaml
+    expect:
+      blocking_includes:
+        - traceability_requirement_reference
+
+  - name: design_invalid_decision_status
+    contract: design
+    artifact: design/invalid-decision-status.yaml
+    gate: review
+    refs:
+      requirements.yaml: requirements/valid.yaml
+    expect:
+      blocking_includes:
+        - decision_status_enum
 
   - name: plan_valid
     contract: plan
@@ -62,6 +98,39 @@ cases:
       blocking_includes:
         - graph_acyclic
 
+  - name: plan_invalid_file_op_order
+    contract: plan
+    artifact: plan/invalid-file-op-order.yaml
+    gate: review
+    refs:
+      requirements.yaml: requirements/valid.yaml
+      design.yaml: design/valid.yaml
+    expect:
+      blocking_includes:
+        - file_op_order
+
+  - name: plan_invalid_task_status
+    contract: plan
+    artifact: plan/invalid-task-status.yaml
+    gate: review
+    refs:
+      requirements.yaml: requirements/valid.yaml
+      design.yaml: design/valid.yaml
+    expect:
+      blocking_includes:
+        - task_status_enum
+
+  - name: plan_invalid_requirement_coverage
+    contract: plan
+    artifact: plan/invalid-requirement-coverage.yaml
+    gate: review
+    refs:
+      requirements.yaml: requirements/valid.yaml
+      design.yaml: design/valid.yaml
+    expect:
+      blocking_includes:
+        - requirement_task_coverage
+
   - name: implementation_valid
     contract: implementation
     artifact: implementation/valid.yaml
@@ -76,3 +145,19 @@ cases:
     expect:
       blocking_includes:
         - task_status_enum
+
+  - name: implementation_invalid_incomplete_tasks
+    contract: implementation
+    artifact: implementation/invalid-incomplete-tasks.yaml
+    gate: review
+    expect:
+      blocking_includes:
+        - tasks_all_complete
+
+  - name: implementation_invalid_missing_note
+    contract: implementation
+    artifact: implementation/invalid-missing-note.yaml
+    gate: review
+    expect:
+      blocking_includes:
+        - execution_note_required

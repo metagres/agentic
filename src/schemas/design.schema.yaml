@@ -1,79 +1,304 @@
-$schema: http://json-schema.org/draft-07/schema#
-title: Design Artifact
-type: object
-additionalProperties: true
-required:
-  - metadata
-  - context_summary
-  - components
-  - data_models
-  - apis
-  - flows
-  - decisions
-  - traceability
-  - delta
-  - semantic_validation
-properties:
-  metadata:
-    type: object
-    additionalProperties: true
-    required:
-      - id
-      - title
-      - stage
-      - status
-      - version
-      - created
-      - updated
-      - based_on_requirements
-      - delta_reviewed
-    properties:
-      id:
-        type: string
-        pattern: '^DES-[0-9]{3}$'
-      title:
-        type: string
-      stage:
-        type: string
-        const: design
-      status:
-        type: string
-        enum:
-          - draft
-          - ready-for-review
-          - accepted
-          - rejected
-          - blocked
-      version:
-        type: string
-        pattern: '^[0-9]+\.[0-9]+\.[0-9]+$'
-      created:
-        type: string
-        pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-      updated:
-        type: string
-        pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-      based_on_requirements:
-        type:
-          - string
-          - "null"
-      delta_reviewed:
-        type: boolean
-  context_summary:
-    type: string
-  components:
-    type: array
-  data_models:
-    type: array
-  apis:
-    type: array
-  flows:
-    type: array
-  decisions:
-    type: array
-  traceability:
-    type: array
-  delta:
-    type: array
-  semantic_validation:
-    type: array
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Design Artifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "metadata",
+    "context_summary",
+    "components",
+    "data_models",
+    "apis",
+    "flows",
+    "decisions",
+    "traceability",
+    "delta",
+    "semantic_validation"
+  ],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "stage",
+        "status",
+        "version",
+        "created",
+        "updated",
+        "based_on_requirements",
+        "delta_reviewed"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^DES-[0-9]{3}$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "stage": {
+          "type": "string",
+          "const": "design"
+        },
+        "step": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "ready-for-review",
+            "accepted",
+            "rejected",
+            "blocked"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "created": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "updated": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "based_on_requirements": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "delta_reviewed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "context_summary": {
+      "type": "string"
+    },
+    "components": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "name",
+          "responsibility"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^CMP-[0-9]{3}$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "responsibility": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "data_models": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^DM-[0-9]{3}$"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "apis": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "path",
+          "method"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^API-[0-9]{3}$"
+          },
+          "path": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "flows": {
+      "type": "array"
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "title",
+          "context",
+          "decision",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^DEC-[0-9]{3}$"
+          },
+          "title": {
+            "type": "string"
+          },
+          "context": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "accepted",
+              "rejected",
+              "superseded"
+            ]
+          }
+        }
+      }
+    },
+    "traceability": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "requirement_id",
+          "component_ids"
+        ],
+        "properties": {
+          "requirement_id": {
+            "type": "string",
+            "pattern": "^(FR|NFR)-[0-9]{3}$"
+          },
+          "component_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^CMP-[0-9]{3}$"
+            }
+          }
+        }
+      }
+    },
+    "delta": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "phase",
+          "target_doc",
+          "change",
+          "reason",
+          "date"
+        ],
+        "properties": {
+          "phase": {
+            "type": "string",
+            "enum": [
+              "Design"
+            ]
+          },
+          "target_doc": {
+            "type": "string"
+          },
+          "target_anchor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "entity_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "change": {
+            "type": "string",
+            "enum": [
+              "Add",
+              "Modify",
+              "Remove"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+          }
+        }
+      }
+    },
+    "semantic_validation": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "check_id",
+          "status",
+          "evidence",
+          "evaluated_at"
+        ],
+        "properties": {
+          "check_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "waived"
+            ]
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "evaluated_at": {
+            "type": "string",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+          }
+        }
+      }
+    }
+  }
+}

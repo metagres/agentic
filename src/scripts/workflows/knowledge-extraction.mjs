@@ -11,8 +11,10 @@ import {
 } from '../lib/docs-index.mjs';
 
 import { today } from '../lib/ids.mjs';
+import { loadPipeline } from '../lib/policy-loader.mjs';
+import { makeError } from '../lib/error-catalog.mjs';
 
-const STAGE_ARTIFACTS = [
+const FALLBACK_STAGE_ARTIFACTS = [
   {
     stage: 'requirements',
     file: 'requirements.yaml',
@@ -29,6 +31,38 @@ const STAGE_ARTIFACTS = [
     phase: 'Planning',
   },
 ];
+
+function getStageArtifacts(cwd) {
+  try {
+    const pipeline = loadPipeline(cwd);
+    const sourceArtifacts =
+      pipeline?.stages?.['knowledge-extraction']?.source_artifacts;
+
+    const out = [];
+    for (const [stageId, cfg] of Object.entries(pipeline?.stages || {})) {
+      if (stageId === 'knowledge-extraction') continue;
+      if (cfg?.produces_delta && cfg?.artifact && cfg?.delta_phase) {
+        if (
+          !Array.isArray(sourceArtifacts) ||
+          sourceArtifacts.includes(cfg.artifact)
+        ) {
+          out.push({
+            stage: stageId,
+            file: cfg.artifact,
+            phase: cfg.delta_phase,
+          });
+        }
+      }
+    }
+
+    if (out.length > 0) return out;
+  } catch {
+    // Fall back to hardcoded safe defaults.
+  }
+
+  return FALLBACK_STAGE_ARTIFACTS;
+}
+
 
 function usage(code = EXIT.ok) {
   writeJson(
@@ -90,12 +124,12 @@ export function runKnowledgeExtraction(argv) {
   };
 
   const changeRoot = requireChangeRoot(args, cwd, base);
-
-  const stageFilter = args.stage;
+const stageArtifacts = getStageArtifacts(cwd);
+const stageFilter = args.stage;
 
   if (
     stageFilter &&
-    !STAGE_ARTIFACTS.some((cfg) => cfg.stage === stageFilter)
+    !stageArtifacts.some((cfg) => cfg.stage === stageFilter)
   ) {
     writeJson(
       {
@@ -104,7 +138,7 @@ export function runKnowledgeExtraction(argv) {
         instructions:
           'Optional --stage must be one of: requirements, design, planning.',
         data: {
-          known_stages: STAGE_ARTIFACTS.map((cfg) => cfg.stage),
+          known_stages: stageArtifacts.map((cfg) => cfg.stage),
         },
         errors: [
           {
@@ -122,7 +156,7 @@ export function runKnowledgeExtraction(argv) {
     const collected = [];
     const warnings = [];
 
-    for (const cfg of STAGE_ARTIFACTS) {
+    for (const cfg of stageArtifacts) {
       if (stageFilter && cfg.stage !== stageFilter) continue;
 
       const artifactPath = path.join(changeRoot, cfg.file);
@@ -321,7 +355,19 @@ entries.forEach((entry) => {
       }
     }
 
-    if (args['mark-extracted']) {
+    const strictErrors = args.strict
+  ? warnings
+      .filter((w) =>
+        [
+          'DOCS_INDEX_MISSING',
+          'IMPLEMENTATION_NOT_ACCEPTED',
+          'DOCS_DELTA_VALIDATION'
+        ].includes(w.code)
+      )
+      .map((w) => makeError(w.code, { message: w.message }))
+  : [];
+
+if (args['mark-extracted']) {
       const note = args.note ? String(args.note) : '';
 
       if (note.trim().length < 10) {
@@ -526,8 +572,8 @@ entries.forEach((entry) => {
 
     writeYamlAtomic(docsDeltaPath, doc);
 
-    const state =
-      status === 'complete'
+    let state =
+status === 'complete'
         ? 'complete'
         : validationErrors.length > 0
           ? 'blocked'
@@ -546,6 +592,15 @@ entries.forEach((entry) => {
       instructions =
         'All docs-delta entries are marked extracted. Run with --complete.';
     }
+if (strictErrors.length > 0) {
+  state = 'blocked';
+  instructions =
+    `Strict mode is enabled and ${strictErrors.length} warning(s) are blocking.
+` +
+    strictErrors.map((e) => `- ${e.code}: ${e.message}`).join('\n');
+}
+
+
 
     writeJson(
       {
@@ -564,7 +619,7 @@ entries.forEach((entry) => {
           validation_errors: validationErrors,
           entries,
         },
-        errors: [],
+        errors: strictErrors,
         warnings,
       },
       EXIT.ok

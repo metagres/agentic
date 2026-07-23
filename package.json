@@ -25,8 +25,9 @@
     "validate:schemas": "node bin/validate-schemas.mjs",
     "validate:policies": "node bin/validate-policies.mjs",
     "validate:fixtures": "npm run test:contracts",
-    "check:all": "npm run validate && npm run test:e2e && npm run test:contracts",
-    "deploy:smoke": "node bin/deploy-to-agent.mjs --dest .tmp/agent --project-root .tmp/project --bundle --clean"
+    "check:all": "npm run test:all && npm run deploy:smoke",
+    "deploy:smoke": "node bin/deploy-to-agent.mjs --dest .tmp/agent --project-root .tmp/project --bundle --clean",
+    "test:all": "npm run validate && npm run test:unit && npm run test:contracts && npm run test:e2e"
   },
   "dependencies": {
     "ajv": "^8.20.0",

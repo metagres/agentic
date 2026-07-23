@@ -58,7 +58,7 @@ logs/
 
 # agents
 .opencode/
-review.txt
+temp/
 
 # ignore files
 .gitignore

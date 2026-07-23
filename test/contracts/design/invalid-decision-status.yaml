@@ -10,7 +10,7 @@ metadata:
   delta_reviewed: false
 context_summary: "The design adds a registration endpoint and a device repository."
 components:
-  - id: BAD-COMPONENT
+  - id: CMP-001
     name: Device Registration API
     responsibility: "Accept registration requests and persist device records."
 data_models:
@@ -26,10 +26,10 @@ decisions:
     title: Use external identifier
     context: "Devices provide an external identifier."
     decision: "Use the external identifier as the unique key."
-    status: accepted
+    status: maybe
 traceability:
   - requirement_id: FR-001
     component_ids:
-      - BAD-COMPONENT
+      - CMP-001
 delta: []
 semantic_validation: []

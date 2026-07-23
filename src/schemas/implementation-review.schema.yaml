@@ -1,60 +1,103 @@
-$schema: http://json-schema.org/draft-07/schema#
-title: Review File
-type: object
-additionalProperties: true
-required:
-  - metadata
-  - rounds
-properties:
-  metadata:
-    type: object
-    additionalProperties: true
-    required:
-      - artifact
-      - target
-      - latest_round
-    properties:
-      artifact:
-        type: string
-      target:
-        type: string
-      latest_round:
-        type: integer
-      latest_decision:
-        type: string
-      created:
-        type: string
-      updated:
-        type: string
-  rounds:
-    type: array
-    items:
-      type: object
-      additionalProperties: true
-      required:
-        - round
-        - reviewed_at
-        - decision
-        - can_accept
-      properties:
-        round:
-          type: integer
-        reviewed_at:
-          type: string
-        artifact_version:
-          type:
-            - string
-            - "null"
-        decision:
-          type: string
-          enum:
-            - review
-            - accepted
-            - rejected
-            - accept_blocked
-        can_accept:
-          type: boolean
-        implementation_status:
-          type:
-            - string
-            - "null"
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Implementation Review File",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "metadata",
+    "rounds"
+  ],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact",
+        "target",
+        "latest_round"
+      ],
+      "properties": {
+        "artifact": {
+          "type": "string"
+        },
+        "target": {
+          "type": "string",
+          "enum": [
+            "implementation"
+          ]
+        },
+        "latest_round": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "latest_decision": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "review",
+            "accepted",
+            "rejected",
+            "accept_blocked",
+            null
+          ]
+        },
+        "created": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "updated": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      }
+    },
+    "rounds": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "round",
+          "reviewed_at",
+          "decision",
+          "can_accept"
+        ],
+        "properties": {
+          "round": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reviewed_at": {
+            "type": "string"
+          },
+          "artifact_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "review",
+              "accepted",
+              "rejected",
+              "accept_blocked"
+            ]
+          },
+          "can_accept": {
+            "type": "boolean"
+          },
+          "implementation_status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

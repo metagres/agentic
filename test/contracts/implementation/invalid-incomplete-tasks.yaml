@@ -8,20 +8,20 @@ metadata:
   updated: 2026-07-23
   based_on_design: 1.0.0
   based_on_requirements: 1.0.0
-  implementation_status: ready-for-review
+  implementation_status: in_progress
 tasks:
   - id: TASK-001
     title: Implement device registration
     description: "Add endpoint and persistence for device registration."
     type: implementation
-    status: done
+    status: in_progress
     covers:
       - FR-001
       - NFR-001
     acceptance_ids:
       - AC-001
       - AC-002
-    implementation_note: "Implemented endpoint and verified with tests."
+    implementation_note: "Work in progress."
     files_changed:
       - path: src/devices.js
         operation: create

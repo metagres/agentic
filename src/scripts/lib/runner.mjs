@@ -30,6 +30,37 @@ import { bumpVersion } from './semver.mjs';
 import { requirementsStage } from '../workflows/requirements.mjs';
 import { designStage } from '../workflows/design.mjs';
 import { planningStage } from '../workflows/planning.mjs';
+import { loadLifecycle, loadSemanticPolicy } from './policy-loader.mjs';
+import { assertTransition } from './lifecycle.mjs';
+import { makeError } from './error-catalog.mjs';
+
+const STRICT_WARNING_CODES = [
+  'DOCS_INDEX_MISSING',
+  'PREVIOUS_STAGE_NOT_READY',
+  'REQUIREMENTS_NOT_READY',
+  'IMPLEMENTATION_NOT_ACCEPTED',
+  'DOCS_DELTA_VALIDATION'
+];
+
+function strictModeErrors(warnings, semantic, step) {
+  const errs = (warnings || [])
+    .filter((w) => w && w.code && STRICT_WARNING_CODES.includes(w.code))
+    .map((w) => makeError(w.code, { message: w.message }));
+
+  if (
+    semantic &&
+    semantic.complete === false &&
+    ['validation', 'ready', 'recovery', 'complete'].includes(step)
+  ) {
+    errs.push(
+      makeError('SEMANTIC_NOT_COMPLETE', {
+        message: 'Semantic validation is not complete.'
+      })
+    );
+  }
+
+  return errs;
+}
 
 const stages = {
   requirements: requirementsStage,
@@ -351,6 +382,17 @@ function completeStep(env) {
 
 function finalizeArtifact(env) {
   env.contract = requireContract(env.stage.contractFile, env.cwd, env.warnings);
+
+  const semanticPolicy = loadSemanticPolicy(env.cwd);
+  const minEvidenceChars = semanticPolicy?.semantic_validation?.default_min_evidence_chars;
+  if (!(Number(minEvidenceChars) > 0)) {
+    const err = new Error(
+      'semantic-policy.yaml must define semantic_validation.default_min_evidence_chars as a positive number.'
+    );
+    err.code = 'POLICY_INVALID';
+    throw err;
+  }
+
   const schemaFindings = validateArtifactSchema(env.stage.id, env.artifact, env.cwd);
   const findings = [
     ...schemaFindings,
@@ -358,9 +400,10 @@ function finalizeArtifact(env) {
       gate: 'finalize',
     }),
   ];
-
   const blocking = findings.filter((f) => f.severity === 'blocking');
-  const semantic = semanticSummary(env.artifact, env.contract);
+  const semantic = semanticSummary(env.artifact, env.contract, {
+    minEvidenceChars,
+  });
 
   const ready = env.stage.isReadyForReview({
     ...env,
@@ -373,7 +416,9 @@ function finalizeArtifact(env) {
     throw new Error(`Cannot finalize: ${ready.reasons.join('; ')}`);
   }
 
+  const lifecycle = loadLifecycle(env.cwd);
   const previousStatus = env.artifact.metadata?.status;
+  assertTransition(lifecycle, 'artifact_status', previousStatus, 'ready-for-review');
 
   let bumpKind = env.args['bump-version'];
   if (bumpKind && !['major', 'minor', 'patch'].includes(bumpKind)) {
@@ -755,6 +800,8 @@ export function runAuthoringStage(stageId, argv) {
     const preconditionWarnings = stage.preconditionWarnings
       ? stage.preconditionWarnings(stepEnv)
       : [];
+const allWarnings = [...nonBlocking, ...warnings, ...preconditionWarnings];
+const strictErrors = args.strict ? strictModeErrors(allWarnings, semantic, step) : [];
 
     const data = {
       change_root: changeRoot,
@@ -788,8 +835,8 @@ export function runAuthoringStage(stageId, argv) {
       ...(stage.getData ? stage.getData(stepEnv) : {}),
     };
 
-const state =
-  step === 'complete'
+let state =
+step === 'complete'
     ? 'complete'
     : step === 'recovery'
       ? (blocking.length > 0 || !semantic.complete ? 'blocked' : 'in_progress')
@@ -812,6 +859,14 @@ const state =
         .join('\n')
         .trim();
     }
+if (strictErrors.length > 0) {
+  state = 'blocked';
+  instructions =
+    `Strict mode is enabled and ${strictErrors.length} warning(s) are blocking.
+` +
+    strictErrors.map((e) => `- ${e.code}: ${e.message}`).join('\n');
+}
+
 
     writeJson(
       {
@@ -823,8 +878,8 @@ const state =
           ...data,
           step_help: stepHelp,
         },
-        errors: [],
-        warnings: [...nonBlocking, ...warnings, ...preconditionWarnings],
+        errors: strictErrors,
+warnings: allWarnings,
       },
       EXIT.ok
     );
@@ -840,15 +895,10 @@ const state =
               change_root: changeRoot,
             }
           : {},
-        errors: [
-          {
-            code: err.code || 'INTERNAL_ERROR',
-            message: err.message,
-          },
-        ],
-        warnings,
-      },
-      EXIT.internal
+        errors: [makeError(err.code || 'INTERNAL_ERROR', { message: err.message })],
+warnings,
+},
+EXIT.internal
     );
   }
 }

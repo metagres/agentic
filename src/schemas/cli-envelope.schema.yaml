@@ -1,32 +1,44 @@
-$schema: http://json-schema.org/draft-07/schema#
-title: CLI Envelope
-type: object
-additionalProperties: false
-required:
-  - workflow
-  - step
-  - state
-  - instructions
-  - data
-  - errors
-  - warnings
-properties:
-  workflow:
-    type: string
-  step:
-    type: string
-  state:
-    type: string
-    enum:
-      - ok
-      - in_progress
-      - blocked
-      - complete
-  instructions:
-    type: string
-  data:
-    type: object
-  errors:
-    type: array
-  warnings:
-    type: array
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CLI Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workflow",
+    "step",
+    "state",
+    "instructions",
+    "data",
+    "errors",
+    "warnings"
+  ],
+  "properties": {
+    "workflow": {
+      "type": "string"
+    },
+    "step": {
+      "type": "string"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "ok",
+        "in_progress",
+        "blocked",
+        "complete"
+      ]
+    },
+    "instructions": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object"
+    },
+    "errors": {
+      "type": "array"
+    },
+    "warnings": {
+      "type": "array"
+    }
+  }
+}

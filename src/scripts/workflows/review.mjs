@@ -20,6 +20,7 @@ import {
 } from '../lib/policy-loader.mjs';
 import { validateArtifactSchema } from '../lib/schema.mjs';
 import { assertTransition } from '../lib/lifecycle.mjs';
+import { makeError } from '../lib/error-catalog.mjs';
 
 const FALLBACK_TARGETS = {
   requirements: {
@@ -73,7 +74,7 @@ function usage(code = EXIT.usage, message = null, targets = FALLBACK_TARGETS) {
       step: 'help',
       state: code === EXIT.ok ? 'ok' : 'blocked',
       instructions:
-        'Usage: sdlc review --target <requirements|design|plan|implementation> --dir <change-dir> [--accept|--reject] [--dry-run] [--record] [--debug]',
+        'Usage: sdlc review --target <requirements|design|plan|implementation> --dir <change-dir> [--accept|--reject] [--dry-run] [--record] [--strict] [--debug]',
       data: {
         known_targets: Object.keys(targets),
       },
@@ -249,12 +250,7 @@ export function runReview(argv) {
             artifact: artifactPath,
             change_root: changeRoot,
           },
-          errors: [
-            {
-              code: 'CONTRACT_MISSING',
-              message: err.message,
-            },
-          ],
+          errors: [makeError('CONTRACT_MISSING', { message: err.message })],
           warnings,
         },
         EXIT.internal
@@ -334,7 +330,28 @@ export function runReview(argv) {
     let canAccept =
       readyForReview && blocking.length === 0 && semantic.complete;
 
-    let lifecycle = {};
+    const strictErrors = Boolean(args.strict)
+  ? [
+      ...nonBlocking.map((f) =>
+        makeError('STRICT_FINDING', {
+          message: `${f.check}: ${f.finding}`,
+          fix: f.fix
+        })
+      ),
+      ...(semantic.complete
+        ? []
+        : [
+            makeError('SEMANTIC_NOT_COMPLETE', {
+              message: 'Semantic validation is not complete.'
+            })
+          ])
+    ]
+  : [];
+if (Boolean(args.strict) && strictErrors.length > 0) {
+  canAccept = false;
+}
+
+let lifecycle = {};
     try {
       lifecycle = loadLifecycle(cwd);
     } catch {
@@ -498,7 +515,16 @@ export function runReview(argv) {
       recordedRound = roundNumber;
     }
 
-    const debug = args.debug
+    if (Boolean(args.strict) && strictErrors.length > 0) {
+  state = 'blocked';
+  instructions =
+    `Strict mode is enabled and ${strictErrors.length} advisory issue(s) are blocking.
+` +
+    strictErrors.map((e) => `- ${e.code}: ${e.message}`).join('\n');
+  errors.push(...strictErrors);
+}
+
+const debug = args.debug
       ? {
           contract: cfg.contract,
           artifact: artifactPath,

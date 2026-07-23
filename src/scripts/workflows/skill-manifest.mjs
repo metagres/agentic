@@ -242,6 +242,7 @@ export const skillDefinitions = [
       'node "$SDLC_CLI" review --target design --dir <change-dir> --dry-run',
       'node "$SDLC_CLI" review --target plan --dir <change-dir> --dry-run',
       'node "$SDLC_CLI" review --target implementation --dir <change-dir> --dry-run',
+'node "$SDLC_CLI" review --target requirements --dir <change-dir> --strict',
     ],
   },
   {
@@ -275,6 +276,7 @@ export const skillDefinitions = [
       'node "$SDLC_CLI" knowledge-extraction --dir <change-dir> --mark-extracted --entry-id <DD-...> --note "Updated section..."',
       'node "$SDLC_CLI" knowledge-extraction --dir <change-dir> --mark-extracted --target-doc docs/current/api.md --note "Updated API section..."',
       'node "$SDLC_CLI" knowledge-extraction --dir <change-dir> --complete',
+'node "$SDLC_CLI" knowledge-extraction --dir <change-dir> --strict',
       'node "$SDLC_CLI" docs-init',
       'node "$SDLC_CLI" doctor',
     ],

@@ -8,35 +8,28 @@ metadata:
   updated: 2026-07-23
   based_on_requirements: 1.0.0
   delta_reviewed: false
-
 context_summary: "The design adds a registration endpoint and a device repository."
-
 components:
   - id: CMP-001
     name: Device Registration API
     responsibility: "Accept registration requests and persist device records."
-
 data_models:
   - id: DM-001
     name: Device
-
 apis:
   - id: API-001
     path: /devices
     method: POST
-
+flows: []
 decisions:
   - id: DEC-001
     title: Use external identifier
     context: "Devices provide an external identifier."
     decision: "Use the external identifier as the unique key."
     status: accepted
-
 traceability:
   - requirement_id: FR-001
     component_ids:
       - CMP-001
-
 delta: []
-
 semantic_validation: []

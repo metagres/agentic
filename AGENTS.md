@@ -513,3 +513,58 @@ For broader validation, run:
 ```bash
 npm run check:all
 ```
+
+## 11. Additional hardening notes
+
+### Strict mode
+
+Several commands support `--strict`:
+
+```bash
+node src/scripts/sdlc.mjs planning --dir <change-dir> --strict
+node src/scripts/sdlc.mjs review --target requirements --dir <change-dir> --strict
+node src/scripts/sdlc.mjs knowledge-extraction --dir <change-dir> --strict
+node src/scripts/sdlc.mjs doctor --strict
+```
+
+In strict mode, selected warnings become blocking errors, including:
+
+- missing `docs/current/index.md`
+- previous stage not ready
+- implementation not accepted
+- incomplete semantic validation at gate-like steps
+- advisory review findings in review strict mode
+
+### Schema and policy conformance
+
+Schemas validate structural shape. Contracts remain the source of truth for traceability and domain rules.
+
+Run layered validation with:
+
+```bash
+npm run validate:schemas
+npm run validate:policies
+npm run validate:contracts
+npm run validate:templates
+npm run test:unit
+npm run test:contracts
+npm run test:e2e
+npm run test:all
+npm run check:all
+```
+
+### Error and ID catalogs
+
+Error messages and fixes are cataloged in:
+
+```text
+src/policies/errors.yaml
+```
+
+ID conventions are cataloged in:
+
+```text
+src/policies/ids.yaml
+```
+
+When adding new error codes or ID prefixes, update these catalogs and relevant tests.

@@ -1,21 +1,15 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import process from 'node:process';
-
 import { parseArgs } from '../src/scripts/lib/cli.mjs';
 import { readYaml } from '../src/scripts/lib/yaml-io.mjs';
-
 import {
   validateContract,
   runChecks,
 } from '../src/scripts/lib/contract-checks.mjs';
-
-import {
-  loadContract,
-  makeCtx,
-} from '../src/scripts/lib/context.mjs';
-// sdlc-hardening: schema
+import { requireContract, makeCtx } from '../src/scripts/lib/context.mjs';
 import { validateArtifactSchema } from '../src/scripts/lib/schema.mjs';
+import { makeError } from '../src/scripts/lib/error-catalog.mjs';
 
 function usage(code = 2) {
   console.log(
@@ -36,59 +30,47 @@ function usage(code = 2) {
       2
     )
   );
-
   process.exit(code);
 }
 
 const args = parseArgs(process.argv.slice(2));
-
 if (args.help) {
   usage(0);
 }
-
 if (!args.contract || !args.artifact) {
   usage(2);
 }
 
 const cwd = args.cwd ? path.resolve(String(args.cwd)) : process.cwd();
-
 const contractName = String(args.contract);
 const contractFile = args['contract-file']
   ? String(args['contract-file'])
   : `${contractName}-contract.yaml`;
-
 const gate = args.gate ? String(args.gate) : 'review';
-
 const warnings = [];
-const contract = loadContract(contractFile, cwd, warnings);
 
-if (warnings.some((w) => w.code === 'CONTRACT_MISSING')) {
+let contract;
+try {
+  contract = requireContract(contractFile, cwd, warnings);
+} catch (err) {
   console.log(
     JSON.stringify(
       {
         ok: false,
         contract: contractFile,
         gate,
-        errors: [
-          {
-            code: 'CONTRACT_MISSING',
-            message: `Could not load contract: ${contractFile}`,
-          },
-        ],
+        errors: [makeError('CONTRACT_MISSING', { message: err.message })],
         warnings,
       },
       null,
       2
     )
   );
-
   process.exit(1);
 }
 
 const artifactPath = path.resolve(cwd, String(args.artifact));
-
 let artifact;
-
 try {
   artifact = readYaml(artifactPath);
 } catch (err) {
@@ -99,19 +81,13 @@ try {
         contract: contractFile,
         artifact: artifactPath,
         gate,
-        errors: [
-          {
-            code: 'ARTIFACT_PARSE_FAILED',
-            message: err.message,
-          },
-        ],
+        errors: [makeError('ARTIFACT_PARSE_FAILED', { message: err.message })],
         warnings,
       },
       null,
       2
     )
   );
-
   process.exit(1);
 }
 
@@ -128,19 +104,13 @@ try {
         contract: contractFile,
         artifact: artifactPath,
         gate,
-        errors: [
-          {
-            code: 'CONTRACT_INVALID',
-            message: err.message,
-          },
-        ],
+        errors: [makeError('CONTRACT_INVALID', { message: err.message })],
         warnings,
       },
       null,
       2
     )
   );
-
   process.exit(1);
 }
 
@@ -159,25 +129,18 @@ try {
         contract: contractFile,
         artifact: artifactPath,
         gate,
-        errors: [
-          {
-            code: 'CHECK_RUN_FAILED',
-            message: err.message,
-          },
-        ],
+        errors: [makeError('CHECK_RUN_FAILED', { message: err.message })],
         warnings,
       },
       null,
       2
     )
   );
-
   process.exit(1);
 }
 
 const blocking = findings.filter((f) => f.severity === 'blocking');
 const nonBlocking = findings.filter((f) => f.severity !== 'blocking');
-
 const ok = blocking.length === 0;
 
 console.log(
@@ -201,5 +164,4 @@ console.log(
 if (args['no-fail']) {
   process.exit(0);
 }
-
 process.exit(ok ? 0 : 1);

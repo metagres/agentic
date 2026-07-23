@@ -223,11 +223,13 @@ ensureDir(projectRootAbs);
       process.execPath,
       [path.join(root, 'bin', 'build-runtime.mjs')],
       {
-        stdio: 'inherit',
+        encoding: 'utf8',
       }
     );
 
     if (buildResult.status !== 0) {
+      if (buildResult.stdout) process.stderr.write(buildResult.stdout);
+      if (buildResult.stderr) process.stderr.write(buildResult.stderr);
       fail('Runtime build failed.');
     }
 
