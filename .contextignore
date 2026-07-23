@@ -1,0 +1,48 @@
+# .contextignore — same syntax as .gitignore
+
+node_modules/
+dist/
+build/
+
+package-lock.json
+*.pyc
+*.pyo
+*.so
+*.dll
+*.exe
+*.class
+*.jar
+
+# Images & media
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.webp
+*.mp4
+*.mp3
+
+# IDE / OS junk
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# agents
+.opencode/
+.agents/
+.codegraph/
+
+# editor / language-server caches
+# .serena/.gitignore covers /cache, but only the root ignore file is read
+.serena/
+
+# generated
+llms.txt
+
+# ignore files
+.gitignore
+.contextignore
+LICENSE

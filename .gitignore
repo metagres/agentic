@@ -1,0 +1,10 @@
+node_modules/
+*.log
+.DS_Store
+coverage/
+dist/
+.opencode/
+package-lock.json
+llms.txt
+.tmp/
+graphify-out/

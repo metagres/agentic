@@ -1,0 +1,75 @@
+<!--
+  AGENTS.md template.
+
+  Copy this file to the project root as `AGENTS.md` when the project is
+  initiated, fill it in, then delete this comment block and every other
+  comment left in the file.
+
+  How to fill it in
+  - Keep every section. The agents in `.opencode/agents/` are project-neutral
+    and read this file for the facts they must not assume; a section deleted
+    is a rule an agent will invent for itself.
+  - Replace every `<...>` with a fact you actually know. If a fact is not
+    decided yet, write that (`<not decided yet>` is an answer) — never leave
+    a placeholder behind, and never guess a command: an agent runs what is
+    written here.
+  - Keep only must-follow rules. Anything descriptive or organisational
+    belongs in the knowledge bundle, not here.
+  - This project indexes itself with graphify. Build the graph once at
+    initiation (`/graphify`) and install `graphify hook install`, so the
+    post-commit hook keeps the code half current.
+-->
+
+# Project instructions
+
+Everything specific to this project is defined here. The agents in
+`.opencode/agents/` are project-neutral and refer to this file.
+
+## Structure
+
+<!--
+  One row per part, where a part is anything an agent can build or test on
+  its own. Commands run from the repository root.
+
+  Stack: the frameworks and tools a change in that part must respect.
+  Verification: the exact commands that must all pass before a change is
+  offered for commit. Write them as one would type them, package manager
+  included.
+
+  A single-part project keeps one row and drops the change-order and
+  contracts rules below; agents treat a project that defines no parts as a
+  single part.
+-->
+
+| Part     | Stack       | Verification (all must pass)                                 |
+| -------- | ----------- | ------------------------------------------------------------ |
+| `<part>` | `<stack>`   | lint `<cmd>` · typecheck `<cmd>` · test `<cmd>` · build `<cmd>` |
+
+- **Change order** (dependencies first): `<part>` → `<part>`.
+- **Contracts**: the interfaces other code, systems, or users depend on, and where each one lives: `<contract> — <path>`.
+- **Migrations**: `<tool and location>`. Apply: `<cmd>`. Roll back: `<cmd>`. A migration must apply and roll back on a copy of the data before it is offered for commit.
+
+## Finding things
+
+This project indexes its own code and its documents — the knowledge bundle included — with graphify. The graph in `graphify-out/` is the map an agent walks before it reads anything.
+
+- Query before searching: `graphify query "<question>"` for what something connects to, `--dfs` for how one thing reaches another, `graphify path "<a>" "<b>"` for the shortest path between two concepts, `graphify explain "<concept>"` for one concept in full, `graphify affected "<symbol>"` for what a change would impact.
+- The query matches node labels literally, so expand the question into the graph's own vocabulary (`graphify-out/.vocab.txt`) first. Never query with a synonym recalled from memory — it returns nothing and reads as "no such thing".
+- Cite what the graph returns, then open the file and confirm it. The graph is an index; the code is the truth. A path or symbol nobody opened is not evidence.
+- A missing or stale graph is reported, not worked around: if `graphify-out/graph.json` is absent or older than the working tree, say so and stop depending on it. Rebuilding costs a full extraction — ask first, then `graphify update .` for code, or `/graphify --update` when documents changed too.
+- `graphify-out/reflections/LESSONS.md` records preferred sources and dead ends from earlier sessions. Read it before broad research, and skip what it marks as a dead end.
+
+## Rules for every agent
+
+- Never push, force-push, deploy, or run destructive commands. Never commit secrets.
+- Do only what the user asked or approved. If the scope grows or something is ambiguous, stop and ask.
+- <!-- Add further rules only as this project needs them. A rule nobody checks is noise. -->
+
+## Knowledge base
+
+Project facts that outlive a task — architecture, decisions, conventions, glossary — live in `.agents/knowledge/`, an OKF v0.2 bundle whose entry point is `index.md`.
+
+1. Ask the `curator` agent. It is the bundle's sole maintainer and query agent: every durable question goes to it, and it alone creates, amends, merges, or retires a concept. The graph locates a concept; the curator answers for it. Do not read the bundle wholesale, and do not write in it.
+2. Binding concepts are `code-principles` and the `Convention`, `Decision`, and `Specification` concepts for the touched parts. Name the ones you relied on.
+3. A concept that contradicts the code, or another concept, is reported — never silently resolved. A fact that is missing is stated as missing, never invented.
+4. A new concept carries this frontmatter: `type` (required; in use: `Convention`, `Reference`, `Decision`, `Specification`), `title`, `description` in one sentence, `version` as `MAJOR.MINOR.PATCH` with the minor component bumped on every substantive amendment, and `status` as `draft`, `stable`, or `deprecated`. Never `generated`; change history is git history.
