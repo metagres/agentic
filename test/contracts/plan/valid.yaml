@@ -1,0 +1,38 @@
+metadata:
+  id: PLAN-001
+  title: Device registration plan
+  stage: planning
+  status: draft
+  version: 1.0.0
+  created: 2026-07-23
+  updated: 2026-07-23
+  based_on_design: 1.0.0
+  based_on_requirements: 1.0.0
+
+tasks:
+  - id: TASK-001
+    title: Implement device registration
+    description: "Add endpoint and persistence for device registration."
+    type: implementation
+    status: pending
+    complexity: low
+    covers:
+      - FR-001
+      - NFR-001
+    acceptance_ids:
+      - AC-001
+      - AC-002
+    design_refs:
+      - DEC-001
+    depends_on: []
+    files:
+      - path: src/devices.js
+        operation: create
+
+milestones: []
+
+risks: []
+
+delta: []
+
+semantic_validation: []

@@ -1,0 +1,60 @@
+metadata:
+  id: REQ-001
+  title: Device registration
+  stage: requirements
+  status: draft
+  version: 1.0.0
+  created: 2026-07-23
+  updated: 2026-07-23
+  request_summary: Add device registration
+  clarity: partial
+  assumptions_reviewed: true
+  delta_reviewed: false
+
+problem_statement: "The system must record device registration requests and return a device identifier."
+
+discovery_log:
+  - id: DL-001
+    question: "What happens when a device registers?"
+    answer: "The system creates a device record and returns an identifier."
+    lens: stakeholder
+    resolved: true
+
+assumptions:
+  - type: verified
+    text: "Device registration uses an external identifier."
+    source: "src/devices.js"
+    risk: "Duplicate identifiers can cause conflicts."
+
+functional_requirements:
+  - id: FR-001
+    description: "The system must create a device record when a registration request contains a unique external identifier."
+    ac_ids:
+      - AC-999
+
+non_functional_requirements:
+  - id: NFR-001
+    description: "The registration endpoint must respond within 500 ms for 95% of requests."
+    ac_ids:
+      - AC-002
+
+acceptance_criteria:
+  - id: AC-001
+    statement: "Given no device exists, When the client submits a registration, Then the system returns 201 and a device identifier."
+    parent_id: FR-001
+  - id: AC-002
+    statement: "Given load conditions, When 95% of requests are measured, Then response time is below 500 ms."
+    parent_id: NFR-001
+
+out_of_scope:
+  - "None identified"
+
+failure_paths:
+  - "Duplicate external identifier is rejected with 409."
+
+risks_and_dependencies:
+  - "External identifier uniqueness depends on client data."
+
+delta: []
+
+semantic_validation: []

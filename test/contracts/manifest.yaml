@@ -1,0 +1,78 @@
+cases:
+  - name: requirements_valid
+    contract: requirements
+    artifact: requirements/valid.yaml
+    gate: review
+    expect:
+      blocking: []
+
+  - name: requirements_invalid_id_format
+    contract: requirements
+    artifact: requirements/invalid-id-format.yaml
+    gate: review
+    expect:
+      blocking_includes:
+        - id_format
+
+  - name: requirements_invalid_ac_reference
+    contract: requirements
+    artifact: requirements/invalid-ac-reference.yaml
+    gate: review
+    expect:
+      blocking_includes:
+        - ac_ids_reference
+
+  - name: design_valid
+    contract: design
+    artifact: design/valid.yaml
+    gate: review
+    refs:
+      requirements.yaml: requirements/valid.yaml
+    expect:
+      blocking: []
+
+  - name: design_invalid_component_id
+    contract: design
+    artifact: design/invalid-component-id.yaml
+    gate: review
+    refs:
+      requirements.yaml: requirements/valid.yaml
+    expect:
+      blocking_includes:
+        - component_id_format
+
+  - name: plan_valid
+    contract: plan
+    artifact: plan/valid.yaml
+    gate: review
+    refs:
+      requirements.yaml: requirements/valid.yaml
+      design.yaml: design/valid.yaml
+    expect:
+      blocking: []
+
+  - name: plan_invalid_cycle
+    contract: plan
+    artifact: plan/invalid-cycle.yaml
+    gate: review
+    refs:
+      requirements.yaml: requirements/valid.yaml
+      design.yaml: design/valid.yaml
+    expect:
+      blocking_includes:
+        - graph_acyclic
+
+  - name: implementation_valid
+    contract: implementation
+    artifact: implementation/valid.yaml
+    gate: review
+    expect:
+      blocking: []
+
+  - name: implementation_invalid_task_status
+    contract: implementation
+    artifact: implementation/invalid-task-status.yaml
+    gate: review
+    expect:
+      blocking_includes:
+        - task_status_enum

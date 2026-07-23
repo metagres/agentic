@@ -788,14 +788,14 @@ export function runAuthoringStage(stageId, argv) {
       ...(stage.getData ? stage.getData(stepEnv) : {}),
     };
 
-    const state =
-      step === 'complete'
-        ? 'complete'
-        : step === 'recovery'
-          ? 'blocked'
-          : step === 'validation' && blocking.length > 0
-            ? 'blocked'
-            : 'in_progress';
+const state =
+  step === 'complete'
+    ? 'complete'
+    : step === 'recovery'
+      ? (blocking.length > 0 || !semantic.complete ? 'blocked' : 'in_progress')
+      : step === 'validation' && blocking.length > 0
+        ? 'blocked'
+        : 'in_progress';
 
     let instructions = renderedMarkdown;
 
