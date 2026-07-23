@@ -1,0 +1,30 @@
+{
+  "name": "agentic-sdlc-toolkit",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Development repository for the agentic SDLC toolkit used by OpenCode-compatible AI coding agents.",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "sdlc": "src/scripts/sdlc.mjs"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "deploy": "node bin/deploy-to-agent.mjs",
+    "sdlc": "node src/scripts/sdlc.mjs",
+    "build": "node bin/build-runtime.mjs",
+    "validate:contracts": "node bin/validate-contracts.mjs",
+    "validate:templates": "node bin/validate-templates.mjs",
+    "lint:artifact": "node bin/lint-artifact.mjs",
+    "validate": "npm run validate:contracts && npm run validate:templates && npm test"
+  },
+  "dependencies": {
+    "ignore": "^7.0.6",
+    "yaml": "^2.5.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

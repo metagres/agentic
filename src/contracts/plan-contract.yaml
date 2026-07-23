@@ -1,0 +1,571 @@
+# plan-contract.yaml
+#
+# Single source of truth for plan.yaml validation.
+
+artifact: plan.yaml
+schema_version: "1.1"
+
+checks:
+  # -------------------------------------------------------------------------
+  # Metadata
+  # -------------------------------------------------------------------------
+  - id: metadata_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata is missing"
+    fix: "Add metadata with id, title, stage, status, and version"
+    params:
+      field: metadata
+
+  - id: metadata_id_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.id is missing"
+    fix: "Add a stable artifact id"
+    params:
+      field: metadata.id
+
+  - id: metadata_title_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.title is missing"
+    fix: "Add a short human-readable title"
+    params:
+      field: metadata.title
+
+  - id: metadata_stage_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.stage is missing"
+    fix: "Set metadata.stage to planning"
+    params:
+      field: metadata.stage
+
+  - id: metadata_stage_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    message: "metadata.stage is invalid for this contract"
+    fix: "Set metadata.stage to planning"
+    params:
+      field: metadata.stage
+      allowed:
+        - planning
+
+  - id: metadata_status_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.status is missing"
+    fix: "Let the script set metadata.status"
+    params:
+      field: metadata.status
+
+  - id: metadata_status_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    message: "metadata.status is not a valid lifecycle value"
+    fix: "Use one of: draft, ready-for-review, accepted, rejected, blocked"
+    params:
+      field: metadata.status
+      allowed:
+        - draft
+        - ready-for-review
+        - accepted
+        - rejected
+        - blocked
+
+  - id: metadata_version_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.version is missing"
+    fix: "Add a version string"
+    params:
+      field: metadata.version
+
+  - id: metadata_version_format
+    type: pattern_match
+    severity: blocking
+    category: structural
+    message: "metadata.version must be a semantic version"
+    fix: "Use MAJOR.MINOR.PATCH, for example 1.0.0"
+    params:
+      field: metadata.version
+      pattern: '^\d+\.\d+\.\d+$'
+
+  - id: metadata_based_on_design_required
+    type: field_required
+    severity: blocking
+    category: traceability
+    message: "metadata.based_on_design is missing"
+    fix: "Pin the plan to a design.yaml version"
+    params:
+      field: metadata.based_on_design
+
+  - id: metadata_based_on_requirements_required
+    type: field_required
+    severity: blocking
+    category: traceability
+    message: "metadata.based_on_requirements is missing"
+    fix: "Pin the plan to a requirements.yaml version"
+    params:
+      field: metadata.based_on_requirements
+
+  - id: version_match_design
+    type: version_match
+    severity: blocking
+    category: traceability
+    message: "Plan is not based on the current design.yaml version"
+    fix: "Update metadata.based_on_design to match design.yaml metadata.version"
+    params:
+      ref_file: design.yaml
+      local_field: metadata.based_on_design
+      ref_field: metadata.version
+
+  - id: version_match_requirements
+    type: version_match
+    severity: blocking
+    category: traceability
+    message: "Plan is not based on the current requirements.yaml version"
+    fix: "Update metadata.based_on_requirements to match requirements.yaml metadata.version"
+    params:
+      ref_file: requirements.yaml
+      local_field: metadata.based_on_requirements
+      ref_field: metadata.version
+
+  # -------------------------------------------------------------------------
+  # Tasks
+  # -------------------------------------------------------------------------
+  - id: tasks_min_entries
+    type: min_entries
+    severity: blocking
+    category: completeness
+    message: "plan has no tasks"
+    fix: "Add at least one task"
+    params:
+      field: tasks
+      min: 1
+
+  - id: task_id_format
+    type: id_format
+    severity: blocking
+    category: structural
+    message: "Invalid task id format"
+    fix: "Use TASK-NNN"
+    params:
+      arrays:
+        - field: tasks
+          id_field: id
+          pattern: '^TASK-\d{3}$'
+
+  - id: unique_task_id
+    type: unique_id
+    severity: blocking
+    category: structural
+    message: "Duplicate task id"
+    fix: "Renumber task ids so they are unique"
+    params:
+      arrays:
+        - field: tasks
+          id_field: id
+
+  - id: task_title_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "task title is missing"
+    fix: "Add a task title"
+    params:
+      field: tasks[*].title
+
+  - id: task_description_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "task description is missing"
+    fix: "Add a task description explaining the outcome of the task"
+    params:
+      field: tasks[*].description
+
+  - id: task_type_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "task type is missing"
+    fix: "Add a task type"
+    params:
+      field: tasks[*].type
+
+  - id: task_type_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    message: "task type is invalid"
+    fix: "Use analysis, setup, implementation, refactor, test, verification, release, or documentation"
+    params:
+      field: tasks[*].type
+      allowed:
+        - analysis
+        - setup
+        - implementation
+        - refactor
+        - test
+        - verification
+        - release
+        - documentation
+      case_insensitive: true
+
+  - id: task_status_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "task status is missing"
+    fix: "Add task status: pending, in_progress, done, blocked, or skipped"
+    params:
+      field: tasks[*].status
+
+  - id: task_status_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    message: "task status is invalid"
+    fix: "Use pending, in_progress, done, blocked, or skipped"
+    params:
+      field: tasks[*].status
+      allowed:
+        - pending
+        - in_progress
+        - done
+        - blocked
+        - skipped
+      case_insensitive: true
+
+  - id: task_complexity_enum
+    type: enum_value
+    severity: minor
+    category: structural
+    message: "task complexity is unusual"
+    fix: "Use low, medium, or high"
+    params:
+      field: tasks[*].complexity
+      allowed:
+        - low
+        - medium
+        - high
+      case_insensitive: true
+
+  # -------------------------------------------------------------------------
+  # Traceability
+  # -------------------------------------------------------------------------
+  - id: task_covers_required
+    type: field_required
+    severity: blocking
+    category: traceability
+    message: "task has no covered requirements"
+    fix: "Add at least one FR or NFR id to covers"
+    params:
+      field: tasks[*].covers
+      allow_empty: false
+
+  - id: task_covers_reference
+    type: reference_integrity
+    severity: blocking
+    category: traceability
+    message: "task covers missing requirement"
+    fix: "Use valid FR/NFR ids from requirements.yaml"
+    params:
+      field: tasks[*].covers
+      ref_file: requirements.yaml
+      ref_arrays:
+        - functional_requirements
+        - non_functional_requirements
+      ref_id: id
+
+  - id: requirement_task_coverage
+    type: cross_file_traceability
+    severity: blocking
+    category: traceability
+    message: "Requirement has no covering task"
+    fix: "Add a task that covers this requirement"
+    params:
+      source_file: requirements.yaml
+      source_arrays:
+        - functional_requirements
+        - non_functional_requirements
+      source_id: id
+      target_array: tasks
+      target_field: covers
+
+  - id: task_acceptance_ids_required
+    type: field_required
+    severity: blocking
+    category: traceability
+    message: "task has no acceptance criteria"
+    fix: "Add at least one AC id to acceptance_ids"
+    params:
+      field: tasks[*].acceptance_ids
+      allow_empty: false
+
+  - id: task_acceptance_reference
+    type: reference_integrity
+    severity: blocking
+    category: traceability
+    message: "task references missing AC"
+    fix: "Use valid AC ids from requirements.yaml"
+    params:
+      field: tasks[*].acceptance_ids
+      ref_file: requirements.yaml
+      ref_arrays:
+        - acceptance_criteria
+      ref_id: id
+
+  - id: task_design_refs_reference
+    type: reference_integrity
+    severity: blocking
+    category: traceability
+    message: "task references missing design decision"
+    fix: "Use valid DEC ids from design.yaml"
+    params:
+      field: tasks[*].design_refs
+      ref_file: design.yaml
+      ref_arrays:
+        - decisions
+      ref_id: id
+
+  # -------------------------------------------------------------------------
+  # Dependency graph
+  # -------------------------------------------------------------------------
+  - id: task_depends_reference
+    type: reference_integrity
+    severity: blocking
+    category: traceability
+    message: "Task depends on missing task"
+    fix: "Remove the dangling dependency or add the missing task"
+    params:
+      field: tasks[*].depends_on
+      ref_arrays:
+        - tasks
+      ref_id: id
+
+  - id: graph_acyclic
+    type: graph_acyclic
+    severity: blocking
+    category: structural
+    message: "Task dependency graph contains a cycle"
+    fix: "Remove the circular dependency"
+    params:
+      tasks_field: tasks
+      id_field: id
+      depends_field: depends_on
+
+  - id: dependency_order
+    type: dependency_order
+    severity: blocking
+    category: structural
+    message: "Task depends on a task that appears later in the plan"
+    fix: "Reorder tasks so dependencies appear before dependents"
+    params:
+      tasks_field: tasks
+      id_field: id
+      depends_field: depends_on
+
+  # -------------------------------------------------------------------------
+  # Files
+  # -------------------------------------------------------------------------
+  - id: planned_file_operation_enum
+    type: files_field_enum
+    severity: blocking
+    category: structural
+    message: "Planned file operation is invalid"
+    fix: "Use create, modify, or delete"
+    params:
+      tasks_field: tasks
+      files_field: files
+      field: operation
+      allowed:
+        - create
+        - modify
+        - delete
+      case_insensitive: true
+
+  - id: file_op_order
+    type: file_op_order
+    severity: blocking
+    category: structural
+    message: "File operation occurs before the file is created"
+    fix: "Reorder tasks so create operations happen before modify/delete operations"
+    params:
+      tasks_field: tasks
+      files_field: files
+      path_field: path
+      operation_field: operation
+      create_op: create
+
+  - id: file_conflict_without_dependency
+    type: file_conflict_without_dependency
+    severity: minor
+    category: structural
+    message: "Two tasks touch the same file without a declared dependency"
+    fix: "Add a dependency between the tasks or split the file changes"
+    params:
+      tasks_field: tasks
+      id_field: id
+      depends_field: depends_on
+      files_field: files
+      path_field: path
+
+  # -------------------------------------------------------------------------
+  # Delta entries
+  # -------------------------------------------------------------------------
+  - id: delta_phase_required
+    type: field_required
+    severity: blocking
+    category: structural
+    gates: [review, finalize]
+    message: "delta entry missing phase"
+    fix: "Set phase: Planning"
+    params:
+      field: delta[*].phase
+
+  - id: delta_phase_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    gates: [review, finalize]
+    message: "delta phase is invalid for planning"
+    fix: "Set phase: Planning"
+    params:
+      field: delta[*].phase
+      allowed:
+        - Planning
+
+  - id: delta_target_doc_required
+    type: field_required
+    severity: blocking
+    category: structural
+    gates: [review, finalize]
+    message: "delta entry missing target_doc"
+    fix: "Set target_doc to a doc listed in docs/current/index.md"
+    params:
+      field: delta[*].target_doc
+
+  - id: delta_change_required
+    type: field_required
+    severity: blocking
+    category: structural
+    gates: [review, finalize]
+    message: "delta entry missing change"
+    fix: "Set change to Add, Modify, or Remove"
+    params:
+      field: delta[*].change
+
+  - id: delta_change_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    gates: [review, finalize]
+    message: "delta change is invalid"
+    fix: "Use Add, Modify, or Remove"
+    params:
+      field: delta[*].change
+      allowed:
+        - Add
+        - Modify
+        - Remove
+
+  - id: delta_reason_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    gates: [review, finalize]
+    message: "delta entry missing reason"
+    fix: "Explain what changed and why"
+    params:
+      field: delta[*].reason
+
+  - id: delta_date_required
+    type: field_required
+    severity: blocking
+    category: structural
+    gates: [review, finalize]
+    message: "delta entry missing date"
+    fix: "Set date to today in YYYY-MM-DD format"
+    params:
+      field: delta[*].date
+
+  - id: delta_date_format
+    type: pattern_match
+    severity: blocking
+    category: structural
+    gates: [review, finalize]
+    message: "delta date must be YYYY-MM-DD"
+    fix: "Use ISO date format"
+    params:
+      field: delta[*].date
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+
+semantic_checks:
+  - id: task_granularity_consistent
+    severity: blocking
+    category: process
+    description: |
+      Task granularity is consistent. No task is so broad that it hides
+      multiple sub-decisions, and no task is so narrow that it is essentially
+      pseudocode.
+
+  - id: task_order_real_world_constraints
+    severity: blocking
+    category: process
+    description: |
+      Task order reflects real-world constraints, such as schema creation
+      before queries, interface definition before implementation, and
+      characterization tests before refactoring.
+
+  - id: acceptance_verifiable
+    severity: blocking
+    category: ambiguity
+    description: |
+      Each task's acceptance criteria are actually verifiable with clear
+      pass/fail conditions, not vague phrases like "works correctly".
+
+  - id: requirement_coverage_complete
+    severity: blocking
+    category: completeness
+    description: |
+      Completing 100% of the listed tasks actually satisfies 100% of the
+      requirements. There are no implicit gaps.
+
+  - id: design_assumptions_explicit
+    severity: blocking
+    category: traceability
+    description: |
+      No task assumes a design decision that was never made explicit in the
+      design phase.
+
+  - id: complexity_plausible
+    severity: minor
+    category: process
+    description: |
+      Complexity estimates are plausible given the task description and files
+      touched. A low-complexity task should not be a multi-file architectural
+      change.
+
+  - id: refactor_protected_by_tests
+    severity: blocking
+    category: quality
+    description: |
+      For refactor tasks, there are tasks ensuring behavior-preserving tests
+      exist before the tasks that change the code they cover.
+
+  - id: potential_component_conflict
+    severity: minor
+    category: structural
+    description: |
+      No two tasks touch the same component or logical area in a way that
+      could conflict, even if no exact file overlap is declared.

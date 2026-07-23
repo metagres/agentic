@@ -1,0 +1,576 @@
+# design-contract.yaml
+#
+# Single source of truth for design.yaml validation.
+
+artifact: design.yaml
+schema_version: "1.0"
+
+checks:
+  # -------------------------------------------------------------------------
+  # Metadata
+  # -------------------------------------------------------------------------
+  - id: metadata_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata is missing"
+    fix: "Add metadata with id, title, stage, status, and version"
+    params:
+      field: metadata
+
+  - id: metadata_id_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.id is missing"
+    fix: "Add a stable artifact id"
+    params:
+      field: metadata.id
+
+  - id: metadata_title_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.title is missing"
+    fix: "Add a short human-readable title"
+    params:
+      field: metadata.title
+
+  - id: metadata_stage_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.stage is missing"
+    fix: "Set metadata.stage to design"
+    params:
+      field: metadata.stage
+
+  - id: metadata_stage_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    message: "metadata.stage is invalid for this contract"
+    fix: "Set metadata.stage to design"
+    params:
+      field: metadata.stage
+      allowed:
+        - design
+
+  - id: metadata_status_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.status is missing"
+    fix: "Let the script set metadata.status"
+    params:
+      field: metadata.status
+
+  - id: metadata_status_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    message: "metadata.status is not a valid lifecycle value"
+    fix: "Use one of: draft, ready-for-review, accepted, rejected, blocked"
+    params:
+      field: metadata.status
+      allowed:
+        - draft
+        - ready-for-review
+        - accepted
+        - rejected
+        - blocked
+
+  - id: metadata_version_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.version is missing"
+    fix: "Add a version string"
+    params:
+      field: metadata.version
+
+  - id: metadata_version_format
+    type: pattern_match
+    severity: blocking
+    category: structural
+    message: "metadata.version must be a semantic version"
+    fix: "Use MAJOR.MINOR.PATCH, for example 1.0.0"
+    params:
+      field: metadata.version
+      pattern: '^\d+\.\d+\.\d+$'
+
+  - id: metadata_based_on_requirements_required
+    type: field_required
+    severity: blocking
+    category: traceability
+    message: "metadata.based_on_requirements is missing"
+    fix: "Pin the design to a requirements.yaml version"
+    params:
+      field: metadata.based_on_requirements
+
+  - id: version_match_requirements
+    type: version_match
+    severity: blocking
+    category: traceability
+    message: "Design is not based on the current requirements.yaml version"
+    fix: "Update metadata.based_on_requirements to match requirements.yaml metadata.version"
+    params:
+      ref_file: requirements.yaml
+      local_field: metadata.based_on_requirements
+      ref_field: metadata.version
+
+  # -------------------------------------------------------------------------
+  # Context
+  # -------------------------------------------------------------------------
+  - id: context_summary_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "context_summary is missing"
+    fix: "Add a concise design context summary"
+    params:
+      field: context_summary
+
+  - id: context_summary_sentence_count
+    type: sentence_count
+    severity: minor
+    category: ambiguity
+    message: "context_summary should be concise but complete"
+    fix: "Use 1 to 12 sentences"
+    params:
+      field: context_summary
+      min: 1
+      max: 12
+
+  # -------------------------------------------------------------------------
+  # Components
+  # -------------------------------------------------------------------------
+  - id: components_min_entries
+    type: min_entries
+    severity: blocking
+    category: completeness
+    message: "design has no components"
+    fix: "Add at least one component"
+    params:
+      field: components
+      min: 1
+
+  - id: component_id_format
+    type: id_format
+    severity: blocking
+    category: structural
+    message: "Invalid component id format"
+    fix: "Use CMP-NNN"
+    params:
+      arrays:
+        - field: components
+          id_field: id
+          pattern: '^CMP-\d{3}$'
+
+  - id: unique_component_id
+    type: unique_id
+    severity: blocking
+    category: structural
+    message: "Duplicate component id"
+    fix: "Renumber component ids so they are unique"
+    params:
+      arrays:
+        - field: components
+          id_field: id
+
+  - id: component_name_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "component name is missing"
+    fix: "Add a component name"
+    params:
+      field: components[*].name
+
+  - id: component_responsibility_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "component responsibility is missing"
+    fix: "Describe what the component is responsible for"
+    params:
+      field: components[*].responsibility
+
+  # -------------------------------------------------------------------------
+  # Data models
+  # -------------------------------------------------------------------------
+  - id: data_model_id_format
+    type: id_format
+    severity: blocking
+    category: structural
+    message: "Invalid data model id format"
+    fix: "Use DM-NNN"
+    params:
+      arrays:
+        - field: data_models
+          id_field: id
+          pattern: '^DM-\d{3}$'
+
+  - id: unique_data_model_id
+    type: unique_id
+    severity: blocking
+    category: structural
+    message: "Duplicate data model id"
+    fix: "Renumber data model ids so they are unique"
+    params:
+      arrays:
+        - field: data_models
+          id_field: id
+
+  - id: data_model_name_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "data model name is missing"
+    fix: "Add a data model name"
+    params:
+      field: data_models[*].name
+
+  # -------------------------------------------------------------------------
+  # APIs
+  # -------------------------------------------------------------------------
+  - id: api_id_format
+    type: id_format
+    severity: blocking
+    category: structural
+    message: "Invalid API id format"
+    fix: "Use API-NNN"
+    params:
+      arrays:
+        - field: apis
+          id_field: id
+          pattern: '^API-\d{3}$'
+
+  - id: unique_api_id
+    type: unique_id
+    severity: blocking
+    category: structural
+    message: "Duplicate API id"
+    fix: "Renumber API ids so they are unique"
+    params:
+      arrays:
+        - field: apis
+          id_field: id
+
+  - id: api_path_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "API path is missing"
+    fix: "Add the API path"
+    params:
+      field: apis[*].path
+
+  - id: api_method_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "API method is missing"
+    fix: "Add the HTTP method"
+    params:
+      field: apis[*].method
+
+  - id: api_method_enum
+    type: enum_value
+    severity: minor
+    category: structural
+    message: "API method is unusual"
+    fix: "Use GET, POST, PUT, PATCH, DELETE, HEAD, or OPTIONS"
+    params:
+      field: apis[*].method
+      allowed:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - HEAD
+        - OPTIONS
+      case_insensitive: true
+
+  # -------------------------------------------------------------------------
+  # Decisions
+  # -------------------------------------------------------------------------
+  - id: decisions_min_entries
+    type: min_entries
+    severity: blocking
+    category: completeness
+    message: "design has no decisions"
+    fix: "Add at least one design decision"
+    params:
+      field: decisions
+      min: 1
+
+  - id: decision_id_format
+    type: id_format
+    severity: blocking
+    category: structural
+    message: "Invalid decision id format"
+    fix: "Use DEC-NNN"
+    params:
+      arrays:
+        - field: decisions
+          id_field: id
+          pattern: '^DEC-\d{3}$'
+
+  - id: unique_decision_id
+    type: unique_id
+    severity: blocking
+    category: structural
+    message: "Duplicate decision id"
+    fix: "Renumber decision ids so they are unique"
+    params:
+      arrays:
+        - field: decisions
+          id_field: id
+
+  - id: decision_title_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "decision title is missing"
+    fix: "Add a decision title"
+    params:
+      field: decisions[*].title
+
+  - id: decision_context_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "decision context is missing"
+    fix: "Explain why the decision was needed"
+    params:
+      field: decisions[*].context
+
+  - id: decision_decision_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "decision text is missing"
+    fix: "State the decision explicitly"
+    params:
+      field: decisions[*].decision
+
+  - id: decision_status_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "decision status is missing"
+    fix: "Use proposed, accepted, rejected, or superseded"
+    params:
+      field: decisions[*].status
+
+  - id: decision_status_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    message: "decision status is invalid"
+    fix: "Use proposed, accepted, rejected, or superseded"
+    params:
+      field: decisions[*].status
+      allowed:
+        - proposed
+        - accepted
+        - rejected
+        - superseded
+      case_insensitive: true
+
+  # -------------------------------------------------------------------------
+  # Traceability
+  # -------------------------------------------------------------------------
+  - id: traceability_min_entries
+    type: min_entries
+    severity: blocking
+    category: traceability
+    message: "design has no traceability entries"
+    fix: "Add at least one traceability entry linking requirements to design elements"
+    params:
+      field: traceability
+      min: 1
+
+  - id: traceability_requirement_required
+    type: field_required
+    severity: blocking
+    category: traceability
+    message: "traceability entry missing requirement_id"
+    fix: "Add the FR or NFR id being satisfied"
+    params:
+      field: traceability[*].requirement_id
+
+  - id: traceability_component_ids_required
+    type: field_required
+    severity: blocking
+    category: traceability
+    message: "traceability entry missing component_ids"
+    fix: "Add at least one component id"
+    params:
+      field: traceability[*].component_ids
+      allow_empty: false
+
+  - id: traceability_requirement_reference
+    type: reference_integrity
+    severity: blocking
+    category: traceability
+    message: "traceability requirement_id not found in requirements.yaml"
+    fix: "Use a valid FR or NFR id from requirements.yaml"
+    params:
+      field: traceability[*].requirement_id
+      ref_file: requirements.yaml
+      ref_arrays:
+        - functional_requirements
+        - non_functional_requirements
+      ref_id: id
+
+  - id: traceability_component_reference
+    type: reference_integrity
+    severity: blocking
+    category: traceability
+    message: "traceability component_id not found"
+    fix: "Use a valid component id from this design artifact"
+    params:
+      field: traceability[*].component_ids
+      ref_arrays:
+        - components
+      ref_id: id
+
+  - id: traceability_component_ids_unique
+    type: unique_values
+    severity: minor
+    category: traceability
+    message: "Duplicate component reference in traceability entry"
+    fix: "Remove duplicate component_ids"
+    params:
+      field: traceability[*].component_ids
+
+  # -------------------------------------------------------------------------
+  # Delta entries
+  # -------------------------------------------------------------------------
+  - id: delta_phase_required
+    type: field_required
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta entry missing phase"
+    fix: "Set phase: Design"
+    params:
+      field: delta[*].phase
+
+  - id: delta_phase_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta phase is invalid for design"
+    fix: "Set phase: Design"
+    params:
+      field: delta[*].phase
+      allowed:
+        - Design
+
+  - id: delta_target_doc_required
+    type: field_required
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta entry missing target_doc"
+    fix: "Set target_doc to a doc listed in docs/current/index.md"
+    params:
+      field: delta[*].target_doc
+
+  - id: delta_change_required
+    type: field_required
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta entry missing change"
+    fix: "Set change to Add, Modify, or Remove"
+    params:
+      field: delta[*].change
+
+  - id: delta_change_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta change is invalid"
+    fix: "Use Add, Modify, or Remove"
+    params:
+      field: delta[*].change
+      allowed:
+        - Add
+        - Modify
+        - Remove
+
+  - id: delta_reason_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    gates: [finalize]
+    message: "delta entry missing reason"
+    fix: "Explain what changed and why"
+    params:
+      field: delta[*].reason
+
+  - id: delta_date_required
+    type: field_required
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta entry missing date"
+    fix: "Set date to today in YYYY-MM-DD format"
+    params:
+      field: delta[*].date
+
+  - id: delta_date_format
+    type: pattern_match
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta date must be YYYY-MM-DD"
+    fix: "Use ISO date format"
+    params:
+      field: delta[*].date
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+
+semantic_checks:
+  - id: requirement_coverage
+    severity: blocking
+    category: traceability
+    description: |
+      Every FR and NFR from requirements.yaml is covered by at least one
+      traceability entry and at least one design element.
+
+  - id: component_boundaries
+    severity: blocking
+    category: structural
+    description: |
+      Component responsibilities are clear, non-overlapping, and testable.
+
+  - id: data_consistency
+    severity: blocking
+    category: structural
+    description: |
+      Data models are consistent with the requirements and APIs.
+
+  - id: failure_paths_considered
+    severity: blocking
+    category: completeness
+    description: |
+      The design addresses the failure paths identified in requirements.
+
+  - id: decisions_are_justified
+    severity: minor
+    category: ambiguity
+    description: |
+      Design decisions include enough context and rationale to be reviewed.
+
+  - id: delta_plausible
+    severity: minor
+    category: traceability
+    description: |
+      Delta entries plausibly describe the living docs affected by the design.

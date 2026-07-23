@@ -1,0 +1,54 @@
+metadata:
+  id: PLAN-001
+  title: "Plan title"
+  stage: planning
+  status: draft
+  version: 0.1.0
+  created: YYYY-MM-DD
+  updated: YYYY-MM-DD
+  based_on_design: null
+  based_on_requirements: null
+  implementation_status: pending
+
+tasks: []
+# Example task:
+#
+# - id: TASK-001
+#   title: Add device registration endpoint
+#   description: >
+#     Implement POST /devices, including validation and persistence.
+#   type: implementation
+#   status: pending
+#   complexity: medium
+#
+#   covers:
+#     - FR-001
+#     - NFR-002
+#
+#   acceptance_ids:
+#     - AC-001
+#     - AC-002
+#
+#   design_refs:
+#     - DEC-003
+#
+#   depends_on: []
+#
+#   files:
+#     - path: src/routes/devices.js
+#       operation: modify
+#     - path: test/devices.test.js
+#       operation: create
+#
+#   started_at: null
+#   completed_at: null
+#   implementation_note: ""
+#   files_changed: []
+
+milestones: []
+
+risks: []
+
+delta: []
+
+semantic_validation: []

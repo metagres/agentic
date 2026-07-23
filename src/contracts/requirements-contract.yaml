@@ -1,0 +1,780 @@
+# requirements-contract.yaml
+#
+# Single source of truth for requirements.yaml validation.
+
+artifact: requirements.yaml
+schema_version: "1.2"
+
+checks:
+  # -------------------------------------------------------------------------
+  # Metadata
+  # -------------------------------------------------------------------------
+  - id: metadata_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata is missing"
+    fix: "Add metadata with id, title, stage, status, and version"
+    params:
+      field: metadata
+
+  - id: metadata_id_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.id is missing"
+    fix: "Add a stable artifact id"
+    params:
+      field: metadata.id
+
+  - id: metadata_title_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.title is missing"
+    fix: "Add a short human-readable title"
+    params:
+      field: metadata.title
+
+  - id: metadata_stage_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.stage is missing"
+    fix: "Set metadata.stage to requirements"
+    params:
+      field: metadata.stage
+
+  - id: metadata_stage_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    message: "metadata.stage is invalid for this contract"
+    fix: "Set metadata.stage to requirements"
+    params:
+      field: metadata.stage
+      allowed:
+        - requirements
+
+  - id: metadata_status_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.status is missing"
+    fix: "Let the script set metadata.status"
+    params:
+      field: metadata.status
+
+  - id: metadata_status_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    message: "metadata.status is not a valid lifecycle value"
+    fix: "Use one of: draft, ready-for-review, accepted, rejected, blocked"
+    params:
+      field: metadata.status
+      allowed:
+        - draft
+        - ready-for-review
+        - accepted
+        - rejected
+        - blocked
+
+  - id: metadata_version_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.version is missing"
+    fix: "Add a version string so downstream artifacts can pin to it"
+    params:
+      field: metadata.version
+
+  - id: metadata_version_format
+    type: pattern_match
+    severity: blocking
+    category: structural
+    message: "metadata.version must be a semantic version"
+    fix: "Use MAJOR.MINOR.PATCH, for example 1.0.0"
+    params:
+      field: metadata.version
+      pattern: '^\d+\.\d+\.\d+$'
+
+  - id: metadata_request_summary_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.request_summary is missing"
+    fix: "Add the original request summary"
+    params:
+      field: metadata.request_summary
+
+  - id: metadata_clarity_enum
+    type: enum_value
+    severity: minor
+    category: ambiguity
+    message: "metadata.clarity is invalid"
+    fix: "Use clear, partial, or vague"
+    params:
+      field: metadata.clarity
+      allowed:
+        - clear
+        - partial
+        - vague
+      case_insensitive: true
+
+  # -------------------------------------------------------------------------
+  # Problem statement
+  # -------------------------------------------------------------------------
+  - id: problem_statement_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "problem_statement is missing"
+    fix: "Add a problem_statement describing the problem, not a solution"
+    params:
+      field: problem_statement
+
+  - id: problem_statement_sentence_count
+    type: sentence_count
+    severity: minor
+    category: ambiguity
+    message: "problem_statement should be concise but complete"
+    fix: "Use 1 to 6 sentences"
+    params:
+      field: problem_statement
+      min: 1
+      max: 6
+
+  # -------------------------------------------------------------------------
+  # Top-level requirement presence
+  # -------------------------------------------------------------------------
+  - id: has_at_least_one_requirement
+    type: at_least_one_of
+    severity: blocking
+    category: completeness
+    message: "No functional or non-functional requirements defined"
+    fix: "Add at least one FR or NFR"
+    params:
+      fields:
+        - functional_requirements
+        - non_functional_requirements
+
+  # -------------------------------------------------------------------------
+  # IDs and uniqueness
+  # -------------------------------------------------------------------------
+  - id: id_format
+    type: id_format
+    severity: blocking
+    category: structural
+    message: "Invalid ID format"
+    fix: "Fix ID to match FR-/NFR-/AC-/DL-NNN pattern"
+    params:
+      arrays:
+        - field: functional_requirements
+          id_field: id
+          pattern: '^FR-\d{3}$'
+        - field: non_functional_requirements
+          id_field: id
+          pattern: '^NFR-\d{3}$'
+        - field: acceptance_criteria
+          id_field: id
+          pattern: '^AC-\d{3}$'
+        - field: discovery_log
+          id_field: id
+          pattern: '^DL-\d{3}$'
+
+  - id: unique_requirement_id
+    type: unique_id
+    severity: blocking
+    category: structural
+    message: "Duplicate ID within an array"
+    fix: "Renumber so every id within the array is unique"
+    params:
+      arrays:
+        - field: functional_requirements
+          id_field: id
+        - field: non_functional_requirements
+          id_field: id
+        - field: acceptance_criteria
+          id_field: id
+        - field: discovery_log
+          id_field: id
+
+  # -------------------------------------------------------------------------
+  # Functional requirements
+  # -------------------------------------------------------------------------
+  - id: fr_description_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "Functional requirement description is missing"
+    fix: "Add a concrete, deterministic description"
+    params:
+      field: functional_requirements[*].description
+
+  - id: fr_ac_ids_required
+    type: field_required
+    severity: blocking
+    category: traceability
+    message: "Functional requirement has no acceptance criteria"
+    fix: "Add at least one AC id to ac_ids"
+    params:
+      field: functional_requirements[*].ac_ids
+      allow_empty: false
+
+  - id: ac_ids_reference
+    type: reference_integrity
+    severity: blocking
+    category: traceability
+    message: "AC referenced by FR not found"
+    fix: "Add missing AC or remove reference"
+    params:
+      field: functional_requirements[*].ac_ids
+      ref_arrays:
+        - acceptance_criteria
+      ref_id: id
+
+  - id: fr_ac_ids_unique
+    type: unique_values
+    severity: minor
+    category: traceability
+    message: "Duplicate AC reference in FR"
+    fix: "Remove duplicate entries from ac_ids"
+    params:
+      field: functional_requirements[*].ac_ids
+
+  # -------------------------------------------------------------------------
+  # Non-functional requirements
+  # -------------------------------------------------------------------------
+  - id: nfr_description_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "Non-functional requirement description is missing"
+    fix: "Add a concrete, measurable description"
+    params:
+      field: non_functional_requirements[*].description
+
+  - id: nfr_ac_ids_required
+    type: field_required
+    severity: minor
+    category: traceability
+    message: "Non-functional requirement has no acceptance criteria"
+    fix: "Add at least one AC id to ac_ids or justify why the NFR is advisory"
+    params:
+      field: non_functional_requirements[*].ac_ids
+      allow_empty: false
+
+  - id: ac_ids_reference_nfr
+    type: reference_integrity
+    severity: blocking
+    category: traceability
+    message: "AC referenced by NFR not found"
+    fix: "Add missing AC or remove reference"
+    params:
+      field: non_functional_requirements[*].ac_ids
+      ref_arrays:
+        - acceptance_criteria
+      ref_id: id
+
+  - id: nfr_ac_ids_unique
+    type: unique_values
+    severity: minor
+    category: traceability
+    message: "Duplicate AC reference in NFR"
+    fix: "Remove duplicate entries from ac_ids"
+    params:
+      field: non_functional_requirements[*].ac_ids
+
+  # -------------------------------------------------------------------------
+  # Acceptance criteria
+  # -------------------------------------------------------------------------
+  - id: ac_statement_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    message: "Acceptance criterion statement is missing"
+    fix: "Add a Given/When/Then statement"
+    params:
+      field: acceptance_criteria[*].statement
+
+  - id: ac_parent_id_required
+    type: field_required
+    severity: blocking
+    category: traceability
+    message: "Acceptance criterion parent_id is missing"
+    fix: "Set parent_id to the FR or NFR verified by this AC"
+    params:
+      field: acceptance_criteria[*].parent_id
+
+  - id: parent_id_reference
+    type: reference_integrity
+    severity: blocking
+    category: traceability
+    message: "Parent referenced by AC not found"
+    fix: "Add missing parent FR/NFR or correct parent_id"
+    params:
+      field: acceptance_criteria[*].parent_id
+      ref_arrays:
+        - functional_requirements
+        - non_functional_requirements
+      ref_id: id
+
+  - id: orphan_acceptance_criteria
+    type: reverse_reference_integrity
+    severity: minor
+    category: traceability
+    message: "AC is not referenced by any FR or NFR"
+    fix: "Reference this AC from the FR/NFR it verifies, or remove it"
+    params:
+      field: acceptance_criteria[*].id
+      ref_arrays:
+        - functional_requirements
+        - non_functional_requirements
+      ref_field: ac_ids
+
+  - id: given_when_then
+    type: given_when_then
+    severity: blocking
+    category: ambiguity
+    message: "Missing Given/When/Then structure"
+    fix: "Restructure as Given <state>, When <action>, Then <result>"
+    params:
+      field: acceptance_criteria[*].statement
+      keywords:
+        - given
+        - when
+        - then
+
+  # -------------------------------------------------------------------------
+  # Forbidden and advisory words
+  # -------------------------------------------------------------------------
+  - id: forbidden_words_problem_statement
+    type: forbidden_words
+    severity: blocking
+    category: ambiguity
+    message: "Uses vague/non-deterministic term in problem_statement"
+    fix: "Replace with concrete metric/condition"
+    params:
+      field: problem_statement
+      words: &blocking_forbidden_words
+        - fast
+        - user-friendly
+        - gracefully
+        - appropriately
+        - it works
+        - it handles
+        - easy
+        - simple
+        - robust
+        - seamless
+        - intuitive
+        - optimal
+        - as needed
+
+  - id: forbidden_words_fr
+    type: forbidden_words
+    severity: blocking
+    category: ambiguity
+    message: "Uses vague/non-deterministic term in FR description"
+    fix: "Replace with concrete metric/condition"
+    params:
+      field: functional_requirements[*].description
+      words: *blocking_forbidden_words
+
+  - id: forbidden_words_nfr
+    type: forbidden_words
+    severity: blocking
+    category: ambiguity
+    message: "Uses vague/non-deterministic term in NFR description"
+    fix: "Replace with concrete metric/condition"
+    params:
+      field: non_functional_requirements[*].description
+      words: *blocking_forbidden_words
+
+  - id: forbidden_words_ac
+    type: forbidden_words
+    severity: blocking
+    category: ambiguity
+    message: "Uses vague/non-deterministic term in acceptance criterion"
+    fix: "Replace with concrete metric/condition"
+    params:
+      field: acceptance_criteria[*].statement
+      words: *blocking_forbidden_words
+
+  - id: advisory_words_problem_statement
+    type: forbidden_words
+    severity: minor
+    category: ambiguity
+    message: "Consider replacing weak wording in problem_statement"
+    fix: "Prefer must/shall and concrete conditions where possible"
+    params:
+      field: problem_statement
+      words: &advisory_forbidden_words
+        - should
+        - reasonable
+        - sufficient
+        - normal
+        - expected
+        - proper
+        - maybe
+        - probably
+
+  - id: advisory_words_fr
+    type: forbidden_words
+    severity: minor
+    category: ambiguity
+    message: "Consider replacing weak wording in FR description"
+    fix: "Prefer must/shall and concrete conditions where possible"
+    params:
+      field: functional_requirements[*].description
+      words: *advisory_forbidden_words
+
+  - id: advisory_words_nfr
+    type: forbidden_words
+    severity: minor
+    category: ambiguity
+    message: "Consider replacing weak wording in NFR description"
+    fix: "Prefer measurable conditions where possible"
+    params:
+      field: non_functional_requirements[*].description
+      words: *advisory_forbidden_words
+
+  - id: advisory_words_ac
+    type: forbidden_words
+    severity: minor
+    category: ambiguity
+    message: "Consider replacing weak wording in acceptance criterion"
+    fix: "Prefer clear pass/fail conditions"
+    params:
+      field: acceptance_criteria[*].statement
+      words: *advisory_forbidden_words
+
+  # -------------------------------------------------------------------------
+  # Discovery log
+  # -------------------------------------------------------------------------
+  - id: discovery_log_question_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "discovery_log entry missing question"
+    fix: "Each discovery_log entry needs id, question, answer, lens, resolved"
+    params:
+      field: discovery_log[*].question
+
+  - id: discovery_log_answer_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "discovery_log entry missing answer"
+    fix: "Each discovery_log entry needs id, question, answer, lens, resolved"
+    params:
+      field: discovery_log[*].answer
+
+  - id: discovery_log_resolved_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "discovery_log entry missing resolved"
+    fix: "Each discovery_log entry needs id, question, answer, lens, resolved"
+    params:
+      field: discovery_log[*].resolved
+
+  - id: discovery_log_lens_required
+    type: field_required
+    severity: minor
+    category: ambiguity
+    message: "discovery_log entry missing lens"
+    fix: "Tag the entry with one of the allowed lenses"
+    params:
+      field: discovery_log[*].lens
+
+  - id: discovery_log_lens_enum
+    type: enum_value
+    severity: minor
+    category: ambiguity
+    message: "Unknown discovery lens"
+    fix: "Use one of: stakeholder, scope, interface, behavior, design, constraint, failure, outcome"
+    params:
+      field: discovery_log[*].lens
+      allowed:
+        - stakeholder
+        - scope
+        - interface
+        - behavior
+        - design
+        - constraint
+        - failure
+        - outcome
+      case_insensitive: true
+
+  # -------------------------------------------------------------------------
+  # Assumptions
+  # -------------------------------------------------------------------------
+  - id: assumption_fields
+    type: assumption_fields
+    severity: blocking
+    category: structural
+    message: "Assumption fields invalid"
+    fix: "Tag assumption and provide required fields"
+    params:
+      variants:
+        verified:
+          - text
+          - source
+          - risk
+        unverified:
+          - text
+          - question
+          - impact
+          - severity
+
+  - id: assumption_type_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    message: "Assumption type is invalid"
+    fix: "Use verified or unverified"
+    params:
+      field: assumptions[*].type
+      allowed:
+        - verified
+        - unverified
+      case_insensitive: true
+
+  - id: assumption_severity_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    message: "Assumption severity is not a valid value"
+    fix: "Use one of: critical, high, medium, low"
+    params:
+      field: assumptions[*].severity
+      where:
+        field: type
+        equals: unverified
+      allowed:
+        - critical
+        - high
+        - medium
+        - low
+      case_insensitive: true
+
+  - id: verified_assumption_source_format
+    type: pattern_match
+    severity: minor
+    category: structural
+    message: "Verified assumption source does not look like a repo path"
+    fix: "Use a file path, optionally with line numbers, e.g. src/foo.ts:42"
+    params:
+      field: assumptions[*].source
+      where:
+        field: type
+        equals: verified
+      pattern: '^[A-Za-z0-9_./-]+(:\d+(-\d+)?)?$'
+
+  # -------------------------------------------------------------------------
+  # Scope, failure paths, risks
+  # -------------------------------------------------------------------------
+  - id: array_nonempty_out_of_scope
+    type: array_nonempty
+    severity: blocking
+    category: completeness
+    message: "out_of_scope is empty"
+    fix: "Add at least one entry or the 'None identified' sentinel"
+    params:
+      field: out_of_scope
+      sentinel: "None identified"
+
+  - id: array_nonempty_failure
+    type: array_nonempty
+    severity: blocking
+    category: completeness
+    message: "failure_paths is empty"
+    fix: "Add at least one entry or the NONE sentinel"
+    params:
+      field: failure_paths
+      sentinel_type: "NONE"
+
+  - id: array_nonempty_risks
+    type: array_nonempty
+    severity: blocking
+    category: completeness
+    message: "risks_and_dependencies is empty"
+    fix: "Add at least one entry or the NONE sentinel"
+    params:
+      field: risks_and_dependencies
+      sentinel_type: "NONE"
+
+  # -------------------------------------------------------------------------
+  # Delta entries
+  # -------------------------------------------------------------------------
+  - id: delta_phase_required
+    type: field_required
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta entry missing phase"
+    fix: "Set phase: Requirements"
+    params:
+      field: delta[*].phase
+
+  - id: delta_phase_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta phase is invalid for requirements"
+    fix: "Set phase: Requirements"
+    params:
+      field: delta[*].phase
+      allowed:
+        - Requirements
+
+  - id: delta_target_doc_required
+    type: field_required
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta entry missing target_doc"
+    fix: "Set target_doc to a doc listed in docs/current/index.md"
+    params:
+      field: delta[*].target_doc
+
+  - id: delta_change_required
+    type: field_required
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta entry missing change"
+    fix: "Set change to Add, Modify, or Remove"
+    params:
+      field: delta[*].change
+
+  - id: delta_change_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta change is invalid"
+    fix: "Use Add, Modify, or Remove"
+    params:
+      field: delta[*].change
+      allowed:
+        - Add
+        - Modify
+        - Remove
+
+  - id: delta_reason_required
+    type: field_required
+    severity: blocking
+    category: completeness
+    gates: [finalize]
+    message: "delta entry missing reason"
+    fix: "Explain what changed and why"
+    params:
+      field: delta[*].reason
+
+  - id: delta_date_required
+    type: field_required
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta entry missing date"
+    fix: "Set date to today in YYYY-MM-DD format"
+    params:
+      field: delta[*].date
+
+  - id: delta_date_format
+    type: pattern_match
+    severity: blocking
+    category: structural
+    gates: [finalize]
+    message: "delta date must be YYYY-MM-DD"
+    fix: "Use ISO date format"
+    params:
+      field: delta[*].date
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+
+semantic_checks:
+  - id: observable_result
+    severity: blocking
+    category: ambiguity
+    description: |
+      AC Then-clause describes a result observable via an external interface
+      (HTTP response, persisted file content, log line, CLI output, or emitted
+      event). It must not describe an internal function call, a payload field
+      of an outbound request, or the existence of test cases.
+
+  - id: ac_behavioral_not_meta
+    severity: blocking
+    category: ambiguity
+    description: |
+      Each AC asserts system behavior under test, not the existence of tests,
+      the execution of a linter, or a process step. Test-coverage mandates
+      belong in NFRs, not ACs.
+
+  - id: boundary_or_negative_case
+    severity: blocking
+    category: completeness
+    description: |
+      At least one AC covers a boundary or negative case.
+
+  - id: fr_negative_coverage
+    severity: blocking
+    category: completeness
+    description: |
+      Each FR whose behavior could fail or be misused has at least one AC
+      covering a negative path.
+
+  - id: critical_unverified_assumption
+    severity: blocking
+    category: structural
+    description: |
+      No critical assumption is left unverified unless explicitly accepted as
+      a residual risk.
+
+  - id: verified_assumption_source_plausible
+    severity: blocking
+    category: structural
+    description: |
+      Each verified assumption source references a plausible repo path or
+      evidence location.
+
+  - id: risk_failure_path_coverage
+    severity: minor
+    category: completeness
+    description: |
+      Each risk has a corresponding failure_paths entry, and each unverified
+      assumption has a corresponding risk entry.
+
+  - id: fr_contradicts_out_of_scope
+    severity: blocking
+    category: structural
+    description: |
+      No FR contradicts an out_of_scope entry.
+
+  - id: fr_contradicts_fr
+    severity: blocking
+    category: structural
+    description: |
+      No FR contradicts another FR.
+
+  - id: fr_contradicts_nfr
+    severity: blocking
+    category: structural
+    description: |
+      No FR contradicts an NFR.
+
+  - id: problem_statement_solution_bias
+    severity: minor
+    category: ambiguity
+    description: |
+      Problem statement describes the problem, not a solution.
+
+  - id: delta_plausible
+    severity: minor
+    category: traceability
+    description: |
+      Delta entries plausibly describe the living docs affected by the
+      requirements.

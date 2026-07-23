@@ -1,0 +1,65 @@
+# .contextignore — same syntax as .gitignore
+
+# Dependency / build directories
+node_modules/
+dist/
+build/
+.next/
+.nuxt/
+__pycache__/
+.venv/
+venv/
+target/
+
+# Lock files (usually noise for an LLM)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+poetry.lock
+
+# Compiled / binary artefacts
+*.pyc
+*.pyo
+*.so
+*.dll
+*.exe
+*.class
+*.jar
+
+# Images & media
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.webp
+*.mp4
+*.mp3
+
+# IDE / OS junk
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Test fixtures / large data
+tests/fixtures/large_*.json
+data/
+*.sqlite
+*.db
+
+# Logs
+*.log
+logs/
+
+# But DO include a specific config you want the LLM to see
+!important.config.json
+
+# agents
+.opencode/
+review.txt
+
+# ignore files
+.gitignore
+.contextignore

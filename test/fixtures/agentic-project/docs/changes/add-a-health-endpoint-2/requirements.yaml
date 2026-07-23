@@ -1,0 +1,24 @@
+metadata:
+  id: REQ-001
+  title: Add a health endpoint
+  stage: requirements
+  step: init
+  status: draft
+  version: 0.1.0
+  created: 2026-07-22
+  updated: 2026-07-22
+  request_summary: Add a health endpoint
+  clarity: partial
+  assumptions_reviewed: false
+  delta_reviewed: false
+problem_statement: ""
+discovery_log: []
+assumptions: []
+functional_requirements: []
+non_functional_requirements: []
+acceptance_criteria: []
+out_of_scope: []
+failure_paths: []
+risks_and_dependencies: []
+delta: []
+semantic_validation: []

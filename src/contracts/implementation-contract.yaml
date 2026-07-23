@@ -1,0 +1,203 @@
+# implementation-contract.yaml
+#
+# Single source of truth for implementation review.
+# The reviewed artifact is plan.yaml, especially task execution state.
+
+artifact: plan.yaml
+schema_version: "1.0"
+
+checks:
+  - id: metadata_implementation_status_required
+    type: field_required
+    severity: blocking
+    category: structural
+    message: "metadata.implementation_status is missing"
+    fix: "Set metadata.implementation_status"
+    params:
+      field: metadata.implementation_status
+
+  - id: metadata_implementation_status_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    message: "metadata.implementation_status is invalid"
+    fix: "Use pending, in_progress, ready-for-review, accepted, or rejected"
+    params:
+      field: metadata.implementation_status
+      allowed:
+        - pending
+        - in_progress
+        - ready-for-review
+        - accepted
+        - rejected
+      case_insensitive: true
+
+  - id: tasks_min_entries
+    type: min_entries
+    severity: blocking
+    category: completeness
+    message: "plan has no tasks"
+    fix: "Add at least one task"
+    params:
+      field: tasks
+      min: 1
+
+  - id: task_id_format
+    type: id_format
+    severity: blocking
+    category: structural
+    message: "Invalid task id format"
+    fix: "Use TASK-NNN"
+    params:
+      arrays:
+        - field: tasks
+          id_field: id
+          pattern: '^TASK-\d{3}$'
+
+  - id: unique_task_id
+    type: unique_id
+    severity: blocking
+    category: structural
+    message: "Duplicate task id"
+    fix: "Renumber task ids so they are unique"
+    params:
+      arrays:
+        - field: tasks
+          id_field: id
+
+  - id: task_status_enum
+    type: enum_value
+    severity: blocking
+    category: structural
+    message: "task status is invalid"
+    fix: "Use pending, in_progress, done, blocked, or skipped"
+    params:
+      field: tasks[*].status
+      allowed:
+        - pending
+        - in_progress
+        - done
+        - blocked
+        - skipped
+      case_insensitive: true
+
+  - id: tasks_all_complete
+    type: tasks_all_complete
+    severity: blocking
+    category: completeness
+    message: "Not all tasks are complete"
+    fix: "Mark every task done or skipped before implementation review"
+    params:
+      tasks_field: tasks
+      status_field: status
+      complete_statuses:
+        - done
+        - skipped
+
+  - id: execution_note_required
+    type: execution_note_required
+    severity: blocking
+    category: completeness
+    message: "Completed, blocked, or skipped task requires an implementation note"
+    fix: "Add an implementation_note explaining what happened and how it was verified"
+    params:
+      tasks_field: tasks
+      status_field: status
+      note_field: implementation_note
+      require_statuses:
+        - done
+        - blocked
+        - skipped
+
+  - id: files_changed_operation_enum
+    type: files_field_enum
+    severity: blocking
+    category: structural
+    message: "Changed file operation is invalid"
+    fix: "Use create, modify, or delete"
+    params:
+      tasks_field: tasks
+      files_field: files_changed
+      field: operation
+      allowed:
+        - create
+        - modify
+        - delete
+      case_insensitive: true
+
+  - id: file_conflict_without_dependency
+    type: file_conflict_without_dependency
+    severity: blocking
+    category: structural
+    message: "Two tasks changed the same file without a declared dependency"
+    fix: "Add a dependency between the tasks or justify the overlap"
+    params:
+      tasks_field: tasks
+      id_field: id
+      depends_field: depends_on
+      files_field: files_changed
+      path_field: path
+
+  - id: source_grep_forbidden_patterns
+    type: source_grep
+    severity: minor
+    category: quality
+    message: "Changed file contains a forbidden debug pattern"
+    fix: "Remove debug code before accepting implementation"
+    params:
+      words:
+        - console.log
+        - debugger
+      exclude_patterns:
+        - node_modules/
+        - dist/
+        - build/
+      case_insensitive: true
+
+semantic_checks:
+  - id: implementation_satisfies_acceptance_criteria
+    severity: blocking
+    category: traceability
+    description: |
+      The completed tasks plausibly satisfy the acceptance criteria they claim
+      to cover.
+
+  - id: negative_paths_verified
+    severity: blocking
+    category: completeness
+    description: |
+      Negative and boundary cases required by requirements and plan have been
+      implemented or verified.
+
+  - id: no_unjustified_unplanned_changes
+    severity: blocking
+    category: structural
+    description: |
+      Files changed outside the plan are either incidental and explained, or
+      indicate that the plan should be updated and re-reviewed.
+
+  - id: tests_or_verification_evidence
+    severity: blocking
+    category: quality
+    description: |
+      There is evidence that the work was verified: tests, manual verification
+      notes, CLI output, log evidence, or other concrete proof.
+
+  - id: implementation_notes_sufficient
+    severity: minor
+    category: completeness
+    description: |
+      Task implementation notes are sufficient to understand what was done and
+      how it was verified.
+
+  - id: refactor_behavior_preserved
+    severity: blocking
+    category: quality
+    description: |
+      For refactor tasks, there is evidence that behavior was preserved.
+
+  - id: ready_for_knowledge_extraction
+    severity: blocking
+    category: completeness
+    description: |
+      The implementation is complete enough to synchronize docs/current.
