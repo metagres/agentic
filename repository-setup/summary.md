@@ -35,7 +35,7 @@ npm run deploy:smoke
 Or manually:
 
 ```bash
-node bin/deploy-to-agent.mjs \
+node bin/deploy-to-agent.js \
   --dest /tmp/test-agent-root \
   --project-root /tmp/test-project \
   --bundle \
@@ -45,11 +45,11 @@ node bin/deploy-to-agent.mjs \
 ## CLI utilities
 
 ```bash
-node src/scripts/sdlc.mjs --list-workflows
-node src/scripts/sdlc.mjs doctor
-node src/scripts/sdlc.mjs doctor --strict
-node src/scripts/sdlc.mjs docs-init
-node src/scripts/sdlc.mjs status --dir <change-dir>
+node src/scripts/sdlc.js --list-workflows
+node src/scripts/sdlc.js doctor
+node src/scripts/sdlc.js doctor --strict
+node src/scripts/sdlc.js docs-init
+node src/scripts/sdlc.js status --dir <change-dir>
 ```
 
 ## Key invariants

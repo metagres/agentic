@@ -8,25 +8,25 @@
     "node": ">=20"
   },
   "bin": {
-    "sdlc": "src/scripts/sdlc.mjs"
+    "sdlc": "src/scripts/sdlc.js"
   },
   "scripts": {
-    "test": "node --test test/unit/*.test.mjs test/e2e/*.test.mjs test/contracts/*.test.mjs",
-    "deploy": "node bin/deploy-to-agent.mjs",
-    "sdlc": "node src/scripts/sdlc.mjs",
-    "build": "node bin/build-runtime.mjs",
-    "validate:contracts": "node bin/validate-contracts.mjs",
-    "validate:templates": "node bin/validate-templates.mjs",
-    "lint:artifact": "node bin/lint-artifact.mjs",
+    "test": "node --test test/unit/*.test.js test/e2e/*.test.js test/contracts/*.test.js",
+    "deploy": "node bin/deploy-to-agent.js",
+    "sdlc": "node src/scripts/sdlc.js",
+    "build": "node bin/build-runtime.js",
+    "validate:contracts": "node bin/validate-contracts.js",
+    "validate:templates": "node bin/validate-templates.js",
+    "lint:artifact": "node bin/lint-artifact.js",
     "validate": "npm run validate:schemas && npm run validate:policies && npm run validate:contracts && npm run validate:templates && npm test",
-    "test:unit": "node --test test/unit/*.test.mjs",
-    "test:e2e": "node --test test/e2e/*.test.mjs",
-    "test:contracts": "node --test test/contracts/*.test.mjs",
-    "validate:schemas": "node bin/validate-schemas.mjs",
-    "validate:policies": "node bin/validate-policies.mjs",
+    "test:unit": "node --test test/unit/*.test.js",
+    "test:e2e": "node --test test/e2e/*.test.js",
+    "test:contracts": "node --test test/contracts/*.test.js",
+    "validate:schemas": "node bin/validate-schemas.js",
+    "validate:policies": "node bin/validate-policies.js",
     "validate:fixtures": "npm run test:contracts",
     "check:all": "npm run test:all && npm run deploy:smoke",
-    "deploy:smoke": "node bin/deploy-to-agent.mjs --dest .tmp/agent --project-root .tmp/project --bundle --clean",
+    "deploy:smoke": "node bin/deploy-to-agent.js --dest .tmp/agent --project-root .tmp/project --bundle --clean",
     "test:all": "npm run validate && npm run test:unit && npm run test:contracts && npm run test:e2e"
   },
   "dependencies": {
