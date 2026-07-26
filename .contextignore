@@ -10,6 +10,7 @@ __pycache__/
 .venv/
 venv/
 target/
+.tmp/
 
 # Lock files (usually noise for an LLM)
 package-lock.json
