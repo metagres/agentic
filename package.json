@@ -8,26 +8,27 @@
     "node": ">=20"
   },
   "bin": {
-    "sdlc": "src/scripts/sdlc.js"
+    "sdlc": "src/scripts/sdlc.ts"
   },
   "scripts": {
-    "test": "node --test test/unit/*.test.js test/e2e/*.test.js test/contracts/*.test.js",
-    "deploy": "node bin/deploy-to-agent.js",
-    "sdlc": "node src/scripts/sdlc.js",
-    "build": "node bin/build-runtime.js",
-    "validate:contracts": "node bin/validate-contracts.js",
-    "validate:templates": "node bin/validate-templates.js",
-    "lint:artifact": "node bin/lint-artifact.js",
-    "validate": "npm run validate:schemas && npm run validate:policies && npm run validate:contracts && npm run validate:templates && npm test",
-    "test:unit": "node --test test/unit/*.test.js",
-    "test:e2e": "node --test test/e2e/*.test.js",
-    "test:contracts": "node --test test/contracts/*.test.js",
-    "validate:schemas": "node bin/validate-schemas.js",
-    "validate:policies": "node bin/validate-policies.js",
+    "test": "node --test test/unit/*.test.ts test/e2e/*.test.ts test/contracts/*.test.ts",
+    "deploy": "node bin/deploy-to-agent.ts",
+    "sdlc": "node src/scripts/sdlc.ts",
+    "build": "tsup",
+    "validate:contracts": "node bin/validate-contracts.ts",
+    "validate:templates": "node bin/validate-templates.ts",
+    "lint:artifact": "node bin/lint-artifact.ts",
+    "validate": "npm run validate:schemas && npm run validate:policies && npm run validate:contracts && npm run validate:templates && npm run typecheck && npm test",
+    "test:unit": "node --test test/unit/*.test.ts",
+    "test:e2e": "node --test test/e2e/*.test.ts",
+    "test:contracts": "node --test test/contracts/*.test.ts",
+    "validate:schemas": "node bin/validate-schemas.ts",
+    "validate:policies": "node bin/validate-policies.ts",
     "validate:fixtures": "npm run test:contracts",
     "check:all": "npm run test:all && npm run deploy:smoke",
-    "deploy:smoke": "node bin/deploy-to-agent.js --dest .tmp/agent --project-root .tmp/project --bundle --clean",
-    "test:all": "npm run validate && npm run test:unit && npm run test:contracts && npm run test:e2e"
+    "deploy:smoke": "node bin/deploy-to-agent.ts --dest .tmp/agent --project-root .tmp/project --bundle --clean",
+    "test:all": "npm run validate && npm run test:unit && npm run test:contracts && npm run test:e2e",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "ajv": "^8.20.0",
@@ -36,6 +37,8 @@
     "yaml": "^2.5.1"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0"
+    "@types/node": "^26.1.1",
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2"
   }
 }
