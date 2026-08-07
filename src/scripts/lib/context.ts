@@ -4,7 +4,6 @@ import { fileURLToPath } from 'node:url';
 
 import { readYaml } from './yaml-io.ts';
 import { loadDocsIndex } from './docs-index.ts';
-import type { WarningItem } from './types.ts';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -14,53 +13,6 @@ export function safeReadYaml(file: string): unknown {
   } catch {
     return null;
   }
-}
-
-export function loadContract(contractFile: string, cwd: string, warnings: WarningItem[] = []): Record<string, unknown> {
-  const candidates = [
-    // Bundled runtime:
-    //   <agent-root>/sdlc/scripts/sdlc.js
-    //   <agent-root>/sdlc/contracts/<contractFile>
-    path.resolve(scriptDir, '..', 'contracts', contractFile),
-
-    // Development runtime:
-    //   src/scripts/lib/context.ts
-    //   src/contracts/<contractFile>
-    path.resolve(scriptDir, '..', '..', 'contracts', contractFile),
-
-    // Extra fallbacks.
-    path.resolve(scriptDir, '..', '..', '..', 'contracts', contractFile),
-    path.join(cwd, 'contracts', contractFile),
-    path.join(cwd, 'src', 'contracts', contractFile),
-  ];
-
-  for (const candidate of candidates) {
-    const contract = safeReadYaml(candidate) as Record<string, unknown> | null;
-
-    if (contract) return contract;
-  }
-
-  warnings.push({
-    code: 'CONTRACT_MISSING',
-    message:
-      `No contract found: ${contractFile}. ` +
-      `Looked in: ${candidates.join(', ')}`,
-  });
-
-  return {
-    checks: [],
-    semantic_checks: [],
-  };
-}
-
-export function requireContract(contractFile: string, cwd: string, warnings: WarningItem[] = []): Record<string, unknown> {
-  const contract = loadContract(contractFile, cwd, warnings);
-  if (!contract || !Array.isArray(contract.checks) || (contract.checks as unknown[]).length === 0) {
-    const err = new Error(`Required contract not found or empty: ${contractFile}`) as NodeJS.ErrnoException;
-    err.code = 'CONTRACT_MISSING';
-    throw err;
-  }
-  return contract;
 }
 
 export function makeCtx(cwd: string, changeRoot: string | null): { loadFile: (relPath: string) => unknown; fileExists: (relPath: string) => boolean; readFile: (relPath: string) => string | null; changedFiles: () => string[] } {

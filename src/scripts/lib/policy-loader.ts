@@ -50,10 +50,6 @@ export function loadPipeline(cwd: string = process.cwd()): unknown {
   return loadPolicy('policies', 'pipeline.yaml', cwd);
 }
 
-export function loadReviewTargets(cwd: string = process.cwd()): unknown {
-  return loadPolicy('policies', 'review-targets.yaml', cwd);
-}
-
 export function loadLifecycle(cwd: string = process.cwd()): unknown {
   return loadPolicy('policies', 'lifecycle.yaml', cwd);
 }

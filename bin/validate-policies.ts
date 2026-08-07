@@ -77,21 +77,13 @@ check('pipeline.yaml', (doc: unknown) => {
         throw new Error(`pipeline stage '${stageId}' requires unknown stage: ${req}`);
       }
     }
-  }
-});
-
-check('review-targets.yaml', (doc: unknown) => {
-  const d = doc as Record<string, unknown> | null;
-  if (!d || typeof d !== 'object') throw new Error('review-targets.yaml must be an object');
-  const targets = d.targets as Record<string, unknown> | undefined;
-  if (!targets || typeof targets !== 'object') throw new Error('review-targets.yaml must define targets');
-
-  for (const [targetId, target] of Object.entries(targets)) {
-    const t = target as Record<string, unknown>;
-    if (!t.artifact) throw new Error(`review target '${targetId}' missing artifact`);
-    if (!t.review_file) throw new Error(`review target '${targetId}' missing review_file`);
-    if (!['status', 'implementation_status'].includes(t.status_field as string)) {
-      throw new Error(`review target '${targetId}' has invalid status_field`);
+    if (s.review_file) {
+      if (typeof s.review_file !== 'string') {
+        throw new Error(`pipeline stage '${stageId}' has invalid review_file`);
+      }
+      if (!['status', 'implementation_status'].includes(s.status_field as string)) {
+        throw new Error(`pipeline stage '${stageId}' has invalid status_field`);
+      }
     }
   }
 });

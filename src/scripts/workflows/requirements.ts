@@ -2,6 +2,8 @@ import { nextId, nextIdsFromArrays, today } from '../lib/ids.ts';
 import { deltaComplete, titleFromRequest } from '../lib/stage-helpers.ts';
 // sdlc-hardening: policy
 import { loadRequirementsPolicy } from '../lib/policy-loader.ts';
+import { detectStep, isReadyForReview, getData } from '../lib/authoring-base.ts';
+import type { AuthoringStageConfig } from '../lib/authoring-base.ts';
 
 function discoveryGate(artifact: Record<string, unknown>) {
   const log = Array.isArray(artifact?.discovery_log)
@@ -92,176 +94,32 @@ function draftComplete(artifact: Record<string, unknown>) {
   return hasProblemStatement && frCount + nfrCount > 0 && acCount > 0;
 }
 
-export const requirementsStage = {
+const config: AuthoringStageConfig = {
   id: 'requirements',
   artifactFile: 'requirements.yaml',
-  contractFile: 'requirements-contract.yaml',
   deltaPhase: 'Requirements',
-
-  stepIds: [
-    'needs_input',
-    'init',
-    'discovery',
-    'assumptions',
-    'drafting',
-    'validation',
-    'delta',
-    'recovery',
-    'ready',
-    'complete',
-  ],
-
-  stepDefinitions: {
-    needs_input: {
-      title: 'Needs input',
-      next_action: 'provide_change_or_request',
-      markdown: `
-Ask the user whether this is an existing change or a new request.
-
-For an existing change, present \`data.existing_changes\` and ask the user to choose one.
-
-For a new request, ask the user for the request text.
-`.trim(),
-      commands: [
-        '{{SDLC}} requirements --dir <change-dir>',
-        '{{SDLC}} requirements --request "<request text>"',
-      ],
-    },
-
-    init: {
-      title: 'Initialization',
-      next_action: 'initialize_context',
-      markdown: `
-The script created the initial requirements artifact.
-
-Read \`docs/current/index.md\` and use it to decide which living docs are relevant.
-Read only what is needed for this request.
-`.trim(),
-      commands: ['{{SDLC}} requirements --dir {{change_dir}}'],
-    },
-
-    discovery: {
-      title: 'Discovery',
-      next_action: 'ask_user_question',
-      markdown: `
-Ask the user one question at a time.
-
-Record each resolved answer through the script. The script allocates the next DL-NNN id.
-
-Do not stop until \`data.discovery_gate.passed\` is true.
-`.trim(),
-      commands: [
-        '{{SDLC}} requirements --dir {{change_dir}} --record-answer --lens <lens> --question "<question>" --answer "<answer>"',
-        '{{SDLC}} requirements --dir {{change_dir}} --set-clarity <clear|partial|vague>',
-      ],
-      exit_criteria: {
-        field: 'data.discovery_gate.passed',
-        equals: true,
-      },
-    },
-
-    assumptions: {
-      title: 'Assumptions',
-      next_action: 'record_assumptions_or_complete_step',
-      markdown: `
-List every assumption implied by the request and discovery answers.
-
-Classify each assumption as verified or unverified.
-
-If there are genuinely no assumptions, mark the step complete.
-`.trim(),
-      commands: [
-        '{{SDLC}} requirements --dir {{change_dir}} --update-artifact < requirements.yaml',
-        '{{SDLC}} requirements --dir {{change_dir}} --complete-step --step assumptions',
-      ],
-    },
-
-    drafting: {
-      title: 'Drafting',
-      next_action: 'update_artifact',
-      markdown: `
-Draft the full requirements artifact.
-
-Use \`data.next_ids\` to choose the next FR/NFR/AC ids.
-
-Write the artifact through the script.
-`.trim(),
-      commands: [
-        '{{SDLC}} requirements --dir {{change_dir}} --next-ids',
-        '{{SDLC}} requirements --dir {{change_dir}} --update-artifact < requirements.yaml',
-      ],
-    },
-
-    validation: {
-      title: 'Validation',
-      next_action: 'fix_mechanical_errors',
-      markdown: `
-Fix mechanical validation errors first.
-
-Then run \`--finalize\` to review the semantic checks.
-`.trim(),
-      commands: [
-        '{{SDLC}} requirements --dir {{change_dir}} --finalize',
-      ],
-    },
-
-    delta: {
-      title: 'Delta',
-      next_action: 'append_delta_or_complete_step',
-      markdown: `
-Determine which living docs are affected.
-
-Use \`data.delta_allowed_target_docs\` as the allowed target docs.
-
-Append delta entries through the script.
-
-If no docs are affected, mark the step complete.
-`.trim(),
-      commands: [
-        '{{SDLC}} requirements --dir {{change_dir}} --append-delta < delta.yaml',
-        '{{SDLC}} requirements --dir {{change_dir}} --complete-step --step delta',
-      ],
-    },
-
-    recovery: {
-      title: 'Recovery',
-      next_action: 'fix_review_findings',
-      markdown: `
-The artifact was rejected by review.
-
-Read \`data.review_report\` and fix each blocking finding.
-
-Update the artifact through the script, then finalize again.
-
-If the artifact was rejected, finalizing automatically applies a patch version bump unless you pass --bump-version.
-`.trim(),
-      commands: [
-        '{{SDLC}} requirements --dir {{change_dir}} --update-artifact < requirements.yaml',
-        '{{SDLC}} requirements --dir {{change_dir}} --finalize',
-      ],
-    },
-
-    ready: {
-      title: 'Ready',
-      next_action: 'finalize',
-      markdown: `
-All gates passed.
-
-Finalize the artifact.
-`.trim(),
-      commands: ['{{SDLC}} requirements --dir {{change_dir}} --finalize'],
-    },
-
-    complete: {
-      title: 'Complete',
-      next_action: 'invoke_review',
-      markdown: `
-The requirements artifact is ready for the review gate.
-`.trim(),
-      commands: ['{{SDLC}} review --target requirements --dir {{change_dir}}'],
-    },
+  initComplete: (artifact) => {
+    const metadata = (artifact.metadata as Record<string, unknown>) || {};
+    return Boolean(metadata?.title && metadata?.request_summary);
   },
+  draftComplete,
+  extraStep: (env) => {
+    const artifact = env.artifact as Record<string, unknown>;
+    if (!discoveryGate(artifact).passed) return 'discovery';
+    if (!assumptionsComplete(artifact)) return 'assumptions';
+    return null;
+  },
+  getExtraData: (env) => {
+    const artifact = (env.artifact || {}) as Record<string, unknown>;
+    return {
+      discovery_gate: discoveryGate(artifact),
+      assumptions_complete: assumptionsComplete(artifact),
+    };
+  },
+};
 
+export const requirementsStage = {
+  ...config,
   initialArtifact(request: string, env: Record<string, unknown>) {
     return {
       metadata: {
@@ -347,94 +205,7 @@ The requirements artifact is ready for the review gate.
     metadata.clarity = clarity;
   },
 
-  detectStep(env: Record<string, unknown>) {
-    if (!env.changeRoot) return 'needs_input';
-
-    const artifact = env.artifact as Record<string, unknown> | null;
-
-    if (!artifact) return 'init';
-
-    const metadata = (artifact.metadata as Record<string, unknown>) || {};
-
-    if (metadata?.status === 'rejected') return 'recovery';
-
-    if (!metadata?.title || !metadata?.request_summary) {
-      return 'init';
-    }
-
-    if (!discoveryGate(artifact).passed) return 'discovery';
-
-    if (!assumptionsComplete(artifact)) return 'assumptions';
-
-    if (!draftComplete(artifact)) return 'drafting';
-
-    const blockingCount = (env.blocking as unknown[])?.length || 0;
-    const semantic = env.semantic as Record<string, unknown> | undefined;
-    const semanticComplete = (semantic?.complete as boolean) ?? false;
-
-    if (blockingCount > 0 || !semanticComplete) return 'validation';
-
-    if (!deltaComplete(artifact)) return 'delta';
-
-    if (
-      metadata?.status === 'ready-for-review' ||
-      metadata?.status === 'accepted'
-    ) {
-      return 'complete';
-    }
-
-    return 'ready';
-  },
-
-  isReadyForReview(env: Record<string, unknown>) {
-    const artifact = env.artifact as Record<string, unknown>;
-    const reasons: string[] = [];
-
-    if (!assumptionsComplete(artifact)) {
-      reasons.push('assumptions are not complete');
-    }
-
-    if (!draftComplete(artifact)) {
-      reasons.push('requirements draft is not complete');
-    }
-
-    const blockingCount = (env.blocking as unknown[])?.length || 0;
-
-    if (blockingCount > 0) {
-      reasons.push(`${blockingCount} blocking mechanical finding(s)`);
-    }
-
-    if (!(env.semantic as Record<string, unknown>)?.complete) {
-      const semantic = env.semantic as Record<string, unknown> | undefined;
-      const missing = ((semantic?.missing as string[]) || []).join(', ');
-      const failed = ((semantic?.failed as string[]) || []).join(', ');
-
-      reasons.push(
-        `semantic validation incomplete (missing: ${missing || 'none'}, failed: ${failed || 'none'})`
-      );
-    }
-
-    if (!deltaComplete(artifact)) {
-      reasons.push('delta is not complete');
-    }
-
-    return {
-      ready: reasons.length === 0,
-      reasons,
-    };
-  },
-
-  getData(env: Record<string, unknown>) {
-    const artifact = (env.artifact || {}) as Record<string, unknown>;
-    const semantic = env.semantic as Record<string, unknown> | undefined;
-
-    return {
-      discovery_gate: discoveryGate(artifact),
-      assumptions_complete: assumptionsComplete(artifact),
-      draft_complete: draftComplete(artifact),
-      mechanical_valid: ((env.blocking as unknown[])?.length || 0) === 0,
-      semantic_complete: Boolean(semantic?.complete),
-      delta_complete: deltaComplete(artifact),
-    };
-  },
+  detectStep: (env: Record<string, unknown>) => detectStep(env, config),
+  isReadyForReview: (env: Record<string, unknown>) => isReadyForReview(env, config),
+  getData: (env: Record<string, unknown>) => getData(env, config),
 };

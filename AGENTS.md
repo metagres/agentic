@@ -20,7 +20,7 @@ npm run check:all
 
 ## 2. Invariants (Never Break These)
 
-1. Contracts are the source of truth for validation.
+1. JSON Schemas are the structural source of truth; cross-file + lint checks enforce traceability.
 2. The CLI owns lifecycle state transitions.
 3. Review history is append-only; rounds are never deleted.
 4. Living docs (`docs/current/`) are updated only through knowledge extraction.
@@ -50,7 +50,7 @@ Do not conflate these.
 A change is complete when:
 
 - `npm run validate` passes.
-- No invariant from §3 is violated.
+- No invariant from §2 is violated.
 - No new top-level CLI envelope fields were introduced.
 - No hardcoded agent-specific paths were added.
 - If deployment-related files changed: `npm run deploy:smoke` passes.
@@ -64,15 +64,16 @@ Do not memorize file paths or internal APIs. Discover them:
 
 | Need | Where to look |
 |---|---|
-| Contract structure & check types | `src/schemas/contract-meta.schema.yaml` |
-| Artifact shapes | `src/schemas/*.schema.yaml` |
-| Pipeline topology & review targets | `src/policies/pipeline.yaml`, `src/policies/review-targets.yaml` |
-| Lifecycle transitions | `src/policies/lifecycle.yaml` |
+| Artifact shapes (structure) | `src/schemas/*.schema.yaml` |
+| Cross-file + lint checks | `src/scripts/lib/validators.ts`, `src/scripts/lib/lint-checks.ts` |
+| Pipeline topology & review targets | `src/policies/pipeline.yaml` |
+| Stage config loader | `src/scripts/lib/pipeline.ts` |
 | Error codes & messages | `src/policies/errors.yaml` |
 | ID conventions & patterns | `src/policies/ids.yaml` |
 | Discovery policy | `src/policies/requirements-policy.yaml` |
-| Skill generation source | `src/scripts/workflows/skill-manifest.js` |
-| Deployment logic | `bin/deploy-to-agent.js` |
+| Semantic (advisory) checks | `src/policies/semantic-checks.yaml` |
+| Skill generation source | `src/scripts/workflows/skill-manifest.ts` |
+| Deployment logic | `bin/deploy-to-agent.ts` |
 | Implementation plans | `the-plan.md` (this repository's planning doc) |
 
 When in doubt, run `npm run validate` and read the failing output.
@@ -82,21 +83,20 @@ When in doubt, run `npm run validate` and read the failing output.
 ## 6. Validation Layers (Order of Execution)
 
 ```
-YAML parse → JSON Schema (shape) → Contract checks (relations) → Semantic (LLM) → Review gate → Knowledge extraction
+YAML parse → JSON Schema (shape) → Cross-file + lint checks (traceability/wording) → Semantic (advisory, LLM) → Review gate → Knowledge extraction
 ```
 
-Schemas validate structure. Contracts validate meaning and traceability. Both must pass.
+Schemas validate structure. Cross-file + lint checks validate meaning, traceability, and wording. Both must pass.
 
 ---
 
 ## 7. Quick Reference Commands
 
 ```bash
-npm run validate          # schemas + policies + contracts + templates + tests
+npm run validate          # schemas + policies + templates + typecheck + tests
 npm run check:all         # validate + all test layers + deploy smoke
 npm run test:unit         # unit tests only
 npm run test:e2e          # end-to-end tests only
-npm run test:contracts    # fixture-driven contract tests
 npm run deploy:smoke      # bundled deploy + CLI smoke test
 ```
 
@@ -106,11 +106,20 @@ npm run deploy:smoke      # bundled deploy + CLI smoke test
 
 | Area changed | Extra action |
 |---|---|
-| Contracts (`src/contracts/`) | `npm run validate:contracts` + lint a real artifact |
 | Schemas (`src/schemas/`) | `npm run validate:schemas` |
 | Policies (`src/policies/`) | `npm run validate:policies` |
 | Templates (`src/templates/`) | `npm run validate:templates` |
+| Cross-file / lint checks | `npm run test:unit` + lint a real artifact with `bin/lint-artifact.ts` |
 | Workflows / CLI behavior | Run the affected workflow with `--help` and a test change dir |
 | Skills / deployment | `npm run deploy:smoke` and verify generated skills |
 
 If a new check type, error code, or ID prefix is added, update the corresponding catalog in `src/policies/` and add a test.
+
+---
+
+## 9. Repository Utilities
+
+| Utility | Purpose |
+|---|---|
+| `generate_context.js` | Compiles repo source into `llm_context.txt` (gitignored) for use as LLM context. Uses `.contextignore` or falls back to `.gitignore`. |
+| `.opencode/sdlc/` + `.opencode/skills/` | Deploy targets, regenerated via `npm run deploy:smoke`. Not source — do not edit directly. |

@@ -12,46 +12,27 @@ import {
 } from '../lib/resolve-root.ts';
 import { today, nowIso } from '../lib/ids.ts';
 import {
-  loadReviewTargets,
   loadSemanticChecks,
 } from '../lib/policy-loader.ts';
+import { getReviewTargets } from '../lib/pipeline.ts';
 import { validateArtifactSchema } from '../lib/schema.ts';
 import { checkCrossFileReferences } from '../lib/validators.ts';
+import { runLintChecks } from '../lib/lint-checks.ts';
 import { makeError } from '../lib/error-catalog.ts';
-
-const FALLBACK_TARGETS = {
-  requirements: {
-    artifact: 'requirements.yaml',
-    review_file: 'requirements-review.yaml',
-    status_field: 'status',
-  },
-  design: {
-    artifact: 'design.yaml',
-    review_file: 'design-review.yaml',
-    status_field: 'status',
-  },
-  plan: {
-    artifact: 'plan.yaml',
-    review_file: 'plan-review.yaml',
-    status_field: 'status',
-  },
-  implementation: {
-    artifact: 'plan.yaml',
-    review_file: 'implementation-review.yaml',
-    status_field: 'implementation_status',
-  },
-};
 
 function getTargets(cwd: string): Record<string, unknown> {
   try {
-    const config = loadReviewTargets(cwd) as Record<string, unknown> | null;
-    if (config && typeof config.targets === 'object') {
-      return config.targets as Record<string, unknown>;
-    }
+    return getReviewTargets(cwd) as Record<string, unknown>;
   } catch {
-    // Use fallback targets if policy loading fails.
+    // Fallback if pipeline.yaml can't be loaded — keep the same hardcoded structure
+    // as a safety net. This mirrors the old FALLBACK_TARGETS.
+    return {
+      requirements: { artifact: 'requirements.yaml', review_file: 'requirements-review.yaml', status_field: 'status' },
+      design: { artifact: 'design.yaml', review_file: 'design-review.yaml', status_field: 'status' },
+      plan: { artifact: 'plan.yaml', review_file: 'plan-review.yaml', status_field: 'status' },
+      implementation: { artifact: 'plan.yaml', review_file: 'implementation-review.yaml', status_field: 'implementation_status' },
+    };
   }
-  return FALLBACK_TARGETS;
 }
 
 function normalizeTarget(value: string | null | undefined, targets: Record<string, unknown>) {
@@ -60,7 +41,12 @@ function normalizeTarget(value: string | null | undefined, targets: Record<strin
   return targets[target] ? target : null;
 }
 
-function usage(code = EXIT.usage, message: string | null = null, targets: Record<string, unknown> = FALLBACK_TARGETS) {
+function usage(code = EXIT.usage, message: string | null = null, targets: Record<string, unknown> = {
+  requirements: { artifact: 'requirements.yaml', review_file: 'requirements-review.yaml', status_field: 'status' },
+  design: { artifact: 'design.yaml', review_file: 'design-review.yaml', status_field: 'status' },
+  plan: { artifact: 'plan.yaml', review_file: 'plan-review.yaml', status_field: 'status' },
+  implementation: { artifact: 'plan.yaml', review_file: 'implementation-review.yaml', status_field: 'implementation_status' },
+}) {
   writeJson(
     {
       workflow: 'review',
@@ -210,16 +196,19 @@ export function runReview(argv: string[]) {
 
     const schemaFindings = validateArtifactSchema(target, artifact, cwd);
     const refFindings = checkCrossFileReferences(target, artifact, changeRoot);
+    const lintFindings = runLintChecks(target, artifact);
     
-    const findings = [...schemaFindings, ...refFindings];
-    const blocking = findings.map(f => ({
-      check: 'validation',
-      severity: 'blocking',
-      category: 'structural',
-      target: 'doc',
-      finding: f.finding || (f as any).message,
-      fix: 'Fix the error'
-    }));
+    const findings = [...schemaFindings, ...refFindings, ...lintFindings];
+    const blocking = findings
+      .filter(f => !f.severity || f.severity === 'blocking')
+      .map(f => ({
+        check: 'validation',
+        severity: f.severity || 'blocking',
+        category: f.category || 'structural',
+        target: 'doc',
+        finding: f.finding || (f as any).message,
+        fix: f.fix || 'Fix the error'
+      }));
 
     const currentStatus = ((artifact as Record<string, unknown>)?.metadata as Record<string, unknown> | undefined)?.[cfg.status_field] as string | undefined;
     const readyForReview = currentStatus === 'ready-for-review' || currentStatus === 'accepted';

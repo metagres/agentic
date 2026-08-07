@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { readYaml } from './yaml-io.ts';
+import { getSchemaForTarget } from './pipeline.ts';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -95,15 +96,7 @@ export function validateWithSchema(data: unknown, schemaFile: string, cwd: strin
 }
 
 export function validateArtifactSchema(target: string, data: unknown, cwd: string = process.cwd()): { check: string; severity: string; category: string; target: string; finding: string; fix: string }[] {
-  const schemaByTarget = {
-    requirements: 'requirements.schema.yaml',
-    design: 'design.schema.yaml',
-    plan: 'plan.schema.yaml',
-    planning: 'plan.schema.yaml',
-    implementation: 'plan.schema.yaml',
-  };
-
-  const schemaFile = schemaByTarget[target as keyof typeof schemaByTarget];
+  const schemaFile = getSchemaForTarget(cwd, target);
   if (!schemaFile) {
     return [];
   }

@@ -7,6 +7,7 @@ import { safeReadYaml } from '../lib/context.ts';
 import { requireChangeRoot } from '../lib/change-root.ts';
 import { today } from '../lib/ids.ts';
 import { makeError } from '../lib/error-catalog.ts';
+import { getStagesWithDelta } from '../lib/pipeline.ts';
 
 function usage(code = EXIT.ok) {
   writeJson(
@@ -46,11 +47,7 @@ export function runKnowledgeExtraction(argv: string[]) {
     const collectedDeltas: Record<string, unknown>[] = [];
 
     // Collect deltas from all stage artifacts
-    const stageArtifacts = [
-      { file: 'requirements.yaml', stage: 'requirements' },
-      { file: 'design.yaml', stage: 'design' },
-      { file: 'plan.yaml', stage: 'planning' },
-    ];
+    const stageArtifacts = getStagesWithDelta(cwd).map(s => ({ file: s.file, stage: s.stage }));
 
     for (const cfg of stageArtifacts) {
       const artifactPath = path.join(changeRoot, cfg.file);

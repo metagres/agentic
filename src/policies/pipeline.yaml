@@ -5,7 +5,8 @@ stages:
     artifact: requirements.yaml
     schema: requirements.schema.yaml
     template: requirements.yaml
-    review_target: requirements
+    review_file: requirements-review.yaml
+    status_field: status
     delta_phase: Requirements
     produces_delta: true
 
@@ -13,7 +14,8 @@ stages:
     artifact: design.yaml
     schema: design.schema.yaml
     template: design.yaml
-    review_target: design
+    review_file: design-review.yaml
+    status_field: status
     delta_phase: Design
     requires:
       - requirements
@@ -23,6 +25,8 @@ stages:
     artifact: plan.yaml
     schema: plan.schema.yaml
     template: plan.yaml
+    review_file: plan-review.yaml
+    status_field: status
     review_target: plan
     delta_phase: Planning
     requires:
@@ -33,7 +37,8 @@ stages:
   implementation:
     artifact: plan.yaml
     schema: plan.schema.yaml
-    review_target: implementation
+    review_file: implementation-review.yaml
+    status_field: implementation_status
     requires:
       - planning
 

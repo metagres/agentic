@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { skillDefinitions } from '../../src/scripts/workflows/skill-manifest.ts';
+import { skillDefinitions, getStepDefinitions } from '../../src/scripts/workflows/skill-manifest.ts';
 
 test('skill manifest defines all expected skills', () => {
   const ids = skillDefinitions.map((skill) => skill.id);
@@ -32,4 +32,18 @@ test('every skill has required fields', () => {
       `skill.commands empty for ${skill.id}`
     );
   }
+});
+
+test('getStepDefinitions returns definitions for each authoring workflow', () => {
+  const authoringWorkflows = ['requirements', 'design', 'planning'];
+
+  for (const workflow of authoringWorkflows) {
+    const defs = getStepDefinitions(workflow);
+    assert.ok(defs, `no stepDefinitions for workflow '${workflow}'`);
+    assert.ok(Object.keys(defs).length > 0, `empty stepDefinitions for '${workflow}'`);
+  }
+});
+
+test('getStepDefinitions returns null for unknown workflow', () => {
+  assert.equal(getStepDefinitions('does-not-exist'), null);
 });

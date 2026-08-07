@@ -46,7 +46,6 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
 
   const expectedPolicies = [
     'pipeline.yaml',
-    'review-targets.yaml',
     'requirements-policy.yaml'
   ];
 

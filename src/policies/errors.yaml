@@ -9,21 +9,12 @@ errors:
   CHANGE_DIR_NOT_FOUND:
     message: No matching change directory was found.
     fix: Create a change directory or provide a valid --dir value.
-  CONTRACT_MISSING:
-    message: Required contract not found.
-    fix: Restore the contract file or deploy the runtime again.
   ARTIFACT_NOT_FOUND:
     message: Required artifact not found.
     fix: Run the corresponding stage first.
   ARTIFACT_PARSE_FAILED:
     message: Artifact YAML could not be parsed.
     fix: Fix the YAML syntax.
-  CONTRACT_INVALID:
-    message: Contract is invalid.
-    fix: Fix the contract YAML and validate contracts.
-  CHECK_RUN_FAILED:
-    message: Contract check execution failed.
-    fix: Inspect the failing check handler and parameters.
   CANNOT_ACCEPT:
     message: The artifact cannot be accepted yet.
     fix: Resolve blocking findings and complete semantic validation.

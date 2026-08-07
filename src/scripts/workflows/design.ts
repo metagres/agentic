@@ -5,8 +5,8 @@ import { safeReadYaml } from '../lib/context.ts';
 
 import { deltaComplete, titleFromRequest, baseVersion } from '../lib/stage-helpers.ts';
 import type { WarningItem } from '../lib/types.ts';
-
-
+import { detectStep, isReadyForReview, getData } from '../lib/authoring-base.ts';
+import type { AuthoringStageConfig } from '../lib/authoring-base.ts';
 
 function draftComplete(artifact: Record<string, unknown>) {
   const hasContext = Boolean(
@@ -28,120 +28,53 @@ function draftComplete(artifact: Record<string, unknown>) {
   return hasContext && components > 0 && decisions > 0 && traceability > 0;
 }
 
-export const designStage = {
+function preconditionWarnings(env: Record<string, unknown>) {
+  const warnings: WarningItem[] = [];
+
+  if (!env.changeRoot) return warnings;
+
+  const requirements = safeReadYaml(
+    path.join(env.changeRoot as string, 'requirements.yaml')
+  ) as Record<string, unknown> | null;
+
+  if (requirements) {
+    const metadata = (requirements?.metadata as Record<string, unknown>) || {};
+    const status = metadata?.status as string;
+
+    if (!['ready-for-review', 'accepted'].includes(status)) {
+      warnings.push({
+        code: 'PREVIOUS_STAGE_NOT_READY',
+        message:
+          `requirements.yaml status is '${status || 'unknown'}'. ` +
+          'Consider completing the requirements stage before finalizing design.',
+      });
+    }
+  }
+
+  return warnings;
+}
+
+const config: AuthoringStageConfig = {
   id: 'design',
   artifactFile: 'design.yaml',
-  contractFile: 'design-contract.yaml',
   deltaPhase: 'Design',
-
-  stepIds: [
-    'needs_input',
-    'init',
-    'drafting',
-    'validation',
-    'delta',
-    'recovery',
-    'ready',
-    'complete',
-  ],
-
-  stepDefinitions: {
-    needs_input: {
-      title: 'Needs input',
-      next_action: 'provide_change_or_request',
-      markdown: `
-Ask the user which change directory to design.
-`.trim(),
-      commands: ['{{SDLC}} design --dir <change-dir>'],
-    },
-
-    init: {
-      title: 'Initialization',
-      next_action: 'initialize_context',
-      markdown: `
-The script created the initial design artifact.
-
-Ensure requirements.yaml exists and has a version.
-`.trim(),
-      commands: ['{{SDLC}} design --dir {{change_dir}}'],
-    },
-
-    drafting: {
-      title: 'Drafting',
-      next_action: 'update_artifact',
-      markdown: `
-Draft the design artifact.
-
-Use \`data.next_ids\` to choose the next CMP/DM/API/DEC ids.
-`.trim(),
-      commands: [
-        '{{SDLC}} design --dir {{change_dir}} --next-ids',
-        '{{SDLC}} design --dir {{change_dir}} --update-artifact < design.yaml',
-      ],
-    },
-
-    validation: {
-      title: 'Validation',
-      next_action: 'fix_mechanical_errors',
-      markdown: `
-Fix mechanical validation errors first.
-
-Then run \`--finalize\` to review the semantic checks.
-`.trim(),
-      commands: [
-        '{{SDLC}} design --dir {{change_dir}} --finalize',
-      ],
-    },
-
-    delta: {
-      title: 'Delta',
-      next_action: 'append_delta_or_complete_step',
-      markdown: `
-Determine which living docs are affected by the design.
-
-Use \`data.delta_allowed_target_docs\`.
-`.trim(),
-      commands: [
-        '{{SDLC}} design --dir {{change_dir}} --append-delta < delta.yaml',
-        '{{SDLC}} design --dir {{change_dir}} --complete-step --step delta',
-      ],
-    },
-
-    recovery: {
-      title: 'Recovery',
-      next_action: 'fix_review_findings',
-      markdown: `
-The design artifact was rejected by review.
-
-Read \`data.review_report\`, fix blocking findings, update the artifact, and finalize again.
-`.trim(),
-      commands: [
-        '{{SDLC}} design --dir {{change_dir}} --update-artifact < design.yaml',
-        '{{SDLC}} design --dir {{change_dir}} --finalize',
-      ],
-    },
-
-    ready: {
-      title: 'Ready',
-      next_action: 'finalize',
-      markdown: `
-All gates passed.
-
-Finalize the design artifact.
-`.trim(),
-      commands: ['{{SDLC}} design --dir {{change_dir}} --finalize'],
-    },
-
-    complete: {
-      title: 'Complete',
-      next_action: 'invoke_review',
-      markdown: `
-The design artifact is ready for the review gate.
-`.trim(),
-      commands: ['{{SDLC}} review --target design --dir {{change_dir}}'],
-    },
+  initComplete: (artifact) => {
+    const metadata = (artifact.metadata as Record<string, unknown>) || {};
+    return Boolean(metadata?.based_on_requirements);
   },
+  draftComplete,
+  preconditionWarnings,
+  getExtraData: (env) => {
+    const artifact = (env.artifact || {}) as Record<string, unknown>;
+    const metadata = (artifact.metadata as Record<string, unknown>) || {};
+    return {
+      based_on_requirements: metadata?.based_on_requirements as string || null,
+    };
+  },
+};
 
+export const designStage = {
+  ...config,
   initialArtifact(request: string, env: Record<string, unknown>) {
     const requirementsVersion = baseVersion(
       env.changeRoot as string,
@@ -181,121 +114,7 @@ The design artifact is ready for the review gate.
     });
   },
 
-  preconditionWarnings(env: Record<string, unknown>) {
-    const warnings: WarningItem[] = [];
-
-    if (!env.changeRoot) return warnings;
-
-    const requirements = safeReadYaml(
-      path.join(env.changeRoot as string, 'requirements.yaml')
-    ) as Record<string, unknown> | null;
-
-    if (requirements) {
-      const metadata = (requirements?.metadata as Record<string, unknown>) || {};
-      const status = metadata?.status as string;
-
-      if (!['ready-for-review', 'accepted'].includes(status)) {
-        warnings.push({
-          code: 'PREVIOUS_STAGE_NOT_READY',
-          message:
-            `requirements.yaml status is '${status || 'unknown'}'. ` +
-            'Consider completing the requirements stage before finalizing design.',
-        });
-      }
-    }
-
-    return warnings;
-  },
-
-  detectStep(env: Record<string, unknown>) {
-    if (!env.changeRoot) return 'needs_input';
-
-    const artifact = env.artifact as Record<string, unknown> | null;
-
-    if (!artifact) return 'init';
-
-    const metadata = (artifact.metadata as Record<string, unknown>) || {};
-
-    if (metadata?.status === 'rejected') return 'recovery';
-
-    if (!metadata?.based_on_requirements) return 'init';
-
-    if (!draftComplete(artifact)) return 'drafting';
-
-    const blockingCount = (env.blocking as unknown[])?.length || 0;
-    const semantic = env.semantic as Record<string, unknown> | undefined;
-    const semanticComplete = (semantic?.complete as boolean) ?? false;
-
-    if (blockingCount > 0 || !semanticComplete) return 'validation';
-
-    if (!deltaComplete(artifact)) return 'delta';
-
-    if (
-      metadata?.status === 'ready-for-review' ||
-      metadata?.status === 'accepted'
-    ) {
-      return 'complete';
-    }
-
-    return 'ready';
-  },
-
-  isReadyForReview(env: Record<string, unknown>) {
-    const artifact = env.artifact as Record<string, unknown>;
-    const reasons: string[] = [];
-
-    if (!artifact?.metadata) {
-      // handled by individual checks below
-    }
-
-    const metadata = (artifact?.metadata as Record<string, unknown>) || {};
-
-    if (!metadata?.based_on_requirements) {
-      reasons.push('design is not based on a requirements artifact version');
-    }
-
-    if (!draftComplete(artifact)) {
-      reasons.push('design draft is not complete');
-    }
-
-    const blockingCount = (env.blocking as unknown[])?.length || 0;
-
-    if (blockingCount > 0) {
-      reasons.push(`${blockingCount} blocking mechanical finding(s)`);
-    }
-
-    const semantic = env.semantic as Record<string, unknown> | undefined;
-
-    if (!semantic?.complete) {
-      const missing = ((semantic?.missing as string[]) || []).join(', ');
-      const failed = ((semantic?.failed as string[]) || []).join(', ');
-
-      reasons.push(
-        `semantic validation incomplete (missing: ${missing || 'none'}, failed: ${failed || 'none'})`
-      );
-    }
-
-    if (!deltaComplete(artifact)) {
-      reasons.push('delta is not complete');
-    }
-
-    return {
-      ready: reasons.length === 0,
-      reasons,
-    };
-  },
-
-  getData(env: Record<string, unknown>) {
-    const artifact = (env.artifact || {}) as Record<string, unknown>;
-    const metadata = (artifact?.metadata as Record<string, unknown>) || {};
-    const semantic = env.semantic as Record<string, unknown> | undefined;
-
-    return {
-      based_on_requirements: metadata?.based_on_requirements as string || null,
-      draft_complete: draftComplete(artifact),
-      mechanical_valid: ((env.blocking as unknown[])?.length || 0) === 0,
-      semantic_complete: Boolean(semantic?.complete),
-      delta_complete: deltaComplete(artifact),
-    };
-  },
+  detectStep: (env: Record<string, unknown>) => detectStep(env, config),
+  isReadyForReview: (env: Record<string, unknown>) => isReadyForReview(env, config),
+  getData: (env: Record<string, unknown>) => getData(env, config),
 };

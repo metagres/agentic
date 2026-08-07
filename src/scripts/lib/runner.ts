@@ -14,7 +14,6 @@ import {
 import { validateArtifactSchema } from './schema.ts';
 import {
   safeReadYaml,
-  loadContract,
   makeCtx,
   loadReviewReport,
 } from './context.ts';
@@ -27,8 +26,10 @@ import { bumpVersion } from './semver.ts';
 import { requirementsStage } from '../workflows/requirements.ts';
 import { designStage } from '../workflows/design.ts';
 import { planningStage } from '../workflows/planning.ts';
+import { getStepDefinitions } from '../workflows/skill-manifest.ts';
 import { loadSemanticChecks } from './policy-loader.ts';
 import { checkCrossFileReferences } from './validators.ts';
+import { runLintChecks } from './lint-checks.ts';
 import { makeError } from './error-catalog.ts';
 import type { ParseArgsResult, WarningItem, Finding, StageDef, RunEnv, ChangeEntry } from './types.ts';
 
@@ -319,11 +320,15 @@ function completeStep(env: RunEnv): void {
 function finalizeArtifact(env: RunEnv): void {
   const schemaFindings = validateArtifactSchema(env.stage.id, env.artifact, env.cwd);
   const refFindings = checkCrossFileReferences(env.stage.id, env.artifact as Record<string, unknown>, env.changeRoot!);
-  const findings = [...schemaFindings, ...refFindings];
+  const lintFindings = env.artifact ? runLintChecks(env.stage.id, env.artifact as Record<string, unknown>) : [];
+  const findings = [...schemaFindings, ...refFindings, ...lintFindings];
 
   if (findings.length > 0) {
+    const blocking = findings
+      .filter(f => !f.severity || f.severity === 'blocking')
+      .map(f => ({ check: 'validation', severity: f.severity || 'blocking', category: f.category || 'structural', target: 'doc', finding: f.finding || (f as any).message, fix: f.fix || 'Fix the error' }));
     throw new Error(
-      `Cannot finalize. Fix the following structural/reference errors:\n - ${findings.map(f => f.finding || (f as any).message).join('\n - ')}`
+      `Cannot finalize. Fix the following structural/reference errors:\n - ${blocking.map(f => f.finding).join('\n - ')}`
     );
   }
 
@@ -352,6 +357,8 @@ function finalizeArtifact(env: RunEnv): void {
 }
 
 function describeWorkflow(stage: StageDef) {
+  const stepDefinitions = getStepDefinitions(stage.id) || {};
+  const stepIds = Object.keys(stepDefinitions);
   return {
     workflow: stage.id,
     step: 'describe',
@@ -359,8 +366,8 @@ function describeWorkflow(stage: StageDef) {
     instructions: `Workflow description for ${stage.id}.`,
     data: {
       artifact: stage.artifactFile,
-      steps: stage.stepIds,
-      step_definitions: stage.stepDefinitions,
+      steps: stepIds,
+      step_definitions: stepDefinitions,
     },
     errors: [],
     warnings: [],
@@ -368,7 +375,9 @@ function describeWorkflow(stage: StageDef) {
 }
 
 function describeStep(stage: StageDef, stepId: string, cwd: string) {
-  const step = stage.stepDefinitions?.[stepId];
+  const stepDefinitions = getStepDefinitions(stage.id) || {};
+  const stepIds = Object.keys(stepDefinitions);
+  const step = stepDefinitions?.[stepId];
 
   const vars = {
     SDLC: cliInvocation(cwd),
@@ -381,10 +390,10 @@ function describeStep(stage: StageDef, stepId: string, cwd: string) {
       workflow: stage.id,
       step: 'describe_step',
       state: 'blocked',
-      instructions: `Unknown step: ${stepId}. Known steps: ${stage.stepIds.join(', ')}.`,
+      instructions: `Unknown step: ${stepId}. Known steps: ${stepIds.join(', ')}.`,
       data: {
         requested_step: stepId,
-        known_steps: stage.stepIds,
+        known_steps: stepIds,
       },
       errors: [
         {
@@ -423,6 +432,8 @@ function describeStep(stage: StageDef, stepId: string, cwd: string) {
 }
 
 function helpPayload(stage: StageDef) {
+  const stepDefinitions = getStepDefinitions(stage.id) || {};
+  const stepIds = Object.keys(stepDefinitions);
   const usage = [
     `sdlc ${stage.id} --dir <change-dir>`,
     `sdlc ${stage.id} --request "<request>"`,
@@ -447,7 +458,7 @@ function helpPayload(stage: StageDef) {
     ].join('\n'),
     data: {
       artifact: stage.artifactFile,
-      steps: stage.stepIds,
+      steps: stepIds,
       usage,
     },
     errors: [],
@@ -557,7 +568,6 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
       changeRoot,
       artifactPath,
       artifact,
-      contract: null, // No longer used
       ctx,
       stage,
       warnings,
@@ -627,17 +637,20 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
       
       const schemaFindings = validateArtifactSchema(env.stage.id, env.artifact, env.cwd);
       const refFindings = checkCrossFileReferences(env.stage.id, env.artifact as Record<string, unknown>, env.changeRoot!);
-      const findings = [...schemaFindings, ...refFindings];
+      const lintFindings = env.artifact ? runLintChecks(env.stage.id, env.artifact as Record<string, unknown>) : [];
+      const findings = [...schemaFindings, ...refFindings, ...lintFindings];
 
       if (findings.length > 0) {
-        const blocking = findings.map(f => ({ check: 'validation', severity: 'blocking', category: 'structural', target: 'doc', finding: f.finding || (f as any).message, fix: 'Fix the error' }));
+        const blocking = findings
+          .filter(f => !f.severity || f.severity === 'blocking')
+          .map(f => ({ check: 'validation', severity: f.severity || 'blocking', category: f.category || 'structural', target: 'doc', finding: f.finding || (f as any).message, fix: f.fix || 'Fix the error' }));
         
         writeJson(
           {
             workflow: stageId,
             step: 'validation',
             state: 'blocked',
-            instructions: 'Fix the following structural/reference errors:\n - ' + findings.map(f => f.finding || (f as any).message).join('\n - '),
+            instructions: 'Fix the following structural/reference errors:\n - ' + blocking.map(f => f.finding).join('\n - '),
             data: {
               change_root: changeRoot,
               errors: blocking,
@@ -687,9 +700,12 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
     const refFindings = env.artifact && env.changeRoot
       ? checkCrossFileReferences(env.stage.id, env.artifact as Record<string, unknown>, env.changeRoot)
       : [];
-    const findings = [...schemaFindings, ...refFindings];
+    const lintFindings = env.artifact ? runLintChecks(env.stage.id, env.artifact as Record<string, unknown>) : [];
+    const findings = [...schemaFindings, ...refFindings, ...lintFindings];
 
-    const blocking = findings.map(f => ({ check: 'validation', severity: 'blocking', category: 'structural', target: 'doc', finding: f.finding || (f as any).message, fix: 'Fix the error' })) as unknown as Finding[];
+    const blocking = findings
+      .filter(f => !f.severity || f.severity === 'blocking')
+      .map(f => ({ check: 'validation', severity: f.severity || 'blocking', category: f.category || 'structural', target: 'doc', finding: f.finding || (f as any).message, fix: f.fix || 'Fix the error' })) as unknown as Finding[];
     
     const stepEnv: Record<string, unknown> = {
       ...env,
@@ -699,8 +715,10 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
       semantic: { complete: true, missing: [], failed: [], results: [] }, // Mocked for step detection
     };
 
+    const stepDefinitions = getStepDefinitions(stageId) || {};
+
     const step = changeRoot ? stage.detectStep(stepEnv) : 'needs_input';
-    const stepDef = stage.stepDefinitions?.[step] || {};
+    const stepDef = stepDefinitions?.[step] || {};
 
     const cli = cliInvocation(cwd);
     const changeDir = changeRoot ? path.basename(changeRoot) : '<change-dir>';

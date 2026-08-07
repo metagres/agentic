@@ -4,8 +4,7 @@ import { writeYamlAtomic, readYaml } from '../lib/yaml-io.ts';
 import { resolveRootOrError, ResolveRootError } from '../lib/resolve-root.ts';
 import { today, nextId } from '../lib/ids.ts';
 import { makeError } from '../lib/error-catalog.ts';
-
-const PIPELINE_ORDER = ['requirements', 'design', 'planning', 'implementation', 'knowledge-extraction'];
+import { getPipelineOrder, getArtifactForStage } from '../lib/pipeline.ts';
 
 export function runFeedback(argv: string[]) {
   const args = parseArgs(argv);
@@ -67,8 +66,7 @@ export function runFeedback(argv: string[]) {
     writeYamlAtomic(feedbackPath, feedbackDoc);
 
     // Unblock the 'from' artifact
-    const fromFileMap: Record<string, string> = { requirements: 'requirements.yaml', design: 'design.yaml', planning: 'plan.yaml', implementation: 'plan.yaml' };
-    const fromFile = fromFileMap[entry.from_stage];
+    const fromFile = getArtifactForStage(cwd, entry.from_stage);
     
     if (fromFile) {
       const fromArtifactPath = path.join(changeRoot, fromFile);
@@ -112,19 +110,21 @@ export function runFeedback(argv: string[]) {
   const to = String(args.to);
   const reason = String(args.reason);
 
-  if (!PIPELINE_ORDER.includes(from) || !PIPELINE_ORDER.includes(to)) {
+  const pipelineOrder = getPipelineOrder(cwd);
+
+  if (!pipelineOrder.includes(from) || !pipelineOrder.includes(to)) {
     return writeJson({
       workflow: 'feedback',
       step: 'blocked',
       state: 'blocked',
-      instructions: `Invalid stage. Valid stages: ${PIPELINE_ORDER.join(', ')}`,
+      instructions: `Invalid stage. Valid stages: ${pipelineOrder.join(', ')}`,
       data: { change_root: changeRoot },
       errors: [makeError('UNKNOWN_STAGE', { message: 'Invalid stage provided.' })],
       warnings: [],
     }, EXIT.usage);
   }
 
-  if (PIPELINE_ORDER.indexOf(to) >= PIPELINE_ORDER.indexOf(from)) {
+  if (pipelineOrder.indexOf(to) >= pipelineOrder.indexOf(from)) {
     return writeJson({
       workflow: 'feedback',
       step: 'blocked',
@@ -136,11 +136,8 @@ export function runFeedback(argv: string[]) {
     }, EXIT.usage);
   }
 
-  const toFileMap: Record<string, string> = { requirements: 'requirements.yaml', design: 'design.yaml', planning: 'plan.yaml' };
-  const fromFileMap: Record<string, string> = { requirements: 'requirements.yaml', design: 'design.yaml', planning: 'plan.yaml', implementation: 'plan.yaml' };
-
-  const toFile = toFileMap[to];
-  const fromFile = fromFileMap[from];
+  const toFile = getArtifactForStage(cwd, to);
+  const fromFile = getArtifactForStage(cwd, from);
 
   if (!toFile || !fromFile) {
     return writeJson({

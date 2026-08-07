@@ -43,7 +43,7 @@ export interface StepDefinition {
   next_action?: string;
   markdown?: string;
   commands?: string[];
-  exit_criteria?: string | null;
+  exit_criteria?: string | null | Record<string, unknown>;
 }
 
 export interface Ctx {
@@ -56,10 +56,7 @@ export interface Ctx {
 export interface StageDef {
   id: string;
   artifactFile: string;
-  contractFile: string;
   deltaPhase: string;
-  stepIds: string[];
-  stepDefinitions: Record<string, StepDefinition>;
   initialArtifact: (request: string, env: Record<string, unknown>) => Record<string, unknown>;
   nextIds?: (artifact: Record<string, unknown>) => Record<string, string>;
   preconditionWarnings?: (env: Record<string, unknown>) => WarningItem[];
@@ -76,7 +73,6 @@ export interface RunEnv {
   changeRoot: string | null;
   artifactPath: string | null;
   artifact: Record<string, unknown> | null;
-  contract: Record<string, unknown> | null;
   ctx: Ctx;
   stage: StageDef;
   warnings: WarningItem[];
