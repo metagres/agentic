@@ -10,15 +10,12 @@ import {
   readStdin,
   parseYamlString,
 } from './yaml-io.ts';
-import { runChecks } from './contract-checks.ts';
 // sdlc-hardening: schema
 import { validateArtifactSchema } from './schema.ts';
 import {
   safeReadYaml,
   loadContract,
-  requireContract,
   makeCtx,
-  semanticSummary,
   loadReviewReport,
 } from './context.ts';
 import {
@@ -30,38 +27,10 @@ import { bumpVersion } from './semver.ts';
 import { requirementsStage } from '../workflows/requirements.ts';
 import { designStage } from '../workflows/design.ts';
 import { planningStage } from '../workflows/planning.ts';
-import { loadLifecycle, loadSemanticPolicy } from './policy-loader.ts';
-import { assertTransition } from './lifecycle.ts';
+import { loadSemanticChecks } from './policy-loader.ts';
+import { checkCrossFileReferences } from './validators.ts';
 import { makeError } from './error-catalog.ts';
-import type { ErrorItem, ParseArgsResult, WarningItem, Finding, SemanticSummary, Ctx, StageDef, RunEnv, ChangeEntry } from './types.ts';
-
-const STRICT_WARNING_CODES = [
-  'DOCS_INDEX_MISSING',
-  'PREVIOUS_STAGE_NOT_READY',
-  'REQUIREMENTS_NOT_READY',
-  'IMPLEMENTATION_NOT_ACCEPTED',
-  'DOCS_DELTA_VALIDATION'
-];
-
-function strictModeErrors(warnings: WarningItem[], semantic: SemanticSummary | undefined, step: string): ErrorItem[] {
-  const errs = (warnings || [])
-    .filter((w) => w && w.code && STRICT_WARNING_CODES.includes(w.code))
-    .map((w) => makeError(w.code, { message: w.message }));
-
-  if (
-    semantic &&
-    semantic.complete === false &&
-    ['validation', 'ready', 'recovery', 'complete'].includes(step)
-  ) {
-    errs.push(
-      makeError('SEMANTIC_NOT_COMPLETE', {
-        message: 'Semantic validation is not complete.'
-      })
-    );
-  }
-
-  return errs;
-}
+import type { ParseArgsResult, WarningItem, Finding, StageDef, RunEnv, ChangeEntry } from './types.ts';
 
 const stages: Record<string, StageDef> = {
   requirements: requirementsStage as unknown as StageDef,
@@ -234,57 +203,6 @@ function applyUpdateArtifact(env: RunEnv): void {
   markMutated(env);
 }
 
-function recordSemanticResult(env: RunEnv): void {
-  const checkId = env.args.check;
-  const status = env.args.status;
-  const evidence = env.args.evidence;
-
-  if (!checkId || typeof checkId !== 'string') {
-    throw new Error('--record-semantic-result requires --check <check_id>.');
-  }
-
-  if (!status || typeof status !== 'string') {
-    throw new Error(
-      '--record-semantic-result requires --status <pass|fail|waived>.'
-    );
-  }
-
-  if (!['pass', 'fail', 'waived'].includes(status)) {
-    throw new Error('Semantic result status must be one of: pass, fail, waived.');
-  }
-
-  if (!evidence || String(evidence).trim().length < 20) {
-    throw new Error('Semantic result evidence must be at least 20 characters.');
-  }
-
-  const artifact = env.artifact as Record<string, unknown>;
-
-  if (!Array.isArray(artifact.semantic_validation)) {
-    artifact.semantic_validation = [];
-  }
-
-  const sv = artifact.semantic_validation as Record<string, unknown>[];
-
-  const result: Record<string, unknown> = {
-    check_id: checkId,
-    status,
-    evidence: String(evidence),
-    evaluated_at: today(),
-  };
-
-  const idx = sv.findIndex(
-    (r: Record<string, unknown>) => r.check_id === checkId
-  );
-
-  if (idx >= 0) {
-    sv[idx] = result;
-  } else {
-    sv.push(result);
-  }
-
-  markMutated(env);
-}
-
 function appendDelta(env: RunEnv): void {
   const raw = readStdin();
   if (!raw.trim()) {
@@ -399,78 +317,41 @@ function completeStep(env: RunEnv): void {
 }
 
 function finalizeArtifact(env: RunEnv): void {
-  env.contract = requireContract(env.stage.contractFile, env.cwd, env.warnings);
-
-  const semanticPolicy = loadSemanticPolicy(env.cwd) as Record<string, unknown> | undefined;
-  const svPolicy = semanticPolicy?.semantic_validation as Record<string, unknown> | undefined;
-  const minEvidenceChars = svPolicy?.default_min_evidence_chars;
-  if (!(Number(minEvidenceChars) > 0)) {
-    const err = new Error(
-      'semantic-policy.yaml must define semantic_validation.default_min_evidence_chars as a positive number.'
-    ) as NodeJS.ErrnoException;
-    err.code = 'POLICY_INVALID';
-    throw err;
-  }
-
   const schemaFindings = validateArtifactSchema(env.stage.id, env.artifact, env.cwd);
-  const findings = [
-    ...schemaFindings,
-    ...runChecks(env.artifact, env.contract || {} as Record<string, unknown>, env.ctx as unknown as Record<string, unknown>, {
-      gate: 'finalize',
-    }),
-  ];
-  const blocking = findings.filter((f: { severity: string }) => f.severity === 'blocking');
-  const semantic: SemanticSummary = semanticSummary(
-    (env.artifact || {}) as Record<string, unknown>,
-    (env.contract || {}) as Record<string, unknown>,
-    { minEvidenceChars }
-  ) as SemanticSummary;
+  const refFindings = checkCrossFileReferences(env.stage.id, env.artifact as Record<string, unknown>, env.changeRoot!);
+  const findings = [...schemaFindings, ...refFindings];
 
-  const ready = (env.stage.isReadyForReview as ((env: Record<string, unknown>) => { ready: boolean; reasons: string[] }) | undefined)?.({
-    ...env,
-    artifact: env.artifact,
-    findings,
-    blocking,
-    semantic,
-  } as Record<string, unknown>);
-
-  if (!ready || !ready.ready) {
-    throw new Error(`Cannot finalize: ${ready?.reasons?.join('; ') || 'isReadyForReview returned not ready'}`);
+  if (findings.length > 0) {
+    throw new Error(
+      `Cannot finalize. Fix the following structural/reference errors:\n - ${findings.map(f => f.finding || (f as any).message).join('\n - ')}`
+    );
   }
 
-  const lifecycle = loadLifecycle(env.cwd) as Record<string, unknown>;
-  const meta = (env.artifact as Record<string, unknown>).metadata as Record<string, unknown> | undefined;
-  const previousStatus = meta?.status as string | undefined;
-  assertTransition(lifecycle, 'artifact_status', previousStatus, 'ready-for-review');
-
+  const meta = (env.artifact as Record<string, unknown>).metadata as Record<string, unknown>;
+  
   let bumpKind = env.args['bump-version'] as string | undefined;
   if (bumpKind && !['major', 'minor', 'patch'].includes(bumpKind)) {
     throw new Error('--bump-version must be major, minor, or patch.');
   }
 
   if (!bumpKind) {
-    if (previousStatus === 'rejected') {
+    if (meta.status === 'rejected') {
       bumpKind = 'patch';
-    } else if (previousStatus === 'accepted') {
+    } else if (meta.status === 'accepted') {
       bumpKind = 'minor';
     }
   }
 
-  const artifactMeta = (env.artifact as Record<string, unknown>).metadata as Record<string, unknown>;
-
   if (bumpKind) {
-    artifactMeta.version = bumpVersion(
-      (artifactMeta.version as string) || '0.1.0',
-      bumpKind
-    );
+    meta.version = bumpVersion((meta.version as string) || '0.1.0', bumpKind);
   }
 
-  artifactMeta.status = 'ready-for-review';
-  artifactMeta.step = 'complete';
-  artifactMeta.updated = today();
+  meta.status = 'ready-for-review';
+  meta.step = 'complete';
+  meta.updated = today();
 }
 
-function describeWorkflow(stage: StageDef): { workflow: string; step: string; state: string; instructions: string; data: Record<string, unknown>; errors: []; warnings: [] } {
+function describeWorkflow(stage: StageDef) {
   return {
     workflow: stage.id,
     step: 'describe',
@@ -478,7 +359,6 @@ function describeWorkflow(stage: StageDef): { workflow: string; step: string; st
     instructions: `Workflow description for ${stage.id}.`,
     data: {
       artifact: stage.artifactFile,
-      contract: stage.contractFile,
       steps: stage.stepIds,
       step_definitions: stage.stepDefinitions,
     },
@@ -487,7 +367,7 @@ function describeWorkflow(stage: StageDef): { workflow: string; step: string; st
   };
 }
 
-function describeStep(stage: StageDef, stepId: string, cwd: string): { workflow: string; step: string; state: string; instructions: string; data: Record<string, unknown>; errors: { code: string; message: string }[]; warnings: string[] } {
+function describeStep(stage: StageDef, stepId: string, cwd: string) {
   const step = stage.stepDefinitions?.[stepId];
 
   const vars = {
@@ -501,9 +381,7 @@ function describeStep(stage: StageDef, stepId: string, cwd: string): { workflow:
       workflow: stage.id,
       step: 'describe_step',
       state: 'blocked',
-      instructions: `Unknown step: ${stepId}. Known steps: ${stage.stepIds.join(
-        ', '
-      )}.`,
+      instructions: `Unknown step: ${stepId}. Known steps: ${stage.stepIds.join(', ')}.`,
       data: {
         requested_step: stepId,
         known_steps: stage.stepIds,
@@ -544,16 +422,15 @@ function describeStep(stage: StageDef, stepId: string, cwd: string): { workflow:
   };
 }
 
-function helpPayload(stage: StageDef): { workflow: string; step: string; state: string; instructions: string; data: Record<string, unknown>; errors: []; warnings: [] } {
+function helpPayload(stage: StageDef) {
   const usage = [
     `sdlc ${stage.id} --dir <change-dir>`,
     `sdlc ${stage.id} --request "<request>"`,
     `sdlc ${stage.id} --dir <change-dir> --next-ids`,
     `sdlc ${stage.id} --dir <change-dir> --update-artifact < ${stage.artifactFile}`,
-    `sdlc ${stage.id} --dir <change-dir> --record-semantic-result --check <id> --status pass --evidence "<evidence>"`,
     `sdlc ${stage.id} --dir <change-dir> --append-delta < delta.yaml`,
     `sdlc ${stage.id} --dir <change-dir> --complete-step --step <step>`,
-    `sdlc ${stage.id} --dir <change-dir> --finalize [--bump-version patch|minor|major]`,
+    `sdlc ${stage.id} --dir <change-dir> --finalize [--confirm-semantic]`,
     `sdlc ${stage.id} --describe`,
     `sdlc ${stage.id} --describe-step <step>`,
   ];
@@ -570,7 +447,6 @@ function helpPayload(stage: StageDef): { workflow: string; step: string; state: 
     ].join('\n'),
     data: {
       artifact: stage.artifactFile,
-      contract: stage.contractFile,
       steps: stage.stepIds,
       usage,
     },
@@ -588,18 +464,9 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
         workflow: stageId,
         step: 'blocked',
         state: 'blocked',
-        instructions: `Unknown stage: ${stageId}. Available stages: ${Object.keys(
-          stages
-        ).join(', ')}.`,
-        data: {
-          known_stages: Object.keys(stages),
-        },
-        errors: [
-          {
-            code: 'UNKNOWN_STAGE',
-            message: `Unknown stage: ${stageId}`,
-          },
-        ],
+        instructions: `Unknown stage: ${stageId}. Available stages: ${Object.keys(stages).join(', ')}.`,
+        data: { known_stages: Object.keys(stages) },
+        errors: [{ code: 'UNKNOWN_STAGE', message: `Unknown stage: ${stageId}` }],
         warnings: [],
       },
       EXIT.usage
@@ -647,10 +514,7 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
               },
               errors: [
                 {
-                  code:
-                    err.candidates.length > 0
-                      ? 'AMBIGUOUS_CHANGE_DIR'
-                      : 'CHANGE_DIR_NOT_FOUND',
+                  code: err.candidates.length > 0 ? 'AMBIGUOUS_CHANGE_DIR' : 'CHANGE_DIR_NOT_FOUND',
                   message: err.message,
                   candidates: err.candidates,
                 },
@@ -661,7 +525,6 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
           );
           return;
         }
-
         throw err;
       }
     } else if (args.request) {
@@ -677,10 +540,7 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
     if (changeRoot && !artifact) {
       artifact = stage.initialArtifact(
         (args.request as string) || path.basename(changeRoot),
-        {
-          cwd,
-          changeRoot,
-        } as Record<string, unknown>
+        { cwd, changeRoot } as Record<string, unknown>
       );
       writeYamlAtomic(artifactPath!, artifact);
       warnings.push({
@@ -689,7 +549,6 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
       });
     }
 
-    const contract = loadContract(stage.contractFile, cwd, warnings);
     const ctx = makeCtx(cwd, changeRoot);
 
     const env: RunEnv = {
@@ -698,7 +557,7 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
       changeRoot,
       artifactPath,
       artifact,
-      contract,
+      contract: null, // No longer used
       ctx,
       stage,
       warnings,
@@ -711,8 +570,7 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
           workflow: stageId,
           step: 'next_ids',
           state: 'ok',
-          instructions:
-            'Use data.next_ids when adding new items to the artifact.',
+          instructions: 'Use data.next_ids when adding new items to the artifact.',
           data: {
             change_root: changeRoot,
             artifact: artifactPath,
@@ -736,7 +594,6 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
       if (!stage.recordAnswer) {
         throw new Error(`--record-answer is not supported by stage '${stageId}'.`);
       }
-
       ensureArtifact(env);
       stage.recordAnswer(env as unknown as Record<string, unknown>);
       markMutated(env);
@@ -747,16 +604,9 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
       if (!stage.setClarity) {
         throw new Error(`--set-clarity is not supported by stage '${stageId}'.`);
       }
-
       ensureArtifact(env);
       stage.setClarity(env as unknown as Record<string, unknown>);
       markMutated(env);
-      saveArtifact(env);
-    }
-
-    if (args['record-semantic-result']) {
-      ensureArtifact(env);
-      recordSemanticResult(env);
       saveArtifact(env);
     }
 
@@ -774,29 +624,79 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
 
     if (args.finalize) {
       ensureArtifact(env);
+      
+      const schemaFindings = validateArtifactSchema(env.stage.id, env.artifact, env.cwd);
+      const refFindings = checkCrossFileReferences(env.stage.id, env.artifact as Record<string, unknown>, env.changeRoot!);
+      const findings = [...schemaFindings, ...refFindings];
+
+      if (findings.length > 0) {
+        const blocking = findings.map(f => ({ check: 'validation', severity: 'blocking', category: 'structural', target: 'doc', finding: f.finding || (f as any).message, fix: 'Fix the error' }));
+        
+        writeJson(
+          {
+            workflow: stageId,
+            step: 'validation',
+            state: 'blocked',
+            instructions: 'Fix the following structural/reference errors:\n - ' + findings.map(f => f.finding || (f as any).message).join('\n - '),
+            data: {
+              change_root: changeRoot,
+              errors: blocking,
+            },
+            errors: [],
+            warnings,
+          },
+          EXIT.ok
+        );
+        return;
+      }
+
+      const allSemanticChecks = loadSemanticChecks(env.cwd);
+      const stageChecks = allSemanticChecks[stageId] || [];
+
+      if (stageChecks.length > 0 && !args['confirm-semantic']) {
+        const checklist = stageChecks.map((c, i) => `${i + 1}. ${c}`).join('\n');
+        
+        writeJson(
+          {
+            workflow: stageId,
+            step: 'semantic_review',
+            state: 'in_progress',
+            instructions: 
+              `Structural validation passed. Before finalizing, manually verify the following semantic checks against your artifact:\n\n${checklist}\n\n` +
+              `If any check fails, fix the artifact and run validate again. If all pass, run: sdlc ${stageId} --dir <dir> --finalize --confirm-semantic`,
+            data: {
+              change_root: changeRoot,
+              semantic_checks: stageChecks,
+            },
+            errors: [],
+            warnings,
+          },
+          EXIT.ok
+        );
+        return;
+      }
+
       finalizeArtifact(env);
       saveArtifact(env);
     }
 
-    const findings: { check: string; severity: string; category: string; target: string; finding: string; fix: string }[] = env.artifact
-      ? runChecks(env.artifact, (env.contract || {}) as Record<string, unknown>, env.ctx as unknown as Record<string, unknown>, {
-          gate: 'validation',
-        })
+    // Recalculate state for standard output
+    const schemaFindings = env.artifact
+      ? validateArtifactSchema(env.stage.id, env.artifact, env.cwd)
       : [];
+    const refFindings = env.artifact && env.changeRoot
+      ? checkCrossFileReferences(env.stage.id, env.artifact as Record<string, unknown>, env.changeRoot)
+      : [];
+    const findings = [...schemaFindings, ...refFindings];
 
-    const blocking = findings.filter((f: { severity: string }) => f.severity === 'blocking');
-    const nonBlocking = findings.filter((f: { severity: string }) => f.severity !== 'blocking');
-    const semantic: SemanticSummary = semanticSummary(
-      (env.artifact || {}) as Record<string, unknown>,
-      (env.contract || {}) as Record<string, unknown>
-    ) as SemanticSummary;
-
+    const blocking = findings.map(f => ({ check: 'validation', severity: 'blocking', category: 'structural', target: 'doc', finding: f.finding || (f as any).message, fix: 'Fix the error' })) as unknown as Finding[];
+    
     const stepEnv: Record<string, unknown> = {
       ...env,
       artifact: env.artifact,
       findings,
       blocking,
-      semantic,
+      semantic: { complete: true, missing: [], failed: [], results: [] }, // Mocked for step detection
     };
 
     const step = changeRoot ? stage.detectStep(stepEnv) : 'needs_input';
@@ -828,49 +728,42 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
     const preconditionWarnings = stage.preconditionWarnings
       ? stage.preconditionWarnings(stepEnv as Record<string, unknown>)
       : [];
-const allWarnings: WarningItem[] = [...nonBlocking as unknown as WarningItem[], ...warnings, ...preconditionWarnings];
-const strictErrors = args.strict ? strictModeErrors(allWarnings, semantic, step) : [];
 
-    const data = {
+    const allWarnings: WarningItem[] = [...warnings, ...preconditionWarnings];
+
+    // LEAN DATA ENVELOPE: Only include what is strictly necessary for the current step
+    const data: Record<string, unknown> = {
       change_root: changeRoot,
       artifact: artifactPath,
       cli,
       runtime: {
         cli_path: cli.replace(/^node\s+/, ''),
-        templates: path.posix.join(
-          path.dirname(cli.replace(/^node\s+/, '')) || '.',
-          '..',
-          'templates'
-        ),
+        templates: path.posix.join(path.dirname(cli.replace(/^node\s+/, '')) || '.', '..', 'templates'),
       },
-      existing_changes:
-        step === 'needs_input' ? listExistingChanges(cwd) : [],
-      validate_mechanical_valid: blocking.length === 0,
-      validate_errors: blocking,
-      semantic,
-      semantic_checks_to_run: ((contract?.semantic_checks || []) as Record<string, unknown>[]).map(
-        (check: Record<string, unknown>) => ({
-          id: check.id,
-          severity: check.severity,
-          category: check.category,
-          description: check.description,
-        })
-      ),
-      delta_allowed_target_docs: loadDocsIndex(cwd).map((doc: { file: string }) => doc.file),
-      next_ids:
-        env.artifact && stage.nextIds ? stage.nextIds((env.artifact || {}) as Record<string, unknown>) : {},
-      review_report: reviewReport,
-      ...(stage.getData ? stage.getData(stepEnv as Record<string, unknown>) : {}),
     };
 
-let state =
-step === 'complete'
-    ? 'complete'
-    : step === 'recovery'
-      ? (blocking.length > 0 || !semantic.complete ? 'blocked' : 'in_progress')
-      : step === 'validation' && blocking.length > 0
-        ? 'blocked'
-        : 'in_progress';
+    if (step === 'needs_input') {
+      data.existing_changes = listExistingChanges(cwd);
+    } else if (step === 'drafting' || step === 'discovery' || step === 'assumptions') {
+      data.next_ids = env.artifact && stage.nextIds ? stage.nextIds((env.artifact || {}) as Record<string, unknown>) : {};
+    } else if (step === 'validation') {
+      data.errors = blocking;
+    } else if (step === 'delta') {
+      data.delta_allowed_target_docs = loadDocsIndex(cwd).map((doc: { file: string }) => doc.file);
+    }
+
+    if (stage.getData) {
+      Object.assign(data, stage.getData(stepEnv as Record<string, unknown>));
+    }
+
+    let state =
+      step === 'complete'
+        ? 'complete'
+        : step === 'recovery'
+          ? (blocking.length > 0 ? 'blocked' : 'in_progress')
+          : step === 'validation' && blocking.length > 0
+            ? 'blocked'
+            : 'in_progress';
 
     let instructions = renderedMarkdown;
 
@@ -887,14 +780,6 @@ step === 'complete'
         .join('\n')
         .trim();
     }
-if (strictErrors.length > 0) {
-  state = 'blocked';
-  instructions =
-    `Strict mode is enabled and ${strictErrors.length} warning(s) are blocking.
-` +
-    strictErrors.map((e) => `- ${e.code}: ${e.message}`).join('\n');
-}
-
 
     writeJson(
       {
@@ -905,9 +790,10 @@ if (strictErrors.length > 0) {
         data: {
           ...data,
           step_help: stepHelp,
+          review_report: reviewReport,
         },
-        errors: strictErrors,
-warnings: allWarnings,
+        errors: [],
+        warnings: allWarnings,
       },
       EXIT.ok
     );
@@ -919,15 +805,11 @@ warnings: allWarnings,
         step: 'blocked',
         state: 'blocked',
         instructions: errMsg,
-        data: changeRoot
-          ? {
-              change_root: changeRoot,
-            }
-          : {},
+        data: changeRoot ? { change_root: changeRoot } : {},
         errors: [makeError((err instanceof Error ? (err as NodeJS.ErrnoException).code : 'INTERNAL_ERROR') || 'INTERNAL_ERROR', { message: errMsg })],
-warnings,
-},
-EXIT.internal
+        warnings,
+      },
+      EXIT.internal
     );
   }
 }

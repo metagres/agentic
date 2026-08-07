@@ -66,14 +66,14 @@ Use \`data.next_ids\` to choose the next TASK ids.
 
     validation: {
       title: 'Validation',
-      next_action: 'fix_mechanical_errors_or_record_semantic_result',
+      next_action: 'fix_mechanical_errors',
       markdown: `
 Fix mechanical validation errors first.
 
-Then evaluate each semantic check in \`data.semantic_checks_to_run\`.
+Then run \`--finalize\` to review the semantic checks.
 `.trim(),
       commands: [
-        '{{SDLC}} planning --dir {{change_dir}} --record-semantic-result --check <check_id> --status pass --evidence "<evidence>"',
+        '{{SDLC}} planning --dir {{change_dir}} --finalize',
       ],
     },
 
@@ -151,7 +151,6 @@ The plan artifact is ready for the review gate.
       milestones: [],
       risks: [],
       delta: [],
-      semantic_validation: [],
     };
   },
 

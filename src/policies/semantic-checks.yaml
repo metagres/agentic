@@ -1,0 +1,41 @@
+version: 1
+
+requirements:
+  - "Does every Then-clause in acceptance_criteria describe an observable external result (HTTP response, persisted file, log line), not an internal function call?"
+  - "Does each AC assert system behavior under test, not the existence of tests or a process step?"
+  - "Does at least one acceptance criterion cover a boundary or negative case?"
+  - "Does each FR whose behavior could fail or be misused have at least one AC covering a negative path?"
+  - "Is no critical assumption left unverified unless explicitly accepted as a residual risk?"
+  - "Does each verified assumption source reference a plausible repo path or evidence location?"
+  - "Does each risk have a corresponding failure_paths entry, and each unverified assumption a corresponding risk entry?"
+  - "Do any functional requirements contradict the out_of_scope list, another FR, or an NFR?"
+  - "Does the problem statement describe the problem, not a solution?"
+  - "Do delta entries plausibly describe the living docs affected by the requirements?"
+
+design:
+  - "Is every FR and NFR from requirements.yaml covered by at least one traceability entry and design element?"
+  - "Are component responsibilities clear, non-overlapping, and testable?"
+  - "Are data models consistent with the requirements and APIs?"
+  - "Does the design address the failure paths identified in requirements?"
+  - "Do design decisions include enough context and rationale to be reviewed?"
+  - "Do delta entries plausibly describe the living docs affected by the design?"
+
+plan:
+  - "Is task granularity consistent? No task should be so broad it hides sub-decisions, and none so narrow it's pseudocode."
+  - "Does task order reflect real-world constraints (e.g., schema creation before queries, characterization tests before refactoring)?"
+  - "Are each task's acceptance criteria actually verifiable with clear pass/fail conditions?"
+  - "Does completing 100% of the listed tasks actually satisfy 100% of the requirements?"
+  - "Does any task assume a design decision that was never made explicit in the design phase?"
+  - "Are complexity estimates plausible given the task description and files touched?"
+  - "For refactor tasks, are there tasks ensuring behavior-preserving tests exist before the tasks that change the code?"
+  - "Do any two tasks touch the same component or logical area in a way that could conflict?"
+  - "Do delta entries plausibly describe the living docs affected by the plan?"
+
+implementation:
+  - "Do the completed tasks plausibly satisfy the acceptance criteria they claim to cover?"
+  - "Have negative and boundary cases required by requirements and plan been implemented or verified?"
+  - "Are files changed outside the plan either incidental and explained, or does the plan need updating?"
+  - "Is there evidence that the work was verified (tests, manual verification notes, CLI output)?"
+  - "Are task implementation notes sufficient to understand what was done and how it was verified?"
+  - "For refactor tasks, is there evidence that behavior was preserved?"
+  - "Is the implementation complete enough to synchronize docs/current?"

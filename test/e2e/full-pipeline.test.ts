@@ -10,7 +10,6 @@ import {
   validRequirements,
   validDesign,
   validPlan,
-  semanticResults,
 } from '../helpers/artifacts.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -49,11 +48,11 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   out = run(
     tmp,
     ['requirements', '--dir', changeDir, '--update-artifact'],
-    JSON.stringify(validRequirements({ semantic: semanticResults(root, 'requirements') }))
+    JSON.stringify(validRequirements({}))
   );
   assert.notEqual(out.state, 'blocked', JSON.stringify(out));
 
-  out = run(tmp, ['requirements', '--dir', changeDir, '--finalize']);
+  out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   out = run(tmp, ['review', '--target', 'requirements', '--dir', changeDir, '--accept']);
@@ -65,11 +64,11 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   out = run(
     tmp,
     ['design', '--dir', changeDir, '--update-artifact'],
-    JSON.stringify(validDesign({ reqVersion, semantic: semanticResults(root, 'design') }))
+    JSON.stringify(validDesign({ reqVersion }))
   );
   assert.notEqual(out.state, 'blocked', JSON.stringify(out));
 
-  out = run(tmp, ['design', '--dir', changeDir, '--finalize']);
+  out = run(tmp, ['design', '--dir', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   out = run(tmp, ['review', '--target', 'design', '--dir', changeDir, '--accept']);
@@ -78,18 +77,14 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   const des = readYaml(path.join(changeRoot, 'design.yaml'));
   const desVersion = des.metadata.version;
 
-  const planSemantic = [
-    ...semanticResults(root, 'plan'),
-    ...semanticResults(root, 'implementation'),
-  ];
   out = run(
     tmp,
     ['planning', '--dir', changeDir, '--update-artifact'],
-    JSON.stringify(validPlan({ reqVersion, designVersion: desVersion, semantic: planSemantic }))
+    JSON.stringify(validPlan({ reqVersion, designVersion: desVersion }))
   );
   assert.notEqual(out.state, 'blocked', JSON.stringify(out));
 
-  out = run(tmp, ['planning', '--dir', changeDir, '--finalize']);
+  out = run(tmp, ['planning', '--dir', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   out = run(tmp, ['review', '--target', 'plan', '--dir', changeDir, '--accept']);
@@ -105,17 +100,11 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   out = run(tmp, ['knowledge-extraction', '--dir', changeDir]);
-  assert.ok(out.data.entries.length >= 1, JSON.stringify(out));
-
-  out = run(
-    tmp,
-    ['knowledge-extraction', '--dir', changeDir, '--mark-extracted', '--target-doc', 'docs/current/overview.md', '--note', 'Synchronized overview with the implemented change.']
-  );
-  assert.notEqual(out.state, 'blocked', JSON.stringify(out));
+  assert.ok(out.data.deltas_to_apply.length >= 1, JSON.stringify(out));
 
   out = run(tmp, ['knowledge-extraction', '--dir', changeDir, '--complete']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
-
+  
   const fReq = readYaml(path.join(changeRoot, 'requirements.yaml'));
   const fDes = readYaml(path.join(changeRoot, 'design.yaml'));
   const fPlan = readYaml(path.join(changeRoot, 'plan.yaml'));

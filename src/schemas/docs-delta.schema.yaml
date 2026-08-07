@@ -5,8 +5,7 @@
   "additionalProperties": false,
   "required": [
     "metadata",
-    "validation_errors",
-    "entries"
+    "deltas_applied"
   ],
   "properties": {
     "metadata": {
@@ -15,165 +14,16 @@
       "required": [
         "stage",
         "status",
-        "created",
         "updated",
         "change_root"
       ],
       "properties": {
-        "stage": {
-          "type": "string"
-        },
-        "status": {
-          "type": "string",
-          "enum": [
-            "pending",
-            "complete"
-          ]
-        },
-        "created": {
-          "type": "string",
-          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
-        },
-        "updated": {
-          "type": "string",
-          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
-        },
-        "change_root": {
-          "type": "string"
-        },
-        "implementation_status": {
-          "type": [
-            "string",
-            "null"
-          ]
-        }
+        "stage": { "type": "string" },
+        "status": { "type": "string", "enum": ["complete"] },
+        "updated": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "change_root": { "type": "string" }
       }
     },
-    "validation_errors": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": true
-      }
-    },
-    "entries": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": true,
-        "required": [
-          "key",
-          "id",
-          "source_stage",
-          "source_artifact",
-          "phase",
-          "target_doc",
-          "change",
-          "reason",
-          "date",
-          "status"
-        ],
-        "properties": {
-          "key": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string",
-            "pattern": "^DD-[0-9a-f]{8}$"
-          },
-          "source_stage": {
-            "type": "string"
-          },
-          "source_artifact": {
-            "type": "string"
-          },
-          "phase": {
-            "type": "string"
-          },
-          "target_doc": {
-            "type": "string"
-          },
-          "target_anchor": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "entity_id": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "change": {
-            "type": "string",
-            "enum": [
-              "Add",
-              "Modify",
-              "Remove"
-            ]
-          },
-          "reason": {
-            "type": "string"
-          },
-          "date": {
-            "type": "string",
-            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "pending",
-              "extracted"
-            ]
-          },
-          "extracted_at": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "extraction_note": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        }
-      }
-    },
-    "archived_entries": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": true,
-        "required": [
-          "id",
-          "key",
-          "archived_reason",
-          "archived_at",
-          "original_entry"
-        ],
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "key": {
-            "type": "string"
-          },
-          "archived_reason": {
-            "type": "string"
-          },
-          "archived_at": {
-            "type": "string",
-            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
-          },
-          "original_entry": {
-            "type": "object",
-            "additionalProperties": true
-          }
-        }
-      }
-    }
+    "deltas_applied": { "type": "integer", "minimum": 0 }
   }
 }

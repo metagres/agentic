@@ -163,8 +163,8 @@ function main() {
   if (!destArg) {
     fail(
       'Usage: deploy-to-agent --dest <path-to-agent-root> ' +
-        '[--project-root <path>] [--runtime-dir sdlc] [--skills-dir skills] ' +
-        '[--clean] [--bundle] [--install] [--skip-smoke]'
+      '[--project-root <path>] [--runtime-dir sdlc] [--skills-dir skills] ' +
+      '[--clean] [--bundle] [--install] [--skip-smoke]'
     );
   }
 
@@ -217,7 +217,7 @@ function main() {
   }
 
   ensureDir(destAbs);
-ensureDir(projectRootAbs);
+  ensureDir(projectRootAbs);
 
   let bundled = false;
 
@@ -278,15 +278,14 @@ ensureDir(projectRootAbs);
     'utf8'
   );
 
-  copyDir(path.join(root, 'src', 'contracts'), path.join(runtimeAbs, 'contracts'));
   copyDir(path.join(root, 'src', 'templates'), path.join(runtimeAbs, 'templates'));
-// sdlc-hardening: data
-if (fs.existsSync(path.join(root, 'src', 'schemas'))) {
-  copyDir(path.join(root, 'src', 'schemas'), path.join(runtimeAbs, 'schemas'));
-}
-if (fs.existsSync(path.join(root, 'src', 'policies'))) {
-  copyDir(path.join(root, 'src', 'policies'), path.join(runtimeAbs, 'policies'));
-}
+  // sdlc-hardening: data
+  if (fs.existsSync(path.join(root, 'src', 'schemas'))) {
+    copyDir(path.join(root, 'src', 'schemas'), path.join(runtimeAbs, 'schemas'));
+  }
+  if (fs.existsSync(path.join(root, 'src', 'policies'))) {
+    copyDir(path.join(root, 'src', 'policies'), path.join(runtimeAbs, 'policies'));
+  }
 
   const generatedSkills = [];
 
@@ -298,8 +297,8 @@ if (fs.existsSync(path.join(root, 'src', 'policies'))) {
       cliPath,
       runtimeRoot,
       templatesRoot,
-  schemasRoot: `${agentPrefix}${runtimeDir}/schemas`,
-  policiesRoot: `${agentPrefix}${runtimeDir}/policies`,
+      schemasRoot: `${agentPrefix}${runtimeDir}/schemas`,
+      policiesRoot: `${agentPrefix}${runtimeDir}/policies`,
     });
 
     fs.writeFileSync(path.join(skillDir, 'SKILL.md'), content, 'utf8');

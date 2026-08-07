@@ -73,3 +73,18 @@ export function loadErrorCatalog(cwd: string = process.cwd()): unknown {
 export function loadIdsCatalog(cwd: string = process.cwd()): unknown {
   return loadPolicy('policies', 'ids.yaml', cwd);
 }
+
+export function loadSemanticChecks(cwd: string = process.cwd()): Record<string, string[]> {
+  try {
+    const doc = loadPolicy('policies', 'semantic-checks.yaml', cwd) as Record<string, unknown>;
+    const out: Record<string, string[]> = {};
+    for (const [stage, checks] of Object.entries(doc)) {
+      if (Array.isArray(checks)) {
+        out[stage] = checks.filter(c => typeof c === 'string');
+      }
+    }
+    return out;
+  } catch {
+    return {}; 
+  }
+}

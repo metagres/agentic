@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readYaml } from '../../src/scripts/lib/yaml-io.ts';
-import { validRequirements, semanticResults } from '../helpers/artifacts.ts';
+import { validRequirements } from '../helpers/artifacts.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '../..');
@@ -33,7 +33,7 @@ function run(tmp, args, input) {
   return JSON.parse(res.stdout);
 }
 
-test('knowledge extraction archives removed delta entries and completes', () => {
+test('knowledge extraction lists deltas and completes', () => {
   const tmp = makeTmpProject();
   let out = run(tmp, ['requirements', '--request', 'Add overview']);
   const changeRoot = out.data.change_root;
@@ -41,7 +41,6 @@ test('knowledge extraction archives removed delta entries and completes', () => 
 
   const withDelta = validRequirements({
     request: 'Add overview',
-    semantic: semanticResults(root, 'requirements'),
     delta: [
       {
         phase: 'Requirements',
@@ -55,38 +54,18 @@ test('knowledge extraction archives removed delta entries and completes', () => 
   out = run(tmp, ['requirements', '--dir', changeDir, '--update-artifact'], JSON.stringify(withDelta));
   assert.notEqual(out.state, 'blocked');
 
-  out = run(tmp, ['knowledge-extraction', '--dir', changeDir]);
-  assert.equal(out.data.entries.length, 1);
-  assert.equal(out.data.entries[0].status, 'pending');
-
-  out = run(
-    tmp,
-    ['knowledge-extraction', '--dir', changeDir, '--mark-extracted', '--target-doc', 'docs/current/overview.md', '--note', 'Updated overview section with registration details.']
-  );
-  assert.notEqual(out.state, 'blocked');
+  // We need to mock implementation acceptance to complete KX
+  // For this test, we'll just manually write a plan.yaml with accepted status
+  fs.writeFileSync(path.join(changeRoot, 'plan.yaml'), 'metadata:\n  implementation_status: accepted\n', 'utf8');
 
   out = run(tmp, ['knowledge-extraction', '--dir', changeDir]);
-  assert.equal(out.data.entries.length, 1);
-  assert.equal(out.data.entries[0].status, 'extracted');
-
-  const noDelta = validRequirements({
-    request: 'Add overview',
-    semantic: semanticResults(root, 'requirements'),
-    delta: [],
-  });
-  out = run(tmp, ['requirements', '--dir', changeDir, '--update-artifact'], JSON.stringify(noDelta));
-  assert.notEqual(out.state, 'blocked');
-
-  out = run(tmp, ['knowledge-extraction', '--dir', changeDir]);
-  assert.equal(out.data.entries.length, 0);
-
-  let dd = readYaml(path.join(changeRoot, 'docs-delta.yaml'));
-  assert.equal(dd.archived_entries.length, 1);
-  assert.equal(dd.archived_entries[0].archived_reason, 'removed_from_source_artifact');
+  assert.equal(out.data.deltas_to_apply.length, 1);
+  assert.equal(out.data.deltas_to_apply[0].target_doc, 'docs/current/overview.md');
 
   out = run(tmp, ['knowledge-extraction', '--dir', changeDir, '--complete']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  dd = readYaml(path.join(changeRoot, 'docs-delta.yaml'));
+  const dd = readYaml(path.join(changeRoot, 'docs-delta.yaml'));
   assert.equal(dd.metadata.status, 'complete');
+  assert.equal(dd.deltas_applied, 1);
 });

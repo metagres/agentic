@@ -12,8 +12,7 @@
     "flows",
     "decisions",
     "traceability",
-    "delta",
-    "semantic_validation"
+    "delta"
   ],
   "properties": {
     "metadata": {
@@ -261,39 +260,6 @@
             "type": "string"
           },
           "date": {
-            "type": "string",
-            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
-          }
-        }
-      }
-    },
-    "semantic_validation": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": true,
-        "required": [
-          "check_id",
-          "status",
-          "evidence",
-          "evaluated_at"
-        ],
-        "properties": {
-          "check_id": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "pass",
-              "fail",
-              "waived"
-            ]
-          },
-          "evidence": {
-            "type": "string"
-          },
-          "evaluated_at": {
             "type": "string",
             "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
           }

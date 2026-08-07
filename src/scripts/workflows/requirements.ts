@@ -194,14 +194,14 @@ Write the artifact through the script.
 
     validation: {
       title: 'Validation',
-      next_action: 'fix_mechanical_errors_or_record_semantic_result',
+      next_action: 'fix_mechanical_errors',
       markdown: `
 Fix mechanical validation errors first.
 
-Then evaluate each semantic check in \`data.semantic_checks_to_run\` and record each result with evidence.
+Then run \`--finalize\` to review the semantic checks.
 `.trim(),
       commands: [
-        '{{SDLC}} requirements --dir {{change_dir}} --record-semantic-result --check <check_id> --status pass --evidence "<evidence>"',
+        '{{SDLC}} requirements --dir {{change_dir}} --finalize',
       ],
     },
 
@@ -288,7 +288,6 @@ The requirements artifact is ready for the review gate.
       failure_paths: [],
       risks_and_dependencies: [],
       delta: [],
-      semantic_validation: [],
     };
   },
 

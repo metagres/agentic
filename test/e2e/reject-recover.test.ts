@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readYaml } from '../../src/scripts/lib/yaml-io.ts';
-import { validRequirements, semanticResults } from '../helpers/artifacts.ts';
+import { validRequirements } from '../helpers/artifacts.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '../..');
@@ -42,11 +42,11 @@ test('reject then recover preserves history and bumps version', () => {
   out = run(
     tmp,
     ['requirements', '--dir', changeDir, '--update-artifact'],
-    JSON.stringify(validRequirements({ request: 'Add login', semantic: semanticResults(root, 'requirements') }))
+    JSON.stringify(validRequirements({ request: 'Add login' }))
   );
   assert.notEqual(out.state, 'blocked');
 
-  out = run(tmp, ['requirements', '--dir', changeDir, '--finalize']);
+  out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   out = run(tmp, ['review', '--target', 'requirements', '--dir', changeDir, '--reject']);
@@ -63,11 +63,11 @@ test('reject then recover preserves history and bumps version', () => {
   out = run(
     tmp,
     ['requirements', '--dir', changeDir, '--update-artifact'],
-    JSON.stringify(validRequirements({ title: 'Add login recovered', request: 'Add login', semantic: semanticResults(root, 'requirements') }))
+    JSON.stringify(validRequirements({ title: 'Add login recovered', request: 'Add login' }))
   );
   assert.notEqual(out.state, 'blocked');
 
-  out = run(tmp, ['requirements', '--dir', changeDir, '--finalize']);
+  out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   out = run(tmp, ['review', '--target', 'requirements', '--dir', changeDir, '--accept']);

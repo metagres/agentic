@@ -105,59 +105,6 @@ export function makeCtx(cwd: string, changeRoot: string | null): { loadFile: (re
   };
 }
 
-export function semanticSummary(artifact: Record<string, unknown>, contract: Record<string, unknown>, options: Record<string, unknown> = {}): { complete: boolean; missing: string[]; failed: string[]; results: unknown[] } {
-  const checks = (contract?.semantic_checks || []) as { id: string; severity: string; category: string; description: string }[];
-
-  const results = Array.isArray(artifact?.semantic_validation)
-    ? artifact.semantic_validation as { check_id: string; status: string; evidence: string; evaluated_at: string }[]
-    : [];
-
-  if (checks.length === 0) {
-    return {
-      complete: true,
-      missing: [],
-      failed: [],
-      results,
-    };
-  }
-
-  const byCheckId = new Map(results.map((r) => [r.check_id, r]));
-
-  const missing: string[] = [];
-  const failed = new Set<string>();
-
-  for (const check of checks) {
-    const result = byCheckId.get(check.id);
-
-    if (!result) {
-      missing.push(check.id);
-      continue;
-    }
-
-    const evidence = String(result.evidence || '').trim();
-
-    const minEvidenceChars = Number(options.minEvidenceChars || 20);
-      if (evidence.length < minEvidenceChars) {
-      failed.add(check.id);
-    }
-
-    if (!['pass', 'fail', 'waived'].includes(result.status)) {
-      failed.add(check.id);
-    }
-
-    if (check.severity === 'blocking' && result.status !== 'pass') {
-      failed.add(check.id);
-    }
-  }
-
-  return {
-    complete: missing.length === 0 && failed.size === 0,
-    missing,
-    failed: [...failed] as string[],
-    results,
-  };
-}
-
 export function loadReviewReport(changeRoot: string | null): unknown {
   if (!changeRoot) return null;
 

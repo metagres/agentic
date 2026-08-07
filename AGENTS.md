@@ -70,7 +70,7 @@ Do not memorize file paths or internal APIs. Discover them:
 | Lifecycle transitions | `src/policies/lifecycle.yaml` |
 | Error codes & messages | `src/policies/errors.yaml` |
 | ID conventions & patterns | `src/policies/ids.yaml` |
-| Discovery & semantic policy | `src/policies/requirements-policy.yaml`, `src/policies/semantic-policy.yaml` |
+| Discovery policy | `src/policies/requirements-policy.yaml` |
 | Skill generation source | `src/scripts/workflows/skill-manifest.js` |
 | Deployment logic | `bin/deploy-to-agent.js` |
 | Implementation plans | `the-plan.md` (this repository's planning doc) |

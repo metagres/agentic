@@ -47,9 +47,7 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
   const expectedPolicies = [
     'pipeline.yaml',
     'review-targets.yaml',
-    'lifecycle.yaml',
-    'requirements-policy.yaml',
-    'semantic-policy.yaml'
+    'requirements-policy.yaml'
   ];
 
   for (const file of expectedPolicies) {
@@ -59,45 +57,32 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
     );
   }
 
-  const expectedContracts = [
-'requirements-contract.yaml',
-'design-contract.yaml',
-'plan-contract.yaml',
-'implementation-contract.yaml'
-];
-for (const file of expectedContracts) {
-assert.ok(
-fs.existsSync(path.join(dest, 'sdlc', 'contracts', file)),
-`missing deployed contract: ${file}`
-);
-}
+  const expectedTemplates = [
+    'requirements.yaml',
+    'design.yaml',
+    'plan.yaml',
+    'docs-current-index.md'
+  ];
+  for (const file of expectedTemplates) {
+    assert.ok(
+      fs.existsSync(path.join(dest, 'sdlc', 'templates', file)),
+      `missing deployed template: ${file}`
+    );
+  }
 
-const expectedTemplates = [
-'requirements.yaml',
-'design.yaml',
-'plan.yaml',
-'docs-current-index.md'
-];
-for (const file of expectedTemplates) {
-assert.ok(
-fs.existsSync(path.join(dest, 'sdlc', 'templates', file)),
-`missing deployed template: ${file}`
-);
-}
-
-assert.ok(
-fs.existsSync(path.join(dest, 'sdlc', 'manifest.json')),
-'missing deployed manifest'
-);
-assert.ok(
-  fs.existsSync(path.join(dest, 'sdlc', 'scripts', 'sdlc.ts')) ||
-    fs.existsSync(path.join(dest, 'sdlc', 'scripts', 'sdlc.js')),
-  'missing runtime CLI'
-);
-assert.ok(
-fs.existsSync(path.join(dest, 'skills', 'requirements-authoring', 'SKILL.md')),
-'missing generated skills'
-);
+  assert.ok(
+    fs.existsSync(path.join(dest, 'sdlc', 'manifest.json')),
+    'missing deployed manifest'
+  );
+  assert.ok(
+    fs.existsSync(path.join(dest, 'sdlc', 'scripts', 'sdlc.ts')) ||
+      fs.existsSync(path.join(dest, 'sdlc', 'scripts', 'sdlc.js')),
+    'missing runtime CLI'
+  );
+  assert.ok(
+    fs.existsSync(path.join(dest, 'skills', 'requirements-authoring', 'SKILL.md')),
+    'missing generated skills'
+  );
 
   let cliPath = path.join(dest, 'sdlc', 'scripts', 'sdlc.ts');
   if (!fs.existsSync(cliPath)) {

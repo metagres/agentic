@@ -21,7 +21,6 @@ const expectedKeys = {
     'failure_paths',
     'risks_and_dependencies',
     'delta',
-    'semantic_validation',
   ],
 
   'design.yaml': [
@@ -34,7 +33,6 @@ const expectedKeys = {
     'decisions',
     'traceability',
     'delta',
-    'semantic_validation',
   ],
 
   'plan.yaml': [
@@ -43,7 +41,6 @@ const expectedKeys = {
     'milestones',
     'risks',
     'delta',
-    'semantic_validation',
   ],
 };
 

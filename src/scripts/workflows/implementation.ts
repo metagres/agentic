@@ -5,8 +5,6 @@ import { writeYamlAtomic } from '../lib/yaml-io.ts';
 import { safeReadYaml } from '../lib/context.ts';
 import { requireChangeRoot } from '../lib/change-root.ts';
 import { today } from '../lib/ids.ts';
-import { loadLifecycle } from '../lib/policy-loader.ts';
-import { assertTransition } from '../lib/lifecycle.ts';
 import { makeError } from '../lib/error-catalog.ts';
 import type { ParseArgsResult, WarningItem } from '../lib/types.ts';
 
@@ -309,43 +307,7 @@ export function runImplementation(argv: string[]) {
       nextImplementationStatus = 'pending';
     }
 
-    if (
-      previousImplementationStatus &&
-      nextImplementationStatus &&
-      previousImplementationStatus !== nextImplementationStatus
-    ) {
-      try {
-        assertTransition(
-          loadLifecycle(cwd) as Record<string, unknown>,
-          'implementation_status',
-          previousImplementationStatus,
-          nextImplementationStatus
-        );
-      } catch (err: unknown) {
-        writeJson(
-          {
-            ...base,
-            state: 'blocked',
-            instructions: err instanceof Error ? err.message : String(err),
-            data: {
-              change_root: changeRoot,
-              plan: planPath,
-            },
-            errors: [
-              makeError((err as NodeJS.ErrnoException).code || 'ILLEGAL_STATUS_TRANSITION', {
-                message: err instanceof Error ? err.message : String(err),
-              }),
-            ],
-            warnings,
-          },
-          EXIT.actionFailed
-        );
-        return;
-      }
-    }
-
     (plan.metadata as Record<string, unknown>).implementation_status = nextImplementationStatus;
-
     (plan.metadata as Record<string, unknown>).updated = today();
 
     if (mutation) {

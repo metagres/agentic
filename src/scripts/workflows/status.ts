@@ -110,6 +110,37 @@ export function runStatus(argv: string[]): void {
 
   const rejected = order.find((key: string) => pipeline[key] === 'rejected');
 
+    // Check for open feedback first
+  const feedbackPath = path.join(changeRoot, 'feedback.yaml');
+  const feedbackDoc = safeReadYaml(feedbackPath) as { entries?: any[] } | null;
+  const openFeedback = feedbackDoc?.entries?.find((e: any) => e.status === 'open');
+
+  if (openFeedback) {
+    writeJson(
+      {
+        ...base,
+        state: 'blocked',
+        instructions: 
+          `An open feedback entry exists from ${openFeedback.from_stage} to ${openFeedback.to_stage}. ` +
+          `Reason: ${openFeedback.reason}. ` +
+          `Please switch to the ${openFeedback.to_stage}-authoring skill, fix the issue, and re-review. ` +
+          `Once accepted, run: sdlc feedback --dir ${changeDir} --resolve ${openFeedback.id}`,
+        data: {
+          change_dir: changeDir,
+          change_root: changeRoot,
+          pipeline,
+          current_workflow: openFeedback.to_stage,
+          suggested_command: `sdlc ${openFeedback.to_stage} --dir ${changeDir}`,
+          open_feedback: openFeedback,
+        },
+        errors: [],
+        warnings: [],
+      } as Record<string, unknown>,
+      EXIT.ok
+    );
+    return;
+  }
+
   let currentWorkflow: string | undefined;
   let state: string;
   let instructions: string;

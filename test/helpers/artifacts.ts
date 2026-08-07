@@ -5,22 +5,6 @@ export function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function semanticResults(root, contractName) {
-  const contractPath = path.join(
-    root,
-    'src',
-    'contracts',
-    `${contractName}-contract.yaml`
-  );
-  const contract = readYaml(contractPath);
-  return (contract?.semantic_checks || []).map((check) => ({
-    check_id: check.id,
-    status: 'pass',
-    evidence: 'Verified with automated end-to-end conformance test.',
-    evaluated_at: today(),
-  }));
-}
-
 function discoveryLog() {
   const mk = (id, lens, question, answer) => ({
     id,
@@ -53,7 +37,6 @@ function defaultDelta(phase) {
 export function validRequirements({
   title = 'Device registration',
   request = 'Add device registration',
-  semantic = [],
   delta,
 } = {}) {
   return {
@@ -115,14 +98,12 @@ export function validRequirements({
     failure_paths: ['Duplicate external identifier is rejected with 409.'],
     risks_and_dependencies: ['External identifier uniqueness depends on client data.'],
     delta: Array.isArray(delta) ? delta : defaultDelta('Requirements'),
-    semantic_validation: semantic,
   };
 }
 
 export function validDesign({
   title = 'Device registration design',
   reqVersion = '0.1.0',
-  semantic = [],
   delta,
 } = {}) {
   return {
@@ -160,7 +141,6 @@ export function validDesign({
     ],
     traceability: [{ requirement_id: 'FR-001', component_ids: ['CMP-001'] }],
     delta: Array.isArray(delta) ? delta : defaultDelta('Design'),
-    semantic_validation: semantic,
   };
 }
 
@@ -168,7 +148,6 @@ export function validPlan({
   title = 'Device registration plan',
   reqVersion = '0.1.0',
   designVersion = '0.1.0',
-  semantic = [],
   delta,
 } = {}) {
   return {
@@ -203,6 +182,5 @@ export function validPlan({
     milestones: [],
     risks: [],
     delta: Array.isArray(delta) ? delta : defaultDelta('Planning'),
-    semantic_validation: semantic,
   };
 }
