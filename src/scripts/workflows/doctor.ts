@@ -3,23 +3,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs, writeJson, EXIT } from '../lib/cli.ts';
 import { makeError } from '../lib/error-catalog.ts';
+import { resolveRuntimeDir } from '../lib/paths.ts';
 import {
   resolveRootOrError,
   ResolveRootError,
 } from '../lib/resolve-root.ts';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
-
-function findDir(name: string, cwd: string): string | null {
-  const candidates = [
-    path.resolve(scriptDir, '..', name),
-    path.resolve(scriptDir, '..', '..', name),
-    path.resolve(scriptDir, '..', '..', '..', name),
-    path.resolve(cwd, 'src', name),
-    path.resolve(cwd, name),
-  ];
-  return candidates.find((candidate) => fs.existsSync(candidate)) || null;
-}
 
 function findManifest() {
   const candidates = [
@@ -58,7 +48,7 @@ export function runDoctor(argv: string[]): void {
     );
   }
 
-  const schemasDir = findDir('schemas', cwd);
+  const schemasDir = resolveRuntimeDir('schemas', cwd);
   if (schemasDir) {
     addCheck('schemas_available', true, schemasDir);
     const envelopeSchema = path.join(schemasDir, 'cli-envelope.schema.yaml');
@@ -79,7 +69,7 @@ export function runDoctor(argv: string[]): void {
     });
   }
 
-  const policiesDir = findDir('policies', cwd);
+  const policiesDir = resolveRuntimeDir('policies', cwd);
   if (policiesDir) {
     addCheck('policies_available', true, policiesDir);
   } else {
@@ -90,7 +80,7 @@ export function runDoctor(argv: string[]): void {
     });
   }
 
-  const templatesDir = findDir('templates', cwd);
+  const templatesDir = resolveRuntimeDir('templates', cwd);
   if (templatesDir) {
     addCheck('templates_available', true, templatesDir);
   } else {

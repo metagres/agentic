@@ -108,8 +108,6 @@ export function runStatus(argv: string[]): void {
     ];
   }
 
-  const rejected = order.find((key: string) => pipeline[key] === 'rejected');
-
     // Check for open feedback first
   const feedbackPath = path.join(changeRoot, 'feedback.yaml');
   const feedbackDoc = safeReadYaml(feedbackPath) as { entries?: any[] } | null;
@@ -141,84 +139,53 @@ export function runStatus(argv: string[]): void {
     return;
   }
 
+  const stageStatuses: Record<string, string> = {
+    'requirements': requirementsStatus,
+    'design': designStatus,
+    'planning': planningStatus,
+    'implementation': implementationStatus,
+    'knowledge-extraction': knowledgeStatus,
+  };
+
   let currentWorkflow: string | undefined;
-  let state: string;
-  let instructions: string;
+  let state: string = 'in_progress';
+  let instructions: string = '';
   let suggestedCommand: string | null = null;
 
-  if (rejected) {
-    currentWorkflow = rejected;
+  // 1. Check for rejected stages first
+  const rejectedStage = order.find((key: string) => stageStatuses[key] === 'rejected');
+  if (rejectedStage) {
+    currentWorkflow = rejectedStage;
     state = 'blocked';
-    instructions =
-      `The ${rejected} workflow has a rejected artifact. ` +
-      'Fix the findings and review again.';
-
-    if (rejected === 'implementation') {
-      suggestedCommand = `sdlc implementation --dir ${changeDir}`;
-    } else if (rejected === 'knowledge-extraction') {
-      suggestedCommand = `sdlc knowledge-extraction --dir ${changeDir}`;
-    } else {
-      suggestedCommand = `sdlc ${rejected} --dir ${changeDir}`;
-    }
-  } else if (requirementsStatus !== 'accepted') {
-    if (requirementsStatus === 'ready-for-review') {
-      currentWorkflow = 'review';
-      suggestedCommand = `sdlc review --target requirements --dir ${changeDir}`;
-      instructions =
-        'Requirements are ready for review. Run the requirements review gate.';
-    } else {
-      currentWorkflow = 'requirements';
-      suggestedCommand = `sdlc requirements --dir ${changeDir}`;
-      instructions =
-        'Requirements are not accepted yet. Continue the requirements stage.';
-    }
-
-    state = requirementsStatus === 'blocked' ? 'blocked' : 'in_progress';
-  } else if (designStatus !== 'accepted') {
-    if (designStatus === 'ready-for-review') {
-      currentWorkflow = 'review';
-      suggestedCommand = `sdlc review --target design --dir ${changeDir}`;
-      instructions = 'Design is ready for review. Run the design review gate.';
-    } else {
-      currentWorkflow = 'design';
-      suggestedCommand = `sdlc design --dir ${changeDir}`;
-      instructions = 'Design is not accepted yet. Continue the design stage.';
-    }
-
-    state = designStatus === 'blocked' ? 'blocked' : 'in_progress';
-  } else if (planningStatus !== 'accepted') {
-    if (planningStatus === 'ready-for-review') {
-      currentWorkflow = 'review';
-      suggestedCommand = `sdlc review --target plan --dir ${changeDir}`;
-      instructions = 'Plan is ready for review. Run the plan review gate.';
-    } else {
-      currentWorkflow = 'planning';
-      suggestedCommand = `sdlc planning --dir ${changeDir}`;
-      instructions = 'Planning is not accepted yet. Continue the planning stage.';
-    }
-
-    state = planningStatus === 'blocked' ? 'blocked' : 'in_progress';
-  } else if (implementationStatus !== 'accepted') {
-    if (implementationStatus === 'ready-for-review') {
-      currentWorkflow = 'review';
-      suggestedCommand = `sdlc review --target implementation --dir ${changeDir}`;
-      instructions =
-        'Implementation is ready for review. Run the implementation review gate.';
-    } else {
-      currentWorkflow = 'implementation';
-      suggestedCommand = `sdlc implementation --dir ${changeDir}`;
-      instructions =
-        'Implementation is not accepted yet. Continue updating task execution state.';
-    }
-
-    state = implementationStatus === 'blocked' ? 'blocked' : 'in_progress';
-  } else if (knowledgeStatus !== 'complete') {
-    currentWorkflow = 'knowledge-extraction';
-    suggestedCommand = `sdlc knowledge-extraction --dir ${changeDir}`;
-    instructions =
-      'Implementation is accepted. Synchronize docs/current using knowledge extraction.';
-    state = 'in_progress';
+    instructions = `The ${rejectedStage} workflow has a rejected artifact. Fix the findings and review again.`;
+    suggestedCommand = `sdlc ${rejectedStage} --dir ${changeDir}`;
   } else {
+    // 2. Find the first incomplete stage
+    for (const stage of order) {
+      const status = stageStatuses[stage];
+      const isDone = stage === 'knowledge-extraction' ? status === 'complete' : status === 'accepted';
+
+      if (!isDone) {
+        currentWorkflow = stage;
+        const target = stage === 'planning' ? 'plan' : stage;
+
+        if (status === 'ready-for-review') {
+          currentWorkflow = 'review';
+          suggestedCommand = `sdlc review --target ${target} --dir ${changeDir}`;
+          instructions = `${stage.charAt(0).toUpperCase() + stage.slice(1)} is ready for review. Run the review gate.`;
+        } else {
+          suggestedCommand = `sdlc ${stage} --dir ${changeDir}`;
+          instructions = `${stage.charAt(0).toUpperCase() + stage.slice(1)} is not accepted yet. Continue the ${stage} stage.`;
+        }
+
+        state = status === 'blocked' ? 'blocked' : 'in_progress';
+        break; // Stop at the first non-done stage
+      }
+    }
+  }
+
+  // 3. If loop finishes and all are done
+  if (!currentWorkflow) {
     currentWorkflow = 'complete';
     suggestedCommand = null;
     instructions = 'The full SDLC pipeline is complete for this change.';

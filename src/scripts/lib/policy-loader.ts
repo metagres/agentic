@@ -1,40 +1,10 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { readYaml } from './yaml-io.ts';
+import { resolveRuntimeFile } from './paths.ts';
 
-const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const cache = new Map();
 
-function resolvePolicyFile(dirName: string, fileName: string, cwd: string): string | null {
-  const candidates = [
-    // Bundled/deployed runtime:
-    //   <agent-root>/sdlc/scripts/sdlc.js
-    //   <agent-root>/sdlc/<dirName>/<fileName>
-    path.resolve(scriptDir, '..', dirName, fileName),
-
-    // Development runtime:
-    //   src/scripts/lib/policy-loader.ts
-    //   src/<dirName>/<fileName>
-    path.resolve(scriptDir, '..', '..', dirName, fileName),
-
-    // Extra fallbacks.
-    path.resolve(scriptDir, '..', '..', '..', dirName, fileName),
-    path.join(cwd, dirName, fileName),
-    path.join(cwd, 'src', dirName, fileName),
-  ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  return null;
-}
-
 function loadPolicy(dirName: string, fileName: string, cwd: string): unknown {
-  const abs = resolvePolicyFile(dirName, fileName, cwd);
+  const abs = resolveRuntimeFile('policies', fileName, cwd);
   if (!abs) {
     throw new Error(`Policy file not found: ${dirName}/${fileName}`);
   }

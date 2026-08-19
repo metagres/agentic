@@ -1,5 +1,7 @@
 import path from 'node:path';
 import { safeReadYaml } from './context.ts';
+import { validateArtifactSchema } from './schema.ts';
+import { runLintChecks } from './lint-checks.ts';
 
 interface Finding {
   finding: string;
@@ -247,4 +249,17 @@ export function checkCrossFileReferences(stageId: string, artifact: any, changeR
   }
 
   return findings;
+}
+
+export function runFullValidation(
+  stageId: string,
+  artifact: Record<string, unknown> | null,
+  cwd: string,
+  changeRoot: string | null
+): { check?: string; severity?: string; category?: string; finding?: string; message?: string; fix?: string }[] {
+  if (!artifact) return [];
+  const schemaFindings = validateArtifactSchema(stageId, artifact, cwd);
+  const refFindings = changeRoot ? checkCrossFileReferences(stageId, artifact, changeRoot) : [];
+  const lintFindings = runLintChecks(stageId, artifact);
+  return [...schemaFindings, ...refFindings, ...lintFindings];
 }

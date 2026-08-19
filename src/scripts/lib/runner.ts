@@ -10,8 +10,6 @@ import {
   readStdin,
   parseYamlString,
 } from './yaml-io.ts';
-// sdlc-hardening: schema
-import { validateArtifactSchema } from './schema.ts';
 import {
   safeReadYaml,
   makeCtx,
@@ -28,8 +26,7 @@ import { designStage } from '../workflows/design.ts';
 import { planningStage } from '../workflows/planning.ts';
 import { getStepDefinitions } from '../workflows/skill-manifest.ts';
 import { loadSemanticChecks } from './policy-loader.ts';
-import { checkCrossFileReferences } from './validators.ts';
-import { runLintChecks } from './lint-checks.ts';
+import { runFullValidation } from './validators.ts';
 import { makeError } from './error-catalog.ts';
 import type { ParseArgsResult, WarningItem, Finding, StageDef, RunEnv, ChangeEntry } from './types.ts';
 
@@ -318,10 +315,7 @@ function completeStep(env: RunEnv): void {
 }
 
 function finalizeArtifact(env: RunEnv): void {
-  const schemaFindings = validateArtifactSchema(env.stage.id, env.artifact, env.cwd);
-  const refFindings = checkCrossFileReferences(env.stage.id, env.artifact as Record<string, unknown>, env.changeRoot!);
-  const lintFindings = env.artifact ? runLintChecks(env.stage.id, env.artifact as Record<string, unknown>) : [];
-  const findings = [...schemaFindings, ...refFindings, ...lintFindings];
+  const findings = runFullValidation(env.stage.id, env.artifact, env.cwd, env.changeRoot!);
 
   if (findings.length > 0) {
     const blocking = findings
@@ -635,10 +629,7 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
     if (args.finalize) {
       ensureArtifact(env);
       
-      const schemaFindings = validateArtifactSchema(env.stage.id, env.artifact, env.cwd);
-      const refFindings = checkCrossFileReferences(env.stage.id, env.artifact as Record<string, unknown>, env.changeRoot!);
-      const lintFindings = env.artifact ? runLintChecks(env.stage.id, env.artifact as Record<string, unknown>) : [];
-      const findings = [...schemaFindings, ...refFindings, ...lintFindings];
+      const findings = runFullValidation(env.stage.id, env.artifact, env.cwd, env.changeRoot!);
 
       if (findings.length > 0) {
         const blocking = findings
@@ -694,14 +685,7 @@ export function runAuthoringStage(stageId: string, argv: string[]): void {
     }
 
     // Recalculate state for standard output
-    const schemaFindings = env.artifact
-      ? validateArtifactSchema(env.stage.id, env.artifact, env.cwd)
-      : [];
-    const refFindings = env.artifact && env.changeRoot
-      ? checkCrossFileReferences(env.stage.id, env.artifact as Record<string, unknown>, env.changeRoot)
-      : [];
-    const lintFindings = env.artifact ? runLintChecks(env.stage.id, env.artifact as Record<string, unknown>) : [];
-    const findings = [...schemaFindings, ...refFindings, ...lintFindings];
+    const findings = runFullValidation(env.stage.id, env.artifact, env.cwd, env.changeRoot);
 
     const blocking = findings
       .filter(f => !f.severity || f.severity === 'blocking')

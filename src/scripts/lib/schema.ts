@@ -1,12 +1,8 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { readYaml } from './yaml-io.ts';
 import { getSchemaForTarget } from './pipeline.ts';
-
-const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+import { resolveRuntimeFile } from './paths.ts';
 
 const ajv = new Ajv({
   allErrors: true,
@@ -21,35 +17,8 @@ try {
 
 const compiledSchemas = new Map();
 
-function resolveSchemaFile(schemaFile: string, cwd: string): string | null {
-  const candidates = [
-    // Bundled/deployed runtime:
-    //   <agent-root>/sdlc/scripts/sdlc.js
-    //   <agent-root>/sdlc/schemas/<schemaFile>
-    path.resolve(scriptDir, '..', 'schemas', schemaFile),
-
-    // Development runtime:
-    //   src/scripts/lib/schema.ts
-    //   src/schemas/<schemaFile>
-    path.resolve(scriptDir, '..', '..', 'schemas', schemaFile),
-
-    // Extra fallbacks.
-    path.resolve(scriptDir, '..', '..', '..', 'schemas', schemaFile),
-    path.join(cwd, 'schemas', schemaFile),
-    path.join(cwd, 'src', 'schemas', schemaFile),
-  ];
-
-  for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
-  }
-
-  return null;
-}
-
 export function loadSchema(schemaFile: string, cwd: string = process.cwd()): unknown {
-  const abs = resolveSchemaFile(schemaFile, cwd);
+  const abs = resolveRuntimeFile('schemas', schemaFile, cwd);
   if (!abs) {
     throw new Error(`Schema not found: ${schemaFile}`);
   }
