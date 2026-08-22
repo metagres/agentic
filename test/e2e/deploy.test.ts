@@ -17,7 +17,7 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
 
   const deploy = spawnSync(
     process.execPath,
-    [deployScript, '--dest', dest, '--project-root', tmp, '--bundle', '--clean'],
+    [deployScript, '--dest', dest, '--clean'],
     { encoding: 'utf8' }
   );
 
@@ -29,6 +29,21 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
   );
   assert.equal(deployJson.ok, true);
 
+  const skillDir = path.join(dest, 'skills', 'agentic-sdlc');
+
+  assert.ok(
+    fs.existsSync(path.join(skillDir, 'SKILL.md')),
+    'missing generated SKILL.md'
+  );
+  assert.ok(
+    fs.existsSync(path.join(skillDir, 'scripts', 'sdlc.js')),
+    'missing bundled CLI'
+  );
+  assert.ok(
+    fs.existsSync(path.join(skillDir, 'manifest.json')),
+    'missing deployed manifest'
+  );
+
   const expectedSchemas = [
     'requirements.schema.yaml',
     'design.schema.yaml',
@@ -39,7 +54,7 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
 
   for (const file of expectedSchemas) {
     assert.ok(
-      fs.existsSync(path.join(dest, 'sdlc', 'schemas', file)),
+      fs.existsSync(path.join(skillDir, 'schemas', file)),
       `missing deployed schema: ${file}`
     );
   }
@@ -51,7 +66,7 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
 
   for (const file of expectedPolicies) {
     assert.ok(
-      fs.existsSync(path.join(dest, 'sdlc', 'policies', file)),
+      fs.existsSync(path.join(skillDir, 'policies', file)),
       `missing deployed policy: ${file}`
     );
   }
@@ -64,33 +79,28 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
   ];
   for (const file of expectedTemplates) {
     assert.ok(
-      fs.existsSync(path.join(dest, 'sdlc', 'templates', file)),
+      fs.existsSync(path.join(skillDir, 'templates', file)),
       `missing deployed template: ${file}`
     );
   }
 
   assert.ok(
-    fs.existsSync(path.join(dest, 'sdlc', 'manifest.json')),
-    'missing deployed manifest'
+    !fs.existsSync(path.join(skillDir, 'package.json')),
+    'deployed skill must not contain package.json'
   );
   assert.ok(
-    fs.existsSync(path.join(dest, 'sdlc', 'scripts', 'sdlc.ts')) ||
-      fs.existsSync(path.join(dest, 'sdlc', 'scripts', 'sdlc.js')),
-    'missing runtime CLI'
-  );
-  assert.ok(
-    fs.existsSync(path.join(dest, 'skills', 'requirements-authoring', 'SKILL.md')),
-    'missing generated skills'
+    !fs.existsSync(path.join(skillDir, 'node_modules')),
+    'deployed skill must not contain node_modules'
   );
 
-  let cliPath = path.join(dest, 'sdlc', 'scripts', 'sdlc.ts');
-  if (!fs.existsSync(cliPath)) {
-    cliPath = path.join(dest, 'sdlc', 'scripts', 'sdlc.js');
-  }
-  const cli = spawnSync(process.execPath, [cliPath, '--list-workflows'], {
-    encoding: 'utf8',
-    cwd: tmp
-  });
+  const cli = spawnSync(
+    process.execPath,
+    [path.join(skillDir, 'scripts', 'sdlc.js'), '--list-workflows'],
+    {
+      encoding: 'utf8',
+      cwd: dest
+    }
+  );
 
   assert.equal(cli.status, 0, cli.stderr);
   const json = JSON.parse(cli.stdout);

@@ -8,4 +8,8 @@ export default defineConfig({
   outDir: 'dist',
   clean: true,
   sourcemap: true,
+  noExternal: [/.*/],
+  banner: {
+    js: "import { createRequire } from 'node:module';\nconst require = createRequire(import.meta.url);",
+  },
 });

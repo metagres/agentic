@@ -22,7 +22,7 @@
     "validate:schemas": "node bin/validate-schemas.ts",
     "validate:policies": "node bin/validate-policies.ts",
     "check:all": "npm run test:all && npm run deploy:smoke",
-    "deploy:smoke": "node bin/deploy-to-agent.ts --dest .tmp/agent --project-root .tmp/project --bundle --clean",
+    "deploy:smoke": "node bin/deploy-to-agent.ts --dest .tmp/agent --clean",
     "test:all": "npm run validate && npm run test:unit && npm run test:e2e",
     "typecheck": "tsc --noEmit"
   },

@@ -98,8 +98,6 @@ export function runDoctor(argv: string[]): void {
       const requiredFields = [
         'name',
         'version',
-        'runtimeDir',
-        'skillsDir',
         'cliPath',
       ];
       const missing = requiredFields.filter(

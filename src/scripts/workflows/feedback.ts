@@ -189,7 +189,7 @@ export function runFeedback(argv: string[]) {
     workflow: 'feedback',
     step: 'created',
     state: 'complete',
-    instructions: `Reverted ${to} to draft and blocked ${from}. Please switch to the ${to}-authoring skill, resolve the issue, and re-review. Once accepted, run: sdlc feedback --dir <change-dir> --resolve ${id}`,
+    instructions: `Reverted ${to} to draft and blocked ${from}. Run scripts/sdlc.js ${to} --dir <change-dir> to resolve the issue, re-review, then run: sdlc feedback --dir <change-dir> --resolve ${id}`,
     data: {
       change_root: changeRoot,
       feedback_id: id,

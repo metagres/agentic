@@ -28,6 +28,7 @@ npm run check:all
 6. Implementation state lives in `plan.yaml`.
 7. The toolkit is agent-agnostic — no hardcoded agent paths.
 8. The CLI envelope shape is frozen.
+9. The deployed skill (`.opencode/skills/agentic-sdlc/`) is a build artifact: exactly one self-contained skill folder, fully bundled with all dependencies inlined (no `package.json`, no `node_modules`, no source `.ts` files inside it). It must never be treated as, or confused with, this repository's own source/config.
 
 ---
 
@@ -54,6 +55,7 @@ A change is complete when:
 - No new top-level CLI envelope fields were introduced.
 - No hardcoded agent-specific paths were added.
 - If deployment-related files changed: `npm run deploy:smoke` passes.
+- If deploy output changed: confirm `.opencode/skills/agentic-sdlc/` still contains no `package.json`/`node_modules` and exactly one `SKILL.md`.
 - If behavior changed: relevant docs in this file or referenced docs are updated.
 
 ---
@@ -72,9 +74,8 @@ Do not memorize file paths or internal APIs. Discover them:
 | ID conventions & patterns | `src/policies/ids.yaml` |
 | Discovery policy | `src/policies/requirements-policy.yaml` |
 | Semantic (advisory) checks | `src/policies/semantic-checks.yaml` |
-| Skill generation source | `src/scripts/workflows/skill-manifest.ts` |
+| Skill generation source | `src/scripts/workflows/skill-manifest.ts` (single `skillManifest` + shared `stepDefinitions`) |
 | Deployment logic | `bin/deploy-to-agent.ts` |
-| Implementation plans | `the-plan.md` (this repository's planning doc) |
 
 When in doubt, run `npm run validate` and read the failing output.
 
@@ -122,4 +123,4 @@ If a new check type, error code, or ID prefix is added, update the corresponding
 | Utility | Purpose |
 |---|---|
 | `generate_context.js` | Compiles repo source into `llm_context.txt` (gitignored) for use as LLM context. Uses `.contextignore` or falls back to `.gitignore`. |
-| `.opencode/sdlc/` + `.opencode/skills/` | Deploy targets, regenerated via `npm run deploy:smoke`. Not source — do not edit directly. |
+| `.opencode/` | Deployed agent runtime — created by `npm run deploy:smoke` / `bin/deploy-to-agent.ts --dest .opencode`. Gitignored (see `.gitignore`, `.contextignore`). Contains exactly one self-contained skill at `.opencode/skills/agentic-sdlc/` (SKILL.md + bundled `scripts/sdlc.js` + `templates/`/`schemas/`/`policies/`). **This is a build artifact, not source** — never edit it directly, never read it to understand "how the toolkit works," and never confuse it with this repository's own development code under `src/`, `bin/`, `test/`. |

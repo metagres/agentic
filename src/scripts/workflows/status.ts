@@ -121,7 +121,7 @@ export function runStatus(argv: string[]): void {
         instructions: 
           `An open feedback entry exists from ${openFeedback.from_stage} to ${openFeedback.to_stage}. ` +
           `Reason: ${openFeedback.reason}. ` +
-          `Please switch to the ${openFeedback.to_stage}-authoring skill, fix the issue, and re-review. ` +
+          `Run scripts/sdlc.js ${openFeedback.to_stage} --dir ${changeDir} to fix the issue and re-review. ` +
           `Once accepted, run: sdlc feedback --dir ${changeDir} --resolve ${openFeedback.id}`,
         data: {
           change_dir: changeDir,
