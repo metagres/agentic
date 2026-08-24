@@ -4,7 +4,66 @@ import { writeYamlAtomic, readYaml } from '../lib/yaml-io.ts';
 import { resolveRootOrError, ResolveRootError } from '../lib/resolve-root.ts';
 import { today, nextId } from '../lib/ids.ts';
 import { makeError } from '../lib/error-catalog.ts';
-import { getPipelineOrder, getArtifactForStage } from '../lib/pipeline.ts';
+import { loadStageRegistry, getStageById } from '../lib/stage-registry.ts';
+import type { StageRecord } from '../lib/stage-registry.ts';
+
+/**
+ * Computes the transitive downstream stages of a stage: every stage reachable
+ * through requires and reviews edges (a stage depends on the acceptance of the
+ * stages it requires and of the stage it reviews).
+ */
+function downstreamStageIds(stageId: string, registry: StageRecord[]): string[] {
+  const adjacency = new Map<string, string[]>();
+  for (const s of registry) adjacency.set(s.id, []);
+
+  for (const s of registry) {
+    for (const req of s.requires) {
+      adjacency.get(req)?.push(s.id);
+    }
+    if (s.reviews) {
+      adjacency.get(s.reviews)?.push(s.id);
+    }
+  }
+
+  const visited = new Set<string>();
+  const queue = [stageId];
+
+  while (queue.length > 0) {
+    const current = queue.shift() as string;
+    for (const next of adjacency.get(current) || []) {
+      if (!visited.has(next)) {
+        visited.add(next);
+        queue.push(next);
+      }
+    }
+  }
+
+  return [...visited];
+}
+
+function trackedStageOf(cwd: string, stage: StageRecord): StageRecord {
+  if (stage.kind === 'review' && stage.reviews) {
+    return getStageById(cwd, stage.reviews) || stage;
+  }
+  return stage;
+}
+
+function setTrackedStatus(
+  cwd: string,
+  changeRoot: string,
+  stage: StageRecord,
+  status: string
+): void {
+  const tracked = trackedStageOf(cwd, stage);
+  const artifactPath = path.join(changeRoot, tracked.artifact);
+  const artifact = readYaml(artifactPath) as any;
+
+  if (!artifact) return;
+
+  artifact.metadata = artifact.metadata || {};
+  artifact.metadata[tracked.statusField] = status;
+  writeYamlAtomic(artifactPath, artifact);
+}
 
 export function runFeedback(argv: string[]) {
   const args = parseArgs(argv);
@@ -48,7 +107,7 @@ export function runFeedback(argv: string[]) {
   if (args.resolve) {
     const id = String(args.resolve);
     const entry = feedbackDoc.entries.find((e: any) => e.id === id);
-    
+
     if (!entry) {
       return writeJson({
         workflow: 'feedback',
@@ -65,21 +124,15 @@ export function runFeedback(argv: string[]) {
     entry.resolved_at = today();
     writeYamlAtomic(feedbackPath, feedbackDoc);
 
-    // Unblock the 'from' artifact
-    const fromFile = getArtifactForStage(cwd, entry.from_stage);
-    
-    if (fromFile) {
-      const fromArtifactPath = path.join(changeRoot, fromFile);
-      const fromArtifact = readYaml(fromArtifactPath) as any;
-      if (fromArtifact) {
-        fromArtifact.metadata = fromArtifact.metadata || {};
-        if (entry.from_stage === 'implementation') {
-          fromArtifact.metadata.implementation_status = 'in_progress';
-        } else {
-          fromArtifact.metadata.status = 'draft'; // Resume work
-        }
-        writeYamlAtomic(fromArtifactPath, fromArtifact);
-      }
+    // Unblock the 'from' stage so its work can resume.
+    const fromStage = getStageById(cwd, entry.from_stage);
+    if (fromStage) {
+      setTrackedStatus(
+        cwd,
+        changeRoot,
+        fromStage,
+        fromStage.kind === 'tasks' ? 'in_progress' : 'draft'
+      );
     }
 
     return writeJson({
@@ -110,21 +163,25 @@ export function runFeedback(argv: string[]) {
   const to = String(args.to);
   const reason = String(args.reason);
 
-  const pipelineOrder = getPipelineOrder(cwd);
+  const registry = loadStageRegistry(cwd);
+  const fromStage = getStageById(cwd, from);
+  const toStage = getStageById(cwd, to);
 
-  if (!pipelineOrder.includes(from) || !pipelineOrder.includes(to)) {
+  if (!fromStage || !toStage) {
     return writeJson({
       workflow: 'feedback',
       step: 'blocked',
       state: 'blocked',
-      instructions: `Invalid stage. Valid stages: ${pipelineOrder.join(', ')}`,
+      instructions: `Invalid stage. Valid stages: ${registry.map((s) => s.id).join(', ')}`,
       data: { change_root: changeRoot },
       errors: [makeError('UNKNOWN_STAGE', { message: 'Invalid stage provided.' })],
       warnings: [],
     }, EXIT.usage);
   }
 
-  if (pipelineOrder.indexOf(to) >= pipelineOrder.indexOf(from)) {
+  // The target stage must precede the source stage in the requires graph.
+  const downstream = downstreamStageIds(to, registry);
+  if (!downstream.includes(from)) {
     return writeJson({
       workflow: 'feedback',
       step: 'blocked',
@@ -136,41 +193,21 @@ export function runFeedback(argv: string[]) {
     }, EXIT.usage);
   }
 
-  const toFile = getArtifactForStage(cwd, to);
-  const fromFile = getArtifactForStage(cwd, from);
+  // 1. Revert the target stage's artifact to draft.
+  setTrackedStatus(cwd, changeRoot, toStage, 'draft');
 
-  if (!toFile || !fromFile) {
-    return writeJson({
-      workflow: 'feedback',
-      step: 'blocked',
-      state: 'blocked',
-      instructions: 'Feedback can only be applied to requirements, design, or planning artifacts.',
-      data: { change_root: changeRoot },
-      errors: [makeError('USAGE', { message: 'Invalid artifact mapping.' })],
-      warnings: [],
-    }, EXIT.usage);
-  }
-
-  // 1. Revert target artifact to draft
-  const toArtifactPath = path.join(changeRoot, toFile);
-  const toArtifact = readYaml(toArtifactPath) as any;
-  if (toArtifact) {
-    toArtifact.metadata = toArtifact.metadata || {};
-    toArtifact.metadata.status = 'draft';
-    writeYamlAtomic(toArtifactPath, toArtifact);
-  }
-
-  // 2. Block source artifact
-  const fromArtifactPath = path.join(changeRoot, fromFile);
-  const fromArtifact = readYaml(fromArtifactPath) as any;
-  if (fromArtifact) {
-    fromArtifact.metadata = fromArtifact.metadata || {};
-    if (from === 'implementation') {
-      fromArtifact.metadata.implementation_status = 'pending';
-    } else {
-      fromArtifact.metadata.status = 'blocked';
-    }
-    writeYamlAtomic(fromArtifactPath, fromArtifact);
+  // 2. Block every downstream stage through the requires graph, so a revert
+  //    cascades through unsatisfied gates.
+  for (const id of downstream) {
+    if (id === to) continue;
+    const stage = getStageById(cwd, id);
+    if (!stage) continue;
+    setTrackedStatus(
+      cwd,
+      changeRoot,
+      stage,
+      stage.kind === 'tasks' ? 'pending' : 'blocked'
+    );
   }
 
   // 3. Record feedback
@@ -181,7 +218,7 @@ export function runFeedback(argv: string[]) {
     to_stage: to,
     reason,
     status: 'open',
-    created_at: today()
+    created_at: today(),
   });
   writeYamlAtomic(feedbackPath, feedbackDoc);
 
@@ -189,12 +226,12 @@ export function runFeedback(argv: string[]) {
     workflow: 'feedback',
     step: 'created',
     state: 'complete',
-    instructions: `Reverted ${to} to draft and blocked ${from}. Run scripts/sdlc.js ${to} --dir <change-dir> to resolve the issue, re-review, then run: sdlc feedback --dir <change-dir> --resolve ${id}`,
+    instructions: `Reverted ${to} to draft and blocked ${downstream.filter((d) => d !== to).join(', ') || 'none'}. Run scripts/sdlc.js ${to} --dir <change-dir> to resolve the issue, re-review, then run: sdlc feedback --dir <change-dir> --resolve ${id}`,
     data: {
       change_root: changeRoot,
       feedback_id: id,
       from_stage: from,
-      to_stage: to
+      to_stage: to,
     },
     errors: [],
     warnings: [],

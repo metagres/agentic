@@ -3,11 +3,14 @@ import path from 'node:path';
 import process from 'node:process';
 import { parseArgs } from '../src/scripts/lib/cli.ts';
 import { readYaml } from '../src/scripts/lib/yaml-io.ts';
-import { validateArtifactSchema } from '../src/scripts/lib/schema.ts';
-import { checkCrossFileReferences } from '../src/scripts/lib/validators.ts';
-import { runLintChecks } from '../src/scripts/lib/lint-checks.ts';
+import { validateArtifact } from '../src/scripts/lib/validate.ts';
 import { makeCtx } from '../src/scripts/lib/context.ts';
 import { makeError } from '../src/scripts/lib/error-catalog.ts';
+
+// Maps legacy target aliases to discovered stage ids.
+const TARGET_TO_STAGE: Record<string, string> = {
+  plan: 'planning',
+};
 
 function usage(code = 2) {
   console.log(
@@ -15,12 +18,12 @@ function usage(code = 2) {
       {
         ok: false,
         usage:
-          'Usage: lint-artifact --target <requirements|design|plan|implementation> ' +
+          'Usage: lint-artifact --target <requirements|design|planning|plan|implementation> ' +
           '--artifact <path-to-artifact.yaml> ' +
           '[--cwd <project-root>] [--no-fail]',
         examples: [
           'node bin/lint-artifact.ts --target requirements --artifact docs/changes/my-change/requirements.yaml',
-          'node bin/lint-artifact.ts --target plan --artifact docs/changes/my-change/plan.yaml',
+          'node bin/lint-artifact.ts --target planning --artifact docs/changes/my-change/plan.yaml',
           'node bin/lint-artifact.ts --target implementation --artifact docs/changes/my-change/plan.yaml',
         ],
       },
@@ -41,6 +44,7 @@ if (!args.target || !args.artifact) {
 
 const cwd = args.cwd ? path.resolve(String(args.cwd)) : process.cwd();
 const targetName = String(args.target);
+const stageId = TARGET_TO_STAGE[targetName] || targetName;
 const changeRoot = path.dirname(path.resolve(cwd, String(args.artifact)));
 
 const artifactPath = path.resolve(cwd, String(args.artifact));
@@ -67,14 +71,12 @@ const ctx = makeCtx(cwd, changeRoot);
 
 let findings: { finding?: string; message?: string; severity?: string }[] = [];
 try {
-  const schemaFindings = validateArtifactSchema(targetName, artifact, cwd);
-  const refFindings = checkCrossFileReferences(targetName, artifact, changeRoot);
-  const lintFindings = runLintChecks(targetName, artifact as Record<string, unknown>);
-  findings = [
-    ...schemaFindings,
-    ...refFindings,
-    ...lintFindings,
-  ];
+  findings = validateArtifact(
+    stageId,
+    artifact as Record<string, unknown>,
+    cwd,
+    changeRoot
+  );
 } catch (err: unknown) {
   console.log(
     JSON.stringify(
@@ -99,6 +101,7 @@ console.log(
     {
       ok,
       target: targetName,
+      stage: stageId,
       artifact: artifactPath,
       blocking_count: blocking.length,
       blocking,

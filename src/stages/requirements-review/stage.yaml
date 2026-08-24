@@ -1,0 +1,9 @@
+version: 1
+id: requirements-review
+kind: review
+title: Requirements Review
+artifact: requirements.yaml
+status_field: status
+requires: []
+reviews: requirements
+review_file: requirements-review.yaml

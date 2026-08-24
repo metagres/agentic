@@ -17,10 +17,10 @@ export interface ErrorItem {
 
 export interface Finding {
   check: string;
-  field: string;
   severity: string;
   category: string;
-  message: string;
+  target: string;
+  finding: string;
   fix?: string;
 }
 

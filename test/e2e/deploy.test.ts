@@ -45,9 +45,7 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
   );
 
   const expectedSchemas = [
-    'requirements.schema.yaml',
-    'design.schema.yaml',
-    'plan.schema.yaml',
+    'stage.schema.yaml',
     'docs-delta.schema.yaml',
     'cli-envelope.schema.yaml'
   ];
@@ -60,8 +58,7 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
   }
 
   const expectedPolicies = [
-    'pipeline.yaml',
-    'requirements-policy.yaml'
+    'errors.yaml'
   ];
 
   for (const file of expectedPolicies) {
@@ -72,9 +69,6 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
   }
 
   const expectedTemplates = [
-    'requirements.yaml',
-    'design.yaml',
-    'plan.yaml',
     'docs-current-index.md'
   ];
   for (const file of expectedTemplates) {
@@ -83,6 +77,41 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
       `missing deployed template: ${file}`
     );
   }
+
+  // Every stage folder is bundled (NFR-002), and the bundle contains no
+  // source TypeScript files (build-artifact invariant). Expectations derive
+  // from the stages directory rather than a hardcoded enumeration.
+  const sourceStages = fs
+    .readdirSync(path.join(root, 'src', 'stages'))
+    .filter((entry) => fs.statSync(path.join(root, 'src', 'stages', entry)).isDirectory());
+
+  for (const stage of sourceStages) {
+    assert.ok(
+      fs.existsSync(path.join(skillDir, 'stages', stage, 'stage.yaml')),
+      `missing deployed stage folder: ${stage}`
+    );
+  }
+
+  assert.ok(
+    !fs.existsSync(path.join(skillDir, 'stages', 'requirements', 'hooks.ts')),
+    'stage hooks must be compiled, not bundled as source TypeScript'
+  );
+  assert.ok(
+    fs.existsSync(path.join(skillDir, 'stages', 'requirements', 'hooks.js')),
+    'compiled stage hooks.js must be present'
+  );
+
+  // No source TypeScript anywhere inside the bundle.
+  const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true })
+    .flatMap((entry) => {
+      const abs = path.join(dir, entry.name);
+      return entry.isDirectory() ? walk(abs) : [abs];
+    });
+  const allFiles = walk(skillDir);
+  assert.ok(
+    !allFiles.some((f) => f.endsWith('.ts')),
+    'deployed skill must not contain source TypeScript files'
+  );
 
   assert.ok(
     !fs.existsSync(path.join(skillDir, 'package.json')),

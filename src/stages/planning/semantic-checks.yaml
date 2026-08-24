@@ -1,0 +1,11 @@
+version: 1
+checks:
+  - "Is task granularity consistent? No task should be so broad it hides sub-decisions, and none so narrow it's pseudocode."
+  - "Does task order reflect real-world constraints (e.g., schema creation before queries, characterization tests before refactoring)?"
+  - "Are each task's acceptance criteria actually verifiable with clear pass/fail conditions?"
+  - "Does completing 100% of the listed tasks actually satisfy 100% of the requirements?"
+  - "Does any task assume a design decision that was never made explicit in the design phase?"
+  - "Are complexity estimates plausible given the task description and files touched?"
+  - "For refactor tasks, are there tasks ensuring behavior-preserving tests exist before the tasks that change the code?"
+  - "Do any two tasks touch the same component or logical area in a way that could conflict?"
+  - "Do delta entries plausibly describe the living docs affected by the plan?"

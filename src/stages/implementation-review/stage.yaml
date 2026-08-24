@@ -1,0 +1,9 @@
+version: 1
+id: implementation-review
+kind: review
+title: Implementation Review
+artifact: plan.yaml
+status_field: implementation_status
+requires: []
+reviews: implementation
+review_file: implementation-review.yaml

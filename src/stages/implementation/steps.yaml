@@ -1,0 +1,30 @@
+version: 1
+steps:
+  needs_input:
+    title: Needs input
+    next_action: provide_change_dir
+    markdown: |
+      Ask the user which change directory to implement.
+    commands:
+      - "{{SDLC}} implementation --dir <change-dir>"
+
+  progress:
+    title: Progress
+    next_action: update_task_state
+    markdown: |
+      Update task execution state in plan.yaml as work proceeds.
+
+      Use `data.progress.next_task_ids` to choose the next task, then update its status.
+    commands:
+      - "{{SDLC}} implementation --dir {{change_dir}} --task-id <TASK-NNN> --status <pending|in_progress|done|blocked|skipped> --note \"...\""
+      - "{{SDLC}} implementation --dir {{change_dir}} --task-id <TASK-NNN> --status done --files \"create:src/a.ts,modify:src/b.ts\""
+
+  complete:
+    title: Complete
+    next_action: invoke_review
+    markdown: |
+      All tasks are complete or skipped.
+
+      Run the implementation review gate.
+    commands:
+      - "{{SDLC}} implementation-review --dir {{change_dir}}"

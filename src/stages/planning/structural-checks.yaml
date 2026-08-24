@@ -1,0 +1,39 @@
+version: 1
+checks:
+  - check: ref-exists
+    params:
+      from:
+        array: tasks
+        field: covers
+      to:
+        file: requirements.yaml
+        arrays:
+          - functional_requirements
+          - non_functional_requirements
+        field: id
+  - check: ref-exists
+    params:
+      from:
+        array: tasks
+        field: acceptance_ids
+      to:
+        file: requirements.yaml
+        arrays:
+          - acceptance_criteria
+        field: id
+  - check: ref-exists
+    params:
+      from:
+        array: tasks
+        field: design_refs
+      to:
+        file: design.yaml
+        arrays:
+          - decisions
+        field: id
+  - check: dependency-acyclic
+    params:
+      array: tasks
+  - check: dependency-order
+    params:
+      array: tasks

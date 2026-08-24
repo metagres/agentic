@@ -1,0 +1,17 @@
+version: 1
+id: design
+kind: authoring
+title: Design
+artifact: design.yaml
+status_field: status
+requires:
+  - requirements-review
+next_ids:
+  CMP: components
+  DM: data_models
+  API: apis
+  DEC: decisions
+produces_delta: true
+delta_phase: Design
+title_prefix: "Design: "
+title_default: Untitled design

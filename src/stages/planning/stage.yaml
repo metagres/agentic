@@ -1,0 +1,15 @@
+version: 1
+id: planning
+kind: authoring
+title: Planning
+artifact: plan.yaml
+status_field: status
+requires:
+  - requirements-review
+  - design-review
+next_ids:
+  TASK: tasks
+produces_delta: true
+delta_phase: Planning
+title_prefix: "Plan: "
+title_default: Untitled plan

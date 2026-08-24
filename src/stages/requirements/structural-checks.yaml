@@ -1,0 +1,41 @@
+version: 1
+checks:
+  - check: unique-ids
+    params:
+      arrays:
+        - functional_requirements
+        - non_functional_requirements
+        - acceptance_criteria
+        - discovery_log
+  - check: referenced-by
+    params:
+      array: acceptance_criteria
+      by:
+        - array: functional_requirements
+          ref_field: ac_ids
+        - array: non_functional_requirements
+          ref_field: ac_ids
+  - check: duplicate-refs
+    params:
+      array: functional_requirements
+      list_field: ac_ids
+  - check: duplicate-refs
+    params:
+      array: non_functional_requirements
+      list_field: ac_ids
+  - check: given-when-then
+    params:
+      array: acceptance_criteria
+      statement_field: statement
+  - check: forbidden-words
+    params:
+      fields:
+        - problem_statement
+        - functional_requirements[].description
+        - non_functional_requirements[].description
+        - acceptance_criteria[].statement
+  - check: sentence-count
+    params:
+      field: problem_statement
+      min: 1
+      max: 6

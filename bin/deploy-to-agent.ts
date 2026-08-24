@@ -6,6 +6,8 @@ import { spawnSync } from 'node:child_process';
 
 import { skillManifest } from '../src/scripts/workflows/skill-manifest.ts';
 import { VERSION } from '../src/scripts/lib/version.ts';
+import { getStageDescriptions } from '../src/scripts/lib/stage-registry.ts';
+import { buildSync } from 'esbuild';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -54,6 +56,39 @@ function rmrf(target: string) {
   fs.rmSync(target, { recursive: true, force: true });
 }
 
+// Serializes the tsup build across concurrent deploy invocations (the e2e
+// deploy and new-stage-folder tests run in parallel processes). tsup uses
+// clean:true, so two concurrent builds would race on dist/.
+function runBuild() {
+  const lock = path.join(root, '.deploy-build.lock');
+  const deadline = Date.now() + 180000;
+
+  while (fs.existsSync(lock)) {
+    if (Date.now() > deadline) {
+      fail('Timed out waiting for a concurrent build to finish.');
+    }
+    spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 250)']);
+  }
+
+  fs.writeFileSync(lock, String(process.pid));
+
+  try {
+    const result = spawnSync('npm', ['run', 'build'], {
+      cwd: root,
+      encoding: 'utf8',
+      shell: true,
+    });
+
+    if (result.status !== 0) {
+      if (result.stdout) process.stderr.write(result.stdout);
+      if (result.stderr) process.stderr.write(result.stderr);
+      fail('Runtime build failed.');
+    }
+  } finally {
+    fs.rmSync(lock, { force: true });
+  }
+}
+
 function copyDir(src: string, dest: string) {
   if (!fs.existsSync(src)) {
     fail(`Missing source directory: ${src}`);
@@ -61,6 +96,50 @@ function copyDir(src: string, dest: string) {
 
   ensureDir(path.dirname(dest));
   fs.cpSync(src, dest, { recursive: true });
+}
+
+/**
+ * Compiles any stage hooks modules (.ts) to JavaScript so the bundle contains
+ * no source TypeScript files. Hooks modules are bundled self-contained (their
+ * only imports are node builtins) and written as <stage>/hooks.js.
+ */
+function compileStageHooks(stagesDir: string): string[] {
+  const compiled: string[] = [];
+
+  if (!fs.existsSync(stagesDir)) return compiled;
+
+  for (const stageName of fs.readdirSync(stagesDir)) {
+    const folder = path.join(stagesDir, stageName);
+    if (!fs.statSync(folder).isDirectory()) continue;
+
+    const hooksTs = path.join(folder, 'hooks.ts');
+    if (!fs.existsSync(hooksTs)) continue;
+
+    const hooksJs = path.join(folder, 'hooks.js');
+    // esbuild is a devDependency (via tsup); compile the single hooks module
+    // into a self-contained JavaScript file.
+    const result = buildSync({
+      entryPoints: [hooksTs],
+      bundle: true,
+      platform: 'node',
+      format: 'esm',
+      outfile: hooksJs,
+      logLevel: 'silent',
+    });
+
+    if (result.errors.length > 0) {
+      fail(
+        `Failed to compile hooks for stage '${stageName}': ${result.errors
+          .map((e) => e.text)
+          .join('; ')}`
+      );
+    }
+
+    fs.rmSync(hooksTs, { force: true });
+    compiled.push(hooksJs);
+  }
+
+  return compiled;
 }
 
 function indent(text: string, spaces: number) {
@@ -89,14 +168,18 @@ const SKILL_TEMPLATE = [
   '2. Follow the `instructions` field in the returned envelope `{workflow, step, state, instructions, data, errors, warnings}`.',
   '3. The CLI owns stage detection — do not guess which workflow to run.',
   '',
-  'Workflows: requirements · design · planning · implementation · review · feedback · knowledge-extraction',
+  'Workflows: {{WORKFLOWS}}',
   '',
 ].join('\n');
 
 function renderSkill() {
+  const stages = getStageDescriptions(root).map((stage) => stage.id);
+  const workflowList = [...stages, 'status', 'feedback', 'doctor', 'docs-init'].join(' · ');
+
   return SKILL_TEMPLATE.replaceAll('{{ID}}', skillManifest.id)
     .replaceAll('{{TITLE}}', skillManifest.title)
-    .replaceAll('{{DESCRIPTION_INDENTED}}', indent(skillManifest.description, 2));
+    .replaceAll('{{DESCRIPTION_INDENTED}}', indent(skillManifest.description, 2))
+    .replaceAll('{{WORKFLOWS}}', workflowList);
 }
 
 const LEGACY_SKILL_IDS = [
@@ -136,17 +219,7 @@ function main() {
 
   ensureDir(path.join(skillAbs, 'scripts'));
 
-  const buildResult = spawnSync('npm', ['run', 'build'], {
-    cwd: root,
-    encoding: 'utf8',
-    shell: true,
-  });
-
-  if (buildResult.status !== 0) {
-    if (buildResult.stdout) process.stderr.write(buildResult.stdout);
-    if (buildResult.stderr) process.stderr.write(buildResult.stderr);
-    fail('Runtime build failed.');
-  }
+  runBuild();
 
   const bundleFile = path.join(root, 'dist', 'sdlc.js');
 
@@ -159,6 +232,8 @@ function main() {
   copyDir(path.join(root, 'src', 'templates'), path.join(skillAbs, 'templates'));
   copyDir(path.join(root, 'src', 'schemas'), path.join(skillAbs, 'schemas'));
   copyDir(path.join(root, 'src', 'policies'), path.join(skillAbs, 'policies'));
+  copyDir(path.join(root, 'src', 'stages'), path.join(skillAbs, 'stages'));
+  compileStageHooks(path.join(skillAbs, 'stages'));
 
   fs.writeFileSync(
     path.join(skillAbs, 'SKILL.md'),

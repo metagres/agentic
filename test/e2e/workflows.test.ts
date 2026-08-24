@@ -19,35 +19,33 @@ function runCli(args) {
   });
 }
 
-test('review --help returns ok state', () => {
-  const res = runCli(['review', '--help']);
+test('requirements-review --help returns ok state', () => {
+  const res = runCli(['requirements-review', '--help']);
 
   assert.equal(res.status, 0, res.stderr);
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'review');
+  assert.equal(json.workflow, 'requirements-review');
   assert.equal(json.state, 'ok');
 });
 
-test('review requires --target', () => {
-  const res = runCli(['review']);
+test('requirements-review requires --dir', () => {
+  const res = runCli(['requirements-review']);
 
   assert.equal(res.status, 2);
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'review');
+  assert.equal(json.workflow, 'requirements-review');
   assert.equal(json.state, 'blocked');
 });
 
-test('review reports missing change directory', () => {
+test('requirements-review reports missing change directory', () => {
   const tmp = makeTmpProject();
 
   const res = runCli([
-    'review',
-    '--target',
-    'requirements',
+    'requirements-review',
     '--dir',
     'missing-change',
     '--cwd',
@@ -58,7 +56,7 @@ test('review reports missing change directory', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'review');
+  assert.equal(json.workflow, 'requirements-review');
   assert.equal(json.state, 'blocked');
   assert.equal(json.data.target, 'requirements');
 });
@@ -105,4 +103,16 @@ test('docs alias resolves to knowledge-extraction', () => {
 
   assert.equal(json.workflow, 'knowledge-extraction');
   assert.equal(json.state, 'ok');
+});
+
+test('the dedicated review command no longer exists', () => {
+  const res = runCli(['review']);
+
+  assert.equal(res.status, 2);
+
+  const json = JSON.parse(res.stdout);
+
+  assert.equal(json.workflow, 'review');
+  assert.equal(json.state, 'blocked');
+  assert.ok(json.errors.some((e) => e.code === 'UNKNOWN_COMMAND'));
 });

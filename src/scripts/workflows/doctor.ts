@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs, writeJson, EXIT } from '../lib/cli.ts';
 import { makeError } from '../lib/error-catalog.ts';
 import { resolveRuntimeDir } from '../lib/paths.ts';
+import { loadStageRegistry } from '../lib/stage-registry.ts';
+import { computePipelineOrder } from '../lib/requires-graph.ts';
 import {
   resolveRootOrError,
   ResolveRootError,
@@ -88,6 +90,36 @@ export function runDoctor(argv: string[]): void {
     errors.push({
       ...makeError('TEMPLATES_MISSING'),
       message: 'No templates directory found.',
+    });
+  }
+
+  const stagesDir = resolveRuntimeDir('stages', cwd);
+  if (stagesDir) {
+    addCheck('stages_available', true, stagesDir);
+
+    try {
+      // Registry discovery validates every stage folder: descriptors against
+      // the meta-schema, folder/id match, known kind, and per-kind file sets.
+      const registry = loadStageRegistry(cwd);
+      addCheck('stage_folders', true, `${registry.length} stage folders discovered`);
+
+      // The requires graph must be a valid DAG with no missing references.
+      const order = computePipelineOrder(cwd);
+      addCheck('requires_dag', true, `${order.length} stages ordered: ${order.join(', ')}`);
+    } catch (err: unknown) {
+      addCheck('stage_folders', false, err instanceof Error ? err.message : String(err));
+      addCheck('requires_dag', false, err instanceof Error ? err.message : String(err));
+      errors.push(
+        makeError('STAGE_INVALID_DESCRIPTOR', {
+          message: err instanceof Error ? err.message : String(err),
+        })
+      );
+    }
+  } else {
+    addCheck('stages_available', false, 'No stages directory found');
+    errors.push({
+      ...makeError('POLICIES_MISSING'),
+      message: 'No stages directory found.',
     });
   }
 

@@ -1,0 +1,27 @@
+version: 1
+steps:
+  needs_input:
+    title: Needs input
+    next_action: provide_change_dir
+    markdown: |
+      Ask the user which change directory to synchronize.
+    commands:
+      - "{{SDLC}} knowledge-extraction --dir <change-dir>"
+
+  docs_delta:
+    title: Collect deltas
+    next_action: apply_docs_delta
+    markdown: |
+      Collect delta arrays from every delta-producing stage and apply them to docs/current.
+
+      Use `data.deltas_to_apply` to update the living docs.
+    commands:
+      - "{{SDLC}} knowledge-extraction --dir {{change_dir}}"
+
+  complete:
+    title: Complete
+    next_action: mark_complete
+    markdown: |
+      Mark the synchronization complete after the deltas are applied.
+    commands:
+      - "{{SDLC}} knowledge-extraction --dir {{change_dir}} --complete"

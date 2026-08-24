@@ -1,0 +1,92 @@
+version: 1
+steps:
+  needs_input:
+    title: Needs input
+    next_action: provide_change_or_request
+    markdown: |
+      Ask the user which change directory to plan.
+    commands:
+      - "{{SDLC}} planning --dir <change-dir>"
+
+  init:
+    title: Initialization
+    next_action: initialize_context
+    markdown: |
+      The script created the initial plan artifact.
+
+      Ensure design.yaml exists and has a version.
+    commands:
+      - "{{SDLC}} planning --dir {{change_dir}}"
+    complete_when:
+      field: metadata.based_on_design
+      non_empty: true
+
+  drafting:
+    title: Drafting
+    next_action: update_artifact
+    markdown: |
+      Draft the plan artifact.
+
+      Use `data.next_ids` to choose the next TASK ids.
+    commands:
+      - "{{SDLC}} planning --dir {{change_dir}} --next-ids"
+      - "{{SDLC}} planning --dir {{change_dir}} --update-artifact < plan.yaml"
+    complete_when:
+      array: tasks
+      min_items: 1
+
+  validation:
+    title: Validation
+    next_action: fix_mechanical_errors
+    markdown: |
+      Fix mechanical validation errors first.
+
+      Then run `--finalize` to review the semantic checks.
+    commands:
+      - "{{SDLC}} planning --dir {{change_dir}} --finalize"
+
+  delta:
+    title: Delta
+    next_action: append_delta_or_complete_step
+    markdown: |
+      Determine which living docs are affected by the plan.
+
+      Use `data.delta_allowed_target_docs`.
+    commands:
+      - "{{SDLC}} planning --dir {{change_dir}} --append-delta < delta.yaml"
+      - "{{SDLC}} planning --dir {{change_dir}} --complete-step --step delta"
+    complete_when:
+      any:
+        - array: delta
+          min_items: 1
+        - field: metadata.delta_reviewed
+          equals: true
+
+  recovery:
+    title: Recovery
+    next_action: fix_review_findings
+    markdown: |
+      The plan artifact was rejected by review.
+
+      Read `data.review_report`, fix blocking findings, update the artifact, and finalize again.
+    commands:
+      - "{{SDLC}} planning --dir {{change_dir}} --update-artifact < plan.yaml"
+      - "{{SDLC}} planning --dir {{change_dir}} --finalize"
+
+  ready:
+    title: Ready
+    next_action: finalize
+    markdown: |
+      All gates passed.
+
+      Finalize the plan artifact.
+    commands:
+      - "{{SDLC}} planning --dir {{change_dir}} --finalize"
+
+  complete:
+    title: Complete
+    next_action: invoke_review
+    markdown: |
+      The plan artifact is ready for the review gate.
+    commands:
+      - "{{SDLC}} planning-review --dir {{change_dir}}"

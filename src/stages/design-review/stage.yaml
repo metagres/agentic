@@ -1,0 +1,9 @@
+version: 1
+id: design-review
+kind: review
+title: Design Review
+artifact: design.yaml
+status_field: status
+requires: []
+reviews: design
+review_file: design-review.yaml

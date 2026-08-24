@@ -1,0 +1,472 @@
+metadata:
+  id: DES-001
+  title: "Design: genericize-stage-engine"
+  stage: design
+  step: complete
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-23
+  updated: 2026-08-24
+  based_on_requirements: 0.2.0
+  delta_reviewed: true
+context_summary: |-
+  The current engine hardcodes stage knowledge across roughly twelve TypeScript touch-points,
+  and the topology declared in pipeline.yaml is ignored by most of the runtime. This design
+  replaces those registries with directory-based discovery: every stage is one folder under
+  src/stages/ holding its stage.yaml descriptor, schema, template, steps, structural-checks,
+  and semantic-checks files. Four fixed kind interpreters (authoring, review, tasks,
+  aggregator) execute the discovered stages, so adding a stage of an existing kind requires
+  only a new folder, and review gates are themselves stages named with a -review suffix that
+  reference the reviewed stage through a reviews field. Pipeline order comes from the
+  requires fields as a directed acyclic graph, and a stage is runnable only when every
+  required stage's tracked artifact has status accepted. Structural validation runs through a
+  capped library of eleven named generic checks parameterized per stage in
+  structural-checks.yaml, with no stage-specific validation scripts, and one validation
+  orchestrator serves internal finalize and the review stages identically. The central
+  registries pipeline.yaml and ids.yaml are removed while the error catalog stays central,
+  the CLI envelope shape is frozen, the deployed skill remains one self-contained folder
+  bundling every stage folder, and the change is breaking with no migration, as accepted in
+  the requirements.
+components:
+  - id: CMP-001
+    name: Stage Registry
+    responsibility: Discovers stages by scanning the stages directory (src/stages/ in the repository,
+      resolved through the runtime path resolver which gains a stages candidate location) for
+      immediate subdirectories. Each folder must contain a valid stage.yaml descriptor; a missing
+      stage.yaml, unparseable YAML, an unknown kind value, or a folder name that does not match the
+      descriptor id is a hard startup error naming the offending folder. Parses descriptors into
+      StageRecord entries and caches the registry per process. Replaces the workflow registry in
+      src/scripts/workflows/index.ts, the hardcoded stages map in src/scripts/lib/runner.ts, and the
+      stage enumeration in src/policies/pipeline.yaml.
+  - id: CMP-002
+    name: Requires Graph and Gate
+    responsibility: "Builds the pipeline as a directed acyclic graph from the requires fields of stage
+      descriptors. At startup, a cycle is a hard error naming the stages in the cycle, and a
+      reference to a missing stage is a hard error naming the missing stage. Computes pipeline order
+      by topological sort with an alphabetical stage-id tie-break so output is deterministic.
+      Evaluates the execution gate: a stage is runnable only when every required stage's tracked
+      artifact has status accepted, where the tracked artifact of a review stage is the artifact of
+      the stage it reviews. A review stage itself is runnable when its reviewed artifact is
+      ready-for-review or accepted, because it is the mechanism that produces acceptance. Gate
+      failures return a blocked envelope naming each unsatisfied requirement and its current
+      status."
+  - id: CMP-003
+    name: Kind Interpreters
+    responsibility: Fixed set of four interpreters dispatched by the kind field of the stage descriptor.
+      The authoring interpreter runs the generic flag loop (--dir, --request, --next-ids,
+      --update-artifact, --append-delta, --complete-step, --finalize, --confirm-semantic,
+      --describe, --describe-step, --help) and drives the step machine (needs_input, init, drafting,
+      validation, delta, recovery, ready, complete, plus stage-declared extra steps) from steps.yaml
+      completion predicates, instantiating artifacts from template.yaml with variable substitution.
+      The review interpreter resolves its reviews target, checks the review gate, runs the unified
+      validation, appends rounds to the review file, and applies --accept/--reject/--dry-run. The
+      tasks interpreter runs the task state machine over plan.yaml for the implementation stage. The
+      aggregator interpreter collects delta arrays from delta-producing stages for
+      knowledge-extraction. Adding a stage of an existing kind requires no TypeScript change.
+  - id: CMP-004
+    name: Generic Check Library
+    responsibility: A shared library containing the capped catalog of eleven named structural checks.
+      Each check is a pure function of (artifact, params, context) returning findings. Stages
+      declare checks with parameters in their structural-checks.yaml; the library performs no
+      stage-specific logic. An entry naming an unknown check or carrying malformed parameters aborts
+      the validation run with an error naming the stage folder and the check entry. Adding a new
+      check type requires a design review; this catalog is the single extension path for structural
+      validation logic.
+    check_catalog:
+      - name: unique-ids
+        parameters: arrays to scan for duplicate ids
+        replaces: duplicate FR/NFR/AC/DL/CMP/TASK id detection
+      - name: ref-exists
+        parameters: from {array, field}, to {artifact file, arrays, field}
+        replaces: traceability and task covers/acceptance_ids/design_refs existence checks
+      - name: referenced-by
+        parameters: array, id field, referencing arrays and their ref fields
+        replaces: orphan acceptance-criterion detection
+      - name: duplicate-refs
+        parameters: array, list field
+        replaces: duplicate ac_ids and component_ids detection
+      - name: given-when-then
+        parameters: array, statement field
+        replaces: acceptance-criterion keyword lint
+      - name: forbidden-words
+        parameters: fields, blocking words, advisory words
+        replaces: blocking/advisory word lint
+      - name: sentence-count
+        parameters: field, min, max
+        replaces: problem_statement and context_summary sentence limits
+      - name: required-note-for-status
+        parameters: array, statuses, note field
+        replaces: implementation_note requirement for done/blocked/skipped tasks
+      - name: all-tasks-terminal
+        parameters: array, allowed statuses
+        replaces: all-tasks-done-or-skipped check
+      - name: dependency-acyclic
+        parameters: array, id field, depends field
+        replaces: task dependency cycle detection
+      - name: dependency-order
+        parameters: array, id field, depends field
+        replaces: forward-dependency ordering check
+  - id: CMP-005
+    name: Unified Validation Orchestrator
+    responsibility: "One validateArtifact function per stage: JSON Schema validation against the stage's
+      schema.yaml, then the named checks from the stage's structural-checks.yaml, returning
+      concatenated findings in the frozen finding shape. This single call path serves the authoring
+      --finalize gate, the review stages, and bin/lint-artifact.ts, so internal finalization and
+      external review produce identical findings for the same artifact content. Preserves the
+      validation layer order: schema, structural checks, semantic advisory checks, review gate.
+      Cross-artifact version equality checks are removed; the based_on_* metadata fields remain as
+      provenance only."
+  - id: CMP-006
+    name: CLI Dispatcher
+    responsibility: Resolves the command to a discovered stage by id and dispatches to its kind
+      interpreter; cross-cutting commands (status, feedback, doctor, docs-init) are dispatched
+      separately and operate on the registry. Every response uses the frozen envelope with exactly
+      the top-level fields workflow, step, state, instructions, data, errors, and warnings.
+      --list-workflows lists discovered stages plus cross-cutting commands. The dedicated review
+      command with --target is removed; review stages are invoked as stage commands.
+  - id: CMP-007
+    name: Steps and Manifest Loader
+    responsibility: Loads step definitions (title, next_action, markdown, commands, exit_criteria) from
+      each stage's steps.yaml, replacing the hardcoded stepDefinitionsByWorkflow map in
+      skill-manifest.ts. Renders step help and CLI envelopes from these definitions with template
+      variables for the CLI invocation and change directory. The deployed SKILL.md workflow list is
+      rendered from the discovered stages at deploy time. The --next-ids prefix-to-array mapping
+      comes from the next_ids field of stage.yaml, replacing the per-stage nextIds functions and the
+      ids.yaml catalog.
+  - id: CMP-008
+    name: Cross-cutting Commands
+    responsibility: status, feedback, doctor, and docs-init operate on the stage registry and the
+      requires graph instead of hardcoded stage knowledge. status reports each stage's tracked
+      artifact status in pipeline order, names the first incomplete stage whose gate is satisfied,
+      and suggests its command. feedback reverts a stage to draft and blocks its successors through
+      the requires graph, so a revert cascades through unsatisfied gates. doctor validates stage
+      folders, the DAG, schemas, and templates. These commands remain cross-cutting and are not
+      stages.
+  - id: CMP-009
+    name: Stage Folder Layout
+    responsibility: "Defines the canonical per-stage file set under src/stages/<stage-id>/. Authoring
+      stages carry stage.yaml, structural-checks.yaml, schema.yaml, template.yaml, steps.yaml, and
+      semantic-checks.yaml; other kinds carry the subset their interpreter reads (review: stage.yaml
+      and steps.yaml; tasks: stage.yaml, structural-checks.yaml, schema.yaml, steps.yaml, and
+      semantic-checks.yaml; aggregator: stage.yaml, steps.yaml, and schema.yaml). An optional hooks
+      module in the folder supplies stage-specific behavior such as the requirements discovery gate
+      and its record-answer and set-clarity commands. Nine stages are migrated: requirements,
+      requirements-review, design, design-review, planning, planning-review, implementation,
+      implementation-review, and knowledge-extraction."
+  - id: CMP-010
+    name: Deploy Bundler
+    responsibility: Extends bin/deploy-to-agent.ts to copy src/stages/ into the skill bundle alongside
+      the engine-owned schemas and policies, and compiles any stage hooks modules to JavaScript so
+      the bundle contains no source TypeScript files. The bundle remains exactly one self-contained
+      skill folder with one SKILL.md, no package.json, and no node_modules. The deployment smoke
+      test verifies stage discovery inside the bundle by running --list-workflows there.
+data_models:
+  - id: DM-001
+    name: StageDescriptor (stage.yaml)
+    fields: "version, id (must equal the folder name), kind (authoring, review, tasks, aggregator),
+      title, artifact file name, status_field, requires (list of stage ids), reviews (review stages
+      only: id of the reviewed stage), review_file, next_ids (prefix-to-array map), produces_delta.
+      Validated at startup against an engine-owned stage meta-schema."
+  - id: DM-002
+    name: StructuralCheckDeclaration (structural-checks.yaml)
+    fields: "version plus a checks list; each entry names a check from the catalog and carries its
+      parameters. Example for the design stage: a sentence-count entry for context_summary (min 1,
+      max 12), a ref-exists entry from traceability.requirement_id to the functional_requirements
+      and non_functional_requirements ids of requirements.yaml, and a duplicate-refs entry for
+      traceability.component_ids."
+  - id: DM-003
+    name: StepDefinition (steps.yaml)
+    fields: version plus a steps map from step id to title, next_action, markdown, commands, and
+      exit_criteria, with an optional complete_when predicate evaluated by the authoring
+      interpreter. The predicate vocabulary is field non-empty, array min-items, metadata equals,
+      and all/any combinators; extra steps and commands beyond the generic set come from the
+      optional hooks module.
+  - id: DM-004
+    name: StageRecord
+    fields: "Runtime registry entry: the parsed descriptor, the absolute folder path, resolved paths for
+      each configuration file the kind reads, and a reference to the kind interpreter."
+  - id: DM-005
+    name: Finding
+    fields: check, severity (blocking or minor), category (ambiguity, completeness, structural, or
+      traceability), target, finding, fix. Unchanged from the current shape so schema, named checks,
+      and review rounds report identically.
+  - id: DM-006
+    name: ReviewDocument
+    fields: metadata (artifact, target, latest_round, created, updated, latest_decision) and an
+      append-only rounds array; each round records reviewed_at, artifact_version, decision,
+      can_accept, mechanical findings, and warnings. Unchanged; rounds are never deleted.
+  - id: DM-007
+    name: CLIEnvelope
+    fields: workflow, step, state (ok, in_progress, blocked, complete), instructions, data, errors,
+      warnings. Frozen; no new top-level fields are introduced by this change.
+  - id: DM-008
+    name: StageFolderLayout
+    fields: "The per-kind file sets and the migrated stage set with its requires edges: requirements
+      (requires none), requirements-review (reviews requirements), design (requires
+      requirements-review), design-review (reviews design), planning (requires requirements-review
+      and design-review), planning-review (reviews planning), implementation (requires
+      planning-review), implementation-review (reviews implementation), knowledge-extraction
+      (requires implementation-review)."
+apis:
+  - id: API-001
+    path: loadStageRegistry(cwd)
+    method: internal
+    description: Scans the stages directory, parses and validates stage.yaml descriptors, builds
+      StageRecords, and returns the cached registry. Throws startup errors naming the offending
+      folder for malformed descriptors and unknown kinds.
+  - id: API-002
+    path: computePipelineOrder(registry) / evaluateGate(stage, changeRoot)
+    method: internal
+    description: Topological order over the requires graph with alphabetical tie-break; gate evaluation
+      returns the list of unsatisfied requirements with current statuses for blocked envelopes.
+  - id: API-003
+    path: validateArtifact(stageId, artifact, changeRoot)
+    method: internal
+    description: "The single validation path: schema.yaml findings followed by structural-checks.yaml
+      named-check findings. Used by authoring --finalize, review stages, and bin/lint-artifact.ts."
+  - id: API-004
+    path: sdlc <stage-id> [flags]
+    method: CLI command
+    description: Generic per-kind command surface. Authoring and tasks stages accept --dir, --request,
+      --next-ids, --update-artifact, --append-delta, --complete-step, --finalize,
+      --confirm-semantic, --describe, --describe-step, --help (tasks additionally accepts task
+      update flags). Review stages accept --dir, --accept, --reject, --dry-run, --describe, --help.
+  - id: API-005
+    path: sdlc status|feedback|doctor|docs-init, sdlc --list-workflows
+    method: CLI command
+    description: Cross-cutting commands operating on the registry and DAG. feedback records entries in
+      feedback.yaml and resolves them as today; status suggests the next runnable stage command.
+  - id: API-006
+    path: deploy-to-agent --dest <agent-root>
+    method: build tool
+    description: Bundles the engine build, the stages directory, engine-owned schemas and policies, the
+      rendered SKILL.md, and manifest.json into one self-contained skill folder, then runs the
+      in-bundle smoke test.
+flows:
+  - id: FLW-001
+    name: Startup and registry build
+    steps:
+      - Resolve the stages directory through the runtime path resolver.
+      - Scan immediate subdirectories; parse each stage.yaml.
+      - Validate descriptors against the stage meta-schema; fail hard naming the folder on missing
+        files, invalid YAML, unknown kind, or id mismatch.
+      - Build the requires graph; fail hard on cycles (naming the cycle) and missing references
+        (naming the missing stage).
+      - Cache the registry for the process.
+  - id: FLW-002
+    name: Authoring stage lifecycle
+    steps:
+      - needs_input: resolve or create the change directory from --dir or --request.
+      - init: instantiate the artifact from template.yaml with variable substitution (title, dates, id, and
+          predecessor version tokens).
+      - drafting: update the artifact via --update-artifact; --next-ids serves ids from the stage.yaml
+          next_ids map.
+      - validation: fix mechanical findings from schema and named checks.
+      - semantic gate: --finalize prints the stage's semantic checklist; --finalize --confirm-semantic proceeds.
+      - delta: append delta entries or complete the step when no living docs are affected.
+      - ready: finalize sets status ready-for-review and bumps the version per the existing rules.
+      - complete: the envelope points at the stage's review command.
+      - The gate blocks the stage unless every required stage's tracked artifact is accepted.
+  - id: FLW-003
+    name: Review stage run
+    steps:
+      - Invoke as sdlc <stage-id>-review --dir <change-dir>.
+      - Resolve the reviews target and its tracked artifact and status field.
+      - Gate: the tracked artifact must be ready-for-review or accepted.
+      - Run validateArtifact on the tracked artifact; report schema and structural findings plus the
+        reviewed stage's semantic checklist.
+      - Append a round to the review file (append-only).
+      - --accept sets the tracked artifact status to accepted; --reject sets it to rejected;
+        --dry-run writes nothing.
+  - id: FLW-004
+    name: Validation layer order
+    steps:
+      - YAML parse of the artifact.
+      - JSON Schema validation against the stage's schema.yaml.
+      - Named structural checks from structural-checks.yaml.
+      - Semantic advisory checklist from semantic-checks.yaml.
+      - Review gate over the same findings.
+  - id: FLW-005
+    name: Adding a new stage
+    steps:
+      - Create src/stages/<new-stage>/ with the file set its kind requires.
+      - The registry discovers it at the next CLI start; the DAG and --list-workflows include it.
+      - Validation, steps, help, and review behavior come entirely from the folder.
+      - No file outside the folder changes; the validate suite passes with zero TypeScript edits.
+  - id: FLW-006
+    name: Deployment bundling
+    steps:
+      - Build the engine bundle and compile stage hooks modules to JavaScript.
+      - Copy the bundle, the stages directory, and engine-owned schemas and policies into the skill
+        folder.
+      - Render SKILL.md with the workflow list from the discovered stages.
+      - Run the in-bundle smoke test verifying stage discovery.
+decisions:
+  - id: DEC-001
+    title: Per-stage folders under src/stages/
+    context: DL-001 asks whether stage configuration stays centralized or moves to per-stage folders;
+      the repository already bundles src/templates, src/schemas, and src/policies.
+    decision: Each stage is one folder under src/stages/<stage-id>/ holding all of its configuration;
+      the deploy script copies this directory like the other asset directories.
+    status: accepted
+  - id: DEC-002
+    title: structural-checks.yaml as a dedicated per-stage file
+    context: The requirements originally placed named checks inside stage.yaml; design review split them
+      out for symmetry with semantic-checks.yaml and to keep the descriptor focused on identity and
+      topology.
+    decision: Structural checks live in their own structural-checks.yaml file per stage, parallel to
+      semantic-checks.yaml; stage.yaml carries identity, kind, artifact, and requires only.
+    status: accepted
+  - id: DEC-003
+    title: No stage-specific validation scripts
+    context: The original requirements allowed optional colocated validator scripts; design review
+      removed them because the capped catalog covers every current check and a second extension path
+      would recreate hidden coupling.
+    decision: Stages may not ship validation scripts; all structural validation is declarative through
+      named checks in structural-checks.yaml. Logic no existing check expresses becomes a new
+      catalog entry via design review.
+    status: accepted
+  - id: DEC-004
+    title: Capped catalog of eleven named checks
+    context: The requirements flag the risk that a generic check library accumulates ad-hoc parameters
+      and recreates hidden coupling.
+    decision: The catalog is exactly the eleven checks enumerated in CMP-004, each with a fixed
+      parameter shape; adding or changing a check is a design-review event, the single extension
+      path for validation logic.
+    status: accepted
+  - id: DEC-005
+    title: Review gates as stages
+    context: DL-003 models review gates as normal stages; the dedicated review command with --target
+      duplicates stage knowledge.
+    decision: Review stages are folders with kind review, a -review id suffix, and a reviews reference
+      to the reviewed stage; they carry stage.yaml and steps.yaml, participate in the requires
+      graph, and are invoked as stage commands. The review --target command is removed.
+    status: accepted
+  - id: DEC-006
+    title: Four fixed stage kinds
+    context: FR-004 requires a fixed kind set with interpreters, so new stages of existing kinds need no
+      code.
+    decision: The kinds are authoring, review, tasks, and aggregator, each with one interpreter; an
+      unknown kind in a descriptor is a startup error naming the folder and the value.
+    status: accepted
+  - id: DEC-007
+    title: Requires DAG with no sequence field
+    context: DL-008 and DL-012 require ordering purely from the requires graph as a DAG.
+    decision: Pipeline order is a topological sort of the requires graph with an alphabetical stage-id
+      tie-break for deterministic output; no explicit order or sequence field exists.
+    status: accepted
+  - id: DEC-008
+    title: Acceptance-based gating
+    context: A review having run does not imply its findings were resolved; DL-014 defines gate
+      satisfaction by artifact acceptance.
+    decision: A requires edge is satisfied only while the required stage's tracked artifact has status
+      accepted; review stages are runnable when their tracked artifact is ready-for-review or
+      accepted. Stages declare requires on all predecessors whose current acceptance they depend on
+      (planning requires requirements-review and design-review).
+    status: accepted
+  - id: DEC-009
+    title: One validation orchestrator
+    context: Today the review path re-implements the composition that internal finalize already uses,
+      risking divergent findings (DL-006).
+    decision: A single validateArtifact function per stage serves authoring --finalize, review stages,
+      and bin/lint-artifact.ts; no stage-specific validation logic exists in the review path.
+    status: accepted
+  - id: DEC-010
+    title: Cross-artifact version matching dropped
+    context: DL-007 drops version equality checks between artifacts of the same change.
+    decision: The based_on_requirements and based_on_design checks are removed; the metadata fields
+      remain as provenance recorded at init from template substitution, and predecessor readiness is
+      enforced by the acceptance gate instead.
+    status: accepted
+  - id: DEC-011
+    title: Central registries removed
+    context: DL-010 replaces pipeline.yaml and ids.yaml with directory discovery and the requires graph.
+    decision: pipeline.yaml and ids.yaml are deleted; id patterns stay enforced by the per-stage schemas
+      and next-ids mappings live in stage.yaml. errors.yaml remains central as cross-cutting policy,
+      and requirements-policy.yaml moves into the requirements stage folder.
+    status: accepted
+  - id: DEC-012
+    title: Fail-fast startup
+    context: DL-011 requires hard errors for malformed stage folders.
+    decision: The CLI refuses to start on a missing stage.yaml, invalid YAML, an unknown kind, an id
+      mismatch, a requires cycle, or a missing requires reference, naming the offending folder,
+      cycle, or stage; a structural-checks entry naming an unknown check or malformed parameters
+      aborts validation naming the stage folder and entry.
+    status: accepted
+  - id: DEC-013
+    title: Breaking change with no migration
+    context: DL-013 and DL-004 accept a breaking change and freedom to redesign, including the AGENTS.md
+      rules file.
+    decision: No migration path is provided for artifacts created by the current layout; the deployed
+      skill is versioned per build and consumers upgrade deliberately. AGENTS.md is rewritten to
+      describe the stage-folder layout and its invariants.
+    status: accepted
+  - id: DEC-014
+    title: Frozen CLI envelope
+    context: NFR-003 freezes the CLI response shape.
+    decision: The envelope keeps exactly the seven top-level fields; the dispatcher becomes
+      registry-driven but normalization and the envelope schema are unchanged.
+    status: accepted
+  - id: DEC-015
+    title: Stage folders bundled as static assets
+    context: NFR-002 requires the deployed skill to stay one self-contained folder bundling every stage.
+    decision: The deploy script copies src/stages/ into the bundle and compiles hooks modules to
+      JavaScript; the bundle contains no package.json, no node_modules, no source TypeScript, and
+      exactly one SKILL.md whose workflow list is rendered from the registry.
+    status: accepted
+  - id: DEC-016
+    title: Steps-driven authoring machine with optional hooks module
+    context: Step sequences and completion predicates are hardcoded per stage today, and the
+      requirements stage has behavior (discovery gate, record-answer, set-clarity) that no
+      declarative predicate expresses.
+    decision: steps.yaml drives the step machine through declarative complete_when predicates; a stage
+      may ship an optional hooks module for extra steps and commands, which is the only
+      stage-specific code allowed and never participates in validation.
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-009
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-003
+      - CMP-009
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-003
+  - requirement_id: FR-005
+    component_ids:
+      - CMP-004
+      - CMP-005
+  - requirement_id: FR-006
+    component_ids:
+      - CMP-005
+  - requirement_id: FR-007
+    component_ids:
+      - CMP-002
+  - requirement_id: FR-008
+    component_ids:
+      - CMP-001
+      - CMP-002
+  - requirement_id: FR-009
+    component_ids:
+      - CMP-002
+      - CMP-005
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-003
+      - CMP-004
+      - CMP-007
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-010
+  - requirement_id: NFR-003
+    component_ids:
+      - CMP-006
+  - requirement_id: NFR-004
+    component_ids:
+      - CMP-005
+delta: []

@@ -1,0 +1,9 @@
+version: 1
+id: planning-review
+kind: review
+title: Planning Review
+artifact: plan.yaml
+status_field: status
+requires: []
+reviews: planning
+review_file: plan-review.yaml

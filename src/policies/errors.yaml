@@ -121,3 +121,30 @@ errors:
   MANIFEST_INVALID:
     message: Deployed runtime manifest is invalid.
     fix: Redeploy the runtime with bin/deploy-to-agent.mjs.
+  STAGE_MISSING_DESCRIPTOR:
+    message: A stage folder is missing its stage.yaml descriptor.
+    fix: Create stage.yaml in the stage folder.
+  STAGE_INVALID_DESCRIPTOR:
+    message: A stage.yaml descriptor is invalid.
+    fix: Fix stage.yaml to match the stage meta-schema.
+  STAGE_UNKNOWN_KIND:
+    message: A stage descriptor declares an unknown kind.
+    fix: Use authoring, review, tasks, or aggregator.
+  STAGE_ID_MISMATCH:
+    message: A stage folder name does not match its descriptor id.
+    fix: Rename the folder or fix the descriptor id.
+  STAGE_CYCLE:
+    message: The requires graph contains a cycle.
+    fix: Remove the cycle from the requires fields.
+  STAGE_MISSING_REFERENCE:
+    message: A stage requires a stage that does not exist.
+    fix: Create the stage folder or fix the requires field.
+  CHECK_UNKNOWN:
+    message: A structural-checks.yaml entry names an unknown check.
+    fix: Use a check from the capped catalog.
+  CHECK_INVALID_PARAMS:
+    message: A structural-checks.yaml entry carries malformed parameters.
+    fix: Fix the check parameters for the named check.
+  STAGE_GATE_BLOCKED:
+    message: A stage cannot run because a required stage is not accepted.
+    fix: Complete and accept the required stage before running this stage.

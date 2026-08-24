@@ -1,0 +1,9 @@
+version: 1
+id: knowledge-extraction
+kind: aggregator
+title: Knowledge Extraction
+artifact: docs-delta.yaml
+status_field: status
+requires:
+  - implementation-review
+produces_delta: false

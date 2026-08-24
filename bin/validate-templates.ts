@@ -6,10 +6,11 @@ import { fileURLToPath } from 'node:url';
 import { readYaml } from '../src/scripts/lib/yaml-io.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const stagesDir = path.join(root, 'src', 'stages');
 const templatesDir = path.join(root, 'src', 'templates');
 
 const expectedKeys = {
-  'requirements.yaml': [
+  requirements: [
     'metadata',
     'problem_statement',
     'discovery_log',
@@ -23,7 +24,7 @@ const expectedKeys = {
     'delta',
   ],
 
-  'design.yaml': [
+  design: [
     'metadata',
     'context_summary',
     'components',
@@ -35,7 +36,7 @@ const expectedKeys = {
     'delta',
   ],
 
-  'plan.yaml': [
+  planning: [
     'metadata',
     'tasks',
     'milestones',
@@ -45,16 +46,18 @@ const expectedKeys = {
 };
 
 const expectedStage = {
-  'requirements.yaml': 'requirements',
-  'design.yaml': 'design',
-  'plan.yaml': 'planning',
+  requirements: 'requirements',
+  design: 'design',
+  planning: 'planning',
 };
 
 const results = [];
 let failed = false;
 
-for (const [file, keys] of Object.entries(expectedKeys)) {
-  const templatePath = path.join(templatesDir, file);
+// Validate the stage-folder templates (TASK-005 moved the templates into the
+// stage folders alongside their schemas).
+for (const [stageId, keys] of Object.entries(expectedKeys)) {
+  const templatePath = path.join(stagesDir, stageId, 'template.yaml');
 
   try {
     if (!fs.existsSync(templatePath)) {
@@ -74,7 +77,7 @@ for (const [file, keys] of Object.entries(expectedKeys)) {
       throw new Error('metadata must be an object');
     }
 
-    const expected = (expectedStage as Record<string, string>)[file];
+    const expected = (expectedStage as Record<string, string>)[stageId];
 
     if (metadata.stage !== expected) {
       throw new Error(
@@ -83,14 +86,14 @@ for (const [file, keys] of Object.entries(expectedKeys)) {
     }
 
     results.push({
-      file,
+      file: `stages/${stageId}/template.yaml`,
       ok: true,
     });
   } catch (err: unknown) {
     failed = true;
 
     results.push({
-      file,
+      file: `stages/${stageId}/template.yaml`,
       ok: false,
       error: err instanceof Error ? err.message : String(err),
     });

@@ -1,0 +1,11 @@
+entries:
+  - id: FB-001
+    from_stage: design
+    to_stage: requirements
+    reason: "Design-stage review surfaced three requirements amendments: structural checks move to a
+      dedicated structural-checks.yaml per stage, stage-specific validator scripts are removed in
+      favor of the capped generic check catalog, and the requires gate is defined by artifact
+      acceptance."
+    status: resolved
+    created_at: 2026-08-24
+    resolved_at: 2026-08-24

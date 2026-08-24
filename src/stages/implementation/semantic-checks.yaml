@@ -1,0 +1,9 @@
+version: 1
+checks:
+  - "Do the completed tasks plausibly satisfy the acceptance criteria they claim to cover?"
+  - "Have negative and boundary cases required by requirements and plan been implemented or verified?"
+  - "Are files changed outside the plan either incidental and explained, or does the plan need updating?"
+  - "Is there evidence that the work was verified (tests, manual verification notes, CLI output)?"
+  - "Are task implementation notes sufficient to understand what was done and how it was verified?"
+  - "For refactor tasks, is there evidence that behavior was preserved?"
+  - "Is the implementation complete enough to synchronize docs/current?"

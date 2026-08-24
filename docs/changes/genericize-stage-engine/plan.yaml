@@ -1,0 +1,775 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: genericize-stage-engine"
+  stage: planning
+  step: complete
+  status: accepted
+  version: 0.1.1
+  created: 2026-08-24
+  updated: 2026-08-24
+  based_on_design: 0.1.0
+  based_on_requirements: 0.2.0
+  implementation_status: ready-for-review
+  delta_reviewed: true
+tasks:
+  - id: TASK-001
+    title: Define stage folder layout and stage.yaml meta-schema
+    description: |-
+      Create the src/stages/ directory structure and the engine-owned stage.yaml meta-schema
+      (JSON Schema validating version, id, kind, title, artifact, status_field, requires,
+      reviews, review_file, next_ids, produces_delta). Define the canonical per-kind file sets
+      as documented in CMP-009 and DM-001: authoring stages carry stage.yaml,
+      structural-checks.yaml, schema.yaml, template.yaml, steps.yaml, semantic-checks.yaml;
+      review stages carry stage.yaml and steps.yaml; tasks and aggregator stages carry the
+      subsets their interpreters read. The meta-schema lives with the engine (not in a stage
+      folder) because it validates the folders themselves.
+    type: setup
+    status: done
+    complexity: medium
+    covers:
+      - FR-002
+    acceptance_ids:
+      - AC-003
+      - AC-004
+    design_refs:
+      - DEC-001
+      - DEC-002
+    depends_on: []
+    files:
+      - path: src/schemas/stage.schema.yaml
+        operation: create
+      - path: src/stages/
+        operation: create
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Created src/schemas/stage.schema.yaml meta-schema and the src/stages/ directory.
+    files_changed: []
+  - id: TASK-002
+    title: Implement Stage Registry with directory discovery
+    description: |-
+      Implement loadStageRegistry (CMP-001, API-001): scan the stages directory for immediate
+      subdirectories, parse each stage.yaml, validate against the meta-schema from TASK-001, and
+      build StageRecord entries (DM-004) with resolved paths for each configuration file the
+      kind reads. Fail hard at startup naming the offending folder when stage.yaml is missing,
+      YAML is invalid, the kind value is unknown, or the folder name does not match the
+      descriptor id. Cache the registry per process. Extend the runtime path resolver
+      (src/scripts/lib/paths.ts) with a stages candidate location so the deployed bundle
+      resolves stage folders the same way it resolves templates, schemas, and policies today.
+      Add the new startup error codes (missing descriptor, invalid descriptor, unknown kind, id
+      mismatch) to src/policies/errors.yaml and cover each error path in the unit tests.
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-001
+      - FR-008
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-020
+    design_refs:
+      - DEC-001
+      - DEC-012
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/scripts/lib/stage-registry.ts
+        operation: create
+      - path: src/scripts/lib/paths.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+      - path: test/unit/stage-registry.test.ts
+        operation: create
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Implemented loadStageRegistry with directory discovery, paths.ts stages
+      resolver, startup error codes, and unit tests.
+    files_changed: []
+  - id: TASK-003
+    title: Implement Requires Graph with DAG validation and acceptance gate
+    description: |-
+      Implement computePipelineOrder and evaluateGate (CMP-002, API-002): build the requires
+      graph from descriptors, detect cycles and missing references at startup with hard errors
+      naming the cycle or missing stage, compute topological order with alphabetical stage-id
+      tie-break for deterministic output, and evaluate the execution gate. Gate semantics per
+      DEC-008: a stage is runnable only when every required stage's tracked artifact has status
+      accepted, where the tracked artifact of a review stage is the artifact of the stage it
+      reviews; a review stage is runnable when its tracked artifact is ready-for-review or
+      accepted. Gate failures produce a blocked envelope naming each unsatisfied requirement
+      and its current status. Add the cycle and missing-reference error codes to
+      src/policies/errors.yaml and cover them in the unit tests.
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-007
+      - FR-008
+      - FR-009
+    acceptance_ids:
+      - AC-012
+      - AC-013
+      - AC-014
+      - AC-015
+    design_refs:
+      - DEC-007
+      - DEC-008
+      - DEC-010
+    depends_on:
+      - TASK-002
+    files:
+      - path: src/scripts/lib/requires-graph.ts
+        operation: create
+      - path: src/policies/errors.yaml
+        operation: modify
+      - path: test/unit/requires-graph.test.ts
+        operation: create
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Implemented computePipelineOrder and evaluateGate with cycle/missing-reference
+      hard errors and unit tests.
+    files_changed: []
+  - id: TASK-004
+    title: Implement Generic Check Library with capped catalog
+    description: |-
+      Implement the eleven named checks in a shared library (CMP-004): unique-ids, ref-exists,
+      referenced-by, duplicate-refs, given-when-then, forbidden-words, sentence-count,
+      required-note-for-status, all-tasks-terminal, dependency-acyclic, dependency-order. Each
+      check is a pure function of (artifact, params, context) returning findings in the frozen
+      Finding shape (DM-005). An entry naming an unknown check or carrying malformed parameters
+      aborts the validation run with an error naming the stage folder and the check entry; add
+      the corresponding error codes to src/policies/errors.yaml. Port the word lists (blocking
+      and advisory) into the library as shared profiles so the forbidden-words check reproduces
+      current lint behavior exactly. Port the current unit-test contracts from
+      test/unit/lint-checks.test.ts (runLintChecks and checkCrossFileReferences cases) into
+      test/unit/stage-checks.test.ts so any behavioral difference surfaces as a test failure
+      while the legacy implementation still runs, before the runtime switchover.
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-005
+    acceptance_ids:
+      - AC-009
+    design_refs:
+      - DEC-003
+      - DEC-004
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/scripts/lib/checks/
+        operation: create
+      - path: src/policies/errors.yaml
+        operation: modify
+      - path: test/unit/stage-checks.test.ts
+        operation: create
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Implemented the eleven-check catalog in src/scripts/lib/checks/ and ported the
+      lint contracts into stage-checks.test.ts.
+    files_changed: []
+  - id: TASK-005
+    title: Migrate the nine stages to stage folders (configuration extraction)
+    description: |-
+      Create the nine stage folders under src/stages/ (CMP-009, DM-008): requirements,
+      requirements-review, design, design-review, planning, planning-review, implementation,
+      implementation-review, knowledge-extraction. Copy each stage's schema from src/schemas/,
+      template from src/templates/, and semantic checks from the central semantic-checks.yaml
+      into the folders; express the structural checks currently implemented in validators.ts
+      and lint-checks.ts as named-check declarations in each stage's structural-checks.yaml;
+      write steps.yaml for each stage from the current skill-manifest step definitions; write
+      stage.yaml descriptors with the requires edges from DM-008: requirements (requires none),
+      requirements-review (reviews requirements), design (requires requirements-review),
+      design-review (reviews design), planning (requires requirements-review and design-review),
+      planning-review (reviews planning), implementation (requires planning-review),
+      implementation-review (reviews implementation), knowledge-extraction (requires
+      implementation-review). Port the requirements stage's discovery gate, record-answer, and
+      set-clarity behavior into an optional hooks module in its folder, and copy
+      requirements-policy.yaml into the requirements folder. This task deletes nothing: the
+      legacy runtime keeps reading the central files until the switchover in TASK-008, and the
+      central copies are retired in TASK-011. Verify with the registry from TASK-002 that all
+      nine folders are discovered, the requires DAG validates, and every structural-checks
+      declaration resolves against the catalog.
+    type: refactor
+    status: done
+    complexity: high
+    covers:
+      - FR-001
+      - FR-002
+      - FR-003
+      - FR-005
+    acceptance_ids:
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-009
+    design_refs:
+      - DEC-001
+      - DEC-002
+      - DEC-003
+      - DEC-005
+      - DEC-011
+    depends_on:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+    files:
+      - path: src/stages/requirements/
+        operation: create
+      - path: src/stages/requirements-review/
+        operation: create
+      - path: src/stages/design/
+        operation: create
+      - path: src/stages/design-review/
+        operation: create
+      - path: src/stages/planning/
+        operation: create
+      - path: src/stages/planning-review/
+        operation: create
+      - path: src/stages/implementation/
+        operation: create
+      - path: src/stages/implementation-review/
+        operation: create
+      - path: src/stages/knowledge-extraction/
+        operation: create
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Created the nine stage folders with descriptors, structural/semantic checks,
+      schemas, templates, steps, and hooks.
+    files_changed: []
+  - id: TASK-006
+    title: Implement Unified Validation Orchestrator
+    description: |-
+      Implement validateArtifact (CMP-005, API-003): schema.yaml findings followed by
+      structural-checks.yaml named-check findings, concatenated in the frozen Finding shape.
+      This single function serves the authoring --finalize gate, the review stages, and
+      bin/lint-artifact.ts, replacing the current split where review.ts and runFullValidation
+      each compose validateArtifactSchema, checkCrossFileReferences, and runLintChecks. Switch
+      bin/lint-artifact.ts to validateArtifact in this task; the stage folders exist since
+      TASK-005, so the orchestrator runs against the real stage configuration. Remove the
+      cross-artifact version equality checks (based_on_requirements and based_on_design) from
+      the validation path entirely; the metadata fields remain as provenance only. Preserve the
+      validation layer order: schema, structural checks, semantic advisory, review gate.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-005
+      - FR-006
+      - FR-009
+      - NFR-004
+    acceptance_ids:
+      - AC-011
+      - AC-015
+      - AC-019
+    design_refs:
+      - DEC-009
+      - DEC-010
+    depends_on:
+      - TASK-004
+      - TASK-005
+    files:
+      - path: src/scripts/lib/validate.ts
+        operation: create
+      - path: bin/lint-artifact.ts
+        operation: modify
+      - path: test/unit/validate.test.ts
+        operation: create
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Implemented validateArtifact unified orchestrator and switched
+      bin/lint-artifact.ts to it; dropped cross-artifact version checks.
+    files_changed: []
+  - id: TASK-007
+    title: Implement Steps and Manifest Loader
+    description: |-
+      Implement the steps.yaml loader (CMP-007): step definitions (title, next_action, markdown,
+      commands, exit_criteria) load from each stage's steps.yaml, replacing the hardcoded
+      stepDefinitionsByWorkflow map in skill-manifest.ts. Render step help and CLI envelopes
+      from these definitions with template variables for the CLI invocation and change
+      directory. Implement the declarative complete_when predicate vocabulary from DM-003
+      (field non-empty, array min-items, metadata equals, all/any combinators) and evaluate
+      them in the authoring interpreter. The --next-ids prefix-to-array mapping comes from the
+      next_ids field of stage.yaml, replacing the per-stage nextIds functions in the workflow
+      modules and the ids.yaml catalog. Update test/unit/skill-manifest.test.ts in the same
+      task so it asserts the loader-backed getStepDefinitions over the discovered stages; the
+      skillManifest export keeps its current shape.
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-002
+      - FR-004
+    acceptance_ids:
+      - AC-003
+      - AC-007
+    design_refs:
+      - DEC-011
+      - DEC-016
+    depends_on:
+      - TASK-002
+      - TASK-005
+    files:
+      - path: src/scripts/lib/steps-loader.ts
+        operation: create
+      - path: src/scripts/workflows/skill-manifest.ts
+        operation: modify
+      - path: test/unit/skill-manifest.test.ts
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Implemented steps-loader.ts with complete_when predicates and made
+      skill-manifest getStepDefinitions loader-backed.
+    files_changed: []
+  - id: TASK-008
+    title: Implement four Kind Interpreters and switch the runtime over
+    description: |-
+      Implement the four interpreters (CMP-003): authoring (generic flag loop --dir, --request,
+      --next-ids, --update-artifact, --append-delta, --complete-step, --finalize,
+      --confirm-semantic, --describe, --describe-step, --help; step machine needs_input, init,
+      drafting, validation, delta, recovery, ready, complete plus stage-declared extra steps;
+      artifact instantiation from template.yaml with variable substitution), review (resolve
+      reviews target, check gate, run unified validation, append rounds, apply
+      --accept/--reject/--dry-run), tasks (task state machine over plan.yaml, keeping the
+      --task-id, --status, --note, and --files update flags), aggregator (collect delta arrays
+      from delta-producing stages). Dispatch by the kind field of the descriptor. The authoring
+      interpreter replaces the hardcoded stages map in runner.ts and the per-stage workflow
+      modules, building on the genericized authoring-base step machine and the stage-helpers
+      utilities; the review interpreter replaces review.ts, with the existing review command
+      routed to it as an interim step (--target <stage> maps to the <stage>-review stage) until
+      TASK-009 removes the dedicated command. Delete the six per-stage workflow modules.
+      Because the stage folders exist since TASK-005, the full test suite runs against the new
+      engine at this boundary: run npm run validate and fix any behavioral drift before
+      proceeding. Adding a stage of an existing kind must require no TypeScript change.
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-003
+      - FR-004
+      - FR-006
+    acceptance_ids:
+      - AC-005
+      - AC-006
+      - AC-007
+      - AC-008
+      - AC-011
+    design_refs:
+      - DEC-005
+      - DEC-006
+      - DEC-016
+    depends_on:
+      - TASK-003
+      - TASK-006
+      - TASK-007
+    files:
+      - path: src/scripts/lib/kinds/
+        operation: create
+      - path: src/scripts/lib/runner.ts
+        operation: modify
+      - path: src/scripts/lib/authoring-base.ts
+        operation: modify
+      - path: src/scripts/workflows/index.ts
+        operation: modify
+      - path: src/scripts/workflows/review.ts
+        operation: delete
+      - path: src/scripts/workflows/requirements.ts
+        operation: delete
+      - path: src/scripts/workflows/design.ts
+        operation: delete
+      - path: src/scripts/workflows/planning.ts
+        operation: delete
+      - path: src/scripts/workflows/implementation.ts
+        operation: delete
+      - path: src/scripts/workflows/knowledge-extraction.ts
+        operation: delete
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Implemented the four kind interpreters and switched the runtime over; deleted
+      the six per-stage workflow modules.
+    files_changed: []
+  - id: TASK-009
+    title: Implement registry-driven CLI Dispatcher
+    description: |-
+      Implement the dispatcher (CMP-006): resolve the command to a discovered stage by id and
+      dispatch to its kind interpreter, replacing the hardcoded workflows map in
+      src/scripts/workflows/index.ts with registry resolution; cross-cutting commands (status,
+      feedback, doctor, docs-init) dispatch separately and operate on the registry. Every
+      response uses the frozen envelope with exactly the seven top-level fields (DM-007).
+      --list-workflows lists discovered stages plus cross-cutting commands. Remove the
+      dedicated review command with --target; review stages are invoked as stage commands
+      (sdlc requirements-review --dir <change-dir> --accept). Update src/scripts/sdlc.ts and,
+      in the same task, the tests that invoke the review command with --target
+      (test/e2e/workflows.test.ts, test/e2e/full-pipeline.test.ts,
+      test/e2e/review-history.test.ts, test/e2e/reject-recover.test.ts) and the
+      --list-workflows expectations in test/e2e/registry.test.ts, so the suite stays green at
+      this boundary.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-003
+      - NFR-003
+    acceptance_ids:
+      - AC-001
+      - AC-005
+      - AC-018
+    design_refs:
+      - DEC-005
+      - DEC-014
+    depends_on:
+      - TASK-008
+    files:
+      - path: src/scripts/sdlc.ts
+        operation: modify
+      - path: src/scripts/workflows/index.ts
+        operation: modify
+      - path: test/e2e/workflows.test.ts
+        operation: modify
+      - path: test/e2e/full-pipeline.test.ts
+        operation: modify
+      - path: test/e2e/review-history.test.ts
+        operation: modify
+      - path: test/e2e/reject-recover.test.ts
+        operation: modify
+      - path: test/e2e/registry.test.ts
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Implemented the registry-driven CLI dispatcher; removed the dedicated review
+      command; updated e2e tests.
+    files_changed: []
+  - id: TASK-010
+    title: Convert cross-cutting commands to registry-driven
+    description: |-
+      Convert status, feedback, doctor, and docs-init (CMP-008) to operate on the stage registry
+      and requires graph instead of hardcoded stage knowledge. status reports each stage's
+      tracked artifact status in pipeline order derived from the DAG, names the first
+      incomplete stage whose gate is satisfied, and suggests its command, replacing the
+      hardcoded pipeline map, fallback order array, and stageStatuses map in status.ts.
+      feedback reverts a stage to draft and blocks its successors through the requires graph so
+      a revert cascades through unsatisfied gates, replacing its use of lib/pipeline.ts and the
+      hardcoded requirements/design/planning capability restriction. doctor validates stage
+      folders, the DAG, schemas, and templates. Extend test/e2e/status.test.ts to cover the
+      registry-driven output including the review stages.
+    type: refactor
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-007
+    acceptance_ids:
+      - AC-001
+      - AC-012
+    design_refs:
+      - DEC-007
+      - DEC-008
+    depends_on:
+      - TASK-009
+    files:
+      - path: src/scripts/workflows/status.ts
+        operation: modify
+      - path: src/scripts/workflows/feedback.ts
+        operation: modify
+      - path: src/scripts/workflows/doctor.ts
+        operation: modify
+      - path: src/scripts/workflows/docs-init.ts
+        operation: modify
+      - path: test/e2e/status.test.ts
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Converted status, feedback, and doctor to operate on the registry and requires graph.
+    files_changed: []
+  - id: TASK-011
+    title: Retire legacy engine files and update validation bins
+    description: |-
+      Delete the legacy engine once no code reads it: the central registries
+      (src/policies/pipeline.yaml, ids.yaml, semantic-checks.yaml, and the central
+      requirements-policy.yaml copy), the per-stage schemas and templates that moved into stage
+      folders in TASK-005 (src/schemas/requirements.schema.yaml, design.schema.yaml,
+      plan.schema.yaml; src/templates/requirements.yaml, design.yaml, plan.yaml), the superseded
+      validation modules (src/scripts/lib/validators.ts, lint-checks.ts, pipeline.ts), the dead
+      loaders in policy-loader.ts (loadPipeline, loadIdsCatalog, loadSemanticChecks,
+      loadRequirementsPolicy; loadErrorCatalog stays), and the dead validateArtifactSchema entry
+      point in schema.ts (validateWithSchema stays). Delete the superseded unit tests
+      (test/unit/pipeline.test.ts, test/unit/lint-checks.test.ts); test/unit/ids.test.ts stays
+      because lib/ids.ts is a pure helper that survives. Grep for remaining references before
+      each deletion. In the same task, rewrite bin/validate-policies.ts to validate errors.yaml
+      and the stage folders (stage.yaml descriptors against the meta-schema, structural-checks
+      declarations against the catalog, steps.yaml shapes) and bin/validate-templates.ts to
+      validate the stage-folder templates and the central docs-current-index.md, removing the
+      pipeline.yaml, ids.yaml, and requirements-policy.yaml checks, so npm run validate stays
+      green across the deletion; package.json script entry points are unchanged because the
+      bins keep their paths. Update the bundle-content expectations in test/e2e/deploy.test.ts
+      to the post-retirement layout (schemas: docs-delta, cli-envelope, stage.schema; policies:
+      errors.yaml; templates: docs-current-index.md).
+    type: refactor
+    status: done
+    complexity: high
+    covers:
+      - FR-001
+      - FR-002
+      - FR-005
+    acceptance_ids:
+      - AC-003
+      - AC-004
+      - AC-009
+    design_refs:
+      - DEC-003
+      - DEC-011
+    depends_on:
+      - TASK-010
+    files:
+      - path: src/policies/pipeline.yaml
+        operation: delete
+      - path: src/policies/ids.yaml
+        operation: delete
+      - path: src/policies/semantic-checks.yaml
+        operation: delete
+      - path: src/policies/requirements-policy.yaml
+        operation: delete
+      - path: src/schemas/requirements.schema.yaml
+        operation: delete
+      - path: src/schemas/design.schema.yaml
+        operation: delete
+      - path: src/schemas/plan.schema.yaml
+        operation: delete
+      - path: src/templates/requirements.yaml
+        operation: delete
+      - path: src/templates/design.yaml
+        operation: delete
+      - path: src/templates/plan.yaml
+        operation: delete
+      - path: src/scripts/lib/validators.ts
+        operation: delete
+      - path: src/scripts/lib/lint-checks.ts
+        operation: delete
+      - path: src/scripts/lib/pipeline.ts
+        operation: delete
+      - path: src/scripts/lib/policy-loader.ts
+        operation: modify
+      - path: src/scripts/lib/schema.ts
+        operation: modify
+      - path: bin/validate-policies.ts
+        operation: modify
+      - path: bin/validate-templates.ts
+        operation: modify
+      - path: test/unit/pipeline.test.ts
+        operation: delete
+      - path: test/unit/lint-checks.test.ts
+        operation: delete
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Retired legacy engine files and rewrote validate-policies.ts and
+      validate-templates.ts for the stage-folder layout.
+    files_changed: []
+  - id: TASK-012
+    title: Extend Deploy Bundler for stage folders
+    description: |-
+      Extend bin/deploy-to-agent.ts (CMP-010, API-006): copy src/stages/ into the skill bundle
+      alongside the engine-owned schemas and policies, and compile any stage hooks modules to
+      JavaScript so the bundle contains no source TypeScript files. The bundle remains exactly
+      one self-contained skill folder with one SKILL.md, no package.json, and no node_modules.
+      Render the SKILL.md workflow list from the discovered stages at deploy time. The
+      deployment smoke test verifies stage discovery inside the bundle by running
+      --list-workflows there. Extend test/e2e/deploy.test.ts in the same task with stages/
+      expectations (every stage folder bundled, no .ts files inside the bundle) so the suite
+      stays green at this boundary.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - NFR-002
+    acceptance_ids:
+      - AC-017
+    design_refs:
+      - DEC-015
+    depends_on:
+      - TASK-011
+    files:
+      - path: bin/deploy-to-agent.ts
+        operation: modify
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Extended the deploy bundler to copy stage folders and compile hooks to
+      JavaScript; rendered SKILL.md from discovered stages.
+    files_changed: []
+  - id: TASK-013
+    title: Make the test suite registry-driven
+    description: |-
+      Update the test suite so adding a stage folder leaves the full validate suite passing
+      with zero TypeScript edits (NFR-001, AC-016). Add an e2e test that creates a fixture
+      stage folder of an existing kind in a temporary stages location and verifies discovery,
+      validation, and --list-workflows without TypeScript changes. Replace remaining hardcoded
+      stage/schema/policy enumerations in tests (for example the stage list asserted in
+      test/e2e/registry.test.ts and the bundle-content lists in test/e2e/deploy.test.ts) with
+      expectations derived from the stage registry or the stages directory.
+    type: test
+    status: done
+    complexity: medium
+    covers:
+      - NFR-001
+    acceptance_ids:
+      - AC-016
+    design_refs:
+      - DEC-004
+      - DEC-016
+    depends_on:
+      - TASK-012
+    files:
+      - path: test/e2e/new-stage-folder.test.ts
+        operation: create
+      - path: test/e2e/registry.test.ts
+        operation: modify
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Added new-stage-folder e2e test and made registry/deploy test expectations registry-derived.
+    files_changed: []
+  - id: TASK-014
+    title: Rewrite AGENTS.md for the stage-folder layout
+    description: |-
+      Rewrite AGENTS.md (DEC-013) to describe the stage-folder layout: the per-stage file set,
+      the four kinds, the requires DAG, the acceptance gate, the capped check catalog and its
+      design-review extension path, and the updated Where to Find Details table (stage folders
+      replace pipeline.yaml and ids.yaml references; errors.yaml remains the central error
+      catalog). Document that the package.json validation script entry points are unchanged
+      because the bins keep their paths.
+    type: documentation
+    status: done
+    complexity: medium
+    covers:
+      - FR-002
+      - NFR-004
+    acceptance_ids:
+      - AC-003
+      - AC-019
+    design_refs:
+      - DEC-013
+    depends_on:
+      - TASK-011
+    files:
+      - path: AGENTS.md
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Rewrote AGENTS.md for the stage-folder layout.
+    files_changed: []
+  - id: TASK-015
+    title: End-to-end verification of the genericized engine
+    description: |-
+      Final verification (FLW-005): run npm run validate and npm run check:all and confirm they
+      pass. Verify the add-a-stage walkthrough: create a fixture stage folder of an existing
+      kind, confirm the registry discovers it, --list-workflows includes it, its validation
+      runs from the folder alone, and no file outside the folder changed. Verify the acceptance
+      gate: a stage whose required stage's artifact is not accepted returns a blocked envelope
+      naming the unsatisfied requirement. Verify identical findings between internal finalize
+      and the review stage for the same artifact content. Verify the deployed bundle: exactly
+      one SKILL.md, no package.json, no node_modules, no source TypeScript, and every stage
+      folder bundled.
+    type: verification
+    status: done
+    complexity: medium
+    covers:
+      - NFR-001
+      - NFR-002
+      - NFR-003
+      - NFR-004
+    acceptance_ids:
+      - AC-016
+      - AC-017
+      - AC-018
+      - AC-019
+    design_refs:
+      - DEC-013
+      - DEC-014
+      - DEC-015
+    depends_on:
+      - TASK-010
+      - TASK-012
+      - TASK-013
+      - TASK-014
+    files: []
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Verified npm run validate and npm run check:all pass; verified gate, identical
+      findings, and bundle invariants.
+    files_changed: []
+milestones:
+  - id: MS-001
+    title: Engine core
+    description: Meta-schema, stage registry, requires graph, generic check library
+    tasks:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+  - id: MS-002
+    title: Stage folder migration
+    description: Nine stage folders, unified validation orchestrator, steps loader
+    tasks:
+      - TASK-005
+      - TASK-006
+      - TASK-007
+  - id: MS-003
+    title: Runtime switchover
+    description: Kind interpreters, CLI dispatcher, registry-driven cross-cutting commands
+    tasks:
+      - TASK-008
+      - TASK-009
+      - TASK-010
+  - id: MS-004
+    title: Legacy retirement and bundling
+    description: Delete legacy files, update validation bins, extend deploy bundler
+    tasks:
+      - TASK-011
+      - TASK-012
+  - id: MS-005
+    title: Tests, docs, verification
+    description: Registry-driven tests, AGENTS.md rewrite, end-to-end verification
+    tasks:
+      - TASK-013
+      - TASK-014
+      - TASK-015
+risks:
+  - risk: The generic flag loop in the authoring interpreter must reproduce current behavior exactly for
+      all three authoring stages; subtle drift breaks existing e2e tests.
+    severity: medium
+    mitigation: Port the runner.ts flag loop as-is and keep the e2e tests as the behavioral contract.
+      Because the stage folders exist before the switchover (TASK-005), the full suite runs green
+      against the new engine immediately at the TASK-008 boundary, and npm run validate (which
+      includes unit and e2e tests) must pass at every task boundary.
+  - risk: The eleven-check catalog may not cover a current check exactly (for example the orphan-AC
+      referenced-by semantics or the forbidden-words word lists).
+    severity: medium
+    mitigation: TASK-004 ports each check with the current unit-test contracts (ported from
+      test/unit/lint-checks.test.ts into test/unit/stage-checks.test.ts) while the legacy
+      implementation still runs, so any behavioral difference surfaces as a test failure before the
+      runtime switchover.
+  - risk: Deleting the legacy files (central registries, per-stage schemas and templates, validators,
+      lint-checks, pipeline) may break bins or tests that still reference them.
+    severity: medium
+    mitigation: TASK-011 deletes only after every consumer is rewired (TASK-006 through TASK-010), greps
+      for remaining references first, and rewrites bin/validate-policies.ts,
+      bin/validate-templates.ts, and the deploy.test.ts bundle expectations in the same task, so npm
+      run validate stays green across the deletion.
+  - risk: The migration window between TASK-005 and TASK-011 keeps two copies of stage configuration
+      (stage folders and central files); editing either side creates drift.
+    severity: low
+    mitigation: The folder copies are verbatim extractions, the window spans tasks within a single
+      change, and TASK-011 deletes the central copies so no dual source of truth survives the
+      change.
+  - risk: The deploy bundler must compile stage hooks modules to JavaScript; a missed compile step
+      leaves source TypeScript in the bundle, violating the build-artifact invariant.
+    severity: medium
+    mitigation: "TASK-012 adds a bundle assertion to the deploy smoke test: no .ts files, no
+      package.json, no node_modules, exactly one SKILL.md."
+delta: []

@@ -49,7 +49,7 @@ test('reject then recover preserves history and bumps version', () => {
   out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['review', '--target', 'requirements', '--dir', changeDir, '--reject']);
+  out = run(tmp, ['requirements-review', '--dir', changeDir, '--reject']);
   assert.equal(out.state, 'blocked', JSON.stringify(out));
 
   let req = readYaml(path.join(changeRoot, 'requirements.yaml'));
@@ -70,7 +70,7 @@ test('reject then recover preserves history and bumps version', () => {
   out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['review', '--target', 'requirements', '--dir', changeDir, '--accept']);
+  out = run(tmp, ['requirements-review', '--dir', changeDir, '--accept']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   req = readYaml(path.join(changeRoot, 'requirements.yaml'));

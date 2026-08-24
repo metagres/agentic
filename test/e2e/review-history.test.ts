@@ -58,16 +58,14 @@ test('plain review records by default and dry-run does not', () => {
   out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete');
 
-  out = run(tmp, ['review', '--target', 'requirements', '--dir', changeDir]);
+  out = run(tmp, ['requirements-review', '--dir', changeDir]);
   assert.equal(out.data.round, 1);
 
   let rev = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
   assert.equal(rev.rounds.length, 1);
 
   out = run(tmp, [
-    'review',
-    '--target',
-    'requirements',
+    'requirements-review',
     '--dir',
     changeDir,
     '--dry-run',

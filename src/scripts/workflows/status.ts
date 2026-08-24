@@ -3,8 +3,8 @@ import path from 'node:path';
 import { parseArgs, writeJson, EXIT } from '../lib/cli.ts';
 import { safeReadYaml } from '../lib/context.ts';
 import { requireChangeRoot } from '../lib/change-root.ts';
-// sdlc-hardening: pipeline
-import { loadPipeline } from '../lib/policy-loader.ts';
+import { loadStageRegistry, getStageById } from '../lib/stage-registry.ts';
+import { computePipelineOrder, evaluateGate } from '../lib/requires-graph.ts';
 import type { ParseArgsResult } from '../lib/types.ts';
 
 function usage(code: number = EXIT.ok): void {
@@ -22,6 +22,34 @@ function usage(code: number = EXIT.ok): void {
   );
 }
 
+// The tracked artifact of a review stage is the artifact of the stage it
+// reviews; for every other stage it is its own artifact (DEC-008).
+function trackedStage(cwd: string, stageId: string) {
+  const stage = getStageById(cwd, stageId);
+  if (!stage) return null;
+  if (stage.kind === 'review' && stage.reviews) {
+    return getStageById(cwd, stage.reviews);
+  }
+  return stage;
+}
+
+function readStageStatus(
+  cwd: string,
+  changeRoot: string,
+  stageId: string
+): string {
+  const tracked = trackedStage(cwd, stageId);
+  if (!tracked) return 'unknown';
+
+  const artifact = safeReadYaml(
+    path.join(changeRoot, tracked.artifact)
+  ) as Record<string, unknown> | null;
+  if (!artifact) return 'missing';
+
+  const metadata = (artifact.metadata as Record<string, unknown>) || {};
+  return String(metadata[tracked.statusField] || 'unknown');
+}
+
 export function runStatus(argv: string[]): void {
   const args = parseArgs(argv) as ParseArgsResult;
 
@@ -30,9 +58,7 @@ export function runStatus(argv: string[]): void {
     return;
   }
 
-  const cwd = args.cwd
-    ? path.resolve(String(args.cwd))
-    : process.cwd();
+  const cwd = args.cwd ? path.resolve(String(args.cwd)) : process.cwd();
 
   const base: Record<string, unknown> = {
     workflow: 'status',
@@ -43,72 +69,17 @@ export function runStatus(argv: string[]): void {
   if (!changeRoot) return;
   const changeDir = path.basename(changeRoot);
 
-  const requirements = safeReadYaml(
-    path.join(changeRoot, 'requirements.yaml')
-  ) as Record<string, unknown> | null;
+  // Pipeline order derives from the requires DAG with an alphabetical
+  // tie-break; no hardcoded pipeline map exists anymore.
+  const registry = loadStageRegistry(cwd);
+  const order = computePipelineOrder(cwd);
 
-  const design = safeReadYaml(path.join(changeRoot, 'design.yaml')) as Record<string, unknown> | null;
-
-  const plan = safeReadYaml(path.join(changeRoot, 'plan.yaml')) as Record<string, unknown> | null;
-
-  const docsDelta = safeReadYaml(path.join(changeRoot, 'docs-delta.yaml')) as Record<string, unknown> | null;
-
-  const getMeta = (obj: Record<string, unknown> | null): Record<string, unknown> | undefined =>
-    obj?.metadata as Record<string, unknown> | undefined;
-
-  const requirementsMeta = getMeta(requirements);
-  const designMeta = getMeta(design);
-  const planMeta = getMeta(plan);
-  const docsDeltaMeta = getMeta(docsDelta);
-
-  const requirementsStatus: string =
-    requirementsMeta?.status as string ||
-    (requirements ? 'draft' : 'missing');
-
-  const designStatus: string =
-    designMeta?.status as string ||
-    (design ? 'draft' : 'missing');
-
-  const planningStatus: string =
-    planMeta?.status as string ||
-    (plan ? 'draft' : 'missing');
-
-  const implementationStatus: string =
-    (planMeta?.implementation_status as string) ||
-    (plan ? 'pending' : 'missing');
-
-  const knowledgeStatus: string =
-    docsDeltaMeta?.status as string ||
-    (docsDelta ? 'pending' : 'missing');
-
-  const pipeline: Record<string, string> = {
-    requirements: requirementsStatus,
-    design: designStatus,
-    planning: planningStatus,
-    implementation: implementationStatus,
-    'knowledge-extraction': knowledgeStatus,
-  };
-
-  let order: string[];
-  try {
-    const pipelineData = loadPipeline(cwd) as Record<string, unknown> | null;
-    const stages = pipelineData?.stages as Record<string, unknown> | undefined;
-    order = Object.keys(stages || {});
-  } catch {
-    order = [];
+  const pipeline: Record<string, string> = {};
+  for (const id of order) {
+    pipeline[id] = readStageStatus(cwd, changeRoot, id);
   }
 
-  if (!Array.isArray(order) || order.length === 0) {
-    order = [
-      'requirements',
-      'design',
-      'planning',
-      'implementation',
-      'knowledge-extraction',
-    ];
-  }
-
-    // Check for open feedback first
+  // Check for open feedback first (unchanged behavior).
   const feedbackPath = path.join(changeRoot, 'feedback.yaml');
   const feedbackDoc = safeReadYaml(feedbackPath) as { entries?: any[] } | null;
   const openFeedback = feedbackDoc?.entries?.find((e: any) => e.status === 'open');
@@ -118,7 +89,7 @@ export function runStatus(argv: string[]): void {
       {
         ...base,
         state: 'blocked',
-        instructions: 
+        instructions:
           `An open feedback entry exists from ${openFeedback.from_stage} to ${openFeedback.to_stage}. ` +
           `Reason: ${openFeedback.reason}. ` +
           `Run scripts/sdlc.js ${openFeedback.to_stage} --dir ${changeDir} to fix the issue and re-review. ` +
@@ -139,52 +110,57 @@ export function runStatus(argv: string[]): void {
     return;
   }
 
-  const stageStatuses: Record<string, string> = {
-    'requirements': requirementsStatus,
-    'design': designStatus,
-    'planning': planningStatus,
-    'implementation': implementationStatus,
-    'knowledge-extraction': knowledgeStatus,
-  };
-
   let currentWorkflow: string | undefined;
   let state: string = 'in_progress';
   let instructions: string = '';
   let suggestedCommand: string | null = null;
 
-  // 1. Check for rejected stages first
-  const rejectedStage = order.find((key: string) => stageStatuses[key] === 'rejected');
+  // 1. Check for rejected stages first.
+  const rejectedStage = order.find((key: string) => pipeline[key] === 'rejected');
   if (rejectedStage) {
     currentWorkflow = rejectedStage;
     state = 'blocked';
     instructions = `The ${rejectedStage} workflow has a rejected artifact. Fix the findings and review again.`;
     suggestedCommand = `sdlc ${rejectedStage} --dir ${changeDir}`;
   } else {
-    // 2. Find the first incomplete stage
-    for (const stage of order) {
-      const status = stageStatuses[stage];
-      const isDone = stage === 'knowledge-extraction' ? status === 'complete' : status === 'accepted';
+    // 2. Find the first incomplete stage whose gate is satisfied.
+    for (const id of order) {
+      const stage = getStageById(cwd, id);
+      if (!stage) continue;
 
-      if (!isDone) {
-        currentWorkflow = stage;
-        const target = stage === 'planning' ? 'plan' : stage;
+      const status = pipeline[id];
+      const isDone =
+        stage.kind === 'aggregator' ? status === 'complete' : status === 'accepted';
 
-        if (status === 'ready-for-review') {
-          currentWorkflow = 'review';
-          suggestedCommand = `sdlc review --target ${target} --dir ${changeDir}`;
-          instructions = `${stage.charAt(0).toUpperCase() + stage.slice(1)} is ready for review. Run the review gate.`;
-        } else {
-          suggestedCommand = `sdlc ${stage} --dir ${changeDir}`;
-          instructions = `${stage.charAt(0).toUpperCase() + stage.slice(1)} is not accepted yet. Continue the ${stage} stage.`;
-        }
+      if (isDone) continue;
 
-        state = status === 'blocked' ? 'blocked' : 'in_progress';
-        break; // Stop at the first non-done stage
+      // A stage is runnable only when its acceptance gate is satisfied.
+      const gate = evaluateGate(stage, changeRoot, cwd);
+      if (!gate.satisfied) continue;
+
+      currentWorkflow = id;
+
+      if (stage.kind === 'review') {
+        currentWorkflow = id;
+        suggestedCommand = `sdlc ${id} --dir ${changeDir}`;
+        instructions = `${stage.title} gate is ready. Run the review gate.`;
+      } else if (status === 'ready-for-review') {
+        const reviewStageId = `${id}-review`;
+        currentWorkflow = reviewStageId;
+        suggestedCommand = `sdlc ${reviewStageId} --dir ${changeDir}`;
+        instructions = `${stage.title} is ready for review. Run the review gate.`;
+      } else {
+        currentWorkflow = id;
+        suggestedCommand = `sdlc ${id} --dir ${changeDir}`;
+        instructions = `${stage.title} is not accepted yet. Continue the ${id} stage.`;
       }
+
+      state = status === 'blocked' ? 'blocked' : 'in_progress';
+      break;
     }
   }
 
-  // 3. If loop finishes and all are done
+  // 3. All stages complete.
   if (!currentWorkflow) {
     currentWorkflow = 'complete';
     suggestedCommand = null;

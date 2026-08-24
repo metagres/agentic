@@ -55,7 +55,7 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['review', '--target', 'requirements', '--dir', changeDir, '--accept']);
+  out = run(tmp, ['requirements-review', '--dir', changeDir, '--accept']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   const req = readYaml(path.join(changeRoot, 'requirements.yaml'));
@@ -71,7 +71,7 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   out = run(tmp, ['design', '--dir', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['review', '--target', 'design', '--dir', changeDir, '--accept']);
+  out = run(tmp, ['design-review', '--dir', changeDir, '--accept']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   const des = readYaml(path.join(changeRoot, 'design.yaml'));
@@ -87,7 +87,7 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   out = run(tmp, ['planning', '--dir', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['review', '--target', 'plan', '--dir', changeDir, '--accept']);
+  out = run(tmp, ['planning-review', '--dir', changeDir, '--accept']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   out = run(
@@ -96,7 +96,7 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   );
   assert.notEqual(out.state, 'blocked', JSON.stringify(out));
 
-  out = run(tmp, ['review', '--target', 'implementation', '--dir', changeDir, '--accept']);
+  out = run(tmp, ['implementation-review', '--dir', changeDir, '--accept']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   out = run(tmp, ['knowledge-extraction', '--dir', changeDir]);

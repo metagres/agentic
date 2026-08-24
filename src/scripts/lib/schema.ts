@@ -1,7 +1,6 @@
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { readYaml } from './yaml-io.ts';
-import { getSchemaForTarget } from './pipeline.ts';
 import { resolveRuntimeFile } from './paths.ts';
 
 const ajv = new Ajv({
@@ -62,13 +61,4 @@ export function validateWithSchema(data: unknown, schemaFile: string, cwd: strin
       },
     ];
   }
-}
-
-export function validateArtifactSchema(target: string, data: unknown, cwd: string = process.cwd()): { check: string; severity: string; category: string; target: string; finding: string; fix: string }[] {
-  const schemaFile = getSchemaForTarget(cwd, target);
-  if (!schemaFile) {
-    return [];
-  }
-
-  return validateWithSchema(data, schemaFile, cwd);
 }

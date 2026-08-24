@@ -20,15 +20,18 @@ npm run check:all
 
 ## 2. Invariants (Never Break These)
 
-1. JSON Schemas are the structural source of truth; cross-file + lint checks enforce traceability.
+1. Stage folders are the structural source of truth; stage schemas and the capped check catalog enforce traceability and shape. Cross-file + lint checks enforce consistency.
 2. The CLI owns lifecycle state transitions.
 3. Review history is append-only; rounds are never deleted.
 4. Living docs (`docs/current/`) are updated only through knowledge extraction.
 5. Authoring stages produce delta entries; they never edit `docs/current/` directly.
 6. Implementation state lives in `plan.yaml`.
 7. The toolkit is agent-agnostic — no hardcoded agent paths.
-8. The CLI envelope shape is frozen.
+8. The CLI envelope shape is frozen (workflow, step, state, instructions, data, errors, warnings).
 9. The deployed skill (`.opencode/skills/agentic-sdlc/`) is a build artifact: exactly one self-contained skill folder, fully bundled with all dependencies inlined (no `package.json`, no `node_modules`, no source `.ts` files inside it). It must never be treated as, or confused with, this repository's own source/config.
+10. Stages are discovered by directory: every stage is one folder under `src/stages/<stage-id>/` and no central file enumerates stages.
+11. Validation logic is declarative: stages declare named checks from the capped catalog; stage-specific validation scripts are prohibited.
+12. A stage is runnable only when every required stage's tracked artifact has status `accepted`; a review stage is runnable when its tracked artifact is `ready-for-review` or `accepted`.
 
 ---
 
@@ -36,8 +39,9 @@ npm run check:all
 
 | Term | Meaning |
 |---|---|
-| stage | Main workflow (requirements, design, planning, implementation, knowledge-extraction) |
-| gate | Review checkpoint |
+| stage | Main workflow (requirements, design, planning, implementation, knowledge-extraction) plus review gates (requirements-review, design-review, planning-review, implementation-review) |
+| kind | Interpreter class of a stage: authoring, review, tasks, aggregator |
+| gate | Review checkpoint; also the acceptance gate evaluated from the requires graph |
 | step | Internal step inside a workflow |
 | state | CLI response state (ok, in_progress, blocked, complete) |
 | status | Artifact lifecycle status (draft, ready-for-review, accepted, rejected, blocked) |
@@ -55,43 +59,129 @@ A change is complete when:
 - No new top-level CLI envelope fields were introduced.
 - No hardcoded agent-specific paths were added.
 - If deployment-related files changed: `npm run deploy:smoke` passes.
-- If deploy output changed: confirm `.opencode/skills/agentic-sdlc/` still contains no `package.json`/`node_modules` and exactly one `SKILL.md`.
+- If deploy output changed: confirm `.opencode/skills/agentic-sdlc/` still contains no `package.json`/`node_modules`/source `.ts` files and exactly one `SKILL.md`.
 - If behavior changed: relevant docs in this file or referenced docs are updated.
 
 ---
 
-## 5. Where to Find Details
+## 5. The Stage-Folder Layout
+
+Every stage is one folder under `src/stages/<stage-id>/` holding all of that stage's
+configuration. The engine discovers stages by scanning this directory; adding a stage of an
+existing kind requires only a new folder — no TypeScript change.
+
+### Per-stage file set (CMP-009)
+
+| Kind | Files the stage carries |
+|---|---|
+| authoring | `stage.yaml`, `structural-checks.yaml`, `schema.yaml`, `template.yaml`, `steps.yaml`, `semantic-checks.yaml` |
+| review | `stage.yaml`, `steps.yaml` |
+| tasks | `stage.yaml`, `structural-checks.yaml`, `schema.yaml`, `steps.yaml`, `semantic-checks.yaml` |
+| aggregator | `stage.yaml`, `steps.yaml`, `schema.yaml` |
+
+Optional `hooks.ts` (compiled to `hooks.js` in the bundle) supplies stage-specific behavior
+such as the requirements discovery gate; it is the only stage-specific code allowed and never
+participates in validation. `stage.yaml` is validated at startup against the engine-owned
+meta-schema `src/schemas/stage.schema.yaml`; a missing descriptor, invalid YAML, unknown kind,
+or folder/id mismatch is a hard startup error naming the folder.
+
+### The four kinds (DEC-006)
+
+- **authoring** — generic flag loop (`--dir`, `--request`, `--next-ids`, `--update-artifact`,
+  `--append-delta`, `--complete-step`, `--finalize`, `--confirm-semantic`, `--describe`,
+  `--describe-step`, `--help`) driving the step machine from `steps.yaml` completion predicates.
+- **review** — resolves its `reviews` target, checks the review gate, runs the unified
+  validation, appends rounds to the review file (append-only), and applies
+  `--accept`/`--reject`/`--dry-run`.
+- **tasks** — task state machine over `plan.yaml` for the implementation stage.
+- **aggregator** — collects delta arrays from delta-producing stages for knowledge-extraction.
+
+### The requires DAG and the acceptance gate (DEC-007, DEC-008)
+
+Pipeline order is a topological sort of the requires graph with an alphabetical stage-id
+tie-break; there is no sequence field. Migrated edges (DM-008):
+
+```
+requirements
+  └─ requirements-review (reviews requirements)
+       └─ design
+            └─ design-review (reviews design)
+                 └─ planning  (requires requirements-review and design-review)
+                      └─ planning-review (reviews planning)
+                           └─ implementation
+                                └─ implementation-review (reviews implementation)
+                                     └─ knowledge-extraction
+```
+
+A stage is runnable only when every required stage's tracked artifact has status `accepted`
+(where the tracked artifact of a review stage is the artifact of the stage it reviews). A
+review stage is runnable when its tracked artifact is `ready-for-review` or `accepted`. Gate
+failures produce a blocked envelope naming each unsatisfied requirement and its current
+status. A requires cycle or a missing reference is a hard startup error.
+
+### Validation (FLW-004)
+
+Layer order is preserved: YAML parse → JSON Schema (`schema.yaml`) → named structural checks
+(`structural-checks.yaml`) → semantic advisory checklist (`semantic-checks.yaml`) → review
+gate. One `validateArtifact(stageId, artifact, changeRoot)` serves authoring `--finalize`,
+the review stages, and `bin/lint-artifact.ts`, so internal finalization and external review
+produce identical findings.
+
+### The capped check catalog (DEC-003, DEC-004)
+
+Structural validation runs through a fixed catalog of eleven named generic checks in
+`src/scripts/lib/checks/`:
+
+`unique-ids`, `ref-exists`, `referenced-by`, `duplicate-refs`, `given-when-then`,
+`forbidden-words`, `sentence-count`, `required-note-for-status`, `all-tasks-terminal`,
+`dependency-acyclic`, `dependency-order`.
+
+Stages declare checks with parameters in their `structural-checks.yaml`. Adding or changing a
+check is a design-review event — this catalog is the single extension path for structural
+validation logic.
+
+---
+
+## 6. Where to Find Details
 
 Do not memorize file paths or internal APIs. Discover them:
 
 | Need | Where to look |
 |---|---|
-| Artifact shapes (structure) | `src/schemas/*.schema.yaml` |
-| Cross-file + lint checks | `src/scripts/lib/validators.ts`, `src/scripts/lib/lint-checks.ts` |
-| Pipeline topology & review targets | `src/policies/pipeline.yaml` |
-| Stage config loader | `src/scripts/lib/pipeline.ts` |
-| Error codes & messages | `src/policies/errors.yaml` |
-| ID conventions & patterns | `src/policies/ids.yaml` |
-| Discovery policy | `src/policies/requirements-policy.yaml` |
-| Semantic (advisory) checks | `src/policies/semantic-checks.yaml` |
-| Skill generation source | `src/scripts/workflows/skill-manifest.ts` (single `skillManifest` + shared `stepDefinitions`) |
+| Stage descriptors & topology (requires/reviews) | `src/stages/<stage-id>/stage.yaml` |
+| Per-stage structural checks | `src/stages/<stage-id>/structural-checks.yaml` |
+| Per-stage semantic checks | `src/stages/<stage-id>/semantic-checks.yaml` |
+| Per-stage schemas | `src/stages/<stage-id>/schema.yaml` |
+| Per-stage templates | `src/stages/<stage-id>/template.yaml` |
+| Per-stage step definitions | `src/stages/<stage-id>/steps.yaml` |
+| Stage meta-schema | `src/schemas/stage.schema.yaml` |
+| Stage registry (discovery) | `src/scripts/lib/stage-registry.ts` |
+| Requires graph & acceptance gate | `src/scripts/lib/requires-graph.ts` |
+| Generic check library (capped catalog) | `src/scripts/lib/checks/index.ts` |
+| Unified validation orchestrator | `src/scripts/lib/validate.ts` |
+| Kind interpreters | `src/scripts/lib/kinds/` |
+| Steps loader & predicates | `src/scripts/lib/steps-loader.ts` |
+| Error codes & messages | `src/policies/errors.yaml` (the only central policy) |
+| Skill generation source | `src/scripts/workflows/skill-manifest.ts` (single `skillManifest`; step definitions load from stage folders) |
 | Deployment logic | `bin/deploy-to-agent.ts` |
 
 When in doubt, run `npm run validate` and read the failing output.
 
 ---
 
-## 6. Validation Layers (Order of Execution)
+## 7. Validation Layers (Order of Execution)
 
 ```
-YAML parse → JSON Schema (shape) → Cross-file + lint checks (traceability/wording) → Semantic (advisory, LLM) → Review gate → Knowledge extraction
+YAML parse → JSON Schema (stage schema.yaml) → Named structural checks (structural-checks.yaml)
+→ Semantic advisory (semantic-checks.yaml) → Review gate
 ```
 
-Schemas validate structure. Cross-file + lint checks validate meaning, traceability, and wording. Both must pass.
+Schemas validate structure. Named checks validate meaning, traceability, and wording. Both
+must pass.
 
 ---
 
-## 7. Quick Reference Commands
+## 8. Quick Reference Commands
 
 ```bash
 npm run validate          # schemas + policies + templates + typecheck + tests
@@ -101,26 +191,33 @@ npm run test:e2e          # end-to-end tests only
 npm run deploy:smoke      # bundled deploy + CLI smoke test
 ```
 
+The `validate:schemas`, `validate:policies`, and `validate:templates` script entry points are
+unchanged because the bins keep their paths; `bin/validate-policies.ts` validates
+`errors.yaml` and the stage folders (descriptors, structural-checks declarations, steps.yaml,
+schema.yaml), and `bin/validate-templates.ts` validates the stage-folder templates and
+`docs-current-index.md`.
+
 ---
 
-## 8. When Changing Specific Areas
+## 9. When Changing Specific Areas
 
 | Area changed | Extra action |
 |---|---|
-| Schemas (`src/schemas/`) | `npm run validate:schemas` |
-| Policies (`src/policies/`) | `npm run validate:policies` |
-| Templates (`src/templates/`) | `npm run validate:templates` |
+| Stage folders (`src/stages/`) | `npm run validate:policies` (descriptors, checks, steps) + `npm run validate:templates` |
+| Stage meta-schema (`src/schemas/stage.schema.yaml`) | `npm run validate:schemas` |
+| Check catalog (`src/scripts/lib/checks/`) | Update `src/policies/errors.yaml` if new error codes are added and add a unit test; adding a check is a design-review event |
 | Cross-file / lint checks | `npm run test:unit` + lint a real artifact with `bin/lint-artifact.ts` |
 | Workflows / CLI behavior | Run the affected workflow with `--help` and a test change dir |
 | Skills / deployment | `npm run deploy:smoke` and verify generated skills |
 
-If a new check type, error code, or ID prefix is added, update the corresponding catalog in `src/policies/` and add a test.
+If a new check type, error code, or ID prefix is added, update the corresponding catalog in
+`src/policies/` (or the stage folder) and add a test.
 
 ---
 
-## 9. Repository Utilities
+## 10. Repository Utilities
 
 | Utility | Purpose |
 |---|---|
 | `generate_context.js` | Compiles repo source into `llm_context.txt` (gitignored) for use as LLM context. Uses `.contextignore` or falls back to `.gitignore`. |
-| `.opencode/` | Deployed agent runtime — created by `npm run deploy:smoke` / `bin/deploy-to-agent.ts --dest .opencode`. Gitignored (see `.gitignore`, `.contextignore`). Contains exactly one self-contained skill at `.opencode/skills/agentic-sdlc/` (SKILL.md + bundled `scripts/sdlc.js` + `templates/`/`schemas/`/`policies/`). **This is a build artifact, not source** — never edit it directly, never read it to understand "how the toolkit works," and never confuse it with this repository's own development code under `src/`, `bin/`, `test/`. |
+| `.opencode/` | Deployed agent runtime — created by `npm run deploy:smoke` / `bin/deploy-to-agent.ts --dest .opencode`. Gitignored (see `.gitignore`, `.contextignore`). Contains exactly one self-contained skill at `.opencode/skills/agentic-sdlc/` (SKILL.md + bundled `scripts/sdlc.js` + `stages/` + `templates/`/`schemas/`/`policies/`). **This is a build artifact, not source** — never edit it directly, never read it to understand "how the toolkit works," and never confuse it with this repository's own development code under `src/`, `bin/`, `test/`. |

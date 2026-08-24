@@ -1,0 +1,16 @@
+version: 1
+id: requirements
+kind: authoring
+title: Requirements
+artifact: requirements.yaml
+status_field: status
+requires: []
+next_ids:
+  FR: functional_requirements
+  NFR: non_functional_requirements
+  AC: acceptance_criteria
+  DL: discovery_log
+produces_delta: true
+delta_phase: Requirements
+title_prefix: ""
+title_default: Untitled requirement

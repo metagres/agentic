@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { getStageDescriptions } from '../../src/scripts/lib/stage-registry.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(__dirname, '../..');
 const cli = path.resolve(__dirname, '../../src/scripts/sdlc.ts');
 
 function runCli(args) {
@@ -13,7 +15,9 @@ function runCli(args) {
   });
 }
 
-test('--list-workflows lists all workflows', () => {
+const CROSS_CUTTING_IDS = ['status', 'feedback', 'doctor', 'docs-init'];
+
+test('--list-workflows lists discovered stages plus cross-cutting commands', () => {
   const res = runCli(['--list-workflows']);
 
   assert.equal(res.status, 0, res.stderr);
@@ -25,12 +29,21 @@ test('--list-workflows lists all workflows', () => {
 
   const ids = json.data.workflows.map((w) => w.id);
 
-  assert.ok(ids.includes('requirements'));
-  assert.ok(ids.includes('design'));
-  assert.ok(ids.includes('planning'));
-  assert.ok(ids.includes('implementation'));
-  assert.ok(ids.includes('review'));
-  assert.ok(ids.includes('knowledge-extraction'));
+  // Every stage discovered by the registry appears without any TypeScript
+  // change; the expectation derives from the registry itself.
+  const discovered = getStageDescriptions(root).map((s) => s.id);
+  for (const id of discovered) {
+    assert.ok(ids.includes(id), `expected discovered stage '${id}' in ${ids.join(', ')}`);
+  }
+  assert.equal(discovered.length, 9);
+
+  // Cross-cutting commands are listed alongside the stages.
+  for (const id of CROSS_CUTTING_IDS) {
+    assert.ok(ids.includes(id), `expected cross-cutting command '${id}' in ${ids.join(', ')}`);
+  }
+
+  // The dedicated review command is gone; review stages are stage commands.
+  assert.ok(!ids.includes('review'));
 });
 
 test('unknown command returns blocked state', () => {

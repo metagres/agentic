@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Stage Descriptor (stage.yaml)",
+  "description": "Engine-owned meta-schema for per-stage stage.yaml descriptors. Validates identity, kind, artifact, topology (requires/reviews), and id bookkeeping fields. Lives with the engine because it validates the stage folders themselves.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "id",
+    "kind",
+    "title",
+    "artifact",
+    "status_field"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "authoring",
+        "review",
+        "tasks",
+        "aggregator"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "artifact": {
+      "type": "string",
+      "pattern": "\\.yaml$"
+    },
+    "status_field": {
+      "type": "string"
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "reviews": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "review_file": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "next_ids": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "produces_delta": {
+      "type": "boolean"
+    },
+    "delta_phase": {
+      "type": "string"
+    },
+    "title_prefix": {
+      "type": "string"
+    },
+    "title_default": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "review"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "reviews",
+          "review_file"
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+version: 1
+checks:
+  - check: required-note-for-status
+    params:
+      array: tasks
+      statuses:
+        - done
+        - blocked
+        - skipped
+  - check: all-tasks-terminal
+    params:
+      array: tasks
+      allowed_statuses:
+        - done
+        - skipped

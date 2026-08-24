@@ -1,62 +1,112 @@
+import { evaluatePredicate, loadStepDefinitions } from './steps-loader.ts';
+import type { CompleteWhenPredicate } from './steps-loader.ts';
 import { deltaComplete } from './stage-helpers.ts';
-import type { WarningItem } from './types.ts';
+import type { StageRecord } from './stage-registry.ts';
+import type { WarningItem, Finding } from './types.ts';
 
-export interface AuthoringStageConfig {
-  id: string;
-  artifactFile: string;
-  deltaPhase: string;
-  // Predicate: is the artifact's init step complete?
-  initComplete: (artifact: Record<string, unknown>) => boolean;
-  // Predicate: is the draft complete?
-  draftComplete: (artifact: Record<string, unknown>) => boolean;
-  // Optional: extra steps between init and drafting (requirements: discovery, assumptions)
-  // Returns a step id if an extra step is needed, or null to continue.
-  extraStep?: (env: Record<string, unknown>) => string | null;
-  // Optional: stage-specific getData fields
-  getExtraData?: (env: Record<string, unknown>) => Record<string, unknown>;
-  // Optional: precondition warnings
-  preconditionWarnings?: (env: Record<string, unknown>) => WarningItem[];
+// Canonical authoring step ids; any other step declared in steps.yaml is an
+// extra step driven by its complete_when predicate or the stage hooks module.
+export const CANONICAL_STEPS = new Set([
+  'needs_input',
+  'init',
+  'drafting',
+  'validation',
+  'delta',
+  'ready',
+  'complete',
+  'recovery',
+]);
+
+export interface AuthorEnv {
+  [key: string]: unknown;
+  args: Record<string, unknown>;
+  cwd: string;
+  changeRoot: string | null;
+  artifactPath: string | null;
+  artifact: Record<string, unknown> | null;
+  stage: StageRecord;
+  warnings: WarningItem[];
+  hooks: Record<string, unknown> | null;
+  readYaml: (file: string) => unknown;
+  findings?: Finding[];
+  blocking?: Finding[];
+  semantic?: { complete: boolean; missing: string[]; failed: string[]; results: unknown[] };
 }
 
-export function detectStep(env: Record<string, unknown>, config: AuthoringStageConfig): string {
+export function stepPredicate(
+  env: AuthorEnv,
+  stepId: string
+): CompleteWhenPredicate | undefined {
+  const steps = loadStepDefinitions(env.stage);
+  return steps[stepId]?.complete_when;
+}
+
+/**
+ * Generic authoring step machine (FLW-002): needs_input, init, recovery,
+ * stage-declared extra steps, drafting, validation, delta, ready, complete.
+ * Artifact-driven steps (init, drafting, delta, extra steps) are evaluated
+ * through declarative complete_when predicates from steps.yaml (DM-003); the
+ * interaction steps (validation, recovery, ready, complete) are evaluated from
+ * runtime validation state and artifact status exactly as before.
+ */
+export function detectStep(env: AuthorEnv): string {
   if (!env.changeRoot) return 'needs_input';
-  const artifact = env.artifact as Record<string, unknown> | null;
+  const artifact = env.artifact;
   if (!artifact) return 'init';
   const metadata = (artifact.metadata as Record<string, unknown>) || {};
   if (metadata?.status === 'rejected') return 'recovery';
-  if (!config.initComplete(artifact)) return 'init';
-  if (config.extraStep) {
-    const extra = config.extraStep(env);
+
+  if (!evaluatePredicate(stepPredicate(env, 'init'), artifact)) return 'init';
+
+  // Extra steps come first from the stage hooks module (requirements discovery
+  // gate / assumptions), then from declarative extra steps in steps.yaml.
+  const hooks = env.hooks as Record<string, unknown> | null;
+  if (hooks && typeof hooks.extraStep === 'function') {
+    const extra = (hooks.extraStep as (e: AuthorEnv) => string | null)(env);
     if (extra) return extra;
   }
-  if (!config.draftComplete(artifact)) return 'drafting';
+
+  const steps = loadStepDefinitions(env.stage);
+  for (const stepId of Object.keys(steps)) {
+    if (CANONICAL_STEPS.has(stepId)) continue;
+    if (!evaluatePredicate(steps[stepId]?.complete_when, artifact)) return stepId;
+  }
+
+  if (!evaluatePredicate(stepPredicate(env, 'drafting'), artifact)) return 'drafting';
+
   const blockingCount = (env.blocking as unknown[])?.length || 0;
-  const semantic = env.semantic as Record<string, unknown> | undefined;
-  const semanticComplete = (semantic?.complete as boolean) ?? false;
+  const semantic = env.semantic as { complete?: boolean } | undefined;
+  const semanticComplete = Boolean(semantic?.complete);
   if (blockingCount > 0 || !semanticComplete) return 'validation';
-  if (!deltaComplete(artifact)) return 'delta';
-  if (metadata?.status === 'ready-for-review' || metadata?.status === 'accepted') return 'complete';
+
+  if (!evaluatePredicate(stepPredicate(env, 'delta'), artifact)) return 'delta';
+  if (metadata?.status === 'ready-for-review' || metadata?.status === 'accepted') {
+    return 'complete';
+  }
   return 'ready';
 }
 
-export function isReadyForReview(env: Record<string, unknown>, config: AuthoringStageConfig): { ready: boolean; reasons: string[] } {
-  const artifact = env.artifact as Record<string, unknown>;
+export function isReadyForReview(env: AuthorEnv): { ready: boolean; reasons: string[] } {
+  const artifact = env.artifact;
   const reasons: string[] = [];
-  if (!config.initComplete(artifact)) {
-    reasons.push(`${config.id} init is not complete`);
+  if (!artifact) {
+    reasons.push('artifact is missing');
+    return { ready: false, reasons };
   }
-  if (!config.draftComplete(artifact)) {
-    reasons.push(`${config.id} draft is not complete`);
+
+  if (!evaluatePredicate(stepPredicate(env, 'init'), artifact)) {
+    reasons.push('init is not complete');
+  }
+  if (!evaluatePredicate(stepPredicate(env, 'drafting'), artifact)) {
+    reasons.push('draft is not complete');
   }
   const blockingCount = (env.blocking as unknown[])?.length || 0;
   if (blockingCount > 0) {
     reasons.push(`${blockingCount} blocking mechanical finding(s)`);
   }
-  const semantic = env.semantic as Record<string, unknown> | undefined;
+  const semantic = env.semantic as { complete?: boolean } | undefined;
   if (!semantic?.complete) {
-    const missing = ((semantic?.missing as string[]) || []).join(', ');
-    const failed = ((semantic?.failed as string[]) || []).join(', ');
-    reasons.push(`semantic validation incomplete (missing: ${missing || 'none'}, failed: ${failed || 'none'})`);
+    reasons.push('semantic validation incomplete');
   }
   if (!deltaComplete(artifact)) {
     reasons.push('delta is not complete');
@@ -64,17 +114,20 @@ export function isReadyForReview(env: Record<string, unknown>, config: Authoring
   return { ready: reasons.length === 0, reasons };
 }
 
-export function getData(env: Record<string, unknown>, config: AuthoringStageConfig): Record<string, unknown> {
+export function getData(env: AuthorEnv): Record<string, unknown> {
   const artifact = (env.artifact || {}) as Record<string, unknown>;
-  const semantic = env.semantic as Record<string, unknown> | undefined;
+  const semantic = env.semantic as { complete?: boolean } | undefined;
   const data: Record<string, unknown> = {
-    draft_complete: config.draftComplete(artifact),
+    draft_complete: evaluatePredicate(stepPredicate(env, 'drafting'), artifact),
     mechanical_valid: ((env.blocking as unknown[])?.length || 0) === 0,
     semantic_complete: Boolean(semantic?.complete),
     delta_complete: deltaComplete(artifact),
   };
-  if (config.getExtraData) {
-    Object.assign(data, config.getExtraData(env));
+
+  const hooks = env.hooks as Record<string, unknown> | null;
+  if (hooks && typeof hooks.getExtraData === 'function') {
+    Object.assign(data, (hooks.getExtraData as (e: AuthorEnv) => Record<string, unknown>)(env));
   }
+
   return data;
 }

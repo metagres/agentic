@@ -1,29 +1,10 @@
 #!/usr/bin/env node
 import { writeJson, EXIT } from './lib/cli.ts';
 import { resolveWorkflow, listWorkflows } from './workflows/index.ts';
-import { runStatus } from './workflows/status.ts';
-// sdlc-hardening: utilities
-import { runDoctor } from './workflows/doctor.ts';
-import { runDocsInit } from './workflows/docs-init.ts';
 import { VERSION } from './lib/version.ts';
 
 const argv = process.argv.slice(2);
 const command = argv[0];
-
-const utilities = [
-  {
-    id: 'status',
-    description: 'Show pipeline state for a change directory.',
-  },
-  {
-    id: 'doctor',
-    description: 'Check contracts, schemas, policies, templates, and docs index.',
-  },
-  {
-    id: 'docs-init',
-    description: 'Bootstrap docs/current/index.md for a target project.',
-  },
-];
 
 if (!command || command === '--help' || command === '-h') {
   writeJson(
@@ -32,13 +13,12 @@ if (!command || command === '--help' || command === '-h') {
       step: 'help',
       state: 'ok',
       instructions:
-        'Usage: sdlc <workflow|status> [flags]. ' +
+        'Usage: sdlc <stage|command> [flags]. ' +
         'Use --list-workflows to see workflows. ' +
         'Use status --dir <change-dir> for pipeline state.',
       data: {
         version: VERSION,
         workflows: listWorkflows(),
-        utilities,
       },
       errors: [],
       warnings: [],
@@ -74,25 +54,12 @@ if (command === '--list-workflows') {
       data: {
         version: VERSION,
         workflows: listWorkflows(),
-        utilities,
       },
       errors: [],
       warnings: [],
     },
     EXIT.ok
   );
-}
-
-if (command === 'status') {
-  runStatus(argv.slice(1));
-}
-
-if (command === 'doctor') {
-  runDoctor(argv.slice(1));
-}
-
-if (command === 'docs-init') {
-  runDocsInit(argv.slice(1));
 }
 
 const workflow = resolveWorkflow(command);
@@ -108,7 +75,6 @@ if (!workflow) {
       data: {
         version: VERSION,
         workflows: listWorkflows(),
-        utilities,
       },
       errors: [
         {
@@ -121,5 +87,5 @@ if (!workflow) {
     EXIT.usage
   );
 } else {
-  workflow.run(argv.slice(1));
+  await workflow.run(argv.slice(1));
 }

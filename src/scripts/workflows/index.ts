@@ -1,50 +1,40 @@
-import { runAuthoringStage } from '../lib/runner.ts';
-import { runReview } from './review.ts';
-import { runImplementation } from './implementation.ts';
-import { runKnowledgeExtraction } from './knowledge-extraction.ts';
+import path from 'node:path';
+
+import { getStageById, getStageDescriptions } from '../lib/stage-registry.ts';
+import { runStage } from '../lib/kinds/index.ts';
+import { runStatus } from './status.ts';
 import { runFeedback } from './feedback.ts';
+import { runDoctor } from './doctor.ts';
+import { runDocsInit } from './docs-init.ts';
+import { parseArgs } from '../lib/cli.ts';
 
 interface WorkflowEntry {
   id: string;
   description: string;
-  run: (argv: string[]) => void;
+  run: (argv: string[]) => void | Promise<void>;
 }
 
-export const workflows: Record<string, WorkflowEntry> = {
-  requirements: {
-    id: 'requirements',
-    description: 'Creates and finalizes requirements.yaml through discovery, assumptions, validation, and delta.',
-    run(argv: string[]) { runAuthoringStage('requirements', argv); },
-  },
-  design: {
-    id: 'design',
-    description: 'Creates and finalizes design.yaml from requirements.yaml.',
-    run(argv: string[]) { runAuthoringStage('design', argv); },
-  },
-  planning: {
-    id: 'planning',
-    description: 'Creates and finalizes plan.yaml from design.yaml and requirements.yaml.',
-    run(argv: string[]) { runAuthoringStage('planning', argv); },
-  },
-  implementation: {
-    id: 'implementation',
-    description: 'Updates task execution state in plan.yaml.',
-    run(argv: string[]) { runImplementation(argv); },
-  },
-  review: {
-    id: 'review',
-    description: 'Reviews requirements.yaml, design.yaml, plan.yaml, or implementation state.',
-    run(argv: string[]) { runReview(argv); },
+// Cross-cutting commands operate on the stage registry and are not stages.
+const CROSS_CUTTING: Record<string, WorkflowEntry> = {
+  status: {
+    id: 'status',
+    description: 'Show pipeline state for a change directory.',
+    run(argv: string[]) { runStatus(argv); },
   },
   feedback: {
     id: 'feedback',
     description: 'Pauses current stage and reverts a previous stage to draft for corrections.',
     run(argv: string[]) { runFeedback(argv); },
   },
-  'knowledge-extraction': {
-    id: 'knowledge-extraction',
-    description: 'Synchronizes docs/current from approved changes using docs-delta.yaml.',
-    run(argv: string[]) { runKnowledgeExtraction(argv); },
+  doctor: {
+    id: 'doctor',
+    description: 'Check contracts, schemas, policies, templates, stages, and docs index.',
+    run(argv: string[]) { runDoctor(argv); },
+  },
+  'docs-init': {
+    id: 'docs-init',
+    description: 'Bootstrap docs/current/index.md for a target project.',
+    run(argv: string[]) { runDocsInit(argv); },
   },
 };
 
@@ -53,15 +43,38 @@ export const aliases: Record<string, string> = {
   knowledge: 'knowledge-extraction',
 };
 
+/**
+ * Registry-driven resolution (CMP-006): a command that matches a discovered
+ * stage dispatches to its kind interpreter; cross-cutting commands dispatch
+ * separately. The dedicated review command is removed; review stages are
+ * invoked as stage commands (sdlc requirements-review --dir <change-dir>).
+ */
 export function resolveWorkflow(command: string | undefined): WorkflowEntry | null {
   if (!command) return null;
   const id = aliases[command] || command;
-  return workflows[id] || null;
+
+  if (CROSS_CUTTING[id]) return CROSS_CUTTING[id];
+
+  const stage = getStageById(process.cwd(), id);
+  if (!stage) return null;
+
+  return {
+    id: stage.id,
+    description: stage.title,
+    run(argv: string[]) {
+      const cwd = parseArgs(argv).cwd
+        ? path.resolve(String(parseArgs(argv).cwd))
+        : process.cwd();
+      return runStage(stage, argv, cwd);
+    },
+  };
 }
 
 export function listWorkflows(): { id: string; description: string }[] {
-  return Object.values(workflows).map((workflow) => ({
+  const stages = getStageDescriptions(process.cwd());
+  const crossCutting = Object.values(CROSS_CUTTING).map((workflow) => ({
     id: workflow.id,
     description: workflow.description,
   }));
+  return [...stages, ...crossCutting];
 }

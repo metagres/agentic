@@ -1,0 +1,38 @@
+version: 1
+steps:
+  needs_input:
+    title: Needs input
+    next_action: provide_change_dir
+    markdown: |
+      Ask the user which change directory to review and which decision to apply.
+
+      The review gate requires the plan artifact to be ready-for-review or accepted.
+    commands:
+      - "{{SDLC}} planning-review --dir <change-dir> [--accept|--reject]"
+
+  review:
+    title: Review
+    next_action: evaluate_findings
+    markdown: |
+      Run the planning review against the tracked artifact.
+
+      Report schema and structural findings plus the planning semantic checklist.
+      Accept only when the artifact is ready-for-review and has no blocking findings.
+    commands:
+      - "{{SDLC}} planning-review --dir {{change_dir}}"
+
+  accept:
+    title: Accept
+    next_action: set_accepted
+    markdown: |
+      Accept the plan artifact after all blocking findings are resolved.
+    commands:
+      - "{{SDLC}} planning-review --dir {{change_dir}} --accept"
+
+  reject:
+    title: Reject
+    next_action: set_rejected
+    markdown: |
+      Reject the plan artifact to send it back for corrections.
+    commands:
+      - "{{SDLC}} planning-review --dir {{change_dir}} --reject"

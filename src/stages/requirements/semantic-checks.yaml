@@ -1,0 +1,12 @@
+version: 1
+checks:
+  - "Does every Then-clause in acceptance_criteria describe an observable external result (HTTP response, persisted file, log line), not an internal function call?"
+  - "Does each AC assert system behavior under test, not the existence of tests or a process step?"
+  - "Does at least one acceptance criterion cover a boundary or negative case?"
+  - "Does each FR whose behavior could fail or be misused have at least one AC covering a negative path?"
+  - "Is no critical assumption left unverified unless explicitly accepted as a residual risk?"
+  - "Does each verified assumption source reference a plausible repo path or evidence location?"
+  - "Does each risk have a corresponding failure_paths entry, and each unverified assumption a corresponding risk entry?"
+  - "Do any functional requirements contradict the out_of_scope list, another FR, or an NFR?"
+  - "Does the problem statement describe the problem, not a solution?"
+  - "Do delta entries plausibly describe the living docs affected by the requirements?"

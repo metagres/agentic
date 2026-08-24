@@ -1,0 +1,22 @@
+version: 1
+checks:
+  - check: sentence-count
+    params:
+      field: context_summary
+      min: 1
+      max: 12
+  - check: ref-exists
+    params:
+      from:
+        array: traceability
+        field: requirement_id
+      to:
+        file: requirements.yaml
+        arrays:
+          - functional_requirements
+          - non_functional_requirements
+        field: id
+  - check: duplicate-refs
+    params:
+      array: traceability
+      list_field: component_ids

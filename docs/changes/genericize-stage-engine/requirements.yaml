@@ -1,0 +1,328 @@
+metadata:
+  id: REQ-001
+  title: Genericize the SDLC stage engine (config-driven stages, review-as-stage)
+  stage: requirements
+  step: complete
+  status: accepted
+  version: 0.2.0
+  created: 2026-08-23
+  updated: 2026-08-24
+  request_summary: Make the script used by the skill generic so that introducing a new stage on the
+    SDLC requires mainly YAML configuration and as few script changes as possible. Review stages are
+    treated as normal stages. Each stage keeps all of its configuration files together in one
+    folder, including semantic checks and structural checks. Structural checks run through a generic
+    parameterized check library, identically for internal finalize and external review. Cross
+    artifact version matching is dropped. Central registries (pipeline.yaml, ids.yaml) are replaced
+    by directory-based stage discovery and a requires-based DAG.
+  clarity: clear
+  assumptions_reviewed: true
+  delta_reviewed: true
+problem_statement: Adding a new stage to the SDLC pipeline currently requires coordinated TypeScript
+  changes across roughly twelve touch-points, including the workflow registry, the skill manifest,
+  the authoring runner, per-stage workflow modules, validators, lint checks, and the status command.
+  The declared topology in pipeline.yaml is ignored by most of the runtime, which re-implements
+  stage knowledge in code. This makes stage extension error-prone and blocks the toolkit's own
+  evolution. The stage engine must become configuration-driven so that introducing a new stage
+  consists mainly of adding YAML configuration files.
+discovery_log:
+  - id: DL-001
+    question: Should stage configuration stay centralized (extending pipeline.yaml) or be split into
+      per-stage folders?
+    answer: Per-stage folders. All of a stage's configuration files (descriptor, schema, template,
+      steps, semantic checks, stage-specific policy) stay together in one folder per stage.
+    lens: design
+    resolved: true
+  - id: DL-002
+    question: Should stage behavior be expressed through a declarative predicate DSL or through generic
+      scripts?
+    answer: Generic parameterized checks are the only validation mechanism. A shared library of named
+      generic checks specializes per stage via parameters in the stage's structural-checks.yaml.
+      Stage-specific validation scripts are not used. New check types join the shared library
+      through a design review.
+    lens: design
+    resolved: true
+  - id: DL-003
+    question: Should review gates be modeled as normal stages instead of a special review command?
+    answer: Yes. Review stages are first-class stages with their own configuration folders and a -review
+      suffix naming convention (for example requirements-review).
+    lens: scope
+    resolved: true
+  - id: DL-004
+    question: Is backward compatibility with the current pipeline.yaml layout required?
+    answer: No. We are free to redesign the solution, including the AGENTS.md rules file.
+    lens: constraint
+    resolved: true
+  - id: DL-005
+    question: Where do the semantic checks for each authoring phase live?
+    answer: They are extracted from the central semantic-checks.yaml into each stage's own folder, so a
+      stage's configuration files stay all together. Structural checks follow the same rule in a
+      separate structural-checks.yaml file per stage.
+    lens: scope
+    resolved: true
+  - id: DL-006
+    question: Must artifacts be structurally checked both by the review stage and internally by the
+      authoring stage?
+    answer: Yes. Structural validation runs as part of the review and as an internal check from the
+      authoring stage, through one unified validation path so both produce identical findings.
+    lens: behavior
+    resolved: true
+  - id: DL-014
+    question: How is the requires gate satisfied - by a predecessor stage having run, or by its artifact
+      being accepted?
+    answer: By artifact acceptance. A stage is runnable only when every required stage's tracked
+      artifact has status accepted. A review stage is runnable when its reviewed artifact is
+      ready-for-review or accepted, because it is the mechanism that produces acceptance.
+    lens: behavior
+    resolved: true
+  - id: DL-007
+    question: Is matching the version of one artifact against the version of another artifact needed?
+    answer: No. Artifacts belong to the same change, so cross-artifact version equality checks are
+      dropped entirely.
+    lens: constraint
+    resolved: true
+  - id: DL-008
+    question: Do we need an explicit order field as a tiebreaker between stages?
+    answer: No arbitrary order is needed. The requires graph alone determines the pipeline order.
+    lens: scope
+    resolved: true
+  - id: DL-009
+    question: How are stage-specific structural checks expressed?
+    answer: Exclusively as named generic checks parameterized in the stage's structural-checks.yaml.
+      Logic that no existing generic check can express becomes a new named check in the shared
+      library, added through a design review.
+    lens: design
+    resolved: true
+  - id: DL-010
+    question: What happens to the central registries (pipeline.yaml, ids.yaml)?
+    answer: They are removed. Directory-based stage discovery plus the requires graph replaces them. The
+      error catalog stays central because it is cross-cutting.
+    lens: scope
+    resolved: true
+  - id: DL-011
+    question: What happens when a stage folder is malformed (missing stage.yaml, unknown kind, invalid YAML)?
+    answer: Hard error at startup. The CLI refuses to start and names the offending folder.
+    lens: failure
+    resolved: true
+  - id: DL-012
+    question: What shape must the requires graph have?
+    answer: A directed acyclic graph. Any topological order is acceptable; no explicit sequence field
+      exists.
+    lens: failure
+    resolved: true
+  - id: DL-013
+    question: How do we handle existing artifacts created by the current layout in other projects?
+    answer: Breaking change with no migration. The deployed skill is versioned per build and consumers
+      upgrade deliberately.
+    lens: constraint
+    resolved: true
+assumptions:
+  - type: verified
+    text: This repository has no in-flight change directories (docs/changes did not exist before this
+      change), so no self-migration is needed.
+    source: glob docs/** returned no files
+  - type: verified
+    text: The deployed skill bundle is regenerated per build by bin/deploy-to-agent.ts, so downstream
+      consumers pick up the new layout on redeploy.
+    source: bin/deploy-to-agent.ts
+  - type: unverified
+    text: No downstream project reads pipeline.yaml or ids.yaml directly at runtime.
+    risk: If downstream projects reference these files, they break on upgrade; the breaking-change
+      decision (DL-013) already accepts this.
+    severity: medium
+  - type: unverified
+    text: The build can carry the stage folders into the deployed bundle as static assets without new
+      runtime dependencies.
+    risk: If bundling cannot inline them, the deploy script copies the stage folders the same way it
+      copies templates, schemas, and policies today.
+    severity: low
+functional_requirements:
+  - id: FR-001
+    description: The runtime must discover pipeline stages by scanning a stages directory for per-stage
+      folders containing a stage.yaml descriptor. No central file may enumerate stages.
+    ac_ids:
+      - AC-001
+      - AC-002
+  - id: FR-002
+    description: Each stage folder must contain all of that stage's configuration, and stage
+      configuration must not be split across central registries. The complete file set (stage.yaml
+      descriptor, structural-checks.yaml, schema.yaml, template.yaml, steps.yaml, and
+      semantic-checks.yaml) applies to authoring stages; stages of other kinds carry the subset of
+      those files that their kind interpreter reads.
+    ac_ids:
+      - AC-003
+      - AC-004
+  - id: FR-003
+    description: Review gates must be modeled as stages with kind review, named with a -review suffix,
+      each holding its own stage.yaml and steps.yaml, and participating in the requires graph like
+      any other stage.
+    ac_ids:
+      - AC-005
+      - AC-006
+  - id: FR-004
+    description: The runtime must implement a fixed set of stage kinds (authoring, review, tasks,
+      aggregator) and dispatch each discovered stage to its kind interpreter. Adding a stage of an
+      existing kind must require no TypeScript change.
+    ac_ids:
+      - AC-007
+      - AC-008
+  - id: FR-005
+    description: Structural validation must be performed by named generic checks that are parameterized
+      per stage via the stage's structural-checks.yaml file. New check types are added to the shared
+      generic check library through a design review. Stages may not ship stage-specific validation
+      scripts.
+    ac_ids:
+      - AC-009
+  - id: FR-006
+    description: Internal finalization and external review must invoke the same validation function over
+      the same artifact, producing identical findings. No stage-specific validation logic may exist
+      in the review path.
+    ac_ids:
+      - AC-011
+  - id: FR-007
+    description: Pipeline order must be derived from the requires fields of stage descriptors as a
+      directed acyclic graph with topological ordering. No explicit sequence field may exist.
+    ac_ids:
+      - AC-012
+      - AC-013
+  - id: FR-008
+    description: At startup the runtime must fail with a hard error when a stage folder is malformed, a
+      kind value is unknown, or the requires graph contains a cycle or references a missing stage.
+    ac_ids:
+      - AC-014
+      - AC-020
+  - id: FR-009
+    description: Cross-artifact version equality checks between artifacts of the same change must be
+      removed. Predecessor readiness is enforced through stage status in the requires graph instead.
+      A stage is runnable only when every required stage's tracked artifact has status accepted.
+    ac_ids:
+      - AC-015
+non_functional_requirements:
+  - id: NFR-001
+    description: Adding a new stage of an existing kind must require changes only within its own stage
+      folder plus test fixtures, with zero TypeScript source changes.
+    ac_ids:
+      - AC-016
+  - id: NFR-002
+    description: The deployed skill must remain a single self-contained folder with no package.json or
+      node_modules inside it, bundling every stage folder.
+    ac_ids:
+      - AC-017
+  - id: NFR-003
+    description: The CLI response envelope shape (workflow, step, state, instructions, data, errors,
+      warnings) must remain unchanged.
+    ac_ids:
+      - AC-018
+  - id: NFR-004
+    description: The validation layer order (schema, cross-file and lint checks, semantic advisory
+      checks, review gate) must be preserved.
+    ac_ids:
+      - AC-019
+acceptance_criteria:
+  - id: AC-001
+    statement: Given a stages directory containing a folder with a valid stage.yaml, when the CLI lists
+      workflows, then the stage appears in the list without any TypeScript change.
+    parent_id: FR-001
+  - id: AC-002
+    statement: Given a stages directory where a folder lacks stage.yaml, when the CLI starts, then
+      startup fails with an error naming the offending folder.
+    parent_id: FR-001
+  - id: AC-003
+    statement: Given a new authoring stage folder containing stage.yaml, structural-checks.yaml,
+      schema.yaml, template.yaml, steps.yaml, and semantic-checks.yaml, when validation runs, then
+      it passes without edits to files outside that folder.
+    parent_id: FR-002
+  - id: AC-004
+    statement: Given the redesigned layout, when a contributor looks for any stage's semantic checks,
+      then they are found in that stage's own folder rather than in a central semantic-checks file.
+    parent_id: FR-002
+  - id: AC-005
+    statement: Given the requirements stage and its review gate, when the pipeline is configured, then a
+      separate requirements-review stage folder exists with kind review and its own steps.yaml.
+    parent_id: FR-003
+  - id: AC-006
+    statement: Given a review stage, when it runs, then the findings it reports include the schema and
+      semantic findings defined by the reviewed stage's configuration, resolved through its reviews
+      reference.
+    parent_id: FR-003
+  - id: AC-007
+    statement: Given the four kinds authoring, review, tasks, and aggregator, when a stage declares one
+      of them, then running that stage produces the step sequence and CLI responses defined by that
+      kind's interpreter.
+    parent_id: FR-004
+  - id: AC-008
+    statement: Given a new stage of an existing kind, when it is added as a folder, then no file under
+      src/scripts is modified.
+    parent_id: FR-004
+  - id: AC-009
+    statement: Given a stage declaring named checks with parameters in structural-checks.yaml, when
+      validation runs, then the reported findings include one finding per failing named check,
+      evaluated against the configured artifact fields.
+    parent_id: FR-005
+  - id: AC-011
+    statement: Given an artifact, when it is finalized by the authoring stage and later reviewed by the
+      review stage, then both paths report the same set of structural findings for the same artifact
+      content.
+    parent_id: FR-006
+  - id: AC-012
+    statement: Given stage B declaring requires A, when pipeline order is computed, then B is ordered after A.
+    parent_id: FR-007
+  - id: AC-013
+    statement: Given a requires graph that is a valid directed acyclic graph, when order is computed,
+      then the result is a topological order of all discovered stages.
+    parent_id: FR-007
+  - id: AC-014
+    statement: Given a requires graph containing a cycle or a reference to a missing stage, when the CLI
+      starts, then startup fails with an error identifying the cycle or the missing stage.
+    parent_id: FR-008
+  - id: AC-015
+    statement: Given a change where design is drafted after requirements was accepted, when design
+      validation runs, then no finding compares version fields across different artifacts.
+    parent_id: FR-009
+  - id: AC-016
+    statement: Given the finished redesign, when a contributor adds a new authoring stage by creating
+      only a stage folder, then the full validate suite passes without TypeScript edits.
+    parent_id: NFR-001
+  - id: AC-017
+    statement: Given a deployment run, when the skill bundle is produced, then it contains exactly one
+      SKILL.md and bundles every stage folder with no package.json or node_modules inside.
+    parent_id: NFR-002
+  - id: AC-018
+    statement: Given any CLI command, when it responds, then the JSON envelope contains exactly the
+      frozen top-level fields workflow, step, state, instructions, data, errors, and warnings.
+    parent_id: NFR-003
+  - id: AC-019
+    statement: Given an artifact with a schema violation and a lint violation, when validation runs,
+      then schema findings and lint findings are both reported before semantic review.
+    parent_id: NFR-004
+  - id: AC-020
+    statement: Given a stage folder whose stage.yaml declares an unknown kind, when the CLI starts, then
+      startup fails with an error naming the offending folder and the unknown kind value.
+    parent_id: FR-008
+out_of_scope:
+  - Migrating existing change directories created by the current layout (breaking change accepted
+    per DL-013).
+  - Genericizing the feedback command into a stage; it remains a cross-cutting command operating on
+    the stage registry.
+  - Changes to the append-only review history storage format.
+  - Multi-pipeline support (more than one stages directory per project).
+failure_paths:
+  - "Malformed stage folder (missing stage.yaml, unknown kind, invalid YAML): the CLI refuses to
+    start and names the offending folder."
+  - "Cycle in the requires graph: the CLI refuses to start and identifies the cycle."
+  - "A stage requires a stage that does not exist: startup fails naming the missing stage."
+  - "A structural-checks.yaml entry names an unknown check or carries malformed parameters: the
+    validation run aborts with an error naming the stage folder and the check entry."
+risks_and_dependencies:
+  - risk: Downstream projects with in-flight change directories break on upgrade.
+    severity: high
+    mitigation: Accepted as a breaking change; the deployed skill is versioned per build so consumers
+      upgrade deliberately.
+  - risk: The generic check library accumulates ad-hoc parameters per stage and recreates hidden
+      coupling.
+    severity: medium
+    mitigation: Stage-specific validation scripts are prohibited. The named checks enumerated in the
+      design stage are the single extension path, and new checks require a design review.
+  - risk: Directory scanning adds startup cost as the stage count grows.
+    severity: low
+    mitigation: Cache the registry per process; realistic stage counts stay small.
+delta: []
