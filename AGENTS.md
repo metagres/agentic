@@ -2,13 +2,18 @@
 
 ## 1. The One Rule
 
-Before declaring any change complete:
+Before declaring a change that touches **code or YAML definitions** (anything under
+`src/` or `bin/`, a `*.ts`/`*.js` source file, `package.json`, `tsconfig.json`,
+`tsup.config.ts`, or any `*.yaml`) complete:
 
 ```bash
 npm run validate
 ```
 
 If it fails, the work is not done. No exceptions.
+
+Documentation-only changes (e.g. `*.md` files, codemaps, README) do **not** require
+`npm run validate`.
 
 For full confidence (includes deployment smoke test):
 
@@ -54,7 +59,7 @@ Do not conflate these.
 
 A change is complete when:
 
-- `npm run validate` passes.
+- `npm run validate` passes (required when code or YAML definitions changed; documentation-only changes are exempt — see §1).
 - No invariant from §2 is violated.
 - No new top-level CLI envelope fields were introduced.
 - No hardcoded agent-specific paths were added.
@@ -221,3 +226,16 @@ If a new check type, error code, or ID prefix is added, update the corresponding
 |---|---|
 | `generate_context.js` | Compiles repo source into `llm_context.txt` (gitignored) for use as LLM context. Uses `.contextignore` or falls back to `.gitignore`. |
 | `.opencode/` | Deployed agent runtime — created by `npm run deploy:smoke` / `bin/deploy-to-agent.ts --dest .opencode`. Gitignored (see `.gitignore`, `.contextignore`). Contains exactly one self-contained skill at `.opencode/skills/agentic-sdlc/` (SKILL.md + bundled `scripts/sdlc.js` + `stages/` + `templates/`/`schemas/`/`policies/`). **This is a build artifact, not source** — never edit it directly, never read it to understand "how the toolkit works," and never confuse it with this repository's own development code under `src/`, `bin/`, `test/`. |
+
+---
+
+## 11. Repository Map
+
+A full codemap is available at `codemap.md` in the project root.
+
+Before working on any task, read `codemap.md` to understand:
+- Project architecture and entry points
+- Directory responsibilities and design patterns
+- Data flow and integration points between modules
+
+For deep work on a specific folder, also read that folder's `codemap.md`.

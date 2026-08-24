@@ -1,0 +1,62 @@
+# Repository Atlas: agentic
+
+## Project Responsibility
+Development repository for the **agentic SDLC toolkit** (package
+`agentic-sdlc-toolkit`) — a CLI (`sdlc`) that drives a full software
+development lifecycle for OpenCode-compatible AI coding agents: requirements →
+design → planning → implementation, each gated by an append-only review stage,
+terminating in knowledge extraction that syncs living docs
+(`docs/current/`). The architecture is configuration-driven: stages are
+discovered as folders (no central enumeration), validated by a capped catalog
+of generic structural checks, ordered by a `requires` DAG with an acceptance
+gate, and surfaced through a frozen JSON envelope
+`{workflow, step, state, instructions, data, errors, warnings}`. The built
+output is a single self-contained skill deployed to the agent runtime
+(`.opencode/skills/agentic-sdlc/` — a build artifact, never source).
+
+## System Entry Points
+- `src/scripts/sdlc.ts` — the agent-facing CLI (npm bin `sdlc`); dispatches to
+  stage kind interpreters and cross-cutting workflows; emits the frozen
+  envelope. Bundled by tsup to `dist/sdlc.js` and deployed as
+  `scripts/sdlc.js` inside the skill.
+- `package.json` — dependency manifest (ajv, ajv-formats, ignore, yaml) and
+  the validation pipeline: `validate` (schemas + policies + templates +
+  typecheck + tests), `check:all` (validate + all test layers + deploy smoke),
+  `deploy:smoke` (deploy to `.tmp/agent` + CLI smoke test).
+- `bin/` — developer/CLI tooling: `deploy-to-agent.ts` (bundle + skill
+  assembly + smoke test), `lint-artifact.ts` (external artifact lint via the
+  same `validateArtifact` path), `validate-schemas.ts`, `validate-policies.ts`,
+  `validate-templates.ts`.
+- `tsup.config.ts` — single-entry ESM bundle of `src/scripts/sdlc.ts`
+  (node20, everything inlined via `noExternal`).
+- `generate_context.js` — compiles repo source into `llm_context.txt`
+  (gitignored) using `.contextignore` (falls back to `.gitignore`).
+- `AGENTS.md` — mandatory rules for AI coding agents: the one rule (validate
+  before declaring done), invariants, terminology, stage-folder layout, and
+  validation layers. `codemap.md` (this file) is the map of the repository.
+
+## Directory Map (Aggregated)
+| Directory | Responsibility Summary | Detailed Map |
+|---|---|---|
+| `bin/` | Standalone CLI entry points for validation and deployment, each wrapped by an npm script; assembles the self-contained skill bundle. | [View Map](bin/codemap.md) |
+| `src/` | Source tree: engine code, stage configuration, and the YAML asset layer (schemas/policies/templates) the engine loads and enforces. | [View Map](src/codemap.md) |
+| `src/scripts/` | The sdlc CLI runtime: command dispatch, workflow resolution, frozen envelope emission. | [View Map](src/scripts/codemap.md) |
+| `src/scripts/lib/` | Engine core: stage-folder discovery, requires-DAG + acceptance gate, unified validation orchestrator, declarative step machine, shared plumbing. | [View Map](src/scripts/lib/codemap.md) |
+| `src/scripts/lib/checks/` | The capped catalog of eleven named generic structural checks — the single extension path for structural validation logic. | [View Map](src/scripts/lib/checks/codemap.md) |
+| `src/scripts/lib/kinds/` | The four kind interpreters (authoring flag loop, review append-only rounds, tasks state machine over plan.yaml, aggregator delta collection). | [View Map](src/scripts/lib/kinds/codemap.md) |
+| `src/scripts/workflows/` | Cross-cutting commands (status, feedback, doctor, docs-init) and the single `skillManifest` for the deployed skill. | [View Map](src/scripts/workflows/codemap.md) |
+| `src/stages/` | The structural source of truth: one folder per stage (9 stages) carrying the full declarative configuration, discovered by directory scan. | [View Map](src/stages/codemap.md) |
+
+Not mapped (excluded by design): `test/` (unit + e2e suites), `docs/`
+(project documentation), `dist/` + `.opencode/` (build artifacts), `temp/`.
+
+## Pipeline Topology (from the requires DAG)
+```
+requirements → requirements-review → design → design-review →
+planning (requires requirements-review + design-review) → planning-review →
+implementation → implementation-review → knowledge-extraction
+```
+A stage is runnable only when every required stage's tracked artifact is
+`accepted`; review stages are runnable when their tracked artifact is
+`ready-for-review` or `accepted`. Order is the topological sort of this graph
+with an alphabetical tie-break — there is no sequence field.

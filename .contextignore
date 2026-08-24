@@ -11,6 +11,7 @@ __pycache__/
 venv/
 target/
 .tmp/
+docs/
 
 # Lock files (usually noise for an LLM)
 package-lock.json
@@ -60,6 +61,9 @@ logs/
 # agents
 .opencode/
 temp/
+.codegraph/
+.codemap/
+codemap.md
 
 # ignore files
 .gitignore
