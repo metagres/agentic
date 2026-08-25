@@ -1,0 +1,146 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Descriptor (agent.yaml)",
+  "description": "Engine-owned meta-schema for agent.yaml definitions. Validates identity, model, temperature, permissions, and system prompt fields. Lives with the engine because it validates the agent definitions themselves.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "id",
+    "description",
+    "model",
+    "temperature",
+    "permissions",
+    "system_prompt"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "type": "string",
+      "enum": [
+        "opencode-go/grok-4.5",
+        "opencode-go/gpt-5.6-luna",
+        "opencode-go/glm-5.3",
+        "opencode-go/glm-5.2",
+        "opencode-go/glm-5.1",
+        "opencode-go/kimi-k3",
+        "opencode-go/kimi-k2.7-code",
+        "opencode-go/kimi-k2.6",
+        "opencode-go/longcat-2.0",
+        "opencode-go/deepseek-v4-pro",
+        "opencode-go/deepseek-v4-flash",
+        "opencode-go/deepseek-v4-flash-vision-exp",
+        "opencode-go/mimo-v2.5",
+        "opencode-go/mimo-v2.5-pro",
+        "opencode-go/minimax-m3",
+        "opencode-go/minimax-m2.7",
+        "opencode-go/muse-spark-1.2-contributor",
+        "opencode-go/qwen3.8-max",
+        "opencode-go/qwen3.7-max",
+        "opencode-go/qwen3.7-plus",
+        "opencode-go/qwen3.6-plus",
+        "opencode-go/hy3",
+        "opencode-go/ox-alpha-free"
+      ]
+    },
+    "temperature": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "subagent",
+        "primary",
+        "all"
+      ]
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file_read",
+        "search",
+        "file_write",
+        "shell",
+        "subagent",
+        "web",
+        "question"
+      ],
+      "properties": {
+        "file_read": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "ask",
+            "deny"
+          ]
+        },
+        "search": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "ask",
+            "deny"
+          ]
+        },
+        "file_write": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "ask",
+            "deny"
+          ]
+        },
+        "shell": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "ask",
+            "deny"
+          ]
+        },
+        "subagent": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "ask",
+            "deny"
+          ]
+        },
+        "web": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "ask",
+            "deny"
+          ]
+        },
+        "question": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "ask",
+            "deny"
+          ]
+        }
+      }
+    },
+    "system_prompt": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

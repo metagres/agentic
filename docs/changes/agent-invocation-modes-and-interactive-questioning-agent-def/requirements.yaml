@@ -1,0 +1,211 @@
+metadata:
+  id: REQ-001
+  title: "Agent invocation modes and interactive questioning: agent definitions gain an..."
+  stage: requirements
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-25
+  updated: 2026-08-25
+  request_summary: "Agent invocation modes and interactive questioning: agent definitions gain an
+    optional mode field (subagent, primary, or all) that defaults to all, making every shipped agent
+    directly invocable by the user while staying delegable by other agents; the neutral permission
+    vocabulary gains the question tool key, granted to requirements-analyst only and explicitly
+    denied for the other five agents; deployment renders the resolved mode into the target format
+    and translates the question permission through the platform mapping."
+  clarity: clear
+  assumptions_reviewed: true
+  delta_reviewed: false
+  discovery_reviewed: true
+  scenarios_reviewed: true
+  step: complete
+problem_statement: "Stage agents are deployable only as delegated workers today: nothing lets the
+  user switch to one directly for ad-hoc questions or work outside a running lifecycle. The
+  requirements discovery conversation also depends on free-text answers even though target runtimes
+  offer structured question tools that are easier for users to answer. The agentic vocabulary has no
+  way to express either capability, so both must be added to the definition schema, the roster, and
+  the platform renderers."
+discovery_log:
+  - id: DL-001
+    question: Who benefits from direct invocation and the question tool?
+    answer: The user can switch to any stage agent directly (Tab cycle or mention) for ad-hoc work
+      without a delegating agent in the middle, while the existing delegation flow stays unchanged;
+      during requirements discovery the analyst asks structured questions through the question tool
+      so answering is easier for the user.
+    lens: stakeholder
+    resolved: true
+  - id: DL-002
+    question: How does direct invocation surface to the user?
+    answer: "Through the target runtime's native agent mode: the agnostic definition carries an optional
+      mode field (subagent, primary, or all) that the deployment renderer emits into the target
+      format (OpenCode mode frontmatter). No CLI changes; delegation data is untouched."
+    lens: interface
+    resolved: true
+  - id: DL-003
+    question: What changes in the definition schema and roster?
+    answer: The agent meta-schema gains an optional mode enum (subagent, primary, all) defaulting to all
+      when omitted, and the permissions object gains a required seventh key question (allow, ask,
+      deny). The shipped roster grants question allow only to requirements-analyst and explicit deny
+      to the other five agents.
+    lens: data
+    resolved: true
+  - id: DL-004
+    question: What are the failure modes?
+    answer: An unknown mode value or a missing question key fails agent schema validation naming the
+      file; the renderer emits whatever mode resolves after the registry applies the all default, so
+      rendering cannot fail on mode; the permission compatibility check treats question as
+      unconstrained because kind contracts do not constrain it.
+    lens: failure
+    resolved: true
+  - id: DL-005
+    question: Which constraints govern this enhancement?
+    answer: The frozen envelope, capped check catalog, and delegation surfacing are untouched; the
+      vocabulary stays target-neutral with the renderer owning the target mapping; kind contracts
+      leave question unconstrained since interactive questioning is agent-level identity rather than
+      a kind-wide requirement; defaults preserve full delegability.
+    lens: constraint
+    resolved: true
+scenarios:
+  - id: SC-001
+    statement: Given agent definition files that omit the mode field, when the registry loads them and
+      deployment renders them, then every resolved agent carries the invocation mode all and the
+      rendered target files express direct selectability together with delegability.
+    category: happy
+    status: resolved
+    outcome: ac
+    ac_id: AC-001
+  - id: SC-002
+    statement: Given the requirements-analyst definition granting question allow and the five other
+      roster definitions denying it, when deployment renders the roster, then the rendered analyst
+      file grants the target question tool while the other rendered files do not.
+    category: happy
+    status: resolved
+    outcome: ac
+    ac_id: AC-002
+  - id: SC-003
+    statement: Given an agent definition whose mode value is not one of subagent, primary, or all, when
+      npm run validate runs, then schema validation fails naming the file and the mode field.
+    category: negative
+    status: resolved
+    outcome: ac
+    ac_id: AC-003
+  - id: SC-004
+    statement: Given an agent definition whose permissions omit the question key, when npm run validate
+      runs, then schema validation fails naming the file and the missing key.
+    category: negative
+    status: resolved
+    outcome: ac
+    ac_id: AC-004
+  - id: SC-005
+    statement: Given a definition that explicitly declares mode subagent, when deployment renders it,
+      then the rendered file expresses delegation-only invocation while definitions without an
+      explicit mode remain directly selectable.
+    category: edge
+    status: resolved
+    outcome: ac
+    ac_id: AC-005
+  - id: SC-006
+    statement: Given the permission compatibility matrix over the six roster agents and nine stage
+      bindings, when validation runs after adding the question key, then every binding passes
+      because kind contracts leave question unconstrained, and the stage-to-agent mapping data is
+      unchanged.
+    category: boundary
+    status: resolved
+    outcome: ac
+    ac_id: AC-006
+assumptions:
+  - type: verified
+    text: OpenCode agent modes are primary (user-selectable in the Tab cycle), subagent (Task-tool
+      invocation), and all (both); the mode frontmatter key selects among them.
+    source: OpenCode agents documentation (opencode.ai/docs/agents), fetched 2026-08-25.
+  - type: verified
+    text: OpenCode exposes a question permission key gating its structured question tool.
+    source: OpenCode permissions documentation, fetched 2026-08-25.
+  - type: unverified
+    text: A second coding-agent target may lack a primary-mode concept; its renderer would reduce or
+      ignore the neutral mode value.
+    source: Only the OpenCode renderer exists today.
+    risk: A future renderer cannot express both invocation paths.
+    impact: The renderer reduces the neutral mode to what the target supports and records the reduction.
+    severity: low
+functional_requirements:
+  - id: FR-001
+    description: When an agent definition omits the mode field, the system shall resolve its invocation
+      mode to all, meaning the agent is directly invocable by the user and delegable by other
+      agents.
+    ac_ids:
+      - AC-001
+  - id: FR-002
+    description: When an agent definition declares a mode, the system shall accept only the values
+      subagent, primary, and all, rejecting any other value at validation time.
+    ac_ids:
+      - AC-003
+  - id: FR-003
+    description: When deployment renders an agent, the system shall emit the resolved invocation mode
+      into the target format through the platform renderer.
+    ac_ids:
+      - AC-001
+      - AC-005
+  - id: FR-004
+    description: When an agent definition declares permissions, the system shall require the seventh
+      neutral key question with an allow, ask, or deny value.
+    ac_ids:
+      - AC-004
+  - id: FR-005
+    description: When the shipped roster is validated or deployed, the system shall carry question allow
+      on requirements-analyst and question deny on the other five agents.
+    ac_ids:
+      - AC-002
+non_functional_requirements:
+  - id: NFR-001
+    description: "The delegation flow shall remain unchanged: the stage-to-agent mapping data stays as
+      shipped, and the kind permission contracts shall not constrain the question key."
+    ac_ids:
+      - AC-006
+acceptance_criteria:
+  - id: AC-001
+    statement: Given agent definition files that omit the mode field, when the registry loads them and
+      deployment renders them, then every resolved agent carries invocation mode all and the
+      rendered files express both direct selectability and delegability in the target format.
+    parent_id: FR-001
+  - id: AC-002
+    statement: Given the shipped roster, when deployment renders it, then the rendered
+      requirements-analyst file grants the target question tool with allow and each of the five
+      other rendered files denies it.
+    parent_id: FR-005
+  - id: AC-003
+    statement: Given an agent definition whose mode value is not subagent, primary, or all, when npm run
+      validate runs, then schema validation fails naming the offending file and the mode field.
+    parent_id: FR-002
+  - id: AC-004
+    statement: Given an agent definition whose permissions omit the question key, when npm run validate
+      runs, then schema validation fails naming the offending file and the missing key.
+    parent_id: FR-004
+  - id: AC-005
+    statement: Given a definition explicitly declaring mode subagent, when deployment renders it, then
+      the rendered file expresses delegation-only invocation in the target format while omitted-mode
+      definitions render directly selectable.
+    parent_id: FR-003
+  - id: AC-006
+    statement: Given the compatibility matrix over the six roster agents and nine stage bindings, when
+      validation runs after adding the question key, then every binding passes and the workflows
+      mapping data carries the same agent ids and nulls as before this change.
+    parent_id: NFR-001
+out_of_scope: []
+failure_paths: []
+risks_and_dependencies: []
+delta:
+  - phase: Requirements
+    change: Modify
+    reason: The Agent Definition entity gains the optional mode field (subagent, primary, all; default
+      all) and the permissions map gains the seventh neutral key question; requirements-analyst
+      holds question allow, the other five hold deny.
+    target_doc: docs/current/glossary.md
+    target_anchor: "Entity: Agent Definition (src/agents/<agent-id>.yaml)"
+    date: 2026-08-25
+  - phase: Requirements
+    change: Modify
+    reason: The neutral permission vocabulary grows to seven keys with question, and the convention for
+      invocation modes (default all, opt-down to subagent) is documented.
+    target_doc: docs/current/conventions.md
+    target_anchor: Patterns
+    date: 2026-08-25

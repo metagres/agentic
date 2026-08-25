@@ -136,6 +136,86 @@ test('getStageDescriptions lists discovered stages', () => {
   assert.ok(descriptions.some((d) => d.id === 'alpha'));
 });
 
+test('a descriptor with agent and permissions parses into the StageRecord', () => {
+  const tmp = makeStageFixture({
+    alpha: {
+      'stage.yaml': [
+        'version: 1',
+        'id: alpha',
+        'kind: authoring',
+        'title: Alpha',
+        'artifact: alpha.yaml',
+        'status_field: status',
+        'agent: code-reviewer',
+        'permissions:',
+        '  file_read: allow',
+        '  shell: deny',
+        '',
+      ].join('\n'),
+      'structural-checks.yaml': 'version: 1\nchecks: []\n',
+      'schema.yaml': '{ "type": "object" }\n',
+      'template.yaml': 'metadata:\n  id: ALPHA-001\n',
+      'steps.yaml': 'version: 1\nsteps: {}\n',
+      'semantic-checks.yaml': 'version: 1\nchecks: []\n',
+    },
+  });
+
+  const registry = loadStageRegistry(tmp, path.join(tmp, 'stages'));
+  const alpha = registry.find((s) => s.id === 'alpha');
+  assert.ok(alpha);
+  assert.equal(alpha.agent, 'code-reviewer');
+  assert.deepEqual(alpha.permissionOverrides, { file_read: 'allow', shell: 'deny' });
+});
+
+test('a descriptor without agent or permissions yields null and empty overrides', () => {
+  const tmp = makeStageFixture({
+    alpha: {
+      'stage.yaml': [
+        'version: 1',
+        'id: alpha',
+        'kind: authoring',
+        'title: Alpha',
+        'artifact: alpha.yaml',
+        'status_field: status',
+        '',
+      ].join('\n'),
+      'structural-checks.yaml': 'version: 1\nchecks: []\n',
+      'schema.yaml': '{ "type": "object" }\n',
+      'template.yaml': 'metadata:\n  id: ALPHA-001\n',
+      'steps.yaml': 'version: 1\nsteps: {}\n',
+      'semantic-checks.yaml': 'version: 1\nchecks: []\n',
+    },
+  });
+
+  const registry = loadStageRegistry(tmp, path.join(tmp, 'stages'));
+  const alpha = registry.find((s) => s.id === 'alpha');
+  assert.ok(alpha);
+  assert.equal(alpha.agent, null);
+  assert.deepEqual(alpha.permissionOverrides, {});
+});
+
+test('a descriptor with an unknown extra top-level key fails meta-schema validation', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-reg-'));
+  const stagesDir = path.join(tmp, 'stages');
+  fs.mkdirSync(path.join(stagesDir, 'extra-key'), { recursive: true });
+  fs.writeFileSync(
+    path.join(stagesDir, 'extra-key', 'stage.yaml'),
+    [
+      'version: 1',
+      'id: extra-key',
+      'kind: authoring',
+      'title: Extra',
+      'artifact: extra.yaml',
+      'status_field: status',
+      'bogus: true',
+      '',
+    ].join('\n'),
+    'utf8'
+  );
+
+  assert.throws(() => loadStageRegistry(tmp, path.join(tmp, 'stages')), /extra-key/);
+});
+
 test('the migrated repository stages are all discovered with the expected kinds', () => {
   const registry = loadStageRegistry(root);
   const byId = new Map(registry.map((s) => [s.id, s]));

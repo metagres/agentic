@@ -1,0 +1,676 @@
+metadata:
+  id: REQ-001
+  title: "Add agent-agnostic agent definitions deployed alongside the skills: each agen..."
+  stage: requirements
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-25
+  updated: 2026-08-25
+  request_summary: "Add agent-agnostic agent definitions deployed alongside the skills: each agent
+    defines name, description/personality, temperature, permissions, system prompt, and its own LLM
+    from the allowed opencode-go catalog. Stages optionally reference which agent runs them; absent
+    means the current agent runs the stage. Deployment renders the agnostic definitions into the
+    target agent runtime."
+  clarity: clear
+  assumptions_reviewed: true
+  delta_reviewed: false
+  discovery_reviewed: true
+  scenarios_reviewed: false
+  step: complete
+problem_statement: "The toolkit deploys skills but defines no agents: every SDLC stage runs inside
+  whatever coding agent the user happens to drive, under one generic personality, model, and
+  permission policy. Stage work that benefits from a probing analyst, a decisive architect, or an
+  adversarial reviewer all executes under the same configuration, and nothing in the toolkit records
+  which agent is supposed to run which stage. Two gaps compound this. First, the CLI's stage
+  instructions evolve, so hand-authored agent permissions can silently fall behind what a stage's
+  instructions actually require, with no mechanism detecting the mismatch. Second, agent
+  configuration authored for one coding agent would lock the toolkit to that agent, while skills
+  already follow the cross-framework skill protocol and stay portable."
+discovery_log:
+  - id: DL-001
+    question: Who consumes the agent definitions and who delegates stage work to them?
+    answer: The primary coding agent in the target runtime (OpenCode Build today) consumes the
+      stage-to-agent mapping from CLI data and delegates stages to the named subagents; other agents
+      can discover the stage agents by name and description and ask them for tasks; the deploy
+      pipeline maintainer consumes the agnostic source; humans stay the acceptance authority via the
+      review stages.
+    lens: stakeholder
+    resolved: true
+  - id: DL-002
+    question: How do the agent definitions and the stage-to-agent mapping surface at runtime?
+    answer: "CLI data only: every entry in data.workflows[] from --list-workflows and help, and every
+      per-stage entry in status output, gains an agent field holding the agent id or null when the
+      stage runs in the current agent context. The generated SKILL.md gains one pointer sentence
+      about checking data.workflows[].agent. The frozen CLI envelope shape is untouched."
+    lens: interface
+    resolved: true
+  - id: DL-003
+    question: What is the source format of an agent definition and how do stages bind to agents?
+    answer: "One YAML file per agent under src/agents/<agent-id>.yaml, coding-agent-agnostic: id,
+      description reflecting personality and discoverability, model as a fully qualified id from the
+      allowed opencode-go catalog stored verbatim, temperature, permissions over the neutral
+      vocabulary file_read, search, file_write, shell, subagent, web with allow/ask/deny values, and
+      system_prompt. The allowed-LLM catalog is an enum in the engine-owned
+      src/schemas/agent.schema.yaml. stage.yaml gains an optional agent field; absent means the
+      current agent runs the stage; a present reference that does not resolve is a hard validation
+      error."
+    lens: data
+    resolved: true
+  - id: DL-004
+    question: Which constraints govern the agent configuration feature?
+    answer: The source structure stays coding-agent-agnostic; only the deployment layer renders
+      target-specific formats (OpenCode markdown agents under the destination agents directory
+      today). System prompts must not contain instructions the CLI or skill instructions already
+      return; enforced by a mechanical marker check in validation. The roster stays minimal at 6
+      agents with one stage-reviewer shared by all four review stages. No stage agent gets direct
+      web access; research is delegated to subagents to keep stage-agent context clean. The capped
+      check catalog and the frozen envelope are untouched.
+    lens: constraint
+    resolved: true
+  - id: DL-005
+    question: What are the failure modes and required behaviors?
+    answer: An invalid agent definition (unknown model, missing fields, prompt containing CLI or skill
+      instruction markers) fails validation naming the offending file. A stage.yaml agent reference
+      that does not resolve to a defined agent fails cross-file validation. A stage without an agent
+      field is valid and runs in the current agent. Deployment smoke-verifies every rendered agent
+      (frontmatter parses, name matches, model in catalog) and --clean removes stale rendered
+      agents.
+    lens: failure
+    resolved: true
+  - id: DL-006
+    question: How large is the agent roster and which stages share an agent?
+    answer: "6 agents: requirements-analyst for requirements, systems-architect for design, task-planner
+      for planning, implementation-engineer for implementation, stage-reviewer shared by all four
+      review stages because their definitions genuinely overlap, and knowledge-curator for
+      knowledge-extraction. Stages share an agent only where definitions genuinely overlap;
+      authoring stages stay separate because their personalities and discoverability differ."
+    lens: scope
+    resolved: true
+  - id: DL-007
+    question: How are agent permissions kept compatible with what the CLI instructions require, and does
+      that need LLM judgment at deploy time?
+    answer: "Mechanically and deterministically: the engine owns a permission contract per stage kind
+      describing the interaction profile of each kind interpreter (floors that must be allow and
+      ceilings that must be deny), stage.yaml may override individual keys for stages whose
+      instructions exceed the kind profile, and validation plus deployment run a compatibility check
+      over every stage-to-agent binding. No LLM judgment is involved because the interaction profile
+      is a property of the engine-owned interpreter, not of free-form prose."
+    lens: constraint
+    resolved: true
+  - id: DL-008
+    question: How is deployment configured for different destination platforms and platform versions?
+    answer: Deployment gains platform and platform-version selection that picks an agent renderer from a
+      registry in the deployment layer; each renderer owns the target directory, file naming,
+      frontmatter mapping, and neutral-to-target permission translation for its platform and version
+      variants. Skills deploy identically for every platform because the SKILL.md protocol is
+      cross-framework, so platform configuration affects only agent rendering. Defaults preserve the
+      current OpenCode behavior.
+    lens: interface
+    resolved: true
+scenarios:
+  - id: SC-001
+    statement: Given six agent definition files in src/agents/ and stage.yaml descriptors referencing
+      them, when bin/deploy-to-agent.ts runs against a destination, then the destination agents
+      directory contains one rendered agent file per definition, each carrying target frontmatter
+      (description, mode, model, temperature, permissions) with the system prompt as the body.
+    category: happy
+    status: resolved
+    outcome: ac
+    ac_id: AC-001
+  - id: SC-002
+    statement: Given a deployed bundle whose stages declare agent references, when the CLI runs
+      --list-workflows, then every workflow entry carries an agent field holding the referenced
+      agent id or null.
+    category: happy
+    status: resolved
+    outcome: ac
+    ac_id: AC-002
+  - id: SC-003
+    statement: Given a change in progress with stages bound to agents, when the CLI runs status --change
+      <change-name>, then each stage entry in the pipeline state carries the agent bound to that
+      stage or null, so the primary agent can decide delegation.
+    category: happy
+    status: resolved
+    outcome: ac
+    ac_id: AC-003
+  - id: SC-004
+    statement: Given a stage.yaml with no agent field, when validation and --list-workflows run, then
+      validation passes and the workflow entry reports agent null, meaning the current agent runs
+      the stage.
+    category: edge
+    status: resolved
+    outcome: ac
+    ac_id: AC-004
+  - id: SC-005
+    statement: Given all four review stage descriptors reference the same stage-reviewer agent id, when
+      deployment renders agents, then exactly one stage-reviewer file exists in the destination with
+      no duplicate per referencing stage.
+    category: edge
+    status: resolved
+    outcome: ac
+    ac_id: AC-005
+  - id: SC-006
+    statement: Given an agent definition whose model is not in the allowed opencode-go catalog, when npm
+      run validate runs, then validation fails naming the offending file and model value.
+    category: negative
+    status: resolved
+    outcome: ac
+    ac_id: AC-006
+  - id: SC-007
+    statement: Given a stage.yaml whose agent field references an id with no definition file in
+      src/agents/, when npm run validate runs, then cross-file validation fails naming the stage and
+      the unresolved agent id.
+    category: negative
+    status: resolved
+    outcome: ac
+    ac_id: AC-007
+  - id: SC-008
+    statement: Given an agent definition whose system_prompt contains CLI or skill instruction markers
+      such as sdlc command flags or envelope field names, when npm run validate runs, then the
+      mechanical marker check fails naming the file and the matched marker.
+    category: negative
+    status: resolved
+    outcome: ac
+    ac_id: AC-008
+  - id: SC-009
+    statement: Given an agent definition with temperature outside the inclusive range 0.0 to 1.0, when
+      validation runs, then schema validation fails naming the file and field, while 0.0 and 1.0
+      pass.
+    category: boundary
+    status: resolved
+    outcome: ac
+    ac_id: AC-009
+  - id: SC-010
+    statement: Given a new agent YAML file added to src/agents/ and a stage.yaml updated to reference
+      it, when validation and deployment run, then the agent is discovered, validated, and deployed
+      with no TypeScript change.
+    category: boundary
+    status: resolved
+    outcome: ac
+    ac_id: AC-010
+  - id: SC-011
+    statement: Given a destination containing a rendered agent whose source definition no longer exists,
+      when deploy runs with --clean, then the stale rendered agent file is removed from the
+      destination.
+    category: boundary
+    status: resolved
+    outcome: ac
+    ac_id: AC-011
+  - id: SC-012
+    statement: Given the knowledge-init skill is a one-time bootstrap skill and not a stage, when the
+      agent roster is defined, then no agent binds to it because agent binding targets stages only.
+    category: edge
+    status: resolved
+    outcome: out_of_scope
+  - id: SC-013
+    statement: Given a stage whose effective permission requirements demand shell allow and an agent
+      bound to it declaring shell deny, when npm run validate runs, then the compatibility check
+      fails naming the stage, the agent, and the shell key.
+    category: negative
+    status: resolved
+    outcome: ac
+    ac_id: AC-016
+  - id: SC-014
+    statement: Given the engine-owned kind permission contracts and the six-agent roster, when npm run
+      validate runs, then every stage-to-agent binding passes the compatibility check
+      deterministically without any LLM involvement.
+    category: happy
+    status: resolved
+    outcome: ac
+    ac_id: AC-018
+  - id: SC-015
+    statement: Given a stage.yaml declaring a permission override for a key its kind contract also
+      defines, when effective requirements are computed, then the override takes precedence over the
+      kind contract for that key.
+    category: edge
+    status: resolved
+    outcome: ac
+    ac_id: AC-017
+  - id: SC-016
+    statement: Given deployment invoked with platform opencode and platform version 2, when agents
+      render, then the selected version's format is used and the deploy output reports the platform
+      and version.
+    category: happy
+    status: resolved
+    outcome: ac
+    ac_id: AC-019
+  - id: SC-017
+    statement: Given deployment invoked with an unknown platform or platform version, when deployment
+      runs, then it fails listing the supported platforms and versions.
+    category: negative
+    status: resolved
+    outcome: ac
+    ac_id: AC-020
+  - id: SC-018
+    statement: Given deployment invoked without platform flags, when deployment runs, then it defaults
+      to the latest OpenCode renderer and produces the same output as before this change.
+    category: edge
+    status: resolved
+    outcome: ac
+    ac_id: AC-021
+  - id: SC-019
+    statement: Given one agent bound to two stages whose effective requirements conflict on a permission
+      key, when validation runs, then the compatibility check fails naming the agent and both
+      conflicting stages.
+    category: boundary
+    status: resolved
+    outcome: ac
+    ac_id: AC-023
+  - id: SC-020
+    statement: Given deployment to two different supported platforms, when the deployed skills are
+      compared, then SKILL.md and the bundled CLI are identical across platforms.
+    category: edge
+    status: resolved
+    outcome: ac
+    ac_id: AC-022
+  - id: SC-021
+    statement: Given a new platform renderer module added to the deployment registry, when deployment
+      runs targeting the new platform, then agents render through it with no change to the agent
+      definitions, the agent schema, or the validation bins.
+    category: boundary
+    status: resolved
+    outcome: ac
+    ac_id: AC-024
+assumptions:
+  - type: verified
+    text: OpenCode discovers per-project agents from markdown files in the destination agents directory,
+      with the filename as the agent name, frontmatter carrying description, mode, model,
+      temperature, and permission, and the body as the system prompt.
+    source: OpenCode agents documentation (opencode.ai/docs/agents), fetched 2026-08-25.
+  - type: verified
+    text: The allowed-LLM catalog at opencode.ai/go currently lists 23 models whose config ids use the
+      form opencode-go/<model-id>.
+    source: OpenCode Go documentation (opencode.ai/docs/go), fetched 2026-08-25.
+  - type: unverified
+    text: The opencode-go model catalog remains stable through this change's lifecycle; enum values in
+      the agent schema stay valid without frequent updates.
+    source: The Go documentation states the model list may change as models are tested and added.
+    risk: A removed or renamed model id makes existing agent definitions fail schema validation until
+      the enum is updated.
+    impact: Catalog maintenance becomes a schema-change event each time OpenCode revises the Go lineup.
+    severity: medium
+  - type: verified
+    text: The CLI envelope's data field is an unconstrained object, so adding an agent field to
+      data.workflows[] entries and status stage entries does not violate the frozen envelope
+      contract.
+    source: src/schemas/cli-envelope.schema.yaml (data is a free-form object; workflow, step, state,
+      instructions, errors, warnings are the frozen fields).
+  - type: verified
+    text: The deploy script already renders generated content (SKILL.md from a template) and copies
+      configuration directories, so an agent rendering stage follows the existing deployment
+      pattern.
+    source: bin/deploy-to-agent.ts (renderSkill, copyDir of schemas, policies, stages).
+  - type: unverified
+    text: The OpenCode Task tool surfaces rendered subagent descriptions well enough that the primary
+      agent discovers and delegates to the stage agents from CLI data alone.
+    source: OpenCode documentation describes subagent invocation based on descriptions; actual
+      delegation behavior depends on the runtime model.
+    risk: The primary agent may run a stage itself instead of delegating, ignoring the agent field.
+    impact: Delegation quality varies by runtime; the mapping data itself remains correct.
+    severity: low
+  - type: verified
+    text: The neutral permission vocabulary (file_read, search, file_write, shell, subagent, web) maps
+      onto OpenCode permission keys (read, list, glob, grep, edit, write, apply_patch, bash, task,
+      webfetch, websearch) without loss for the six roster agents.
+    source: OpenCode permissions documentation, fetched 2026-08-25.
+  - type: unverified
+    text: A second coding-agent target can later consume the agnostic definitions; no concrete second
+      target exists yet, so agnosticism is structural (neutral vocabulary plus a rendering layer)
+      rather than proven against a second runtime.
+    source: Deployment today targets OpenCode only.
+    risk: A future target's agent format may not express some neutral field (for example ask-level
+      permissions).
+    impact: The rendering layer for a second target may need vocabulary reductions.
+    severity: low
+  - type: verified
+    text: Stage folders are discovered by directory scan with no central enumeration, so a parallel
+      directory scan over src/agents/ follows the established architectural pattern.
+    source: src/scripts/lib/stage-registry.ts (loadStageRegistry scans the stages directory).
+  - type: verified
+    text: The four kind interpreters' interaction profiles are owned by the engine and captured by kind
+      permission contracts; the profiles change only through engine changes reviewed alongside the
+      interpreters.
+    source: "src/scripts/lib/kinds/ (engine-owned interpreters: authoring, review, tasks, aggregator)."
+  - type: unverified
+    text: OpenCode agent formats will diverge across platform versions in ways expressible as renderer
+      variants; today only the current format and the documented tools-to-permission deprecation are
+      known.
+    source: OpenCode agents documentation marks tools as deprecated in favor of permission.
+    risk: Version variants are speculative until real divergence appears.
+    impact: The version selection mechanism ships with one concrete variant pair and may need adjustment
+      when genuine divergence appears.
+    severity: low
+  - type: verified
+    text: The SKILL.md folder protocol is acknowledged across agent frameworks, so skills require no
+      platform variants.
+    source: OpenCode skills documentation and Claude Code agent skills documentation both discover
+      SKILL.md folders.
+functional_requirements:
+  - id: FR-001
+    description: When an agent definition file is placed under src/agents/, the system shall discover it
+      by directory scan and validate it against the engine-owned agent schema covering id,
+      description, model, temperature, permissions, and system_prompt.
+    ac_ids:
+      - AC-009
+      - AC-010
+  - id: FR-002
+    description: When an agent definition declares its model, the system shall accept only fully
+      qualified ids enumerated from the opencode-go catalog in the agent schema and reject any other
+      value.
+    ac_ids:
+      - AC-006
+  - id: FR-003
+    description: When a stage.yaml declares an agent field, the system shall resolve the reference
+      against the discovered agent definitions at validation time and fail on any unresolved id.
+    ac_ids:
+      - AC-007
+  - id: FR-004
+    description: When a stage.yaml omits the agent field, the system shall treat the stage as bound to
+      no agent, meaning the current agent runs the stage.
+    ac_ids:
+      - AC-004
+  - id: FR-005
+    description: When the CLI emits --list-workflows, help, or status envelopes, the system shall carry
+      each stage's bound agent id (or null) inside the data field without introducing new top-level
+      envelope fields.
+    ac_ids:
+      - AC-002
+      - AC-003
+  - id: FR-006
+    description: When deployment runs against a destination, the system shall render every discovered
+      agent definition into the target runtime's native agent format alongside the skills, mapping
+      neutral fields to target frontmatter and writing the system prompt as the body.
+    ac_ids:
+      - AC-001
+      - AC-005
+  - id: FR-007
+    description: When deployment runs with --clean, the system shall remove rendered agent files in the
+      destination whose source definitions no longer exist.
+    ac_ids:
+      - AC-011
+  - id: FR-008
+    description: When an agent definition's system_prompt is validated, the system shall run a
+      mechanical marker check that rejects prompts containing CLI or skill instruction markers,
+      naming the file and the matched marker.
+    ac_ids:
+      - AC-008
+  - id: FR-009
+    description: When validation or deployment evaluates a stage bound to an agent, the system shall
+      verify mechanically that the agent's permissions satisfy the stage's effective permission
+      requirements, failing with an error that names the stage, the agent, and each conflicting
+      permission key.
+    ac_ids:
+      - AC-016
+      - AC-018
+      - AC-023
+  - id: FR-010
+    description: When a stage's effective permission requirements are computed, the system shall derive
+      them from the engine-owned permission contract of the stage's kind, with any per-stage
+      permission declarations in the stage descriptor taking precedence for the keys they define.
+    ac_ids:
+      - AC-017
+  - id: FR-011
+    description: When deployment runs with a platform and platform version, the system shall render
+      agents through the matching platform renderer and shall fail with a message listing the
+      supported platforms and versions when the selection is unknown.
+    ac_ids:
+      - AC-019
+      - AC-020
+      - AC-021
+  - id: FR-012
+    description: When deployment runs for any supported platform, the system shall deploy the skills
+      unchanged, applying platform configuration only to agent rendering.
+    ac_ids:
+      - AC-022
+non_functional_requirements:
+  - id: NFR-001
+    description: "The agent definition source under src/agents/ shall stay coding-agent-agnostic:
+      neutral permission vocabulary and no target-specific paths or formats; all target-specific
+      rendering shall live in the deployment layer."
+    ac_ids:
+      - AC-012
+  - id: NFR-002
+    description: "The shipped roster shall be minimal: six agents, with the four review stages sharing
+      one stage-reviewer agent because their definitions genuinely overlap."
+    ac_ids:
+      - AC-013
+  - id: NFR-003
+    description: Stage agents shall not hold direct web access; research shall be delegated to subagents
+      to keep stage-agent context clean.
+    ac_ids:
+      - AC-014
+  - id: NFR-004
+    description: The CLI envelope shape shall remain frozen; the stage-to-agent mapping shall surface
+      only inside the existing data field.
+    ac_ids:
+      - AC-015
+  - id: NFR-005
+    description: The permission compatibility mechanism shall be fully deterministic, involving no LLM
+      judgment at validation or deployment time.
+    ac_ids:
+      - AC-018
+  - id: NFR-006
+    description: Adding a deployment platform or platform version shall require only a new renderer in
+      the deployment layer, leaving the agent definitions, schemas, and validation unchanged.
+    ac_ids:
+      - AC-024
+acceptance_criteria:
+  - id: AC-001
+    statement: Given six agent definition files in src/agents/ and stage.yaml descriptors referencing
+      them, when bin/deploy-to-agent.ts runs against a destination, then the destination agents
+      directory contains one rendered agent file per definition, each carrying target frontmatter
+      (description, mode, model, temperature, permissions) with the system prompt as the body.
+    parent_id: FR-006
+  - id: AC-002
+    statement: Given a deployed bundle whose stages declare agent references, when the CLI runs
+      --list-workflows, then every workflow entry carries an agent field holding the referenced
+      agent id or null.
+    parent_id: FR-005
+  - id: AC-003
+    statement: Given a change in progress with stages bound to agents, when the CLI runs status --change
+      <change-name>, then each stage entry in the pipeline state carries the agent bound to that
+      stage or null.
+    parent_id: FR-005
+  - id: AC-004
+    statement: Given a stage.yaml with no agent field, when validation and --list-workflows run, then
+      validation passes and the workflow entry reports agent null, meaning the current agent runs
+      the stage.
+    parent_id: FR-004
+  - id: AC-005
+    statement: Given all four review stage descriptors reference the same stage-reviewer agent id, when
+      deployment renders agents, then exactly one stage-reviewer file exists in the destination with
+      no duplicate per referencing stage.
+    parent_id: FR-006
+  - id: AC-006
+    statement: Given an agent definition whose model is not in the allowed opencode-go catalog, when npm
+      run validate runs, then validation fails naming the offending file and model value.
+    parent_id: FR-002
+  - id: AC-007
+    statement: Given a stage.yaml whose agent field references an id with no definition file in
+      src/agents/, when npm run validate runs, then cross-file validation fails naming the stage and
+      the unresolved agent id.
+    parent_id: FR-003
+  - id: AC-008
+    statement: Given an agent definition whose system_prompt contains CLI or skill instruction markers
+      such as sdlc command flags or envelope field names, when npm run validate runs, then the
+      mechanical marker check fails naming the file and the matched marker.
+    parent_id: FR-008
+  - id: AC-009
+    statement: Given an agent definition with temperature outside the inclusive range 0.0 to 1.0, when
+      validation runs, then schema validation fails naming the file and field, while 0.0 and 1.0
+      pass.
+    parent_id: FR-001
+  - id: AC-010
+    statement: Given a new agent YAML file added to src/agents/ and a stage.yaml updated to reference
+      it, when validation and deployment run, then the agent is discovered, validated, and deployed
+      with no TypeScript change.
+    parent_id: FR-001
+  - id: AC-011
+    statement: Given a destination containing a rendered agent whose source definition no longer exists,
+      when deploy runs with --clean, then the stale rendered agent file is removed from the
+      destination.
+    parent_id: FR-007
+  - id: AC-012
+    statement: Given the agent definitions under src/agents/, when the source tree is inspected, then no
+      definition contains target-specific paths or formats, and every OpenCode-specific artifact is
+      produced only by the deployment layer.
+    parent_id: NFR-001
+  - id: AC-013
+    statement: Given the shipped roster, when stage descriptors are resolved, then exactly six agent
+      definitions exist and the four review stages share one stage-reviewer agent id.
+    parent_id: NFR-002
+  - id: AC-014
+    statement: Given the six shipped agent definitions, when their permissions are inspected, then none
+      grants web access and every research-needing agent grants subagent invocation instead.
+    parent_id: NFR-003
+  - id: AC-015
+    statement: Given any CLI envelope emitted after the change, when it is validated against
+      cli-envelope.schema.yaml, then it passes with no new top-level fields.
+    parent_id: NFR-004
+  - id: AC-016
+    statement: Given a stage whose effective permission requirements demand shell allow and an agent
+      bound to it declaring shell deny, when npm run validate runs, then the compatibility check
+      fails naming the stage, the agent, and the shell key.
+    parent_id: FR-009
+  - id: AC-017
+    statement: Given a stage.yaml declaring a permission override for a key its kind contract also
+      defines, when effective requirements are computed, then the override takes precedence over the
+      kind contract for that key.
+    parent_id: FR-010
+  - id: AC-018
+    statement: Given the engine-owned kind permission contracts and the six-agent roster, when npm run
+      validate runs, then every stage-to-agent binding passes the compatibility check
+      deterministically.
+    parent_id: FR-009
+  - id: AC-019
+    statement: Given deployment invoked with platform opencode and platform version 2, when agents
+      render, then the selected version's format is used and the deploy output reports the platform
+      and version.
+    parent_id: FR-011
+  - id: AC-020
+    statement: Given deployment invoked with an unknown platform or platform version, when deployment
+      runs, then it fails listing the supported platforms and versions.
+    parent_id: FR-011
+  - id: AC-021
+    statement: Given deployment invoked without platform flags, when deployment runs, then it defaults
+      to the latest OpenCode renderer and produces the same output as before this change.
+    parent_id: FR-011
+  - id: AC-022
+    statement: Given deployment to two different supported platforms, when the deployed skills are
+      compared, then SKILL.md and the bundled CLI are identical across platforms.
+    parent_id: FR-012
+  - id: AC-023
+    statement: Given one agent bound to two stages whose effective requirements conflict on a permission
+      key, when validation runs, then the compatibility check fails naming the agent and both
+      conflicting stages.
+    parent_id: FR-009
+  - id: AC-024
+    statement: Given a new platform renderer module added to the deployment registry, when deployment
+      runs targeting the new platform, then agents render through it with no change to the agent
+      definitions, the agent schema, or the validation bins.
+    parent_id: NFR-006
+out_of_scope:
+  - "Assigning agents to skills rather than stages: the knowledge-init skill is a one-time bootstrap
+    invoked directly and carries no stage.yaml, so it receives no agent binding (SC-012)."
+  - "Runtime LLM-based permission inference: the permission compatibility check is deterministic by
+    design; no LLM judges permissions at validation or deployment time (NFR-005)."
+failure_paths:
+  - "The opencode-go catalog adds or removes models: update the model enum in the agent schema as a
+    schema-change event; definitions referencing removed models fail validation naming the model
+    until updated."
+  - "OpenCode changes its agent markdown format: update only the rendering section of the deployment
+    script; the agnostic source and validation are unaffected."
+  - "The primary agent ignores the agent field and runs the stage itself: the stage still executes
+    in the current agent; the mapping data remains accurate and delegation can be retried."
+  - "The marker check flags legitimate prompt prose: adjust the marker list in the validation
+    configuration and rerun npm run validate."
+  - "A future deployment target cannot express a neutral field such as ask-level permissions: the
+    target's renderer reduces the vocabulary and records the reduction in its deployment output."
+  - "Stage instructions change to require a permission beyond the kind contract: add a per-stage
+    override in stage.yaml within the same change; validation then forces the bound agent's
+    permissions to align before merge."
+  - "A platform version changes its agent format: add a version variant to that platform's renderer;
+    the agent definitions, schemas, and validation are unaffected."
+risks_and_dependencies:
+  - risk: The opencode-go model catalog is external and versioned by OpenCode; the schema enum can drift
+      from the live catalog.
+    impact: Agent definitions referencing removed models fail validation until the enum is updated.
+    severity: medium
+  - risk: The deployment depends on the current OpenCode agent markdown format (frontmatter plus body).
+    impact: A breaking format change in OpenCode requires updating only the deployment renderer.
+    severity: low
+  - risk: Delegation depends on the primary agent's runtime behavior; the toolkit controls the mapping
+      data, not the delegation decision.
+    impact: Stages may run in the current agent even when a dedicated agent is bound.
+    severity: low
+  - risk: The mechanical marker check can produce false positives on prompt prose that legitimately
+      mentions CLI concepts.
+    impact: Prompt wording adjustments or marker-list tuning during authoring.
+    severity: low
+  - risk: No second coding-agent target exists yet, so agnosticism is structural rather than proven
+      against a second runtime.
+    impact: A future target's renderer may need vocabulary reductions.
+    severity: low
+  - risk: Kind permission contracts could drift from actual interpreter behavior if the engine changes
+      without updating the contracts.
+    impact: The compatibility check validates against a stale contract, allowing under-permissioned agents.
+    severity: medium
+  - risk: Platform version variants are speculative until a second real format exists.
+    impact: The version selection mechanism may need adjustment when genuine divergence appears.
+    severity: low
+delta:
+  - target_doc: docs/current/architecture.md
+    target_anchor: Folder Responsibilities
+    change: Modify
+    reason: Add the src/agents/ directory (one YAML agent definition per file, discovered by scan), the
+      agent registry and kind permission contract modules, and the deployment platform renderer
+      registry that translates agnostic definitions into target-specific formats per platform and
+      version.
+    phase: Requirements
+    date: 2026-08-25
+  - target_doc: docs/current/capabilities.md
+    target_anchor: Capabilities
+    change: Modify
+    reason: "Add the agent configuration capability: per-stage agent binding, the six-agent roster,
+      mechanical permission compatibility checking, and platform-configurable agent deployment
+      alongside the platform-uniform skills."
+    phase: Requirements
+    date: 2026-08-25
+  - target_doc: docs/current/conventions.md
+    target_anchor: File Organization
+    change: Modify
+    reason: Document the agent definition file format (id, description, model, temperature, permissions,
+      system_prompt), the neutral permission vocabulary, the prompt purity rule, and the kind
+      permission contract convention.
+    phase: Requirements
+    date: 2026-08-25
+  - target_doc: docs/current/operations.md
+    target_anchor: Deployment
+    change: Modify
+    reason: Deployment gains platform and platform-version selection for agent rendering, renders agents
+      into the destination agents directory, smoke-verifies them, and validation covers agent
+      definitions, stage agent references, and permission compatibility.
+    phase: Requirements
+    date: 2026-08-25
+  - target_doc: docs/current/decisions.md
+    target_anchor: "Living: Cycle Decisions"
+    change: Modify
+    reason: "Record the cycle decisions: agent-agnostic source with target-specific rendering,
+      schema-enum LLM catalog, optional stage binding with current-agent fallback, CLI-data-only
+      surfacing, shared reviewer across review stages, mechanical permission compatibility via kind
+      contracts, and the platform renderer registry."
+    phase: Requirements
+    date: 2026-08-25
+  - target_doc: docs/current/glossary.md
+    change: Add
+    reason: Add the Agent Definition entity (src/agents/<agent-id>.yaml) with its fields and neutral
+      permission vocabulary, plus the Kind Permission Contract and Platform Renderer entities.
+    phase: Requirements
+    date: 2026-08-25
+  - target_doc: docs/current/api-contract.md
+    target_anchor: Endpoints (CLI Commands)
+    change: Modify
+    reason: The workflows[] entries in --list-workflows, help, and status data gain an agent field
+      (agent id or null) without new top-level envelope fields.
+    phase: Requirements
+    date: 2026-08-25

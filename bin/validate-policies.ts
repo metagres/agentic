@@ -6,6 +6,10 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { readYaml } from '../src/scripts/lib/yaml-io.ts';
 import { loadStageRegistry, getStageById } from '../src/scripts/lib/stage-registry.ts';
+import { loadAgentRegistry, getAgentById } from '../src/scripts/lib/agent-registry.ts';
+import { checkAgentCompatibility } from '../src/scripts/lib/agent-permissions.ts';
+import { findPromptMarkers } from '../src/scripts/lib/agent-prompt-marker.ts';
+import { resolveAgentsDir } from '../src/scripts/lib/paths.ts';
 import { CHECK_CATALOG } from '../src/scripts/lib/checks/index.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -178,6 +182,144 @@ try {
     ok: false,
     error: err instanceof Error ? err.message : String(err),
   });
+}
+
+// Agent definitions and stage-to-agent bindings are engine-level config
+// cross-checks (like the requires graph above), not capped-catalog stage
+// checks: every agent must validate against the agent meta-schema, keep its
+// system prompt free of CLI/skill markers, and every stage binding must
+// resolve with compatible permissions. A missing or empty agents roster is
+// valid and passes silently.
+const agentsDir = resolveAgentsDir(root);
+const agentFiles = agentsDir && fs.existsSync(agentsDir)
+  ? fs
+      .readdirSync(agentsDir, { withFileTypes: true })
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.yaml'))
+      .map((entry) => entry.name)
+      .sort()
+  : [];
+
+if (agentFiles.length > 0 && agentsDir) {
+  const compileAgent = ajv.compile(
+    readYaml(path.join(root, 'src', 'schemas', 'agent.schema.yaml')) as Record<string, unknown>
+  );
+
+  for (const fileName of agentFiles) {
+    const agentFile = path.join(agentsDir, fileName);
+    const label = `agents/${fileName}`;
+
+    // agent.yaml against the agent meta-schema; the descriptor id must equal
+    // the filename stem.
+    let doc: Record<string, unknown> = {};
+    try {
+      const parsed = readYaml(agentFile) as unknown;
+      if (!parsed || typeof parsed !== 'object') {
+        throw new Error('descriptor is not an object');
+      }
+      doc = parsed as Record<string, unknown>;
+    } catch (err: unknown) {
+      failed = true;
+      results.push({
+        file: label,
+        ok: false,
+        error: `AGENT_SCHEMA_INVALID: ${label} has invalid YAML: ${err instanceof Error ? err.message : String(err)}`,
+      });
+      continue;
+    }
+
+    try {
+      const valid = compileAgent(doc);
+      if (!valid) {
+        throw new Error(
+          `${label} fails the agent meta-schema: ${(compileAgent.errors || [])
+            .map((e) => `${e.instancePath} ${e.message}`)
+            .join('; ')}`
+        );
+      }
+      const stem = fileName.slice(0, -'.yaml'.length);
+      if (doc.id !== stem) {
+        throw new Error(
+          `${label} descriptor id '${String(doc.id)}' does not match the filename stem '${stem}'`
+        );
+      }
+      results.push({ file: label, ok: true });
+    } catch (err: unknown) {
+      failed = true;
+      results.push({
+        file: label,
+        ok: false,
+        error: `AGENT_SCHEMA_INVALID: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+
+    // Prompt purity: the personality prose must not reference the toolkit's
+    // CLI flags, script path, or envelope directive phrases.
+    try {
+      const prompt = typeof doc.system_prompt === 'string' ? doc.system_prompt : '';
+      const markers = findPromptMarkers(prompt);
+      if (markers.length > 0) {
+        throw new Error(
+          `${label} system prompt contains marker(s): ${markers.map((m) => `'${m}'`).join(', ')}`
+        );
+      }
+      results.push({ file: `${label}#system_prompt`, ok: true });
+    } catch (err: unknown) {
+      failed = true;
+      results.push({
+        file: `${label}#system_prompt`,
+        ok: false,
+        error: `AGENT_PROMPT_MARKER: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  }
+
+  // Every stage.yaml agent reference must resolve against the agents registry.
+  try {
+    const stages = loadStageRegistry(root);
+    const unresolved: string[] = [];
+    for (const stage of stages) {
+      if (stage.agent && !getAgentById(root, stage.agent)) {
+        unresolved.push(`stage '${stage.id}' references unknown agent '${stage.agent}'`);
+      }
+    }
+    if (unresolved.length > 0) {
+      throw new Error(unresolved.join('; '));
+    }
+    results.push({ file: 'agents/references', ok: true });
+  } catch (err: unknown) {
+    failed = true;
+    results.push({
+      file: 'agents/references',
+      ok: false,
+      error: `AGENT_REF_UNRESOLVED: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
+
+  // Stage-to-agent bindings must satisfy the permission compatibility check.
+  try {
+    const stages = loadStageRegistry(root);
+    const agents = loadAgentRegistry(root);
+    const findings = checkAgentCompatibility(stages, agents);
+    if (findings.length > 0) {
+      throw new Error(
+        findings
+          .map(
+            (f) =>
+              `stage '${f.stage}', agent '${f.agent}', key '${f.key}', required '${f.required}', actual '${f.actual}'` +
+              (f.conflict_with ? `, conflict_with '${f.conflict_with}'` : '')
+          )
+          .join('; ')
+      );
+    }
+    results.push({ file: 'agents/permissions', ok: true });
+  } catch (err: unknown) {
+    failed = true;
+    results.push({
+      file: 'agents/permissions',
+      ok: false,
+      error: `AGENT_PERMISSION_INCOMPATIBLE: ${err instanceof Error ? err.message : String(err)}`,
+    });
+  }
 }
 
 // The registry must resolve every stage the runtime expects.

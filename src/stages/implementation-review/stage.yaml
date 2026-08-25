@@ -2,6 +2,7 @@ version: 1
 id: implementation-review
 kind: review
 title: Implementation Review
+agent: stage-reviewer
 artifact: plan.yaml
 status_field: implementation_status
 requires: []

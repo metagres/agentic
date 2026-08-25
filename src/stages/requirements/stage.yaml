@@ -2,6 +2,7 @@ version: 1
 id: requirements
 kind: authoring
 title: Requirements
+agent: requirements-analyst
 artifact: requirements.yaml
 status_field: status
 requires: []

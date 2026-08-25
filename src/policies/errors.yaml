@@ -151,3 +151,19 @@ errors:
   STAGE_GATE_BLOCKED:
     message: A stage cannot run because a required stage is not accepted.
     fix: Complete and accept the required stage before running this stage.
+
+  AGENT_SCHEMA_INVALID:
+    message: An agent definition file fails the agent meta-schema.
+    fix: Fix the agent file to match agent.schema.yaml and keep its id equal to the filename stem.
+  AGENT_PROMPT_MARKER:
+    message: An agent system prompt contains CLI or skill instruction markers.
+    fix: Remove the marker from the system prompt so the personality prose stays neutral.
+  AGENT_REF_UNRESOLVED:
+    message: A stage.yaml agent reference does not resolve.
+    fix: Reference an agent id defined in src/agents/ or remove the stage binding.
+  AGENT_PERMISSION_INCOMPATIBLE:
+    message: A stage-to-agent binding violates the permission compatibility check.
+    fix: Align the stage's permission contract with the agent's declared permissions.
+  PLATFORM_UNKNOWN:
+    message: Deployment platform or version selection does not resolve.
+    fix: Use a known platform and version for the deployment target.

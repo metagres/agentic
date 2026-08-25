@@ -2,6 +2,7 @@ version: 1
 id: implementation
 kind: tasks
 title: Implementation
+agent: implementation-engineer
 artifact: plan.yaml
 status_field: implementation_status
 requires:

@@ -75,6 +75,20 @@
     },
     "title_default": {
       "type": "string"
+    },
+    "agent": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "enum": [
+          "allow",
+          "deny"
+        ]
+      }
     }
   },
   "allOf": [

@@ -39,3 +39,10 @@ export function resolveRuntimeDir(dirName: string, cwd: string): string | null {
 export function resolveStagesDir(cwd: string = process.cwd()): string | null {
   return resolveRuntimeDir('stages', cwd);
 }
+
+// Resolves the agents directory the same way stages, templates, schemas, and
+// policies are resolved today. In the repository this is src/agents/; in the
+// deployed bundle it is the agents/ folder copied next to the CLI script.
+export function resolveAgentsDir(cwd: string = process.cwd()): string | null {
+  return resolveRuntimeDir('agents', cwd);
+}

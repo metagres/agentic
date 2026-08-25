@@ -1,0 +1,6 @@
+metadata:
+  stage: knowledge-extraction
+  status: complete
+  updated: 2026-08-25
+  change_root: /home/elton/repos/agentic/docs/changes/agent-invocation-modes-and-interactive-questioning-agent-def
+deltas_applied: 5

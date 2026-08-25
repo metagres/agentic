@@ -1,0 +1,128 @@
+metadata:
+  id: DES-001
+  title: "Design: agent-invocation-modes-and-interactive-questioning-agent-def"
+  stage: design
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-25
+  updated: 2026-08-25
+  based_on_requirements: 0.1.0
+  delta_reviewed: false
+  step: complete
+context_summary: "The agent layer shipped in the previous change renders every definition as
+  delegation-only (subagent) and knows six neutral permission keys. This design extends both axes
+  minimally: an optional neutral mode field (subagent, primary, all) resolved by the registry with a
+  default of all so agents are directly invocable unless they opt down, and a seventh permission key
+  question carried through schema, roster, and renderer translation. Kind contracts stay untouched
+  because interactive questioning is agent-level identity, not a kind-wide requirement."
+components:
+  - id: CMP-001
+    name: Agent Schema Extension
+    responsibility: Extends src/schemas/agent.schema.yaml with an optional top-level mode property
+      (string enum subagent, primary, all) and adds question as a seventh required key of the
+      permissions object (enum allow, ask, deny). additionalProperties false preserved; all existing
+      fields unchanged.
+  - id: CMP-002
+    name: Registry Mode Resolution
+    responsibility: loadAgentRegistry parses descriptor.mode into AgentRecord.mode, normalizing an
+      absent value to all. No other registry behavior changes; validation still rejects unknown enum
+      values at schema level before normalization.
+  - id: CMP-003
+    name: Renderer Mode and Question Mapping
+    responsibility: The OpenCode renderer emits the resolved mode verbatim into the target frontmatter
+      (v2 and v1 variants) and extends the neutral-to-target permission translation with question
+      mapped to the target question key (permission.question with the neutral level in v2;
+      tools.question true/false with ask omitted in v1). Unknown modes cannot reach the renderer
+      because the schema bounds the vocabulary.
+  - id: CMP-004
+    name: Roster Question Grants
+    responsibility: "The six definitions under src/agents/ gain their question values: allow on
+      requirements-analyst only, deny on systems-architect, task-planner, implementation-engineer,
+      stage-reviewer, and knowledge-curator. No mode lines are added (the all default applies to
+      every shipped agent)."
+data_models:
+  - id: DM-001
+    name: AgentDefinition extension
+    fields: mode (optional string enum subagent, primary, all; absent resolves to all),
+      permissions.question (required string enum allow, ask, deny alongside the existing six keys
+      file_read, search, file_write, shell, subagent, web).
+apis:
+  - id: API-001
+    path: loadAgentRegistry(cwd)
+    method: internal
+    description: Unchanged signature; AgentRecord gains mode (string, normalized to all when the
+      descriptor omits it).
+  - id: API-002
+    path: renderAgent(renderer, agentDefinition)
+    method: internal
+    description: Unchanged signature; rendered frontmatter now carries mode and the translated question
+      entry beside the existing permission translation.
+flows:
+  - id: FLW-001
+    name: Validation and deployment flow deltas
+    steps:
+      - Schema validation now also enforces the mode enum when present and the required question key
+        on every definition.
+      - The registry normalizes absent mode to all; nothing downstream reads raw descriptors.
+      - Deployment renders mode verbatim and translates question through the platform mapping; smoke
+        checks are unchanged.
+      - The permission compatibility check runs unchanged because kind contracts do not mention
+        question, making it unconstrained for every binding.
+decisions:
+  - id: DEC-001
+    title: Default invocation mode is all
+    context: The user wants every stage agent directly invocable without editing the roster; explicit
+      opt-down must remain possible.
+    decision: An omitted mode field resolves to all; a definition may declare subagent or primary
+      explicitly to narrow its invocation paths.
+    status: accepted
+  - id: DEC-002
+    title: Question tool granted to the requirements-analyst only
+    context: Structured questions ease discovery conversations, but other roles have no need per
+      stakeholder instruction.
+    decision: requirements-analyst carries question allow; the five other roster agents carry explicit
+      deny; kind contracts leave question unconstrained so the compatibility check imposes nothing.
+    status: accepted
+  - id: DEC-003
+    title: Renderer owns target mapping for mode and question
+    context: Target runtimes express invocation modes and tool gating differently; the agnostic layer
+      must stay neutral.
+    decision: The OpenCode renderer maps mode verbatim (primary, subagent, all) and question to its
+      native question key (permission.question in v2, tools.question in legacy v1); a future
+      platform renderer reduces values it cannot express.
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+      - CMP-002
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-001
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-003
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-001
+  - requirement_id: FR-005
+    component_ids:
+      - CMP-004
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-004
+delta:
+  - phase: Design
+    change: Modify
+    reason: Document the mode field resolution rule (default all) and the question permission key in the
+      Agent Definition entity.
+    target_doc: docs/current/glossary.md
+    target_anchor: "Entity: Agent Definition (src/agents/<agent-id>.yaml)"
+    date: 2026-08-25
+  - phase: Design
+    change: Modify
+    reason: "Record DEC-001 through DEC-003: default-all invocation mode, analyst-only question grant,
+      renderer-owned target mapping."
+    target_doc: docs/current/decisions.md
+    target_anchor: "Living: Cycle Decisions"
+    date: 2026-08-25

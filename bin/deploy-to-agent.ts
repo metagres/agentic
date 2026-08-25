@@ -8,6 +8,13 @@ import { skillManifest } from '../src/scripts/workflows/skill-manifest.ts';
 import { VERSION } from '../src/scripts/lib/version.ts';
 import { getStageDescriptions } from '../src/scripts/lib/stage-registry.ts';
 import { parseYamlString } from '../src/scripts/lib/yaml-io.ts';
+import { loadAgentRegistry } from '../src/scripts/lib/agent-registry.ts';
+import type { AgentRecord } from '../src/scripts/lib/agent-registry.ts';
+import {
+  getRenderer,
+  type AgentRenderer,
+  type RenderedAgent,
+} from '../src/scripts/lib/deploy/platforms/index.ts';
 import { buildSync } from 'esbuild';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -44,7 +51,7 @@ function parseArgs(argv: string[]): Record<string, string | boolean | string[]> 
   return args;
 }
 
-function fail(message: string) {
+function fail(message: string): never {
   console.error(`[deploy-to-agent] ${message}`);
   process.exit(1);
 }
@@ -169,6 +176,7 @@ const SKILL_TEMPLATE = [
   '   - `--change` accepts the exact change name or a unique part of it; if resolution fails, data.available_changes lists the existing changes.',
   '2. Follow the `instructions` field in the returned envelope `{workflow, step, state, instructions, data, errors, warnings}`.',
   '3. The CLI owns stage detection — do not guess which workflow to run.',
+  '4. Stages may declare a dedicated agent — check the `agent` field in `data.workflows[]` before running a stage and delegate to that agent when set.',
   '',
   'Workflows: {{WORKFLOWS}}',
   '',
@@ -238,13 +246,37 @@ function main() {
   if (!destArg) {
     fail(
       'Usage: deploy-to-agent --dest <agent-root> ' +
-      '[--clean] [--skip-smoke]'
+      '[--platform <id>] [--platform-version <n>] [--clean] [--skip-smoke]'
     );
   }
 
   const destAbs = path.resolve(String(destArg));
   const skillAbs = path.join(destAbs, 'skills', 'agentic-sdlc');
   const knowledgeInitAbs = path.join(destAbs, 'skills', KNOWLEDGE_INIT_SKILL_ID);
+  const agentsDirAbs = path.join(destAbs, 'agents');
+
+  // Resolve the platform renderer (TASK-010). Unknown platforms and versions
+  // fail fast with the registry's supported-values message, before the build.
+  const platform = String(args.platform || 'opencode');
+  const platformVersionArg = args['platform-version'];
+  let renderer: AgentRenderer;
+  try {
+    renderer = getRenderer(
+      platform,
+      platformVersionArg === undefined ? 'latest' : Number(platformVersionArg)
+    );
+  } catch (err) {
+    fail(err instanceof Error ? err.message : String(err));
+  }
+
+  // Load the neutral agent roster from the repository (TASK-010). The roster
+  // drives both the --clean stale-file sweep and the rendered output.
+  let agents: AgentRecord[];
+  try {
+    agents = loadAgentRegistry(root);
+  } catch (err) {
+    fail(err instanceof Error ? err.message : String(err));
+  }
 
   if (args.clean) {
     rmrf(skillAbs);
@@ -254,6 +286,23 @@ function main() {
     rmrf(path.join(destAbs, 'sdlc'));
     for (const skillId of LEGACY_SKILL_IDS) {
       rmrf(path.join(destAbs, 'skills', skillId));
+    }
+
+    // Remove stale rendered agent files whose source definitions no longer
+    // exist (TASK-010). An empty roster removes the whole agents directory.
+    if (fs.existsSync(agentsDirAbs)) {
+      if (agents.length === 0) {
+        rmrf(agentsDirAbs);
+      } else {
+        const sourceIds = new Set(agents.map((agent) => agent.id));
+        for (const entry of fs.readdirSync(agentsDirAbs, { withFileTypes: true })) {
+          if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+          const id = path.basename(entry.name, '.md');
+          if (!sourceIds.has(id)) {
+            fs.rmSync(path.join(agentsDirAbs, entry.name), { force: true });
+          }
+        }
+      }
     }
   }
 
@@ -327,6 +376,17 @@ function main() {
     'utf8'
   );
 
+  // Render the neutral agent roster into the target platform's format
+  // (TASK-010). Skills deploy identically for every platform; only the agent
+  // files vary by platform/version.
+  ensureDir(agentsDirAbs);
+  const renderedAgents: { agent: AgentRecord; rendered: RenderedAgent }[] = [];
+  for (const agent of agents) {
+    const rendered = renderer.renderAgent(agent);
+    fs.writeFileSync(path.join(destAbs, rendered.path), rendered.content, 'utf8');
+    renderedAgents.push({ agent, rendered });
+  }
+
   const skills: { name: string; smoke: string }[] = [];
 
   if (!args['skip-smoke']) {
@@ -374,7 +434,37 @@ function main() {
     skills.push({ name: KNOWLEDGE_INIT_SKILL_ID, smoke: 'skipped' });
   }
 
-  const smoke = skills.every((entry) => entry.smoke === 'passed')
+  // Per-agent smoke report (TASK-010): frontmatter parses, description is
+  // non-empty, and the filename stem matches the agent id.
+  const agentsReport: { name: string; smoke: string }[] = [];
+
+  if (!args['skip-smoke']) {
+    for (const { agent, rendered } of renderedAgents) {
+      const frontmatter = readSkillFrontmatter(path.join(destAbs, rendered.path));
+
+      const description = frontmatter.description;
+      if (typeof description !== 'string' || description.trim() === '') {
+        fail(
+          `Agent smoke test failed: frontmatter description is empty for '${agent.id}'.`
+        );
+      }
+
+      const stem = path.basename(rendered.path, '.md');
+      if (stem !== agent.id) {
+        fail(
+          `Agent smoke test failed: filename stem '${stem}' does not match agent id '${agent.id}'.`
+        );
+      }
+
+      agentsReport.push({ name: agent.id, smoke: 'passed' });
+    }
+  } else {
+    for (const agent of agents) {
+      agentsReport.push({ name: agent.id, smoke: 'skipped' });
+    }
+  }
+
+  const smoke = [...skills, ...agentsReport].every((entry) => entry.smoke === 'passed')
     ? 'passed'
     : 'skipped';
 
@@ -389,6 +479,9 @@ function main() {
         bundled: true,
         smoke,
         skills,
+        platform,
+        platformVersion: renderer.version,
+        agents: agentsReport,
       },
       null,
       2

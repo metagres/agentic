@@ -2,6 +2,7 @@ version: 1
 id: planning-review
 kind: review
 title: Planning Review
+agent: stage-reviewer
 artifact: plan.yaml
 status_field: status
 requires: []

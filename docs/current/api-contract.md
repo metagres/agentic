@@ -6,9 +6,9 @@ CLI toolkit: no HTTP endpoints. The contract surface is the `sdlc` command line 
 
 | Method | Path | Auth | Request Shape | Response Shape | Source File | Schema Drift? |
 |--------|------|------|---------------|----------------|-------------|---------------|
-| CLI | sdlc --help / --version / --list-workflows | none (local process) | no args | envelope, data.workflows | src/scripts/sdlc.ts | No |
+| CLI | sdlc --help / --version / --list-workflows | none (local process) | no args | envelope, data.workflows (each entry carries agent: id or null) | src/scripts/sdlc.ts | No |
 | CLI | sdlc <stage-id> --change <change-name> [kind flags] | none | --change + flags per kind (authoring: --request, --finalize, --confirm-semantic; review: --accept, --reject, --dry-run; tasks: --task-id, --status) | frozen envelope | src/scripts/workflows/index.ts, src/scripts/lib/kinds/ | No |
-| CLI | sdlc status --change <change-name> | none | --change | envelope, data.pipeline | src/scripts/workflows/status.ts | No |
+| CLI | sdlc status --change <change-name> | none | --change | envelope, data.pipeline (per-stage agent: id or null) | src/scripts/workflows/status.ts | No |
 | CLI | sdlc feedback --change <change-name> --from <stage> --to <stage> --reason "..." [--resolve <FB-id>] | none | --change, --from, --to, --reason, optional --resolve | frozen envelope | src/scripts/workflows/feedback.ts | No |
 | CLI | sdlc doctor [--strict] | none | --strict optional | envelope with checks list | src/scripts/workflows/doctor.ts | No |
 | CLI | node bin/deploy-to-agent.ts --dest <root> [--clean] [--skip-smoke] | none | dest, clean, skip-smoke | JSON report with skills array | bin/deploy-to-agent.ts | No |
@@ -28,6 +28,16 @@ CLI toolkit: no HTTP endpoints. The contract surface is the `sdlc` command line 
 | warnings | array | advisory findings | src/policies/errors.yaml |
 
 - Envelope top-level fields are frozen: no new fields may be added. Evidence: src/schemas/cli-envelope.schema.yaml (additionalProperties: false), AGENTS.md (invariant 8).
+- `data.workflows[]` entries (from `--list-workflows` / `--help`) and per-stage entries in `data.pipeline` (from `status`) each carry an `agent` field: the bound agent id or null. Cross-cutting commands (status, feedback, doctor) are always null. The envelope top-level shape is unchanged.
+
+## Internal APIs
+
+| Function | Purpose | Source File |
+|----------|---------|-------------|
+| loadAgentRegistry(cwd) | scans src/agents/ for YAML, validates each against agent.schema.yaml, returns the cached AgentRecords; throws naming the offending file | src/scripts/lib/agent-registry.ts |
+| checkAgentCompatibility(stages, agents) | verifies every stage-to-agent binding (floors allow, ceilings deny, multi-binding union of floors / intersection of ceilings); deterministic | src/scripts/lib/agent-permissions.ts |
+| getRenderer(platform, version?) | resolves platform + version to a renderer; latest is the default; throws PLATFORM_UNKNOWN listing supported platforms/versions | src/scripts/lib/deploy/platforms/index.ts |
+| renderAgent(renderer, agent) | renders one neutral agent definition into the platform's native format (target-relative path + full content) | src/scripts/lib/deploy/platforms/ |
 
 ## Schema Reconciliation
 
@@ -35,4 +45,5 @@ CLI toolkit: no HTTP endpoints. The contract surface is the `sdlc` command line 
 |-------------|-------------------|-------|
 | src/schemas/cli-envelope.schema.yaml | all sdlc CLI envelopes | No |
 | src/schemas/stage.schema.yaml | stage.yaml descriptors (startup validation) | No |
+| src/schemas/agent.schema.yaml | agent.yaml definitions (startup validation) | No |
 | src/schemas/docs-delta.schema.yaml | docs-delta.yaml artifact written by knowledge-extraction | No |

@@ -1,0 +1,261 @@
+metadata:
+  artifact: plan.yaml
+  target: implementation
+  latest_round: 5
+  created: 2026-08-25
+  updated: 2026-08-25
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-08-25T19:57:45.167Z
+    artifact_version: 0.1.0
+    implementation_status: ready-for-review
+    decision: review
+    can_accept: false
+    mechanical:
+      valid: false
+      blocking_count: 11
+      findings:
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-001 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-002 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-003 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-004 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-005 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-006 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-007 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-008 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-009 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-010 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-011 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+    warnings: []
+  - round: 2
+    reviewed_at: 2026-08-25T19:57:51.387Z
+    artifact_version: 0.1.0
+    implementation_status: ready-for-review
+    decision: review
+    can_accept: false
+    mechanical:
+      valid: false
+      blocking_count: 11
+      findings:
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-001 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-002 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-003 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-004 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-005 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-006 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-007 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-008 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-009 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-010 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-011 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+    warnings: []
+  - round: 3
+    reviewed_at: 2026-08-25T19:57:54.694Z
+    artifact_version: 0.1.0
+    implementation_status: ready-for-review
+    decision: review
+    can_accept: false
+    mechanical:
+      valid: false
+      blocking_count: 11
+      findings:
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-001 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-002 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-003 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-004 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-005 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-006 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-007 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-008 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-009 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-010 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+        - check: required-note-for-status
+          severity: blocking
+          category: completeness
+          target: tasks[].implementation_note
+          finding: Task TASK-011 has status 'done' but no implementation_note
+          fix: Add a implementation_note explaining what was done and how it was verified
+    warnings: []
+  - round: 4
+    reviewed_at: 2026-08-25T19:58:10.340Z
+    artifact_version: 0.1.0
+    implementation_status: ready-for-review
+    decision: review
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    warnings: []
+  - round: 5
+    reviewed_at: 2026-08-25T19:58:15.673Z
+    artifact_version: 0.1.0
+    implementation_status: accepted
+    decision: accepted
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    warnings: []

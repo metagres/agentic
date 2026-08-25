@@ -2,6 +2,7 @@ version: 1
 id: design
 kind: authoring
 title: Design
+agent: systems-architect
 artifact: design.yaml
 status_field: status
 requires:

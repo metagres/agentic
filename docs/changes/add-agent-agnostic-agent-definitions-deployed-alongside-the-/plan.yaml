@@ -1,0 +1,652 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: add-agent-agnostic-agent-definitions-deployed-alongside-the-"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-25
+  updated: 2026-08-25
+  based_on_design: 0.1.0
+  based_on_requirements: 0.1.0
+  implementation_status: accepted
+  step: complete
+tasks:
+  - id: TASK-001
+    title: Create the agent meta-schema with the opencode-go model enum
+    description: >
+      Create src/schemas/agent.schema.yaml, the engine-owned meta-schema for agent definitions
+      (sibling of stage.schema.yaml). Shape: version (integer const 1), id (string pattern
+      ^[a-z0-9-]+$), description (non-empty string, minLength 1), model (string enum of the 23 fully
+      qualified opencode-go ids: opencode-go/grok-4.5, opencode-go/gpt-5.6-luna,
+      opencode-go/glm-5.3, opencode-go/glm-5.2, opencode-go/glm-5.1, opencode-go/kimi-k3,
+      opencode-go/kimi-k2.7-code, opencode-go/kimi-k2.6, opencode-go/longcat-2.0,
+      opencode-go/deepseek-v4-pro, opencode-go/deepseek-v4-flash,
+      opencode-go/deepseek-v4-flash-vision-exp, opencode-go/mimo-v2.5, opencode-go/mimo-v2.5-pro,
+      opencode-go/minimax-m3, opencode-go/minimax-m2.7, opencode-go/muse-spark-1.2-contributor,
+      opencode-go/qwen3.8-max, opencode-go/qwen3.7-max, opencode-go/qwen3.7-plus,
+      opencode-go/qwen3.6-plus, opencode-go/hy3, opencode-go/ox-alpha-free), temperature (number
+      minimum 0 maximum 1), permissions (object with additionalProperties enum allow/ask/deny over
+      the six neutral keys file_read, search, file_write, shell, subagent, web — express as
+      properties per key with enum values and additionalProperties false), system_prompt (non-empty
+      string). Top level: required [version, id, description, model, temperature, permissions,
+      system_prompt], additionalProperties false. Follow the JSON-in-YAML style of
+      stage.schema.yaml.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-001
+      - FR-002
+    acceptance_ids:
+      - AC-006
+      - AC-009
+    design_refs:
+      - DEC-002
+    depends_on: []
+    files:
+      - path: src/schemas/agent.schema.yaml
+        operation: create
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Created src/schemas/agent.schema.yaml (draft-07, 23-model opencode-go enum,
+      six-key permission vocabulary). Verified: validate:schemas and validate:policies exit 0."
+    files_changed:
+      - path: src/schemas/agent.schema.yaml
+        operation: create
+  - id: TASK-002
+    title: Implement the agent registry with directory-scan discovery
+    description: >
+      Create src/scripts/lib/agent-registry.ts mirroring stage-registry.ts: loadAgentRegistry(cwd)
+      scans src/agents/ (resolved through the same runtime path resolution approach as stages —
+      extend resolveStagesDir-style resolution in src/scripts/lib/paths.ts with an agents directory
+      candidate, or add a sibling resolver) for *.yaml files, parses each with readYaml, validates
+      each against agent.schema.yaml via validateWithSchema, enforces id equals the filename stem,
+      and returns a cached registry of AgentRecords { id, file, description, model, temperature,
+      permissions, systemPrompt }. getAgentById(cwd, id) resolves an id or returns null. Startup
+      errors name the offending file. Add unit tests covering: valid discovery, invalid schema (bad
+      model enum value) fails naming the file, id/filename mismatch fails, empty or missing
+      directory behavior (empty registry, not an error, so unbound projects still work).
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+    acceptance_ids:
+      - AC-010
+    design_refs:
+      - DEC-001
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/scripts/lib/agent-registry.ts
+        operation: create
+      - path: src/scripts/lib/paths.ts
+        operation: modify
+      - path: test/unit/agent-registry.test.ts
+        operation: create
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Created agent-registry.ts mirroring stage discovery (scan, schema validation,
+      id-stem enforcement, cache) plus resolveAgentsDir in paths.ts. Verified: 7 new unit tests and
+      typecheck pass."
+    files_changed:
+      - path: src/scripts/lib/paths.ts
+        operation: modify
+      - path: src/scripts/lib/agent-registry.ts
+        operation: create
+      - path: test/unit/agent-registry.test.ts
+        operation: create
+  - id: TASK-003
+    title: Implement kind permission contracts and the compatibility checker
+    description: >
+      Create src/scripts/lib/agent-permissions.ts. (1) KIND_PERMISSION_CONTRACTS: one contract per
+      stage kind — authoring: floors file_read/file_write/shell/subagent allow, ceiling web deny;
+      review: floors file_read/search/shell allow, ceilings file_write/subagent/web deny; tasks:
+      floors file_read/search/file_write/shell/subagent allow, ceiling web deny; aggregator: floors
+      file_read/file_write/shell/subagent allow, ceiling web deny. (2)
+      computeEffectivePermissions(stage): kind contract with each key in the stage descriptor's
+      optional permissions map overriding. (3) checkAgentCompatibility(stages, agents): for every
+      stage with a bound agent, the agent's permissions must satisfy the effective requirements —
+      floor keys must be allow, ceiling keys must be deny, unconstrained keys may be allow/ask/deny;
+      for an agent bound to multiple stages, the union of floors and the intersection of ceilings
+      must hold, and conflicts are reported naming the agent and both conflicting stages. Returns
+      findings { stage, agent, key, required, actual } shaped for the validation bins. Pure and
+      deterministic; no I/O. Unit tests: floor violation, ceiling violation, override precedence,
+      multi-binding union/intersection, conflict reporting, and the full six-agent roster against
+      the nine stage bindings passing.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-009
+      - FR-010
+      - NFR-005
+    acceptance_ids:
+      - AC-016
+      - AC-017
+      - AC-018
+      - AC-023
+    design_refs:
+      - DEC-005
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/scripts/lib/agent-permissions.ts
+        operation: create
+      - path: test/unit/agent-permissions.test.ts
+        operation: create
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Created agent-permissions.ts: four kind contracts, computeEffectivePermissions
+      with override precedence, checkAgentCompatibility with
+      union-of-floors/intersection-of-ceilings for multi-bound agents. Pure and deterministic.
+      Verified: 18 unit tests pass including the full roster-vs-bindings matrix."
+    files_changed:
+      - path: src/scripts/lib/agent-permissions.ts
+        operation: create
+      - path: test/unit/agent-permissions.test.ts
+        operation: create
+  - id: TASK-004
+    title: Extend the stage meta-schema and registry with agent binding fields
+    description: >
+      Extend src/schemas/stage.schema.yaml with two optional properties: agent (string) and
+      permissions (object, additionalProperties enum allow/deny — overrides only, no ask). Extend
+      StageRecord in src/scripts/lib/stage-registry.ts with agent: string | null (descriptor.agent
+      or null) and permissionOverrides: Record<string, string> (descriptor.permissions or {}). Keep
+      additionalProperties false at the top level working with the new keys. Unit tests: descriptor
+      with agent parses into StageRecord; descriptor without agent yields null; descriptor with
+      unknown extra key still fails.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-003
+      - FR-004
+    acceptance_ids:
+      - AC-004
+      - AC-007
+    design_refs:
+      - DEC-003
+    depends_on: []
+    files:
+      - path: src/schemas/stage.schema.yaml
+        operation: modify
+      - path: src/scripts/lib/stage-registry.ts
+        operation: modify
+      - path: test/unit/stage-registry.test.ts
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Extended stage.schema.yaml with optional agent and permissions (allow/deny
+      only) fields and StageRecord with agent/permissionOverrides parsing. Verified:
+      validate:policies green, 3 new registry tests pass, unknown-key rejection preserved."
+    files_changed:
+      - path: src/schemas/stage.schema.yaml
+        operation: modify
+      - path: src/scripts/lib/stage-registry.ts
+        operation: modify
+      - path: test/unit/stage-registry.test.ts
+        operation: modify
+  - id: TASK-005
+    title: Author the six-agent roster under src/agents/
+    description: >
+      Create six YAML definitions, each satisfying agent.schema.yaml. Names reflect role and
+      personality for discoverability; descriptions state what the agent does and when to invoke it
+      (one or two sentences); system prompts carry only role, personality, and domain judgment with
+      zero CLI/skill instruction markers (no sdlc, no --change/--finalize flags, no scripts/sdlc.js,
+      no envelope field names, no step command placeholders). Models and temperatures per role:
+      requirements-analyst (opencode-go/kimi-k3, 0.3 — probing elicitation), systems-architect
+      (opencode-go/glm-5.3, 0.2 — decisive decomposition), task-planner (opencode-go/glm-5.2, 0.1 —
+      precise ordering), implementation-engineer (opencode-go/kimi-k2.7-code, 0.2 — code execution),
+      stage-reviewer (opencode-go/gpt-5.6-luna, 0.1 — adversarial verification), knowledge-curator
+      (opencode-go/deepseek-v4-flash, 0.2 — synthesis). Permissions per the design matrix:
+      analyst/architect/planner/curator file_read allow, search deny, file_write allow, shell allow,
+      subagent allow, web deny; engineer file_read allow, search allow, file_write allow, shell
+      allow, subagent allow, web deny; reviewer file_read allow, search allow, file_write deny,
+      shell allow, subagent deny, web deny.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - NFR-002
+      - NFR-003
+    acceptance_ids:
+      - AC-013
+      - AC-014
+    design_refs:
+      - DEC-007
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/agents/requirements-analyst.yaml
+        operation: create
+      - path: src/agents/systems-architect.yaml
+        operation: create
+      - path: src/agents/task-planner.yaml
+        operation: create
+      - path: src/agents/implementation-engineer.yaml
+        operation: create
+      - path: src/agents/stage-reviewer.yaml
+        operation: create
+      - path: src/agents/knowledge-curator.yaml
+        operation: create
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Authored six agent definitions under src/agents/ with distinct personalities,
+      discoverable descriptions, per-role models/temperatures, and the design permission matrix.
+      Verified: all six validate against agent.schema.yaml and contain zero forbidden markers (grep
+      clean)."
+    files_changed:
+      - path: src/agents/requirements-analyst.yaml
+        operation: create
+      - path: src/agents/systems-architect.yaml
+        operation: create
+      - path: src/agents/task-planner.yaml
+        operation: create
+      - path: src/agents/implementation-engineer.yaml
+        operation: create
+      - path: src/agents/stage-reviewer.yaml
+        operation: create
+      - path: src/agents/knowledge-curator.yaml
+        operation: create
+  - id: TASK-006
+    title: Bind stages to agents in the nine stage descriptors
+    description: >
+      Add the agent field to every stage.yaml: requirements -> requirements-analyst, design ->
+      systems-architect, planning -> task-planner, implementation -> implementation-engineer, all
+      four review stages (requirements-review, design-review, planning-review,
+      implementation-review) -> stage-reviewer, knowledge-extraction -> knowledge-curator. No
+      permissions overrides are needed for the shipped stages (the kind contracts already match the
+      roster). No TypeScript change.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-003
+      - FR-004
+      - NFR-002
+    acceptance_ids:
+      - AC-004
+      - AC-005
+      - AC-013
+    design_refs:
+      - DEC-003
+      - DEC-007
+    depends_on:
+      - TASK-004
+      - TASK-005
+    files:
+      - path: src/stages/requirements/stage.yaml
+        operation: modify
+      - path: src/stages/design/stage.yaml
+        operation: modify
+      - path: src/stages/planning/stage.yaml
+        operation: modify
+      - path: src/stages/implementation/stage.yaml
+        operation: modify
+      - path: src/stages/requirements-review/stage.yaml
+        operation: modify
+      - path: src/stages/design-review/stage.yaml
+        operation: modify
+      - path: src/stages/planning-review/stage.yaml
+        operation: modify
+      - path: src/stages/implementation-review/stage.yaml
+        operation: modify
+      - path: src/stages/knowledge-extraction/stage.yaml
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Added agent bindings to all nine stage.yaml descriptors (four review stages
+      share stage-reviewer). Verified: validate:policies exit 0; each file gained exactly one line."
+    files_changed:
+      - path: src/stages/requirements/stage.yaml
+        operation: modify
+      - path: src/stages/design/stage.yaml
+        operation: modify
+      - path: src/stages/planning/stage.yaml
+        operation: modify
+      - path: src/stages/implementation/stage.yaml
+        operation: modify
+      - path: src/stages/requirements-review/stage.yaml
+        operation: modify
+      - path: src/stages/design-review/stage.yaml
+        operation: modify
+      - path: src/stages/planning-review/stage.yaml
+        operation: modify
+      - path: src/stages/implementation-review/stage.yaml
+        operation: modify
+      - path: src/stages/knowledge-extraction/stage.yaml
+        operation: modify
+  - id: TASK-007
+    title: Wire agent validation into validate-policies with new error codes
+    description: >
+      Extend bin/validate-policies.ts with four engine-level config checks beside the requires-graph
+      check: (1) every src/agents/*.yaml validates against agent.schema.yaml (AGENT_SCHEMA_INVALID);
+      (2) every system_prompt passes the mechanical purity marker check — marker list as a constant:
+      the strings sdlc, --change, --request, --update-artifact, --append-delta, --complete-step,
+      --finalize, --confirm-semantic, --record-answer, --set-clarity, --next-ids, --accept,
+      --reject, --task-id, --status, scripts/sdlc.js, and the envelope field names
+      workflow/step/state/instructions/data/errors/warnings used as instruction directives (match on
+      phrases like "the instructions field" to avoid false positives on ordinary prose)
+      (AGENT_PROMPT_MARKER); (3) every stage agent reference resolves against the agent registry
+      (AGENT_REF_UNRESOLVED); (4) every stage-to-agent binding passes checkAgentCompatibility
+      (AGENT_PERMISSION_INCOMPATIBLE). Add the five error codes with message and fix text to
+      src/policies/errors.yaml. Results appear in the validate-policies JSON output. Unit tests for
+      the marker check (positive and false-positive cases) and the wiring.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-002
+      - FR-003
+      - FR-008
+      - FR-009
+    acceptance_ids:
+      - AC-006
+      - AC-007
+      - AC-008
+      - AC-016
+      - AC-018
+    design_refs:
+      - DEC-008
+      - DEC-009
+    depends_on:
+      - TASK-002
+      - TASK-003
+      - TASK-004
+      - TASK-006
+    files:
+      - path: bin/validate-policies.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+      - path: test/unit/agent-prompt-marker.test.ts
+        operation: create
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Wired four agent checks into validate-policies.ts (schema, prompt markers via
+      new agent-prompt-marker.ts, reference resolution, permission compatibility) with five new
+      error codes in errors.yaml. Verified: validate:policies exit 0 with all agents checks ok; 8
+      marker unit tests pass."
+    files_changed:
+      - path: bin/validate-policies.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+      - path: src/scripts/lib/agent-prompt-marker.ts
+        operation: create
+      - path: test/unit/agent-prompt-marker.test.ts
+        operation: create
+  - id: TASK-008
+    title: Surface the stage-to-agent mapping in CLI data
+    description: >
+      Extend listWorkflows in src/scripts/workflows/index.ts so every stage entry carries agent: the
+      bound agent id or null (cross-cutting entries carry null). Extend the status workflow
+      (src/scripts/workflows/status.ts) so every per-stage pipeline entry carries the same agent
+      field. No new top-level envelope fields; cli-envelope.schema.yaml unchanged. Unit tests:
+      workflows[] entries carry agent ids for the nine stages and null for cross-cutting; status
+      stage entries carry the binding; envelope still validates against cli-envelope.schema.yaml.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-005
+      - NFR-004
+    acceptance_ids:
+      - AC-002
+      - AC-003
+      - AC-015
+    design_refs:
+      - DEC-004
+    depends_on:
+      - TASK-004
+    files:
+      - path: src/scripts/workflows/index.ts
+        operation: modify
+      - path: src/scripts/workflows/status.ts
+        operation: modify
+      - path: test/unit/list-workflows.test.ts
+        operation: create
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Surfaced agent id or null in data.workflows[] (listWorkflows,
+      getStageDescriptions) and status pipeline entries; envelope shape unchanged. Verified: 4 new
+      unit tests plus updated status e2e pass; envelope validates against cli-envelope.schema.yaml."
+    files_changed:
+      - path: src/scripts/lib/stage-registry.ts
+        operation: modify
+      - path: src/scripts/workflows/index.ts
+        operation: modify
+      - path: src/scripts/workflows/status.ts
+        operation: modify
+      - path: test/unit/list-workflows.test.ts
+        operation: create
+      - path: test/e2e/status.test.ts
+        operation: modify
+  - id: TASK-009
+    title: Implement the platform renderer registry with OpenCode v1/v2 renderers
+    description: >
+      Create src/scripts/lib/deploy/platforms/index.ts (registry: getRenderer(platform,
+      platformVersion) resolving { opencode: { 1, 2 } }, latest alias, PLATFORM_UNKNOWN error
+      listing supported values) and src/scripts/lib/deploy/platforms/opencode.ts (renderer with
+      version variants). Version 2 (current): target directory agents/, file <agent-id>.md,
+      frontmatter description, mode: subagent, model (neutral id passed through verbatim — the
+      source stores fully qualified opencode-go ids), temperature, permission translated file_read
+      -> {read: allow, list: allow}, search -> {glob: allow, grep: allow}, file_write -> {edit:
+      allow, write: allow, apply_patch: allow}, shell -> {bash: allow}, subagent -> {task: allow},
+      web -> {webfetch: allow, websearch: allow} with deny/ask mapped to the same target keys; body
+      is the system prompt verbatim. Version 1 (legacy): same shape but the deprecated tools
+      frontmatter (permission allow -> true, deny -> false, ask -> omitted). renderAgent(renderer,
+      agent) returns { path, content }. Unit tests: v2 frontmatter translation for all six keys and
+      three levels, v1 tools translation, unknown version fails listing supported versions, latest
+      default resolves to v2.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-011
+      - NFR-001
+      - NFR-006
+    acceptance_ids:
+      - AC-019
+      - AC-020
+      - AC-021
+      - AC-024
+    design_refs:
+      - DEC-006
+    depends_on:
+      - TASK-002
+    files:
+      - path: src/scripts/lib/deploy/platforms/index.ts
+        operation: create
+      - path: src/scripts/lib/deploy/platforms/opencode.ts
+        operation: create
+      - path: test/unit/deploy-platforms.test.ts
+        operation: create
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Created deploy/platforms registry (getRenderer, listPlatforms,
+      unknown-selection errors listing supported values) and the OpenCode v2 permission / v1 legacy
+      tools renderers with full neutral-to-target permission translation. Verified: 8 unit tests
+      pass."
+    files_changed:
+      - path: src/scripts/lib/deploy/platforms/index.ts
+        operation: create
+      - path: src/scripts/lib/deploy/platforms/opencode.ts
+        operation: create
+      - path: test/unit/deploy-platforms.test.ts
+        operation: create
+  - id: TASK-010
+    title: Integrate agent rendering into deployment with platform flags and smoke checks
+    description: >
+      Extend bin/deploy-to-agent.ts: parse --platform (default opencode) and --platform-version
+      (default latest); resolve the renderer (fail listing supported values on unknown); after the
+      existing skill deployment, load the agent registry and render every definition into
+      <dest>/agents/; under --clean remove stale rendered agent files whose source definitions no
+      longer exist (and the whole agents directory when the registry is empty); smoke-verify each
+      rendered agent unless --skip-smoke (frontmatter parses, name matches the definition id, model
+      non-empty); add the agent pointer sentence to SKILL_TEMPLATE ("Stages may declare a dedicated
+      agent — check data.workflows[].agent before running a stage and delegate when set"); report
+      platform, platformVersion, and agents (id + smoke status) in the deploy output JSON. Skills
+      deploy identically for every platform. Extend test/e2e/deploy.test.ts: default deploy renders
+      six agents with correct frontmatter; --platform-version 1 renders tools frontmatter; unknown
+      platform fails; --clean removes a stale agent file; skills identical across platforms; no .ts
+      files or package.json inside agents/.
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-006
+      - FR-007
+      - FR-011
+      - FR-012
+    acceptance_ids:
+      - AC-001
+      - AC-005
+      - AC-011
+      - AC-019
+      - AC-021
+      - AC-022
+    design_refs:
+      - DEC-004
+      - DEC-006
+    depends_on:
+      - TASK-006
+      - TASK-008
+      - TASK-009
+    files:
+      - path: bin/deploy-to-agent.ts
+        operation: modify
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Integrated agent rendering into deploy-to-agent.ts:
+      --platform/--platform-version flags, rendering into dest agents/, stale-agent cleanup under
+      --clean, per-agent smoke, SKILL.md pointer sentence, extended deploy JSON. Verified: deploy
+      e2e suite (3 tests incl. v1/v2 uniformity, unknown platform, ghost-agent cleanup) passes;
+      deploy:smoke green with six agents."
+    files_changed:
+      - path: bin/deploy-to-agent.ts
+        operation: modify
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+  - id: TASK-011
+    title: Update repository documentation for the agent layer
+    description: >
+      Update AGENTS.md: section 5 (stage-folder layout gains the optional agent and permissions
+      descriptor fields; new src/agents/ layout paragraph — one YAML per agent, discovered by scan,
+      validated by agent.schema.yaml), section 6 (where-to-look table gains agent definitions, agent
+      registry, kind permission contracts, platform renderers), section 9 (area-changed table gains
+      src/agents/ and deploy platforms rows), section 10 (repository map gains src/agents/). Update
+      codemap.md and src/codemap.md directory map entries for src/agents/ and the deploy platform
+      registry. Documentation-only task; no code.
+    type: documentation
+    status: done
+    complexity: low
+    covers:
+      - NFR-001
+      - NFR-006
+    acceptance_ids:
+      - AC-012
+      - AC-024
+    design_refs:
+      - DEC-001
+      - DEC-006
+    depends_on:
+      - TASK-007
+      - TASK-010
+    files:
+      - path: AGENTS.md
+        operation: modify
+      - path: codemap.md
+        operation: modify
+      - path: src/codemap.md
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Updated AGENTS.md (agent layer subsection, where-to-find rows, area-changed
+      rows, utilities), root codemap.md, and src/codemap.md with the agent layer facts verified
+      against the implementation. Verified: npm run validate exit 0 (171 tests)."
+    files_changed:
+      - path: AGENTS.md
+        operation: modify
+      - path: codemap.md
+        operation: modify
+      - path: src/codemap.md
+        operation: modify
+milestones:
+  - id: M1
+    title: Agentic foundation
+    description: Schema, registry, and permission contracts — the engine can discover and check agent
+      definitions.
+    task_ids:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+  - id: M2
+    title: Configuration content
+    description: The six-agent roster and the nine stage bindings.
+    task_ids:
+      - TASK-005
+      - TASK-006
+  - id: M3
+    title: Enforcement
+    description: Validation fails on invalid definitions, markers, unresolved references, and permission
+      incompatibility.
+    task_ids:
+      - TASK-007
+  - id: M4
+    title: Surfacing and deployment
+    description: CLI data carries the mapping; deployment renders agents per platform and version.
+    task_ids:
+      - TASK-008
+      - TASK-009
+      - TASK-010
+  - id: M5
+    title: Documentation
+    description: Repository docs reflect the agent layer.
+    task_ids:
+      - TASK-011
+risks:
+  - risk: The runtime path resolution for src/agents/ must work both in the repository and inside the
+      deployed bundle (the registry is also loaded by deploy and validation), unlike stages which
+      resolve from the bundle.
+    impact: Discovery could fail in one of the two contexts.
+    mitigation: Extend the existing path resolver with an agents candidate mirroring the stages
+      resolution and cover both contexts in unit tests.
+    severity: medium
+  - risk: The e2e deploy test spawns concurrent deploys guarded by a build lock; adding agent rendering
+      extends the critical section.
+    impact: Slower or flaky e2e tests.
+    mitigation: Keep rendering synchronous and cheap; reuse the existing lock discipline.
+    severity: low
+  - risk: The marker check could false-positive on legitimate personality prose that mentions CLI
+      concepts generically.
+    impact: Roster prompts need rewording during implementation.
+    mitigation: Marker list targets command flags and file paths, not ordinary words; false-positive
+      cases are unit-tested.
+    severity: low
+  - risk: Version-1 OpenCode renderer is based on the documented deprecated tools format; no live v1
+      runtime exists to verify against.
+    impact: The v1 variant may need adjustment if a real v1 target appears.
+    mitigation: The variant is small and isolated in the renderer; covered by unit tests against the
+      documented shape.
+    severity: low
+delta:
+  - target_doc: docs/current/operations.md
+    target_anchor: Commands
+    change: Modify
+    reason: npm run validate gains agent definition, marker, reference, and permission compatibility
+      checks; deploy gains --platform and --platform-version.
+    phase: Planning
+    date: 2026-08-25
+  - target_doc: docs/current/architecture.md
+    target_anchor: Integration Points
+    change: Modify
+    reason: "New integration points: agent registry feeding validation and deployment, kind permission
+      contracts feeding the compatibility check, renderer registry feeding deploy."
+    phase: Planning
+    date: 2026-08-25

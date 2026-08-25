@@ -70,13 +70,19 @@ export function runStatus(argv: string[]): void {
   const changeDir = path.basename(changeRoot);
 
   // Pipeline order derives from the requires DAG with an alphabetical
-  // tie-break; no hardcoded pipeline map exists anymore.
+  // tie-break; no hardcoded pipeline map exists anymore. Every per-stage entry
+  // carries the stage's bound agent id (or null) so the primary agent can
+  // decide delegation (DEC-004).
   const registry = loadStageRegistry(cwd);
   const order = computePipelineOrder(cwd);
 
-  const pipeline: Record<string, string> = {};
+  const pipeline: Record<string, { status: string; agent: string | null }> = {};
   for (const id of order) {
-    pipeline[id] = readStageStatus(cwd, changeRoot, id);
+    const stage = getStageById(cwd, id);
+    pipeline[id] = {
+      status: readStageStatus(cwd, changeRoot, id),
+      agent: stage ? stage.agent : null,
+    };
   }
 
   // Check for open feedback first (unchanged behavior).
@@ -116,7 +122,7 @@ export function runStatus(argv: string[]): void {
   let suggestedCommand: string | null = null;
 
   // 1. Check for rejected stages first.
-  const rejectedStage = order.find((key: string) => pipeline[key] === 'rejected');
+  const rejectedStage = order.find((key: string) => pipeline[key].status === 'rejected');
   if (rejectedStage) {
     currentWorkflow = rejectedStage;
     state = 'blocked';
@@ -128,7 +134,7 @@ export function runStatus(argv: string[]): void {
       const stage = getStageById(cwd, id);
       if (!stage) continue;
 
-      const status = pipeline[id];
+      const status = pipeline[id].status;
       const isDone =
         stage.kind === 'aggregator' ? status === 'complete' : status === 'accepted';
 

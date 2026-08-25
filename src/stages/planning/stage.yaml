@@ -2,6 +2,7 @@ version: 1
 id: planning
 kind: authoring
 title: Planning
+agent: task-planner
 artifact: plan.yaml
 status_field: status
 requires:

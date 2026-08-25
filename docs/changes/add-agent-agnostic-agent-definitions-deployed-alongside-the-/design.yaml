@@ -1,0 +1,397 @@
+metadata:
+  id: DES-001
+  title: "Design: add-agent-agnostic-agent-definitions-deployed-alongside-the-"
+  stage: design
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-25
+  updated: 2026-08-25
+  based_on_requirements: 0.1.0
+  delta_reviewed: false
+  step: complete
+context_summary: "The engine discovers stages as folders and deploys two self-contained skills, but
+  defines no agents: stage execution inherits whatever coding agent drives the CLI, and deployment
+  knows exactly one target format. This design adds an agent layer in three parts: an agent-agnostic
+  definition source (src/agents/, one YAML file per agent, validated by an engine-owned meta-schema
+  with the opencode-go model catalog as an enum), a binding and surfacing path (optional agent field
+  in stage.yaml, agent id or null in CLI data), and a deployment path that renders the agnostic
+  definitions through a platform-and-version-selected renderer while skills stay platform-uniform.
+  Permission compatibility is enforced mechanically: engine-owned kind permission contracts plus
+  per-stage overrides define each stage's effective requirements, and a deterministic check verifies
+  every stage-to-agent binding at validation and deploy time, so instruction changes cannot silently
+  outgrow agent permissions."
+components:
+  - id: CMP-001
+    name: Agent Registry
+    responsibility: Discovers agent definitions by scanning src/agents/ for *.yaml files (mirroring
+      stage discovery; no central enumeration). Parses and validates each file against the agent
+      meta-schema, fails hard naming the offending file on invalid YAML, schema violations, or
+      id/filename mismatch, and returns a cached registry of AgentRecords. Exposes getAgentById for
+      reference resolution.
+  - id: CMP-002
+    name: Agent Meta-Schema
+    responsibility: "Engine-owned schema at src/schemas/agent.schema.yaml, sibling of stage.schema.yaml.
+      Defines the agnostic definition shape: version (const 1), id (pattern, must equal filename
+      stem), description (non-empty; carries personality and discoverability), model (enum of the 23
+      fully qualified opencode-go ids), temperature (number 0.0 to 1.0 inclusive), permissions
+      (object over the neutral vocabulary file_read, search, file_write, shell, subagent, web, each
+      allow, ask, or deny), system_prompt (non-empty string). additionalProperties false."
+  - id: CMP-003
+    name: Kind Permission Contracts
+    responsibility: "Engine-owned module beside the kind interpreters
+      (src/scripts/lib/agent-permissions.ts) holding one contract per stage kind: authoring requires
+      file_read, file_write, shell, subagent allow and web deny; review requires file_read, search,
+      shell allow and file_write, subagent, web deny; tasks requires file_read, search, file_write,
+      shell, subagent allow and web deny; aggregator requires file_read, file_write, shell, subagent
+      allow and web deny. Computes a stage's effective requirements as the kind contract overridden
+      by the stage descriptor's optional permissions map, and checks an agent's permissions against
+      them (floors must be allow, ceilings must be deny, ask only on unconstrained keys). For an
+      agent bound to multiple stages, verifies the union of floors and the intersection of ceilings,
+      reporting conflicts with the agent id and both conflicting stages."
+  - id: CMP-004
+    name: Stage Agent Binding
+    responsibility: "Extends the stage meta-schema (src/schemas/stage.schema.yaml) with two optional
+      fields: agent (string, an agent id) and permissions (object, per-key overrides of the kind
+      contract). The stage registry parses both into StageRecord (agent: string or null,
+      permissionOverrides: map). A present agent reference that does not resolve against the agent
+      registry is a cross-file validation error naming the stage and the id; an absent agent field
+      is valid and means the current agent runs the stage."
+  - id: CMP-005
+    name: Runtime Surfacing
+    responsibility: "Extends listWorkflows and the status workflow to carry the binding inside the
+      existing data field: every entry in data.workflows[] gains agent (id or null), and every
+      per-stage entry in status pipeline state gains the same field. No new top-level envelope
+      fields; cli-envelope.schema.yaml is unchanged because data is already an unconstrained object.
+      The generated SKILL.md gains one pointer sentence telling the primary agent to check
+      data.workflows[].agent before running a stage and delegate when set."
+  - id: CMP-006
+    name: Platform Renderer Registry
+    responsibility: "Deployment-layer registry (src/scripts/lib/deploy/platforms/) mapping platform id
+      and platform version to a renderer. Each renderer owns its target subdirectory (agents/), file
+      naming (<agent-id>.md), frontmatter key mapping, neutral-to-target permission translation, and
+      version variants. The OpenCode renderer ships version 2 (current: permission frontmatter) and
+      version 1 (legacy: deprecated tools frontmatter); its permission translation maps file_read to
+      read and list, search to glob and grep, file_write to edit, write, and apply_patch, shell to
+      bash, subagent to task, web to webfetch and websearch. getRenderer(platform, version) fails
+      with a message listing supported platforms and versions on unknown selections; the latest
+      version is the default when version is omitted."
+  - id: CMP-007
+    name: Deploy Integration
+    responsibility: "Extends bin/deploy-to-agent.ts with --platform and --platform-version flags
+      (defaults: opencode, latest). After bundling skills unchanged, renders every discovered agent
+      definition through the selected renderer into the destination agents directory, removes stale
+      rendered agent files under --clean, smoke-verifies each rendered agent (frontmatter parses,
+      name matches the definition id, model carries the platform provider prefix), and reports
+      platform, platformVersion, and the rendered agent list in the deploy output JSON."
+  - id: CMP-008
+    name: Validation Integration
+    responsibility: "Extends bin/validate-policies.ts with four config cross-checks that run beside the
+      requires-graph check: every src/agents/*.yaml file validates against the agent meta-schema;
+      every system_prompt passes the mechanical purity marker check (a constant marker list: sdlc
+      command flags, the bundled CLI path, envelope field names, step command placeholders); every
+      stage agent reference resolves against the agent registry; and every stage-to-agent binding
+      passes the permission compatibility check. New error codes (AGENT_SCHEMA_INVALID,
+      AGENT_PROMPT_MARKER, AGENT_REF_UNRESOLVED, AGENT_PERMISSION_INCOMPATIBLE, PLATFORM_UNKNOWN)
+      are added to src/policies/errors.yaml. These are engine-level config validations like the
+      requires-graph check, not capped-catalog stage checks, so invariant 11 is preserved."
+  - id: CMP-009
+    name: Agent Roster
+    responsibility: "The six shipped definitions under src/agents/: requirements-analyst (requirements),
+      systems-architect (design), task-planner (planning), implementation-engineer (implementation),
+      stage-reviewer (all four review stages), knowledge-curator (knowledge-extraction). Each name
+      reflects the agent's role and personality so other agents can discover it by name and
+      description; each description states what the agent does and when to invoke it; each system
+      prompt carries only role, personality, and domain judgment, never CLI or skill instructions."
+data_models:
+  - id: DM-001
+    name: AgentDefinition (src/agents/<agent-id>.yaml)
+    fields: "version (const 1), id (must equal the filename stem), description (non-empty string;
+      personality and discoverability), model (enum: opencode-go/grok-4.5, opencode-go/gpt-5.6-luna,
+      opencode-go/glm-5.3, opencode-go/glm-5.2, opencode-go/glm-5.1, opencode-go/kimi-k3,
+      opencode-go/kimi-k2.7-code, opencode-go/kimi-k2.6, opencode-go/longcat-2.0,
+      opencode-go/deepseek-v4-pro, opencode-go/deepseek-v4-flash,
+      opencode-go/deepseek-v4-flash-vision-exp, opencode-go/mimo-v2.5, opencode-go/mimo-v2.5-pro,
+      opencode-go/minimax-m3, opencode-go/minimax-m2.7, opencode-go/muse-spark-1.2-contributor,
+      opencode-go/qwen3.8-max, opencode-go/qwen3.7-max, opencode-go/qwen3.7-plus,
+      opencode-go/qwen3.6-plus, opencode-go/hy3, opencode-go/ox-alpha-free), temperature (number 0.0
+      to 1.0 inclusive), permissions (map: file_read, search, file_write, shell, subagent, web, each
+      allow, ask, or deny), system_prompt (non-empty string; no CLI or skill instruction markers)."
+  - id: DM-002
+    name: KindPermissionContract
+    fields: kind (authoring, review, tasks, aggregator) to a map of neutral permission keys to required
+      levels, where allow is a floor (the bound agent must declare allow) and deny is a ceiling (the
+      bound agent must declare deny). Contracts live in the engine beside the kind interpreters and
+      change only through engine changes.
+  - id: DM-003
+    name: StageDescriptor extension (stage.yaml)
+    fields: agent (optional string; an agent id from src/agents/, absent means the current agent runs
+      the stage), permissions (optional map of neutral permission keys to allow or deny; overrides
+      the kind contract for the keys it defines). Both fields are validated by the extended stage
+      meta-schema; agent references are cross-checked against the agent registry.
+  - id: DM-004
+    name: RenderedAgent (destination agents/<agent-id>.md)
+    fields: "Platform-specific markdown: YAML frontmatter with description, mode (subagent), model
+      (platform-qualified form of the neutral model id), temperature, and permission (version 2) or
+      tools (version 1) translated from the neutral vocabulary; body is the system prompt verbatim.
+      The renderer owns the exact key set and translation per platform and version."
+  - id: DM-005
+    name: DeployReport extension
+    fields: The deploy output JSON gains platform (string), platformVersion (string), and agents (array
+      of rendered agent ids with smoke status). The skill manifests are unchanged; platform metadata
+      lives in the deploy report only.
+apis:
+  - id: API-001
+    path: loadAgentRegistry(cwd)
+    method: internal
+    description: Scans src/agents/ for YAML files, validates each against the agent meta-schema, builds
+      AgentRecords, and returns the cached registry. Throws startup errors naming the offending file
+      for malformed definitions.
+  - id: API-002
+    path: getAgentById(cwd, agentId)
+    method: internal
+    description: Resolves an agent id to its AgentRecord from the registry; returns null when absent.
+      Used by stage reference resolution and the permission compatibility check.
+  - id: API-003
+    path: computeEffectivePermissions(stage)
+    method: internal
+    description: "Returns the stage's effective permission requirements: the kind contract for the
+      stage's kind, with each key the stage descriptor's permissions map defines replaced by its
+      override. Pure function over config; deterministic."
+  - id: API-004
+    path: checkAgentCompatibility(stageRegistry, agentRegistry)
+    method: internal
+    description: For every stage with a bound agent, verifies the agent's permissions against the
+      stage's effective requirements, and for every agent bound to multiple stages verifies the
+      union of floors and the intersection of ceilings. Returns findings naming the stage, agent,
+      and each conflicting permission key, or the agent and both conflicting stages for
+      multi-binding conflicts. Deterministic; no LLM involvement.
+  - id: API-005
+    path: getRenderer(platform, platformVersion)
+    method: internal
+    description: Resolves platform id and version to a renderer from the deployment-layer registry.
+      Throws PLATFORM_UNKNOWN listing supported platforms and versions when the selection does not
+      resolve; the renderer's latest version is used when the version is omitted.
+  - id: API-006
+    path: renderAgent(renderer, agentDefinition)
+    method: internal
+    description: "Renders one agentic agent definition into the platform's native format:
+      target-relative path and full file content with frontmatter mapped from neutral fields,
+      permissions translated through the renderer's mapping table, and the system prompt as the
+      body."
+  - id: API-007
+    path: data.workflows[].agent / status stage entries .agent
+    method: cli-data
+    description: "The agent field surfaced in CLI envelope data: the bound agent id or null for every
+      workflow entry in --list-workflows and help, and for every per-stage entry in status pipeline
+      state. Consumed by the primary agent to decide delegation; no new top-level envelope fields."
+flows:
+  - id: FLW-001
+    name: Validation flow (npm run validate)
+    steps:
+      - Scan src/agents/; parse and validate every definition against agent.schema.yaml; fail naming
+        the file on schema violations.
+      - Run the prompt purity marker check over every system_prompt; fail naming the file and the
+        matched marker.
+      - Load the stage registry; for every stage.yaml with an agent field, resolve the id against
+        the agent registry; fail naming the stage and unresolved id.
+      - Compute each bound stage's effective permissions (kind contract overridden by stage
+        permissions); check every stage-to-agent binding, including multi-binding union and
+        intersection; fail naming stage, agent, and conflicting keys.
+      - Report agent validation results in the validate-policies output beside the requires-graph
+        result.
+  - id: FLW-002
+    name: Deployment flow (bin/deploy-to-agent.ts)
+    steps:
+      - Parse --dest, --platform (default opencode), --platform-version (default latest), --clean,
+        --skip-smoke.
+      - Resolve the renderer through the registry; fail listing supported platforms and versions on
+        unknown selections.
+      - Bundle and deploy the skills exactly as today (platform-uniform; SKILL.md gains the agent
+        pointer sentence).
+      - Load the agent registry; render every definition through the selected renderer into the
+        destination agents directory.
+      - Under --clean, remove rendered agent files whose source definitions no longer exist.
+      - Smoke-verify each rendered agent (frontmatter parses, name matches, model qualified) unless
+        --skip-smoke.
+      - Emit the deploy report with platform, platformVersion, skills, and agents arrays.
+  - id: FLW-003
+    name: Runtime surfacing flow (CLI)
+    steps:
+      - listWorkflows and the status workflow read StageRecord.agent for each discovered stage.
+      - Each workflows[] entry and each status stage entry carries agent: the bound agent id or null.
+      - The primary agent reads the field from the envelope data and either runs the stage itself
+        (null) or delegates to the named subagent (set).
+decisions:
+  - id: DEC-001
+    title: Agent-agnostic source with target-specific rendering
+    context: The toolkit must stay usable with any coding agent (invariant 7), but agents are configured
+      per platform; the user requires the source to be agnostic and deployment to specialize.
+    decision: Agent definitions live in neutral YAML under src/agents/ with a neutral permission
+      vocabulary; all platform-specific knowledge (directory, naming, frontmatter, permission keys,
+      model qualification) lives in deployment-layer renderers.
+    status: accepted
+  - id: DEC-002
+    title: Model catalog as a schema enum of fully qualified ids
+    context: The allowed LLMs are the opencode-go catalog; references must be unambiguous and
+      machine-checkable.
+    decision: The agent meta-schema enumerates the 23 fully qualified opencode-go ids as a const enum;
+      any other model value is a schema violation. Catalog updates are schema-change events.
+    status: accepted
+  - id: DEC-003
+    title: Optional stage binding with current-agent fallback
+    context: The user requires that stages without an agent run in the current agent; binding must not
+      become mandatory.
+    decision: stage.yaml gains an optional agent field; absent means unbound (agent null in CLI data,
+      the current agent runs the stage). A present but unresolvable reference is a hard validation
+      error.
+    status: accepted
+  - id: DEC-004
+    title: CLI-data-only surfacing
+    context: The mapping must be machine-actionable and survive post-deploy stage additions; the
+      envelope shape is frozen.
+    decision: The binding surfaces only inside the existing data field (workflows[] entries and status
+      stage entries gain agent); the generated SKILL.md carries one pointer sentence, not a table.
+    status: accepted
+  - id: DEC-005
+    title: Mechanical permission compatibility via kind contracts
+    context: CLI instructions evolve and can outgrow hand-authored agent permissions; the user asks
+      whether compatibility needs LLM judgment at deploy time.
+    decision: No LLM judgment anywhere. The engine owns a permission contract per stage kind (the
+      interaction profile of each kind interpreter), stage.yaml may override individual keys, and a
+      deterministic check at validation and deploy time verifies every binding (floors must be
+      allow, ceilings must be deny, multi-stage bindings satisfy union of floors and intersection of
+      ceilings). Instruction changes that exceed a kind profile require an override in the same
+      change, which validation then forces against the bound agent.
+    status: accepted
+  - id: DEC-006
+    title: Platform renderer registry with version variants; skills platform-uniform
+    context: Agent formats differ across platforms and platform versions (OpenCode v1 tools vs v2
+      permission; other coding agents in principle), while the SKILL.md protocol is cross-framework.
+    decision: Deployment selects a renderer by --platform and --platform-version from a deployment-layer
+      registry; each renderer owns directory, naming, frontmatter mapping, permission translation,
+      and version variants. Skills deploy identically for every platform; platform configuration
+      affects only agent rendering. Defaults preserve current OpenCode behavior.
+    status: accepted
+  - id: DEC-007
+    title: One stage-reviewer shared by all four review stages
+    context: The review stages share identical mechanics (gate check, findings, semantic checklist,
+      accept or reject, CLI-owned append-only rounds); the roster must be minimal where definitions
+      genuinely overlap.
+    decision: A single stage-reviewer agent is bound by all four review stage descriptors; its contract
+      ceiling (file_write deny) enforces the append-only invariant at the agent level.
+    status: accepted
+  - id: DEC-008
+    title: Prompt purity as a mechanical marker check
+    context: System prompts must not duplicate instructions the CLI or skill instructions already
+      return; free-form personality prose must stay allowed.
+    decision: A constant marker list (sdlc command flags, bundled CLI path, envelope field names, step
+      command placeholders) is checked against every system_prompt at validation time; matches fail
+      naming the file and marker. Role and personality prose is unconstrained.
+    status: accepted
+  - id: DEC-009
+    title: Compatibility and purity checks as engine config validation, not capped-catalog checks
+    context: Invariant 11 caps structural validation at eleven named checks operating on stage
+      artifacts; agent validation is config cross-validation across files.
+    decision: The agent checks live in bin/validate-policies.ts beside the requires-graph check
+      (engine-level config validation), with error codes in src/policies/errors.yaml; the capped
+      catalog is untouched.
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+      - CMP-002
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-002
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-004
+      - CMP-008
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-004
+  - requirement_id: FR-005
+    component_ids:
+      - CMP-005
+  - requirement_id: FR-006
+    component_ids:
+      - CMP-006
+      - CMP-007
+  - requirement_id: FR-007
+    component_ids:
+      - CMP-007
+  - requirement_id: FR-008
+    component_ids:
+      - CMP-008
+  - requirement_id: FR-009
+    component_ids:
+      - CMP-003
+      - CMP-008
+  - requirement_id: FR-010
+    component_ids:
+      - CMP-003
+      - CMP-004
+  - requirement_id: FR-011
+    component_ids:
+      - CMP-006
+      - CMP-007
+  - requirement_id: FR-012
+    component_ids:
+      - CMP-007
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-001
+      - CMP-002
+      - CMP-006
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-009
+  - requirement_id: NFR-003
+    component_ids:
+      - CMP-009
+  - requirement_id: NFR-004
+    component_ids:
+      - CMP-005
+  - requirement_id: NFR-005
+    component_ids:
+      - CMP-003
+  - requirement_id: NFR-006
+    component_ids:
+      - CMP-006
+delta:
+  - target_doc: docs/current/architecture.md
+    target_anchor: Folder Responsibilities
+    change: Modify
+    reason: Add src/agents/ (agent definitions), the agent registry and kind permission contract
+      modules, and the deployment platform renderer registry to the folder responsibilities.
+    phase: Design
+    date: 2026-08-25
+  - target_doc: docs/current/glossary.md
+    change: Add
+    reason: Add the Agent Definition, Kind Permission Contract, and Platform Renderer entities with
+      their fields.
+    phase: Design
+    date: 2026-08-25
+  - target_doc: docs/current/api-contract.md
+    target_anchor: Endpoints (CLI Commands)
+    change: Modify
+    reason: Document the agent field in data.workflows[] and status stage entries, and the internal
+      agent/permission/renderer APIs.
+    phase: Design
+    date: 2026-08-25
+  - target_doc: docs/current/decisions.md
+    target_anchor: "Living: Cycle Decisions"
+    change: Modify
+    reason: "Record DEC-001 through DEC-009: agnostic source with target rendering, schema-enum catalog,
+      optional binding, CLI-data surfacing, kind contracts, renderer registry, shared reviewer,
+      marker check, config-validation placement."
+    phase: Design
+    date: 2026-08-25
+  - target_doc: docs/current/operations.md
+    target_anchor: Deployment
+    change: Modify
+    reason: Document the --platform and --platform-version deploy flags, agent rendering, stale-agent
+      cleanup, and the agent smoke verification.
+    phase: Design
+    date: 2026-08-25

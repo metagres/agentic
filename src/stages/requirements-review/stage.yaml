@@ -2,6 +2,7 @@ version: 1
 id: requirements-review
 kind: review
 title: Requirements Review
+agent: stage-reviewer
 artifact: requirements.yaml
 status_field: status
 requires: []

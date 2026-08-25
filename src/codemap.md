@@ -12,7 +12,8 @@ that gets bundled into the deployed skill.
 |---|---|---|
 | `scripts/` | sdlc CLI: entry point, lib engine, kind interpreters, workflows | [scripts/codemap.md](scripts/codemap.md) |
 | `stages/` | One folder per stage — the structural source of truth (discovered by directory scan) | [stages/codemap.md](stages/codemap.md) |
-| `schemas/` | JSON Schema contracts: stage meta-schema, CLI envelope, docs delta | documented here |
+| `agents/` | One `<agent-id>.yaml` per neutral agent definition (discovered by scan, validated by `schemas/agent.schema.yaml`) | documented here |
+| `schemas/` | JSON Schema contracts: stage + agent meta-schemas, CLI envelope, docs delta | documented here |
 | `policies/` | The only central policy file: error code → message/fix catalog | documented here |
 | `templates/` | `docs-current-index.md` — the living-docs index template | documented here |
 

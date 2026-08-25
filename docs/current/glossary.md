@@ -100,6 +100,55 @@
 | Deployed form | self-contained: no package.json, node_modules, or .ts files; manifest.json carries name, version, deployedAt (cliPath only for skills that ship a CLI) | bin/deploy-to-agent.ts, AGENTS.md (invariant 9) |
 | Sole creator | knowledge-init is the only component that creates docs/current | src/skills/knowledge-init/SKILL.md |
 
+## Entity: Agent Definition (src/agents/<agent-id>.yaml)
+
+| Field | Type | Nullable | Source |
+|-------|------|----------|--------|
+| version | int (const 1) | No | src/schemas/agent.schema.yaml |
+| id | string (kebab-case, = filename stem) | No | src/schemas/agent.schema.yaml |
+| description | string (non-empty) | No | src/schemas/agent.schema.yaml |
+| model | enum of 23 fully qualified opencode-go ids | No | src/schemas/agent.schema.yaml |
+| temperature | number 0.0–1.0 | No | src/schemas/agent.schema.yaml |
+| mode | subagent \| primary \| all | Yes (omitted → all) | src/schemas/agent.schema.yaml |
+| permissions | map: file_read, search, file_write, shell, subagent, web, question → allow \| ask \| deny | No | src/schemas/agent.schema.yaml |
+| system_prompt | string (non-empty) | No | src/schemas/agent.schema.yaml |
+
+| Business Rules | Rule | Location |
+|----------------|------|----------|
+| Discovery | one YAML file per agent under src/agents/<id>.yaml; no central enumeration | src/scripts/lib/agent-registry.ts |
+| Startup | invalid YAML, schema violation, or id/filename mismatch is a hard startup error naming the file | src/scripts/lib/agent-registry.ts |
+| Mode default | omitted mode resolves to all — directly invocable AND delegable | src/scripts/lib/agent-registry.ts |
+| Purity | system prompts carry role/personality only; CLI/skill markers fail validation | src/scripts/lib/agent-prompt-marker.ts, bin/validate-policies.ts |
+
+## Entity: Kind Permission Contract
+
+| Field | Type | Nullable | Source |
+|-------|------|----------|--------|
+| kind | authoring \| review \| tasks \| aggregator | No | src/scripts/lib/agent-permissions.ts |
+| contract | map of neutral permission keys → allow (floor) / deny (ceiling) | No | src/scripts/lib/agent-permissions.ts |
+
+| Business Rules | Rule | Location |
+|----------------|------|----------|
+| Ownership | engine-owned beside the kind interpreters; changed only with the interpreters | src/scripts/lib/agent-permissions.ts |
+| Overrides | stage.yaml permissions map overrides individual keys of the kind contract | src/schemas/stage.schema.yaml, src/scripts/lib/agent-permissions.ts |
+| Compatibility | floors must be allow, ceilings must be deny; multi-bound agents satisfy union of floors and intersection of ceilings | src/scripts/lib/agent-permissions.ts |
+
+## Entity: Platform Renderer
+
+| Field | Type | Nullable | Source |
+|-------|------|----------|--------|
+| platform | string (e.g. opencode) | No | src/scripts/lib/deploy/platforms/index.ts |
+| version | int (format revision) | No | src/scripts/lib/deploy/platforms/index.ts |
+| renderAgent | AgentRecord → RenderedAgent (path + content) | No | src/scripts/lib/deploy/platforms/index.ts |
+
+| Business Rules | Rule | Location |
+|----------------|------|----------|
+| Registry | deployment-layer registry keyed by platform + version; getRenderer resolves, latest is the default | src/scripts/lib/deploy/platforms/index.ts |
+| OpenCode v2 | permission frontmatter map; target tool keys carry the neutral level verbatim | src/scripts/lib/deploy/platforms/opencode.ts |
+| OpenCode v1 | legacy tools frontmatter; allow → true, deny → false, ask omitted | src/scripts/lib/deploy/platforms/opencode.ts |
+| Translation | file_read → read/list, search → glob/grep, file_write → edit/write/apply_patch, shell → bash, subagent → task, web → webfetch/websearch, question → question | src/scripts/lib/deploy/platforms/opencode.ts |
+| Frontmatter | rendered agents/<id>.md header carries description, mode (invocation mode), model, temperature beside the permission/tools map | src/scripts/lib/deploy/platforms/opencode.ts |
+
 ## Naming Cross-Check
 
 | Backend Term | Frontend Term | Same Concept? | Action |

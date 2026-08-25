@@ -8,6 +8,9 @@
 | Frozen JSON envelope: every CLI output is {workflow, step, state, instructions, data, errors, warnings}, written via writeJson | all of src/scripts/ | src/scripts/lib/cli.ts, src/schemas/cli-envelope.schema.yaml |
 | Central error catalog: errors/warnings are produced by makeError(code) from errors.yaml; no ad-hoc error text | engine, bins, kinds | src/scripts/lib/error-catalog.ts, src/policies/errors.yaml |
 | Declarative validation: stages declare named checks from the capped catalog in structural-checks.yaml; no stage-specific validation scripts | authoring + tasks stages | src/stages/*/structural-checks.yaml, src/scripts/lib/checks/index.ts |
+| Neutral agent definitions: one YAML file per agent under src/agents/<id>.yaml (id = filename stem), validated by the engine-owned agent meta-schema; discovered by scan, no central enumeration; invocation mode defaults to all — agents opt down to subagent or primary explicitly | src/agents/ | src/schemas/agent.schema.yaml, src/scripts/lib/agent-registry.ts |
+| Prompt purity: agent system prompts carry role/personality only — never CLI flags, script paths, or envelope directive phrases; enforced by a mechanical marker check | src/agents/ | src/scripts/lib/agent-prompt-marker.ts, bin/validate-policies.ts |
+| Kind permission contracts: engine-owned per-kind permission profiles beside the interpreters; stage.yaml may override individual keys; changed only with the interpreters | src/scripts/lib/agent-permissions.ts | src/scripts/lib/agent-permissions.ts, src/schemas/stage.schema.yaml |
 
 ## Naming
 
@@ -18,6 +21,7 @@
 | Source files | kebab-case .ts | src/scripts/lib/ |
 | Error codes | SCREAMING_SNAKE_CASE entries in errors.yaml | src/policies/errors.yaml |
 | Skill folder | src/skills/<name>/ where frontmatter name equals <name> | src/skills/, bin/validate-templates.ts |
+| Agent id / file | kebab-case; filename stem must equal id | src/agents/, AGENT_SCHEMA_INVALID in src/policies/errors.yaml |
 
 ## Error Handling
 
@@ -35,6 +39,7 @@
 |------|----------|
 | Stage = one folder under src/stages/<id>/ with a fixed per-kind file set (authoring: 6 files; review: 2; tasks: 5; aggregator: 3); optional hooks.ts is the only stage-specific code | src/stages/, AGENTS.md §5 |
 | Skill sources live under src/skills/<name>/SKILL.md; frontmatter requires name equal to the folder name and a non-empty description; validated by validate:templates | src/skills/, bin/validate-templates.ts |
+| Agent = one YAML file under src/agents/<id>.yaml with id equal to the filename stem; neutral permission vocabulary (file_read, search, file_write, shell, subagent, web, question × allow/ask/deny); validated by validate:policies | src/agents/, src/schemas/agent.schema.yaml |
 | docs/current index contract: exactly four columns (File, Purpose, When to Read, Notes) and nine fixed document rows; no overview.md; created only by the knowledge-init skill, maintained only by knowledge extraction | src/skills/knowledge-init/SKILL.md |
 | Deployed skills are self-contained build artifacts in .opencode/skills/ (agentic-sdlc, knowledge-init): no package.json, node_modules, or source .ts; never edited directly | AGENTS.md §2.9/§10, bin/deploy-to-agent.ts |
 | Single central policy: src/policies/errors.yaml is the only central policy file | AGENTS.md §6, src/policies/ |

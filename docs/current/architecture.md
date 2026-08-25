@@ -34,14 +34,16 @@ graph TD
 | Folder | Claimed (CodeMap) | Actual Exports/Entry | Mismatch? | Evidence |
 |--------|-------------------|----------------------|-----------|----------|
 | src/scripts/ | CLI runtime: dispatch, workflow resolution, envelope | src/scripts/sdlc.ts (npm bin `sdlc`) | No | package.json, src/scripts/sdlc.ts |
-| src/scripts/lib/ | Engine core: discovery, requires-DAG + acceptance gate, validation orchestrator, step machine | stage-registry.ts, requires-graph.ts, validate.ts | No | src/scripts/lib/ |
+| src/scripts/lib/ | Engine core: discovery, requires-DAG + acceptance gate, validation orchestrator, step machine, agent registry + kind permission contracts + prompt markers | stage-registry.ts, requires-graph.ts, validate.ts, agent-registry.ts, agent-permissions.ts, agent-prompt-marker.ts | No | src/scripts/lib/ |
 | src/scripts/lib/checks/ | Capped catalog of eleven named generic structural checks | index.ts catalog | No | src/scripts/lib/checks/index.ts |
 | src/scripts/lib/kinds/ | Four kind interpreters (authoring, review, tasks, aggregator) | authoring.ts, review.ts, tasks.ts, aggregator.ts | No | src/scripts/lib/kinds/ |
+| src/scripts/lib/deploy/platforms/ | Deployment-layer platform renderer registry: platform + version → renderer (directory, naming, frontmatter, permission translation) | index.ts (getRenderer), opencode.ts (v1/v2) | No | src/scripts/lib/deploy/platforms/ |
 | src/scripts/workflows/ | Cross-cutting commands + single skillManifest | index.ts (resolveWorkflow, listWorkflows) | No | src/scripts/workflows/index.ts |
 | src/stages/ | Structural source of truth: 9 stage folders, declarative config | stage.yaml per folder (5 authoring/tasks, 4 review) | No | src/stages/ |
+| src/agents/ | Agent definitions: one YAML file per agent, discovered by scan, validated by the engine-owned agent meta-schema | <agent-id>.yaml per agent (6 shipped) | No | src/agents/, src/schemas/agent.schema.yaml |
 | src/skills/ | Version-controlled skill sources | src/skills/knowledge-init/SKILL.md | No | codemap.md, src/skills/ |
 | src/policies/ | YAML asset layer: single central policy | src/policies/errors.yaml | No | src/policies/ |
-| src/schemas/ | YAML asset layer: meta-schemas | stage.schema.yaml, cli-envelope.schema.yaml, docs-delta.schema.yaml | No | src/schemas/ |
+| src/schemas/ | YAML asset layer: meta-schemas | stage.schema.yaml, agent.schema.yaml, cli-envelope.schema.yaml, docs-delta.schema.yaml | No | src/schemas/ |
 | bin/ | Developer CLI tooling: validation, lint, deployment | deploy-to-agent.ts, lint-artifact.ts, validate-{schemas,policies,templates}.ts | No | bin/ |
 | test/ | Unit + e2e suites | node --test test/unit, test/e2e | No | package.json (scripts) |
 | docs/current/ | Living docs, created only by knowledge-init, maintained by knowledge extraction | index.md + 9 documents | No | src/skills/knowledge-init/SKILL.md |
@@ -52,6 +54,7 @@ graph TD
 |----------|--------|--------|----------|----------|
 | Agent ↔ CLI | AI agent | sdlc CLI | argv in; frozen 7-field JSON envelope out | src/schemas/cli-envelope.schema.yaml, src/scripts/sdlc.ts |
 | Deploy → runtime | bin/deploy-to-agent.ts | .opencode/skills/ | file copy + manifest.json per skill | bin/deploy-to-agent.ts |
+| Deploy → agents | bin/deploy-to-agent.ts | <dest>/agents/<agent-id>.md | renderer per platform/version; skills stay platform-uniform | bin/deploy-to-agent.ts, src/scripts/lib/deploy/platforms/ |
 | Skill source → deploy | bin/deploy-to-agent.ts | src/skills/knowledge-init/SKILL.md | file copy (fail names missing source) | bin/deploy-to-agent.ts |
 | CLI → stage config | kind interpreters | src/stages/<id>/*.yaml | YAML load at startup | src/scripts/lib/stage-registry.ts |
 | Validation layers | validateArtifact | ajv (schema) → named checks → semantic checklist → review gate | function call, single orchestrator | src/scripts/lib/validate.ts |

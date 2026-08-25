@@ -1,0 +1,215 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: agent-invocation-modes-and-interactive-questioning-agent-def"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-25
+  updated: 2026-08-25
+  based_on_design: 0.1.0
+  based_on_requirements: 0.1.0
+  implementation_status: accepted
+  step: complete
+tasks:
+  - id: TASK-001
+    title: Add mode field and question key to agent schema and registry
+    description: >
+      Extend src/schemas/agent.schema.yaml: optional top-level mode (string enum subagent, primary,
+      all; NOT required) and permissions gains a required seventh key question (enum allow, ask,
+      deny) beside the existing six keys. Extend AgentRecord in src/scripts/lib/agent-registry.ts
+      with mode: string, normalized to 'all' when the descriptor omits it. Update registry unit
+      tests: omitted mode resolves to all, explicit subagent/primary/all parse through, unknown mode
+      value fails schema validation naming the file, missing question key fails naming the file.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-001
+      - FR-002
+      - FR-004
+    acceptance_ids:
+      - AC-001
+      - AC-003
+      - AC-004
+    design_refs:
+      - DEC-001
+    depends_on: []
+    files:
+      - path: src/schemas/agent.schema.yaml
+        operation: modify
+      - path: src/scripts/lib/agent-registry.ts
+        operation: modify
+      - path: test/unit/agent-registry.test.ts
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Schema gains optional mode enum and required question key; registry normalizes
+      omitted mode to all; 4 new registry tests. Verified: unit tests and typecheck exit 0."
+    files_changed:
+      - path: src/schemas/agent.schema.yaml
+        operation: modify
+      - path: src/scripts/lib/agent-registry.ts
+        operation: modify
+      - path: test/unit/agent-registry.test.ts
+        operation: modify
+  - id: TASK-002
+    title: Grant question permissions across the roster
+    description: >
+      Add permissions.question to the six definitions under src/agents/: allow on
+      requirements-analyst.yaml, deny on systems-architect.yaml, task-planner.yaml,
+      implementation-engineer.yaml, stage-reviewer.yaml, and knowledge-curator.yaml. No mode lines
+      (the all default applies). Verify npm run validate:policies passes including the permission
+      compatibility check over the real roster and stage bindings.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-005
+      - NFR-001
+    acceptance_ids:
+      - AC-002
+      - AC-006
+    design_refs:
+      - DEC-002
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/agents/requirements-analyst.yaml
+        operation: modify
+      - path: src/agents/systems-architect.yaml
+        operation: modify
+      - path: src/agents/task-planner.yaml
+        operation: modify
+      - path: src/agents/implementation-engineer.yaml
+        operation: modify
+      - path: src/agents/stage-reviewer.yaml
+        operation: modify
+      - path: src/agents/knowledge-curator.yaml
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Roster grants question allow to requirements-analyst, deny to the other five;
+      no mode lines. Verified: validate:policies exit 0 including compatibility matrix over real
+      roster."
+    files_changed:
+      - path: src/agents/requirements-analyst.yaml
+        operation: modify
+      - path: src/agents/systems-architect.yaml
+        operation: modify
+      - path: src/agents/task-planner.yaml
+        operation: modify
+      - path: src/agents/implementation-engineer.yaml
+        operation: modify
+      - path: src/agents/stage-reviewer.yaml
+        operation: modify
+      - path: src/agents/knowledge-curator.yaml
+        operation: modify
+  - id: TASK-003
+    title: Emit mode and translate question in the platform renderer
+    description: >
+      Extend src/scripts/lib/deploy/platforms/opencode.ts: both version variants emit the resolved
+      mode verbatim into the frontmatter, and the neutral-to-target translation maps question to the
+      target question key (v2 permission.question carries the neutral level; v1 tools.question maps
+      allow to true, deny to false, ask omitted). Update test/unit/deploy-platforms.test.ts for mode
+      emission (default all from an omitted-mode fixture, explicit subagent passthrough) and
+      question translation (allow/deny/ask in v2, true/false/omitted in v1). Update
+      test/e2e/deploy.test.ts where it pins mode: subagent — rendered agents now carry mode: all,
+      and the requirements-analyst file must show permission.question allow while others deny.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-003
+      - FR-005
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-005
+    design_refs:
+      - DEC-003
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/scripts/lib/deploy/platforms/opencode.ts
+        operation: modify
+      - path: test/unit/deploy-platforms.test.ts
+        operation: modify
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Renderer emits resolved mode verbatim and translates question in v2 permission
+      and v1 legacy tools; e2e assertions updated from mode subagent to mode all plus per-agent
+      question checks. Verified: deploy-platforms unit tests, deploy e2e, typecheck all exit 0."
+    files_changed:
+      - path: src/scripts/lib/deploy/platforms/opencode.ts
+        operation: modify
+      - path: test/unit/deploy-platforms.test.ts
+        operation: modify
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+  - id: TASK-004
+    title: Update repository documentation for mode and question
+    description: >
+      Documentation-only task. AGENTS.md section 5 agent-layer paragraph: mention the optional mode
+      field (default all) and the seven-key permission vocabulary including question. Root
+      codemap.md and src/codemap.md rows only if they enumerate vocabulary details (they should stay
+      one-line summaries; adjust wording if they pin six keys).
+    type: documentation
+    status: done
+    complexity: low
+    covers:
+      - NFR-001
+    acceptance_ids:
+      - AC-006
+    design_refs:
+      - DEC-001
+      - DEC-002
+    depends_on:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+    files:
+      - path: AGENTS.md
+        operation: modify
+      - path: codemap.md
+        operation: modify
+      - path: src/codemap.md
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: "Updated AGENTS.md agent-layer subsection with optional mode field and
+      seven-key permission vocabulary; codemaps verified accurate without changes. Verified: npm run
+      validate exit 0."
+    files_changed: []
+milestones:
+  - id: M1
+    title: Vocabulary extension
+    description: Schema, registry, and roster carry mode and question.
+    task_ids:
+      - TASK-001
+      - TASK-002
+  - id: M2
+    title: Rendering and docs
+    description: Renderers emit mode and question; repository docs match.
+    task_ids:
+      - TASK-003
+      - TASK-004
+risks:
+  - risk: "The deploy e2e suite pins mode: subagent on rendered agents; the renderer change flips the
+      default to all."
+    impact: E2e fails until its assertions are updated in the same task.
+    mitigation: TASK-003 owns both the renderer change and the assertion updates.
+    severity: low
+  - risk: The legacy v1 tools.question mapping is unverifiable against a live v1 runtime.
+    impact: The v1 variant may need adjustment if a real v1 target appears.
+    mitigation: Isolated variant covered by unit tests against the documented shape.
+    severity: low
+delta:
+  - phase: Planning
+    change: Modify
+    reason: Deployed agents carry invocation mode (all by default) and the question tool grant;
+      deployment output reflects the extended frontmatter.
+    target_doc: docs/current/operations.md
+    target_anchor: Deployment
+    date: 2026-08-25

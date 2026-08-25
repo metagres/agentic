@@ -63,7 +63,12 @@ test('status reports requirements as current for a new change', () => {
 
   assert.equal(json.workflow, 'status');
   assert.equal(json.data.current_workflow, 'requirements');
-  assert.equal(json.data.pipeline.requirements, 'draft');
+  assert.equal(json.data.pipeline.requirements.status, 'draft');
+  assert.equal(
+    json.data.pipeline.requirements.agent,
+    'requirements-analyst',
+    'pipeline entries carry the bound agent id'
+  );
   assert.ok(json.data.suggested_command.includes('requirements'));
 });
 

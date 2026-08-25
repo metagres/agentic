@@ -1,0 +1,9 @@
+entries:
+  - id: FB-001
+    from_stage: design
+    to_stage: requirements
+    reason: "New requirements from stakeholder review: mechanical permission compatibility checking
+      between agent permissions and stage instruction needs, and platform+version-configurable agent
+      deployment (skills stay platform-uniform)."
+    status: open
+    created_at: 2026-08-25

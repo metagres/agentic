@@ -13,7 +13,8 @@ gate, and surfaced through a frozen JSON envelope
 `{workflow, step, state, instructions, data, errors, warnings}`. The built
 output is two self-contained skills deployed to the agent runtime
 (`.opencode/skills/agentic-sdlc/` and `.opencode/skills/knowledge-init/` —
-build artifacts, never source).
+build artifacts, never source), alongside rendered agent files under
+`.opencode/agents/`.
 
 ## System Entry Points
 - `src/scripts/sdlc.ts` — the agent-facing CLI (npm bin `sdlc`); dispatches to
@@ -47,6 +48,7 @@ build artifacts, never source).
 | `src/scripts/lib/kinds/` | The four kind interpreters (authoring flag loop, review append-only rounds, tasks state machine over plan.yaml, aggregator delta collection). | [View Map](src/scripts/lib/kinds/codemap.md) |
 | `src/scripts/workflows/` | Cross-cutting commands (status, feedback, doctor) and the single `skillManifest` for the deployed skill. | [View Map](src/scripts/workflows/codemap.md) |
 | `src/skills/` | Version-controlled skill sources: the knowledge-init SKILL.md deployed as a second self-contained skill beside agentic-sdlc. | documented here |
+| `src/agents/` | Neutral agent definitions — one `<agent-id>.yaml` per agent (six shipped), discovered by directory scan and validated by the engine-owned `src/schemas/agent.schema.yaml`; referenced optionally from `stage.yaml` descriptors. | documented here |
 | `src/stages/` | The structural source of truth: one folder per stage (9 stages) carrying the full declarative configuration, discovered by directory scan. | [View Map](src/stages/codemap.md) |
 
 Not mapped (excluded by design): `test/` (unit + e2e suites), `docs/`

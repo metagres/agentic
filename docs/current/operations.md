@@ -4,7 +4,7 @@
 
 | Command | Purpose | Evidence |
 |---------|---------|----------|
-| npm run validate | schemas + policies + templates (incl. skill frontmatter) + typecheck + tests | package.json (scripts.validate) |
+| npm run validate | schemas + policies (incl. agent definitions: schema, prompt markers, reference resolution, permission compatibility) + templates (incl. skill frontmatter) + typecheck + tests | package.json (scripts.validate) |
 | npm run check:all | test:all (validate + unit + e2e) + deploy smoke | package.json (scripts.check:all) |
 | npm run test:all | validate + unit + e2e | package.json |
 | npm test | node --test over unit + e2e | package.json (scripts.test) |
@@ -13,13 +13,13 @@
 | npm run typecheck | tsc --noEmit | package.json |
 | npm run build | tsup bundle of src/scripts/sdlc.ts → dist/ | package.json, tsup.config.ts |
 | npm run validate:schemas | validate schema assets | package.json |
-| npm run validate:policies | validate errors.yaml + stage folders (descriptors, checks, steps, schemas) | package.json, bin/validate-policies.ts |
+| npm run validate:policies | validate errors.yaml + stage folders (descriptors, checks, steps, schemas) + agent definitions (schema, prompt markers, reference resolution, permission compatibility) | package.json, bin/validate-policies.ts |
 | npm run validate:templates | validate stage-folder templates + skill frontmatter under src/skills/ | package.json, bin/validate-templates.ts |
 | npm run deploy | node bin/deploy-to-agent.ts | package.json |
 | npm run deploy:smoke | deploy to .tmp/agent with --clean + CLI smoke test | package.json |
 | npm run sdlc | run the CLI from source | package.json |
 | node bin/lint-artifact.ts | lint an artifact through the same validateArtifact path | bin/lint-artifact.ts |
-| node bin/deploy-to-agent.ts --dest <root> [--clean] [--skip-smoke] | deploy both skills to a destination agent root | bin/deploy-to-agent.ts |
+| node bin/deploy-to-agent.ts --dest <root> [--platform <id>] [--platform-version <n>] [--clean] [--skip-smoke] | deploy both skills + rendered agents to a destination agent root | bin/deploy-to-agent.ts |
 
 ## Environment
 
@@ -39,9 +39,10 @@
 
 | Target | Command/Trigger | Evidence |
 |--------|-----------------|----------|
-| Agent root (default .opencode) | npm run deploy / node bin/deploy-to-agent.ts --dest <root> | package.json, bin/deploy-to-agent.ts |
+| Agent root (default .opencode) | npm run deploy / node bin/deploy-to-agent.ts --dest <root> [--platform <id>] [--platform-version <n>] | package.json, bin/deploy-to-agent.ts |
 | Smoke target .tmp/agent | npm run deploy:smoke (dest .tmp/agent, --clean) | package.json (scripts.deploy:smoke) |
-| Payload | two self-contained skills: agentic-sdlc (SKILL.md + bundled scripts/sdlc.js + stages/ + schemas/ + policies/) and knowledge-init (SKILL.md + manifest.json); --clean removes both first | bin/deploy-to-agent.ts, AGENTS.md §10 |
-| Smoke coverage | agentic-sdlc CLI --list-workflows run + knowledge-init SKILL.md frontmatter check (name equals folder, description non-empty); report carries a skills array with per-skill results | bin/deploy-to-agent.ts |
+| Payload | two self-contained skills: agentic-sdlc (SKILL.md + bundled scripts/sdlc.js + stages/ + schemas/ + policies/) and knowledge-init (SKILL.md + manifest.json); six agents rendered into <dest>/agents/<agent-id>.md via the selected platform renderer (default opencode, latest version); --clean removes both skills first and stale rendered agents whose source definitions no longer exist | bin/deploy-to-agent.ts, AGENTS.md §10 |
+| Rendered agent frontmatter | carries the invocation mode (omitted → all) beside model and temperature plus the per-agent question tool grant (allow on requirements-analyst, deny on the other five); verified by the existing smoke checks | src/scripts/lib/deploy/platforms/opencode.ts, src/agents/ |
+| Smoke coverage | agentic-sdlc CLI --list-workflows run + knowledge-init SKILL.md frontmatter check (name equals folder, description non-empty) + per-agent check (frontmatter parses, filename stem matches agent id); report carries skills and agents arrays plus platform and platformVersion | bin/deploy-to-agent.ts |
 
 - No CI config found. Evidence: no .github/ in repository root.

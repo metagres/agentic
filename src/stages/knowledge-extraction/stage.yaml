@@ -2,6 +2,7 @@ version: 1
 id: knowledge-extraction
 kind: aggregator
 title: Knowledge Extraction
+agent: knowledge-curator
 artifact: docs-delta.yaml
 status_field: status
 requires:

@@ -29,6 +29,8 @@ export interface StageRecord {
   deltaPhase: string | null;
   titlePrefix: string;
   titleDefault: string;
+  agent: string | null;
+  permissionOverrides: Record<string, string>;
   files: {
     structuralChecks: string | null;
     schema: string | null;
@@ -158,6 +160,8 @@ function loadStageFolder(folder: string, cwd: string): StageRecord {
     titleDefault: descriptor.title_default
       ? String(descriptor.title_default)
       : 'Untitled change',
+    agent: descriptor.agent ? String(descriptor.agent) : null,
+    permissionOverrides: (descriptor.permissions as Record<string, string>) || {},
     files: resolveStageFiles(folder, kind),
     hasHooks: fs.existsSync(path.join(folder, 'hooks.ts')) ||
       fs.existsSync(path.join(folder, 'hooks.js')),
@@ -211,11 +215,12 @@ export function getStageById(
 export function getStageDescriptions(
   cwd: string,
   stagesDir?: string
-): { id: string; description: string }[] {
+): { id: string; description: string; agent: string | null }[] {
   const registry = loadStageRegistry(cwd, stagesDir);
   return registry.map((stage) => ({
     id: stage.id,
     description: stage.title,
+    agent: stage.agent,
   }));
 }
 

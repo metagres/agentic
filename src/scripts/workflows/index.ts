@@ -10,24 +10,30 @@ import { parseArgs } from '../lib/cli.ts';
 interface WorkflowEntry {
   id: string;
   description: string;
+  agent: string | null;
   run: (argv: string[]) => void | Promise<void>;
 }
 
 // Cross-cutting commands operate on the stage registry and are not stages.
+// They are never bound to a dedicated agent: agent is null, meaning the
+// current agent runs the command.
 const CROSS_CUTTING: Record<string, WorkflowEntry> = {
   status: {
     id: 'status',
     description: 'Show pipeline state for a change.',
+    agent: null,
     run(argv: string[]) { runStatus(argv); },
   },
   feedback: {
     id: 'feedback',
     description: 'Pauses current stage and reverts a previous stage to draft for corrections.',
+    agent: null,
     run(argv: string[]) { runFeedback(argv); },
   },
   doctor: {
     id: 'doctor',
     description: 'Check contracts, schemas, policies, stages, and docs index.',
+    agent: null,
     run(argv: string[]) { runDoctor(argv); },
   },
 };
@@ -55,6 +61,7 @@ export function resolveWorkflow(command: string | undefined): WorkflowEntry | nu
   return {
     id: stage.id,
     description: stage.title,
+    agent: stage.agent,
     run(argv: string[]) {
       const cwd = parseArgs(argv).cwd
         ? path.resolve(String(parseArgs(argv).cwd))
@@ -64,11 +71,12 @@ export function resolveWorkflow(command: string | undefined): WorkflowEntry | nu
   };
 }
 
-export function listWorkflows(): { id: string; description: string }[] {
+export function listWorkflows(): { id: string; description: string; agent: string | null }[] {
   const stages = getStageDescriptions(process.cwd());
   const crossCutting = Object.values(CROSS_CUTTING).map((workflow) => ({
     id: workflow.id,
     description: workflow.description,
+    agent: workflow.agent,
   }));
   return [...stages, ...crossCutting];
 }

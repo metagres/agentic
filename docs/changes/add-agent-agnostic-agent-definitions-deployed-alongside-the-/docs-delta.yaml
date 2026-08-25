@@ -1,0 +1,6 @@
+metadata:
+  stage: knowledge-extraction
+  status: complete
+  updated: 2026-08-25
+  change_root: /home/elton/repos/agentic/docs/changes/add-agent-agnostic-agent-definitions-deployed-alongside-the-
+deltas_applied: 14

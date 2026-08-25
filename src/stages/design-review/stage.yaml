@@ -2,6 +2,7 @@ version: 1
 id: design-review
 kind: review
 title: Design Review
+agent: stage-reviewer
 artifact: design.yaml
 status_field: status
 requires: []
