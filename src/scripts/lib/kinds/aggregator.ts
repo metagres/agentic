@@ -18,7 +18,7 @@ function usage(stage: StageRecord, code = EXIT.ok) {
       workflow: stage.id,
       step: 'help',
       state: code === EXIT.ok ? 'ok' : 'blocked',
-      instructions: `Usage: sdlc ${stage.id} --dir <change-dir> [--complete]`,
+      instructions: `Usage: sdlc ${stage.id} --change <change-name> [--complete]`,
       data: {},
       errors: [],
       warnings: [],
@@ -174,7 +174,7 @@ export async function runAggregatorStage(
         state: collectedDeltas.length > 0 ? 'in_progress' : 'complete',
         instructions:
           'Update docs/current according to the deltas listed in data.deltas_to_apply. ' +
-          `After updating the docs, run: sdlc ${stage.id} --dir <change-dir> --complete`,
+          `After updating the docs, run: sdlc ${stage.id} --change <change-name> --complete`,
         data: {
           change_root: changeRoot,
           deltas_to_apply: collectedDeltas,

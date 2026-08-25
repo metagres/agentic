@@ -38,11 +38,11 @@ test('status resolves a natural-language change name to its slug', () => {
 
   // The user's exact scenario: the CLI is invoked with a change name that is
   // not the slug (slug derives from the full request text).
-  const res = runCli(['status', '--cwd', tmp, '--dir', 'stage engine']);
+  const res = runCli(['status', '--cwd', tmp, '--change', 'stage engine']);
   assert.equal(res.status, 0, res.stdout);
   const json = JSON.parse(res.stdout);
   assert.equal(json.workflow, 'status');
-  assert.equal(json.data.change_dir, 'genericize-the-stage-engine');
+  assert.equal(json.data.change_name, 'genericize-the-stage-engine');
 });
 
 test('status failure lists available changes in the envelope', () => {
@@ -57,7 +57,7 @@ test('status failure lists available changes in the envelope', () => {
   ]);
   assert.equal(req.status, 0, req.stderr);
 
-  const res = runCli(['status', '--cwd', tmp, '--dir', 'nonexistent-thing']);
+  const res = runCli(['status', '--cwd', tmp, '--change', 'nonexistent-thing']);
   assert.equal(res.status, 3, res.stdout);
   const json = JSON.parse(res.stdout);
   assert.equal(json.state, 'blocked');
@@ -83,7 +83,7 @@ test('status from a nested subdir treats that subdir as the project root', () =>
   const sub = path.join(tmp, 'sub');
   fs.mkdirSync(sub, { recursive: true });
 
-  const res = runCli(['status', '--cwd', sub, '--dir', 'nonexistent-thing']);
+  const res = runCli(['status', '--cwd', sub, '--change', 'nonexistent-thing']);
   assert.equal(res.status, 3, res.stdout);
   const json = JSON.parse(res.stdout);
   assert.equal(json.state, 'blocked');

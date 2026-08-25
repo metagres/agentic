@@ -142,12 +142,12 @@ export function runDoctor(argv: string[]): void {
     addCheck('deployed_manifest', true, 'skipped; not a deployed runtime');
   }
 
-  if (args.dir) {
+  if (args.change) {
     try {
-      const changeRoot = resolveRootOrError(String(args.dir), { cwd });
-      addCheck('change_dir', true, changeRoot);
+      const changeRoot = resolveRootOrError(String(args.change), { cwd });
+      addCheck('change_name', true, changeRoot);
     } catch (err: unknown) {
-      addCheck('change_dir', false, String(args.dir));
+      addCheck('change_name', false, String(args.change));
       if (err instanceof ResolveRootError) {
         errors.push(
           makeError(
@@ -160,7 +160,7 @@ export function runDoctor(argv: string[]): void {
               available_changes: err.available || [],
               searched: err.searched || undefined,
               ...(err.available.length > 0
-                ? { fix: 'Use one of data.available_changes as --dir (the exact name or a unique part of it).' }
+                ? { fix: 'Use one of data.available_changes as --change (the exact name or a unique part of it).' }
                 : {}),
             }
           )
@@ -202,7 +202,7 @@ export function runDoctor(argv: string[]): void {
         cwd,
         strict,
         checks,
-        ...(args.dir ? { change_dir: String(args.dir) } : {}),
+        ...(args.change ? { change_name: String(args.change) } : {}),
       },
       errors,
       warnings,

@@ -1,14 +1,14 @@
 version: 1
 errors:
   MISSING_CHANGE_DIR:
-    message: A change directory is required.
-    fix: Use --dir <change-dir>.
+    message: A change is required.
+    fix: Use --change <change-name>.
   AMBIGUOUS_CHANGE_DIR:
-    message: Multiple change directories match the provided value.
-    fix: Pass one of the listed candidates as --dir.
+    message: Multiple changes match the provided value.
+    fix: Pass one of the listed candidates as --change.
   CHANGE_DIR_NOT_FOUND:
-    message: No matching change directory was found.
-    fix: Use one of the change directories listed in data.available_changes, or create a new change with --request.
+    message: No matching change was found.
+    fix: Use one of the changes listed in data.available_changes, or create a new change with --request.
   ARTIFACT_NOT_FOUND:
     message: Required artifact not found.
     fix: Run the corresponding stage first.

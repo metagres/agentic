@@ -46,14 +46,14 @@ test('knowledge extraction lists deltas and completes', () => {
       },
     ],
   });
-  out = run(tmp, ['requirements', '--dir', changeDir, '--update-artifact'], JSON.stringify(withDelta));
+  out = run(tmp, ['requirements', '--change', changeDir, '--update-artifact'], JSON.stringify(withDelta));
   assert.notEqual(out.state, 'blocked');
 
   // We need to mock implementation acceptance to complete KX
   // For this test, we'll just manually write a plan.yaml with accepted status
   fs.writeFileSync(path.join(changeRoot, 'plan.yaml'), 'metadata:\n  implementation_status: accepted\n', 'utf8');
 
-  out = run(tmp, ['knowledge-extraction', '--dir', changeDir]);
+  out = run(tmp, ['knowledge-extraction', '--change', changeDir]);
   assert.equal(out.data.deltas_to_apply.length, 1);
   assert.equal(out.data.deltas_to_apply[0].target_doc, 'docs/current/architecture.md');
 
@@ -69,7 +69,7 @@ test('knowledge extraction lists deltas and completes', () => {
     'the stage must not create docs/current'
   );
 
-  out = run(tmp, ['knowledge-extraction', '--dir', changeDir, '--complete']);
+  out = run(tmp, ['knowledge-extraction', '--change', changeDir, '--complete']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   const completeWarning = out.warnings.find((w) => w.code === 'DOCS_INDEX_MISSING');

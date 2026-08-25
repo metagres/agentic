@@ -55,7 +55,7 @@ tasks = `stage.yaml` + `structural-checks.yaml` + `schema.yaml` +
   or missing reference is a hard startup error.
 - **Step machine from steps.yaml**: `steps.yaml` defines the per-stage steps
   with `title`, `next_action`, `markdown` (LLM instructions, templated with
-  `{{SDLC}}`, `{{change_dir}}`, `{{stage}}`), `commands`, and declarative
+  `{{SDLC}}`, `{{change_name}}`, `{{stage}}`), `commands`, and declarative
   `complete_when` predicates (DM-003). Authoring stages share the canonical
   step set (needs_input, init, drafting, validation, delta, recovery, ready,
   complete); requirements adds the non-canonical `discovery` and

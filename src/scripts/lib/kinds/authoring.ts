@@ -53,7 +53,7 @@ function listExistingChanges(cwd: string) {
       const meta = (artifact?.metadata as Record<string, unknown> | undefined) || {};
 
       return {
-        dir: name,
+        change_name: name,
         title: (meta.title as string) || name,
         stage: (meta.stage as string) || null,
         status: (meta.status as string) || 'unknown',
@@ -134,7 +134,7 @@ function saveArtifact(env: AuthorEnv): void {
 
 function ensureArtifact(env: AuthorEnv): void {
   if (!env.changeRoot) {
-    throw new Error('A change directory is required. Use --dir or --request.');
+    throw new Error('A change is required. Use --change or --request.');
   }
 
   if (!env.artifact) {
@@ -400,7 +400,7 @@ function describeStep(stage: StageRecord, stepId: string, cwd: string) {
 
   const vars = {
     SDLC: cliInvocation(cwd),
-    change_dir: '<change-dir>',
+    change_name: '<change-name>',
     stage: stage.id,
   };
 
@@ -452,13 +452,13 @@ function helpPayload(stage: StageRecord) {
   const stepDefinitions = loadStepDefinitions(stage) || {};
   const stepIds = Object.keys(stepDefinitions);
   const usage = [
-    `sdlc ${stage.id} --dir <change-dir>`,
+    `sdlc ${stage.id} --change <change-name>`,
     `sdlc ${stage.id} --request "<request>"`,
-    `sdlc ${stage.id} --dir <change-dir> --next-ids`,
-    `sdlc ${stage.id} --dir <change-dir> --update-artifact < ${stage.artifact}`,
-    `sdlc ${stage.id} --dir <change-dir> --append-delta < delta.yaml`,
-    `sdlc ${stage.id} --dir <change-dir> --complete-step --step <step>`,
-    `sdlc ${stage.id} --dir <change-dir> --finalize [--confirm-semantic]`,
+    `sdlc ${stage.id} --change <change-name> --next-ids`,
+    `sdlc ${stage.id} --change <change-name> --update-artifact < ${stage.artifact}`,
+    `sdlc ${stage.id} --change <change-name> --append-delta < delta.yaml`,
+    `sdlc ${stage.id} --change <change-name> --complete-step --step <step>`,
+    `sdlc ${stage.id} --change <change-name> --finalize [--confirm-semantic]`,
     `sdlc ${stage.id} --describe`,
     `sdlc ${stage.id} --describe-step <step>`,
   ];
@@ -468,7 +468,7 @@ function helpPayload(stage: StageRecord) {
     step: 'help',
     state: 'ok',
     instructions: [
-      `Usage: sdlc ${stage.id} --dir <change-dir>`,
+      `Usage: sdlc ${stage.id} --change <change-name>`,
       ``,
       `Available ${stage.id} commands:`,
       ...usage.map((command) => `  ${command}`),
@@ -510,9 +510,9 @@ export async function runAuthoringStage(
   let changeRoot: string | null = null;
 
   try {
-    if (args.dir) {
+    if (args.change) {
       try {
-        changeRoot = resolveRootOrError(String(args.dir), { cwd });
+        changeRoot = resolveRootOrError(String(args.change), { cwd });
       } catch (err: unknown) {
         if (err instanceof ResolveRootError) {
           writeJson(
@@ -533,7 +533,7 @@ export async function runAuthoringStage(
                   message: err.message,
                   candidates: err.candidates,
                   ...(err.available.length > 0
-                    ? { fix: 'Use one of data.available_changes as --dir (the exact name or a unique part of it).' }
+                    ? { fix: 'Use one of data.available_changes as --change (the exact name or a unique part of it).' }
                     : {}),
                 },
               ],
@@ -714,7 +714,7 @@ export async function runAuthoringStage(
             state: 'in_progress',
             instructions:
               `Structural validation passed. Before finalizing, manually verify the following semantic checks against your artifact:\n\n${checklist}\n\n` +
-              `If any check fails, fix the artifact and run validate again. If all pass, run: sdlc ${stage.id} --dir <dir> --finalize --confirm-semantic`,
+              `If any check fails, fix the artifact and run validate again. If all pass, run: sdlc ${stage.id} --change <change-name> --finalize --confirm-semantic`,
             data: {
               change_root: changeRoot,
               semantic_checks: stageChecks,
@@ -747,11 +747,11 @@ export async function runAuthoringStage(
     const stepDef = stepDefinitions?.[step] || {};
 
     const cli = cliInvocation(cwd);
-    const changeDir = changeRoot ? path.basename(changeRoot) : '<change-dir>';
+    const changeDir = changeRoot ? path.basename(changeRoot) : '<change-name>';
 
     const templateVars = {
       SDLC: cli,
-      change_dir: changeDir,
+      change_name: changeDir,
       stage: stage.id,
     };
 

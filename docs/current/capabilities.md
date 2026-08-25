@@ -18,10 +18,10 @@
 
 | Workflow | Steps (≤5) | Entry Point | Exit Point | Evidence |
 |----------|-----------|-------------|------------|----------|
-| Single stage run | gate check → step machine → artifact validation → status ready-for-review | sdlc <stage-id> --dir | artifact ready-for-review | src/scripts/lib/kinds/authoring.ts |
-| Review gate | resolve target → validation → append round → --accept/--reject | sdlc <review-stage> --dir | artifact accepted or rejected | src/scripts/lib/kinds/review.ts |
+| Single stage run | gate check → step machine → artifact validation → status ready-for-review | sdlc <stage-id> --change | artifact ready-for-review | src/scripts/lib/kinds/authoring.ts |
+| Review gate | resolve target → validation → append round → --accept/--reject | sdlc <review-stage> --change | artifact accepted or rejected | src/scripts/lib/kinds/review.ts |
 | Full pipeline | requirements → reviews → design → design-review → planning → planning-review → implementation → implementation-review → knowledge-extraction | sdlc status | knowledge-extraction complete | src/stages/*/stage.yaml (requires DAG) |
-| Task implementation loop | update task status → complete tasks → finalize plan | sdlc implementation --dir | implementation_status ready-for-review | src/scripts/lib/kinds/tasks.ts |
+| Task implementation loop | update task status → complete tasks → finalize plan | sdlc implementation --change | implementation_status ready-for-review | src/scripts/lib/kinds/tasks.ts |
 | Deploy | build bundle → copy skills + schemas + policies → smoke test | npm run deploy:smoke | JSON report with skills array | bin/deploy-to-agent.ts |
 | Verification | schemas → policies → templates+skills → typecheck → tests | npm run validate | exit 0 | package.json (scripts) |
-| Knowledge sync | list deltas → update docs/current → mark complete | sdlc knowledge-extraction --dir | docs-delta.yaml written, status complete | src/scripts/lib/kinds/aggregator.ts |
+| Knowledge sync | list deltas → update docs/current → mark complete | sdlc knowledge-extraction --change | docs-delta.yaml written, status complete | src/scripts/lib/kinds/aggregator.ts |

@@ -17,7 +17,7 @@ interface WorkflowEntry {
 const CROSS_CUTTING: Record<string, WorkflowEntry> = {
   status: {
     id: 'status',
-    description: 'Show pipeline state for a change directory.',
+    description: 'Show pipeline state for a change.',
     run(argv: string[]) { runStatus(argv); },
   },
   feedback: {
@@ -41,7 +41,7 @@ export const aliases: Record<string, string> = {
  * Registry-driven resolution (CMP-006): a command that matches a discovered
  * stage dispatches to its kind interpreter; cross-cutting commands dispatch
  * separately. The dedicated review command is removed; review stages are
- * invoked as stage commands (sdlc requirements-review --dir <change-dir>).
+ * invoked as stage commands (sdlc requirements-review --change <change-name>).
  */
 export function resolveWorkflow(command: string | undefined): WorkflowEntry | null {
   if (!command) return null;

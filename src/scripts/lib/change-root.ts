@@ -21,7 +21,7 @@ function listChangeDirNames(changesDir: string): string[] {
 function contextualFix(err: ResolveRootError): Record<string, string> {
   if (err.available.length > 0) {
     return {
-      fix: 'Use one of data.available_changes as --dir (the exact name or a unique part of it).',
+      fix: 'Use one of data.available_changes as --change (the exact name or a unique part of it).',
     };
   }
 
@@ -29,12 +29,12 @@ function contextualFix(err: ResolveRootError): Record<string, string> {
 }
 
 export function requireChangeRoot(args: ParseArgsResult, cwd: string, base: Record<string, unknown>): string | null {
-  if (!args.dir) {
+  if (!args.change) {
     writeJson(
       {
         ...base,
         state: 'blocked',
-        instructions: 'Provide --dir <change-dir>.',
+        instructions: 'Provide --change <change-name>.',
         data: {
           available_changes: listChangeDirNames(path.join(cwd, 'docs', 'changes')),
         },
@@ -47,7 +47,7 @@ export function requireChangeRoot(args: ParseArgsResult, cwd: string, base: Reco
   }
 
   try {
-    return resolveRootOrError(String(args.dir), { cwd });
+    return resolveRootOrError(String(args.change), { cwd });
   } catch (err) {
     if (err instanceof ResolveRootError) {
       const code =

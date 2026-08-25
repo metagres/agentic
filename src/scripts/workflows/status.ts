@@ -13,7 +13,7 @@ function usage(code: number = EXIT.ok): void {
       workflow: 'status',
       step: 'help',
       state: code === EXIT.ok ? 'ok' : 'blocked',
-      instructions: 'Usage: sdlc status --dir <change-dir>',
+      instructions: 'Usage: sdlc status --change <change-name>',
       data: {},
       errors: [],
       warnings: [],
@@ -92,14 +92,14 @@ export function runStatus(argv: string[]): void {
         instructions:
           `An open feedback entry exists from ${openFeedback.from_stage} to ${openFeedback.to_stage}. ` +
           `Reason: ${openFeedback.reason}. ` +
-          `Run scripts/sdlc.js ${openFeedback.to_stage} --dir ${changeDir} to fix the issue and re-review. ` +
-          `Once accepted, run: sdlc feedback --dir ${changeDir} --resolve ${openFeedback.id}`,
+          `Run scripts/sdlc.js ${openFeedback.to_stage} --change ${changeDir} to fix the issue and re-review. ` +
+          `Once accepted, run: sdlc feedback --change ${changeDir} --resolve ${openFeedback.id}`,
         data: {
-          change_dir: changeDir,
+          change_name: changeDir,
           change_root: changeRoot,
           pipeline,
           current_workflow: openFeedback.to_stage,
-          suggested_command: `sdlc ${openFeedback.to_stage} --dir ${changeDir}`,
+          suggested_command: `sdlc ${openFeedback.to_stage} --change ${changeDir}`,
           open_feedback: openFeedback,
         },
         errors: [],
@@ -121,7 +121,7 @@ export function runStatus(argv: string[]): void {
     currentWorkflow = rejectedStage;
     state = 'blocked';
     instructions = `The ${rejectedStage} workflow has a rejected artifact. Fix the findings and review again.`;
-    suggestedCommand = `sdlc ${rejectedStage} --dir ${changeDir}`;
+    suggestedCommand = `sdlc ${rejectedStage} --change ${changeDir}`;
   } else {
     // 2. Find the first incomplete stage whose gate is satisfied.
     for (const id of order) {
@@ -142,16 +142,16 @@ export function runStatus(argv: string[]): void {
 
       if (stage.kind === 'review') {
         currentWorkflow = id;
-        suggestedCommand = `sdlc ${id} --dir ${changeDir}`;
+        suggestedCommand = `sdlc ${id} --change ${changeDir}`;
         instructions = `${stage.title} gate is ready. Run the review gate.`;
       } else if (status === 'ready-for-review') {
         const reviewStageId = `${id}-review`;
         currentWorkflow = reviewStageId;
-        suggestedCommand = `sdlc ${reviewStageId} --dir ${changeDir}`;
+        suggestedCommand = `sdlc ${reviewStageId} --change ${changeDir}`;
         instructions = `${stage.title} is ready for review. Run the review gate.`;
       } else {
         currentWorkflow = id;
-        suggestedCommand = `sdlc ${id} --dir ${changeDir}`;
+        suggestedCommand = `sdlc ${id} --change ${changeDir}`;
         instructions = `${stage.title} is not accepted yet. Continue the ${id} stage.`;
       }
 
@@ -174,7 +174,7 @@ export function runStatus(argv: string[]): void {
       state,
       instructions,
       data: {
-        change_dir: changeDir,
+        change_name: changeDir,
         change_root: changeRoot,
         pipeline,
         current_workflow: currentWorkflow,

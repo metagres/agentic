@@ -75,7 +75,7 @@ export function resolveRootOrError(
     });
 
   if (!dir || typeof dir !== 'string') {
-    throw mkError('A change directory or slug is required.');
+    throw mkError('A change or slug is required.');
   }
 
   const raw = dir.trim();
@@ -105,14 +105,14 @@ export function resolveRootOrError(
     if (abs) return abs;
 
     const available = listDirNames(changesDir);
-    throw mkError(`Change directory not found: ${raw}.` + availableSuffix(available), {
+    throw mkError(`Change not found: ${raw}.` + availableSuffix(available), {
       available,
     });
   }
 
   if (!fs.existsSync(changesDir)) {
     throw mkError(
-      `docs/changes does not exist under ${cwd}. Create a change directory first.`
+      `docs/changes does not exist under ${cwd}. Create a change first.`
     );
   }
 
@@ -137,7 +137,7 @@ export function resolveRootOrError(
 
     if (matches.length > 1) {
       throw mkError(
-        `Ambiguous change directory '${raw}'. Matches: ${matches.join(', ')}`,
+        `Ambiguous change '${raw}'. Matches: ${matches.join(', ')}`,
         { candidates: matches }
       );
     }
@@ -158,7 +158,7 @@ export function resolveRootOrError(
 
     if (matches.length > 1) {
       throw mkError(
-        `Ambiguous change directory '${raw}'. Matches: ${matches.join(', ')}`,
+        `Ambiguous change '${raw}'. Matches: ${matches.join(', ')}`,
         { candidates: matches }
       );
     }
@@ -174,13 +174,13 @@ export function resolveRootOrError(
 
     if (matches.length > 1) {
       throw mkError(
-        `Ambiguous change directory '${raw}'. Matches: ${matches.join(', ')}`,
+        `Ambiguous change '${raw}'. Matches: ${matches.join(', ')}`,
         { candidates: matches }
       );
     }
   }
 
-  throw mkError(`No change directory matching '${raw}'.` + availableSuffix(entries), {
+  throw mkError(`No change matching '${raw}'.` + availableSuffix(entries), {
     available: entries,
   });
 }

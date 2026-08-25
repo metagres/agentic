@@ -4,9 +4,9 @@ steps:
     title: Needs input
     next_action: provide_change_dir
     markdown: |
-      Ask the user which change directory to implement.
+      Ask the user which change to implement.
     commands:
-      - "{{SDLC}} implementation --dir <change-dir>"
+      - "{{SDLC}} implementation --change <change-name>"
 
   progress:
     title: Progress
@@ -16,8 +16,8 @@ steps:
 
       Use `data.progress.next_task_ids` to choose the next task, then update its status.
     commands:
-      - "{{SDLC}} implementation --dir {{change_dir}} --task-id <TASK-NNN> --status <pending|in_progress|done|blocked|skipped> --note \"...\""
-      - "{{SDLC}} implementation --dir {{change_dir}} --task-id <TASK-NNN> --status done --files \"create:src/a.ts,modify:src/b.ts\""
+      - "{{SDLC}} implementation --change {{change_name}} --task-id <TASK-NNN> --status <pending|in_progress|done|blocked|skipped> --note \"...\""
+      - "{{SDLC}} implementation --change {{change_name}} --task-id <TASK-NNN> --status done --files \"create:src/a.ts,modify:src/b.ts\""
 
   complete:
     title: Complete
@@ -27,4 +27,4 @@ steps:
 
       Run the implementation review gate.
     commands:
-      - "{{SDLC}} implementation-review --dir {{change_dir}}"
+      - "{{SDLC}} implementation-review --change {{change_name}}"

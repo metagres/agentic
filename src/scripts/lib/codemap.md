@@ -125,7 +125,7 @@ Validation pipeline as executed by `validateArtifact` (and thus by authoring
    each unsatisfied requirement and its current status.
 
 Stage-run path: `sdlc.ts` → `resolveWorkflow` → `runStage(stage, argv, cwd)`
-(kinds dispatcher) → `parseArgs` → `requireChangeRoot` (when `--dir` is
+(kinds dispatcher) → `parseArgs` → `requireChangeRoot` (when `--change` is
 required) → `getStageById`/`loadStepDefinitions`/`loadStageHooks` →
 `makeCtx(cwd, changeRoot)` → artifact read via `ctx.loadFile` →
 `validateArtifact` + semantic evaluation → `detectStep`/kind transition →

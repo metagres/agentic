@@ -30,7 +30,7 @@ test('requirements-review --help returns ok state', () => {
   assert.equal(json.state, 'ok');
 });
 
-test('requirements-review requires --dir', () => {
+test('requirements-review requires --change', () => {
   const res = runCli(['requirements-review']);
 
   assert.equal(res.status, 2);
@@ -41,12 +41,12 @@ test('requirements-review requires --dir', () => {
   assert.equal(json.state, 'blocked');
 });
 
-test('requirements-review reports missing change directory', () => {
+test('requirements-review reports missing change', () => {
   const tmp = makeTmpProject();
 
   const res = runCli([
     'requirements-review',
-    '--dir',
+    '--change',
     'missing-change',
     '--cwd',
     tmp,
@@ -72,7 +72,7 @@ test('implementation --help returns ok state', () => {
   assert.equal(json.state, 'ok');
 });
 
-test('implementation requires --dir', () => {
+test('implementation requires --change', () => {
   const res = runCli(['implementation']);
 
   assert.equal(res.status, 2);

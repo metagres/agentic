@@ -15,7 +15,7 @@ if (!command || command === '--help' || command === '-h') {
       instructions:
         'Usage: sdlc <stage|command> [flags]. ' +
         'Use --list-workflows to see workflows. ' +
-        'Use status --dir <change-dir> for pipeline state.',
+        'Use status --change <change-name> for pipeline state.',
       data: {
         version: VERSION,
         workflows: listWorkflows(),

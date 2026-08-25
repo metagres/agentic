@@ -88,7 +88,7 @@ export interface WorkflowDef {
 }
 
 export interface ChangeEntry {
-  dir: string;
+  change_name: string;
   title: string;
   stage: string | null;
   status: string;

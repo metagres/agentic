@@ -45,8 +45,8 @@ export async function runReviewStage(
   const usage = (code: number, message: string | null = null) => {
     const instructions =
       options.workflowLabel === 'review'
-        ? 'Usage: sdlc review --target <requirements|design|plan|implementation> --dir <change-dir> [--accept|--reject] [--dry-run]'
-        : `Usage: sdlc ${stage.id} --dir <change-dir> [--accept|--reject] [--dry-run]`;
+        ? 'Usage: sdlc review --target <requirements|design|plan|implementation> --change <change-name> [--accept|--reject] [--dry-run]'
+        : `Usage: sdlc ${stage.id} --change <change-name> [--accept|--reject] [--dry-run]`;
     writeJson(
       {
         workflow,
@@ -65,8 +65,8 @@ export async function runReviewStage(
                   message:
                     message ||
                     (options.workflowLabel === 'review'
-                      ? 'review requires --target <requirements|design|plan|implementation> and --dir <change-dir>'
-                      : `review requires --dir <change-dir>`),
+                      ? 'review requires --target <requirements|design|plan|implementation> and --change <change-name>'
+                      : `review requires --change <change-name>`),
                 }),
               ],
         warnings: [],
@@ -86,13 +86,13 @@ export async function runReviewStage(
     return;
   }
 
-  if (!args.dir) {
+  if (!args.change) {
     writeJson(
       {
         workflow,
         step: 'review',
         state: 'blocked',
-        instructions: 'Provide --dir <change-dir>.',
+        instructions: 'Provide --change <change-name>.',
         data: {
           target: targetLabel,
           target_artifact: stage.artifact,
@@ -107,7 +107,7 @@ export async function runReviewStage(
 
   let changeRoot: string;
   try {
-    changeRoot = resolveRootOrError(String(args.dir), { cwd });
+    changeRoot = resolveRootOrError(String(args.change), { cwd });
   } catch (err: unknown) {
     if (err instanceof ResolveRootError) {
       writeJson(
@@ -132,7 +132,7 @@ export async function runReviewStage(
                 message: err.message,
                 candidates: err.candidates || [],
                 ...(err.available.length > 0
-                  ? { fix: 'Use one of data.available_changes as --dir (the exact name or a unique part of it).' }
+                  ? { fix: 'Use one of data.available_changes as --change (the exact name or a unique part of it).' }
                   : {}),
               }
             ),

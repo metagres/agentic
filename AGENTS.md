@@ -92,7 +92,7 @@ or folder/id mismatch is a hard startup error naming the folder.
 
 ### The four kinds (DEC-006)
 
-- **authoring** — generic flag loop (`--dir`, `--request`, `--next-ids`, `--update-artifact`,
+- **authoring** — generic flag loop (`--change`, `--request`, `--next-ids`, `--update-artifact`,
   `--append-delta`, `--complete-step`, `--finalize`, `--confirm-semantic`, `--describe`,
   `--describe-step`, `--help`) driving the step machine from `steps.yaml` completion predicates.
 - **review** — resolves its `reviews` target, checks the review gate, runs the unified
@@ -212,7 +212,7 @@ skill frontmatter under `src/skills/` (name equals folder, non-empty description
 | Stage meta-schema (`src/schemas/stage.schema.yaml`) | `npm run validate:schemas` |
 | Check catalog (`src/scripts/lib/checks/`) | Update `src/policies/errors.yaml` if new error codes are added and add a unit test; adding a check is a design-review event |
 | Cross-file / lint checks | `npm run test:unit` + lint a real artifact with `bin/lint-artifact.ts` |
-| Workflows / CLI behavior | Run the affected workflow with `--help` and a test change dir |
+| Workflows / CLI behavior | Run the affected workflow with `--help` and a test change |
 | Skills / deployment | `npm run deploy:smoke` and verify generated skills |
 
 If a new check type, error code, or ID prefix is added, update the corresponding catalog in

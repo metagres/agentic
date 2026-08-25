@@ -53,7 +53,7 @@ test('status reports requirements as current for a new change', () => {
     'status',
     '--cwd',
     tmp,
-    '--dir',
+    '--change',
     changeDir,
   ]);
 
@@ -96,7 +96,7 @@ test('status lists review stages in the pipeline and suggests the review gate wh
   const changeDir = path.basename(reqJson.data.change_root);
 
   // All review stages appear in the pipeline map.
-  let res = runCli(['status', '--cwd', tmp, '--dir', changeDir]);
+  let res = runCli(['status', '--cwd', tmp, '--change', changeDir]);
   assert.equal(res.status, 0, res.stderr);
   let json = JSON.parse(res.stdout);
   assert.ok('requirements-review' in json.data.pipeline);
@@ -107,16 +107,16 @@ test('status lists review stages in the pipeline and suggests the review gate wh
   // Fill in a valid requirements artifact, finalize it, and confirm status
   // suggests the requirements-review stage command.
   res = runCli(
-    ['requirements', '--cwd', tmp, '--dir', changeDir, '--update-artifact'],
+    ['requirements', '--cwd', tmp, '--change', changeDir, '--update-artifact'],
     JSON.stringify(validRequirements({ request: 'Add login' }))
   );
   assert.equal(res.status, 0, res.stderr);
 
-  res = runCli(['requirements', '--cwd', tmp, '--dir', changeDir, '--finalize', '--confirm-semantic']);
+  res = runCli(['requirements', '--cwd', tmp, '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(res.status, 0, res.stderr);
   assert.equal(JSON.parse(res.stdout).state, 'complete', res.stdout);
 
-  res = runCli(['status', '--cwd', tmp, '--dir', changeDir]);
+  res = runCli(['status', '--cwd', tmp, '--change', changeDir]);
   assert.equal(res.status, 0, res.stderr);
   json = JSON.parse(res.stdout);
   assert.equal(json.data.current_workflow, 'requirements-review');

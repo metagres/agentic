@@ -70,7 +70,7 @@ test('scenarios flow loops back into discovery, promotes ac outcomes, and passes
   // An open scenario keeps the step at scenarios (AC-007).
   out = run(
     tmp,
-    ['requirements', '--dir', changeDir, '--update-artifact'],
+    ['requirements', '--change', changeDir, '--update-artifact'],
     JSON.stringify(scenarioArtifact())
   );
   assert.equal(out.step, 'scenarios', JSON.stringify(out));
@@ -79,7 +79,7 @@ test('scenarios flow loops back into discovery, promotes ac outcomes, and passes
   // --record-answer; the scenario links it via question_id and resolves.
   out = run(tmp, [
     'requirements',
-    '--dir',
+    '--change',
     changeDir,
     '--record-answer',
     '--lens',
@@ -102,7 +102,7 @@ test('scenarios flow loops back into discovery, promotes ac outcomes, and passes
 
   out = run(
     tmp,
-    ['requirements', '--dir', changeDir, '--update-artifact'],
+    ['requirements', '--change', changeDir, '--update-artifact'],
     JSON.stringify(artifact)
   );
   // All scenarios resolved and discovery confirmed: the machine advances past
@@ -123,15 +123,15 @@ test('scenarios flow loops back into discovery, promotes ac outcomes, and passes
 
   out = run(
     tmp,
-    ['requirements', '--dir', changeDir, '--update-artifact'],
+    ['requirements', '--change', changeDir, '--update-artifact'],
     JSON.stringify(artifact)
   );
   assert.notEqual(out.state, 'blocked', JSON.stringify(out));
 
-  out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
+  out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['requirements-review', '--dir', changeDir, '--accept']);
+  out = run(tmp, ['requirements-review', '--change', changeDir, '--accept']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   const saved = readYaml(path.join(changeRoot, 'requirements.yaml')) as {
@@ -158,7 +158,7 @@ test('a scenario whose ac_id references a missing acceptance criterion blocks fi
 
   out = run(
     tmp,
-    ['requirements', '--dir', changeDir, '--update-artifact'],
+    ['requirements', '--change', changeDir, '--update-artifact'],
     JSON.stringify(artifact)
   );
   // The dangling link surfaces as a blocking ref-exists finding immediately.
@@ -166,7 +166,7 @@ test('a scenario whose ac_id references a missing acceptance criterion blocks fi
   assert.equal(out.step, 'validation', JSON.stringify(out));
   assert.match(JSON.stringify(out), /SC-001|AC-999/);
 
-  out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
+  out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'blocked', JSON.stringify(out));
   assert.match(JSON.stringify(out), /SC-001|AC-999/);
 });
@@ -186,7 +186,7 @@ test('a scenario whose question_id references a missing discovery entry blocks f
 
   out = run(
     tmp,
-    ['requirements', '--dir', changeDir, '--update-artifact'],
+    ['requirements', '--change', changeDir, '--update-artifact'],
     JSON.stringify(artifact)
   );
   // The dangling link surfaces as a blocking ref-exists finding immediately.
@@ -194,7 +194,7 @@ test('a scenario whose question_id references a missing discovery entry blocks f
   assert.equal(out.step, 'validation', JSON.stringify(out));
   assert.match(JSON.stringify(out), /SC-001|DL-999/);
 
-  out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
+  out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'blocked', JSON.stringify(out));
   assert.match(JSON.stringify(out), /SC-001|DL-999/);
 });
@@ -217,7 +217,7 @@ test('an in-flight artifact without scenarios or flags routes to discovery then 
 
   out = run(
     tmp,
-    ['requirements', '--dir', changeDir, '--update-artifact'],
+    ['requirements', '--change', changeDir, '--update-artifact'],
     JSON.stringify(artifact)
   );
   // Partial clarity now requires the data lens: the gate fails, so the step
@@ -236,17 +236,17 @@ test('an in-flight artifact without scenarios or flags routes to discovery then 
 
   out = run(
     tmp,
-    ['requirements', '--dir', changeDir, '--update-artifact'],
+    ['requirements', '--change', changeDir, '--update-artifact'],
     JSON.stringify(artifact)
   );
   // Empty scenarios not yet reviewed: the step routes to scenarios (AC-018).
   assert.equal(out.step, 'scenarios', JSON.stringify(out));
 
   // Explicit confirmation of the empty scenario set advances the machine.
-  out = run(tmp, ['requirements', '--dir', changeDir, '--complete-step', '--step', 'scenarios']);
+  out = run(tmp, ['requirements', '--change', changeDir, '--complete-step', '--step', 'scenarios']);
   assert.equal(out.step, 'ready', JSON.stringify(out));
 
   // The artifact remains schema-valid throughout.
-  out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
+  out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 });

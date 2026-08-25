@@ -4,9 +4,9 @@ steps:
     title: Needs input
     next_action: provide_change_or_request
     markdown: |
-      Ask the user which change directory to design.
+      Ask the user which change to design.
     commands:
-      - "{{SDLC}} design --dir <change-dir>"
+      - "{{SDLC}} design --change <change-name>"
 
   init:
     title: Initialization
@@ -16,7 +16,7 @@ steps:
 
       Ensure requirements.yaml exists and has a version.
     commands:
-      - "{{SDLC}} design --dir {{change_dir}}"
+      - "{{SDLC}} design --change {{change_name}}"
     complete_when:
       field: metadata.based_on_requirements
       non_empty: true
@@ -29,8 +29,8 @@ steps:
 
       Use `data.next_ids` to choose the next CMP/DM/API/DEC ids.
     commands:
-      - "{{SDLC}} design --dir {{change_dir}} --next-ids"
-      - "{{SDLC}} design --dir {{change_dir}} --update-artifact < design.yaml"
+      - "{{SDLC}} design --change {{change_name}} --next-ids"
+      - "{{SDLC}} design --change {{change_name}} --update-artifact < design.yaml"
     complete_when:
       all:
         - field: context_summary
@@ -50,7 +50,7 @@ steps:
 
       Then run `--finalize` to review the semantic checks.
     commands:
-      - "{{SDLC}} design --dir {{change_dir}} --finalize"
+      - "{{SDLC}} design --change {{change_name}} --finalize"
 
   delta:
     title: Delta
@@ -60,8 +60,8 @@ steps:
 
       Use `data.delta_allowed_target_docs`.
     commands:
-      - "{{SDLC}} design --dir {{change_dir}} --append-delta < delta.yaml"
-      - "{{SDLC}} design --dir {{change_dir}} --complete-step --step delta"
+      - "{{SDLC}} design --change {{change_name}} --append-delta < delta.yaml"
+      - "{{SDLC}} design --change {{change_name}} --complete-step --step delta"
     complete_when:
       any:
         - array: delta
@@ -77,8 +77,8 @@ steps:
 
       Read `data.review_report`, fix blocking findings, update the artifact, and finalize again.
     commands:
-      - "{{SDLC}} design --dir {{change_dir}} --update-artifact < design.yaml"
-      - "{{SDLC}} design --dir {{change_dir}} --finalize"
+      - "{{SDLC}} design --change {{change_name}} --update-artifact < design.yaml"
+      - "{{SDLC}} design --change {{change_name}} --finalize"
 
   ready:
     title: Ready
@@ -88,7 +88,7 @@ steps:
 
       Finalize the design artifact.
     commands:
-      - "{{SDLC}} design --dir {{change_dir}} --finalize"
+      - "{{SDLC}} design --change {{change_name}} --finalize"
 
   complete:
     title: Complete
@@ -96,4 +96,4 @@ steps:
     markdown: |
       The design artifact is ready for the review gate.
     commands:
-      - "{{SDLC}} design-review --dir {{change_dir}}"
+      - "{{SDLC}} design-review --change {{change_name}}"

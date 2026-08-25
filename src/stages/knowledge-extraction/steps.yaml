@@ -4,9 +4,9 @@ steps:
     title: Needs input
     next_action: provide_change_dir
     markdown: |
-      Ask the user which change directory to synchronize.
+      Ask the user which change to synchronize.
     commands:
-      - "{{SDLC}} knowledge-extraction --dir <change-dir>"
+      - "{{SDLC}} knowledge-extraction --change <change-name>"
 
   docs_delta:
     title: Collect deltas
@@ -16,7 +16,7 @@ steps:
 
       Use `data.deltas_to_apply` to update the living docs.
     commands:
-      - "{{SDLC}} knowledge-extraction --dir {{change_dir}}"
+      - "{{SDLC}} knowledge-extraction --change {{change_name}}"
 
   complete:
     title: Complete
@@ -24,4 +24,4 @@ steps:
     markdown: |
       Mark the synchronization complete after the deltas are applied.
     commands:
-      - "{{SDLC}} knowledge-extraction --dir {{change_dir}} --complete"
+      - "{{SDLC}} knowledge-extraction --change {{change_name}} --complete"

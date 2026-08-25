@@ -4,9 +4,9 @@ steps:
     title: Needs input
     next_action: provide_change_or_request
     markdown: |
-      Ask the user which change directory to plan.
+      Ask the user which change to plan.
     commands:
-      - "{{SDLC}} planning --dir <change-dir>"
+      - "{{SDLC}} planning --change <change-name>"
 
   init:
     title: Initialization
@@ -16,7 +16,7 @@ steps:
 
       Ensure design.yaml exists and has a version.
     commands:
-      - "{{SDLC}} planning --dir {{change_dir}}"
+      - "{{SDLC}} planning --change {{change_name}}"
     complete_when:
       field: metadata.based_on_design
       non_empty: true
@@ -29,8 +29,8 @@ steps:
 
       Use `data.next_ids` to choose the next TASK ids.
     commands:
-      - "{{SDLC}} planning --dir {{change_dir}} --next-ids"
-      - "{{SDLC}} planning --dir {{change_dir}} --update-artifact < plan.yaml"
+      - "{{SDLC}} planning --change {{change_name}} --next-ids"
+      - "{{SDLC}} planning --change {{change_name}} --update-artifact < plan.yaml"
     complete_when:
       array: tasks
       min_items: 1
@@ -43,7 +43,7 @@ steps:
 
       Then run `--finalize` to review the semantic checks.
     commands:
-      - "{{SDLC}} planning --dir {{change_dir}} --finalize"
+      - "{{SDLC}} planning --change {{change_name}} --finalize"
 
   delta:
     title: Delta
@@ -53,8 +53,8 @@ steps:
 
       Use `data.delta_allowed_target_docs`.
     commands:
-      - "{{SDLC}} planning --dir {{change_dir}} --append-delta < delta.yaml"
-      - "{{SDLC}} planning --dir {{change_dir}} --complete-step --step delta"
+      - "{{SDLC}} planning --change {{change_name}} --append-delta < delta.yaml"
+      - "{{SDLC}} planning --change {{change_name}} --complete-step --step delta"
     complete_when:
       any:
         - array: delta
@@ -70,8 +70,8 @@ steps:
 
       Read `data.review_report`, fix blocking findings, update the artifact, and finalize again.
     commands:
-      - "{{SDLC}} planning --dir {{change_dir}} --update-artifact < plan.yaml"
-      - "{{SDLC}} planning --dir {{change_dir}} --finalize"
+      - "{{SDLC}} planning --change {{change_name}} --update-artifact < plan.yaml"
+      - "{{SDLC}} planning --change {{change_name}} --finalize"
 
   ready:
     title: Ready
@@ -81,7 +81,7 @@ steps:
 
       Finalize the plan artifact.
     commands:
-      - "{{SDLC}} planning --dir {{change_dir}} --finalize"
+      - "{{SDLC}} planning --change {{change_name}} --finalize"
 
   complete:
     title: Complete
@@ -89,4 +89,4 @@ steps:
     markdown: |
       The plan artifact is ready for the review gate.
     commands:
-      - "{{SDLC}} planning-review --dir {{change_dir}}"
+      - "{{SDLC}} planning-review --change {{change_name}}"

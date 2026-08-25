@@ -69,12 +69,12 @@ export function runFeedback(argv: string[]) {
   const args = parseArgs(argv);
   const cwd = args.cwd ? path.resolve(String(args.cwd)) : process.cwd();
 
-  if (!args.dir) {
+  if (!args.change) {
     return writeJson({
       workflow: 'feedback',
       step: 'blocked',
       state: 'blocked',
-      instructions: 'Usage: sdlc feedback --dir <change-dir> --from <stage> --to <stage> --reason "..." [--resolve <FB-id>]',
+      instructions: 'Usage: sdlc feedback --change <change-name> --from <stage> --to <stage> --reason "..." [--resolve <FB-id>]',
       data: {},
       errors: [makeError('MISSING_CHANGE_DIR')],
       warnings: [],
@@ -83,7 +83,7 @@ export function runFeedback(argv: string[]) {
 
   let changeRoot;
   try {
-    changeRoot = resolveRootOrError(String(args.dir), { cwd });
+    changeRoot = resolveRootOrError(String(args.change), { cwd });
   } catch (err: unknown) {
     if (err instanceof ResolveRootError) {
       return writeJson({
@@ -99,7 +99,7 @@ export function runFeedback(argv: string[]) {
         errors: [makeError(err.candidates.length > 0 ? 'AMBIGUOUS_CHANGE_DIR' : 'CHANGE_DIR_NOT_FOUND', {
           message: err.message,
           ...(err.available.length > 0
-            ? { fix: 'Use one of data.available_changes as --dir (the exact name or a unique part of it).' }
+            ? { fix: 'Use one of data.available_changes as --change (the exact name or a unique part of it).' }
             : {}),
         })],
         warnings: [],
@@ -161,7 +161,7 @@ export function runFeedback(argv: string[]) {
       workflow: 'feedback',
       step: 'blocked',
       state: 'blocked',
-      instructions: 'Usage: sdlc feedback --dir <change-dir> --from <stage> --to <stage> --reason "..."',
+      instructions: 'Usage: sdlc feedback --change <change-name> --from <stage> --to <stage> --reason "..."',
       data: { change_root: changeRoot },
       errors: [makeError('USAGE', { message: 'Missing --from, --to, or --reason' })],
       warnings: [],
@@ -235,7 +235,7 @@ export function runFeedback(argv: string[]) {
     workflow: 'feedback',
     step: 'created',
     state: 'complete',
-    instructions: `Reverted ${to} to draft and blocked ${downstream.filter((d) => d !== to).join(', ') || 'none'}. Run scripts/sdlc.js ${to} --dir <change-dir> to resolve the issue, re-review, then run: sdlc feedback --dir <change-dir> --resolve ${id}`,
+    instructions: `Reverted ${to} to draft and blocked ${downstream.filter((d) => d !== to).join(', ') || 'none'}. Run scripts/sdlc.js ${to} --change <change-name> to resolve the issue, re-review, then run: sdlc feedback --change <change-name> --resolve ${id}`,
     data: {
       change_root: changeRoot,
       feedback_id: id,

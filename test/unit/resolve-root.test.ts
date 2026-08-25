@@ -117,7 +117,7 @@ test('not-found carries available changes and the searched path', () => {
       const resolveErr = err as ResolveRootError;
       assert.deepEqual(resolveErr.available, [...FIXTURE_DIRS].sort());
       assert.equal(resolveErr.searched, changesDirOf(root));
-      assert.match(resolveErr.message, /No change directory matching 'nonexistent'\./);
+      assert.match(resolveErr.message, /No change matching 'nonexistent'\./);
       assert.ok(resolveErr.message.includes('Available changes:'));
       return true;
     }
@@ -140,7 +140,7 @@ test('cwd without docs/changes is authoritative — no ancestor or script-dir in
       assert.deepEqual(resolveErr.available, []);
       assert.match(resolveErr.message, /docs\/changes does not exist under/);
       assert.ok(
-        resolveErr.message.includes('Create a change directory first.'),
+        resolveErr.message.includes('Create a change first.'),
         resolveErr.message
       );
       return true;
@@ -175,6 +175,6 @@ test('empty string throws a usage error', () => {
 
   assert.throws(
     () => resolveRootOrError('', { cwd: root }),
-    /A change directory or slug is required\./
+    /A change or slug is required\./
   );
 });

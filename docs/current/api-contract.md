@@ -7,9 +7,9 @@ CLI toolkit: no HTTP endpoints. The contract surface is the `sdlc` command line 
 | Method | Path | Auth | Request Shape | Response Shape | Source File | Schema Drift? |
 |--------|------|------|---------------|----------------|-------------|---------------|
 | CLI | sdlc --help / --version / --list-workflows | none (local process) | no args | envelope, data.workflows | src/scripts/sdlc.ts | No |
-| CLI | sdlc <stage-id> --dir <change-dir> [kind flags] | none | --dir + flags per kind (authoring: --request, --finalize, --confirm-semantic; review: --accept, --reject, --dry-run; tasks: --task-id, --status) | frozen envelope | src/scripts/workflows/index.ts, src/scripts/lib/kinds/ | No |
-| CLI | sdlc status --dir <change-dir> | none | --dir | envelope, data.pipeline | src/scripts/workflows/status.ts | No |
-| CLI | sdlc feedback --dir <change-dir> --from <stage> --to <stage> --reason "..." [--resolve <FB-id>] | none | --dir, --from, --to, --reason, optional --resolve | frozen envelope | src/scripts/workflows/feedback.ts | No |
+| CLI | sdlc <stage-id> --change <change-name> [kind flags] | none | --change + flags per kind (authoring: --request, --finalize, --confirm-semantic; review: --accept, --reject, --dry-run; tasks: --task-id, --status) | frozen envelope | src/scripts/workflows/index.ts, src/scripts/lib/kinds/ | No |
+| CLI | sdlc status --change <change-name> | none | --change | envelope, data.pipeline | src/scripts/workflows/status.ts | No |
+| CLI | sdlc feedback --change <change-name> --from <stage> --to <stage> --reason "..." [--resolve <FB-id>] | none | --change, --from, --to, --reason, optional --resolve | frozen envelope | src/scripts/workflows/feedback.ts | No |
 | CLI | sdlc doctor [--strict] | none | --strict optional | envelope with checks list | src/scripts/workflows/doctor.ts | No |
 | CLI | node bin/deploy-to-agent.ts --dest <root> [--clean] [--skip-smoke] | none | dest, clean, skip-smoke | JSON report with skills array | bin/deploy-to-agent.ts | No |
 | CLI | node bin/lint-artifact.ts <stage> <artifact> | none | stage id, artifact path | validateArtifact findings | bin/lint-artifact.ts | No |

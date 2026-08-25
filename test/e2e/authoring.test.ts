@@ -66,7 +66,7 @@ test('planning enters init when design is missing', () => {
     'planning',
     '--cwd',
     tmp,
-    '--dir',
+    '--change',
     changeDir,
   ]);
 

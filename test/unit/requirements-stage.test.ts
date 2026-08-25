@@ -340,15 +340,15 @@ test('complete-step --step discovery and scenarios set the confirmation flags (F
 
   out = runCli(
     tmp,
-    ['requirements', '--dir', changeDir, '--update-artifact'],
+    ['requirements', '--change', changeDir, '--update-artifact'],
     JSON.stringify(artifact)
   );
   assert.notEqual(out.state, 'blocked', JSON.stringify(out));
 
-  out = runCli(tmp, ['requirements', '--dir', changeDir, '--complete-step', '--step', 'discovery']);
+  out = runCli(tmp, ['requirements', '--change', changeDir, '--complete-step', '--step', 'discovery']);
   assert.equal(out.state, 'in_progress', JSON.stringify(out));
 
-  out = runCli(tmp, ['requirements', '--dir', changeDir, '--complete-step', '--step', 'scenarios']);
+  out = runCli(tmp, ['requirements', '--change', changeDir, '--complete-step', '--step', 'scenarios']);
   assert.equal(out.state, 'in_progress', JSON.stringify(out));
 
   const saved = readYaml(path.join(changeRoot, 'requirements.yaml')) as {

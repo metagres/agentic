@@ -44,7 +44,7 @@ interpreters (see [../codemap.md](../codemap.md)).
   always loader-backed from each stage's `steps.yaml` (CMP-007).
 
 ## Data & Control Flow
-1. **status** (`runStatus`, status.ts:53): `--dir` → `requireChangeRoot` →
+1. **status** (`runStatus`, status.ts:53): `--change` → `requireChangeRoot` →
    `loadStageRegistry` + `computePipelineOrder` → per-stage `pipeline` status
    map → open `feedback.yaml` entry? → blocked envelope pointing at the
    feedback target (`current_workflow`, `suggested_command`) → else: first
@@ -53,7 +53,7 @@ interpreters (see [../codemap.md](../codemap.md)).
    aggregator); a `ready-for-review` status redirects to its `<id>-review`
    stage → else `complete`. Output: `pipeline`, `current_workflow`,
    `suggested_command`, state `complete`/`in_progress`/`blocked`.
-2. **feedback** (`runFeedback`, feedback.ts:68): `--dir` resolved →
+2. **feedback** (`runFeedback`, feedback.ts:68): `--change` resolved →
    `feedback.yaml` loaded (created as `{entries: []}` when missing).
    `--resolve <FB-id>`: mark entry `resolved` (+`resolved_at`), unblock the
    `from_stage`. New entry: requires `--from/--to/--reason`; both stages must
@@ -68,7 +68,7 @@ interpreters (see [../codemap.md](../codemap.md)).
    validates every descriptor against the meta-schema and per-kind file sets)
    + `requires_dag` (`computePipelineOrder`), `deployed_manifest` (skipped in
    the repo; in a deployed runtime verifies `name`/`version`/`cliPath` in
-   `manifest.json`), optional `change_dir` resolution, `docs_index_present`.
+    `manifest.json`), optional `change_name` resolution, `docs_index_present`.
    State `blocked` iff any error; error codes include
    `NODE_VERSION_UNSUPPORTED`, `SCHEMAS_MISSING`, `POLICIES_MISSING`,
    `TEMPLATES_MISSING`, `STAGE_INVALID_DESCRIPTOR`, `MANIFEST_INVALID`,

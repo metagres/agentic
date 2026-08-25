@@ -38,7 +38,7 @@ function usage(stage: StageRecord, code = EXIT.ok) {
       step: 'help',
       state: code === EXIT.ok ? 'ok' : 'blocked',
       instructions:
-        `Usage: sdlc ${stage.id} --dir <change-dir> ` +
+        `Usage: sdlc ${stage.id} --change <change-name> ` +
         '[--task-id TASK-001 --status in_progress --note "..." --files "create:src/a.ts,modify:src/b.ts"]',
       data: {
         allowed_task_status: ALLOWED_TASK_STATUS,
@@ -355,7 +355,7 @@ export async function runTasksStage(
       instructions =
         'All tasks are complete or skipped. ' +
         'Run implementation review with:\n\n' +
-        `sdlc implementation-review --dir <change-dir>`;
+        `sdlc implementation-review --change <change-name>`;
     } else if (updatedTaskId) {
       const tasks = (Array.isArray(plan.tasks) ? plan.tasks : []) as Record<string, unknown>[];
       const found = tasks.find((t: Record<string, unknown>) => t.id === updatedTaskId);

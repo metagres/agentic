@@ -58,15 +58,15 @@ test('plain review records by default and dry-run does not', () => {
   const artifact = validRequirements({ request: 'Add profile' });
   out = run(
     tmp,
-    ['requirements', '--dir', changeDir, '--update-artifact'],
+    ['requirements', '--change', changeDir, '--update-artifact'],
     JSON.stringify(artifact)
   );
   assert.notEqual(out.state, 'blocked');
 
-  out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
+  out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete');
 
-  out = run(tmp, ['requirements-review', '--dir', changeDir]);
+  out = run(tmp, ['requirements-review', '--change', changeDir]);
   assert.equal(out.data.round, 1);
 
   let rev = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
@@ -74,7 +74,7 @@ test('plain review records by default and dry-run does not', () => {
 
   out = run(tmp, [
     'requirements-review',
-    '--dir',
+    '--change',
     changeDir,
     '--dry-run',
   ]);

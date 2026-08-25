@@ -75,7 +75,7 @@ requires no TypeScript change; adding a kind is a design-review event.
 ## Data & Control Flow
 All four share the same skeleton:
 1. `parseArgs(argv)`; `--help` → usage envelope (exit 0).
-2. Change root: `--dir` → `resolveRootOrError` (authoring/review inline;
+2. Change root: `--change` → `resolveRootOrError` (authoring/review inline;
    tasks/aggregator via `requireChangeRoot`); authoring additionally accepts
    `--request` to create a new change dir.
 3. Acceptance gate: `evaluateGate(stage, changeRoot, cwd)` (authoring only at
@@ -90,8 +90,8 @@ All four share the same skeleton:
      with step `validation` → semantic checklist requires
      `--confirm-semantic` → `finalizeArtifact`), then the state-recalculation
      path: `validateArtifact` → `detectStep` → render the step's
-     `markdown`/`commands` from `steps.yaml` (template vars `SDLC`,
-     `change_dir`, `stage`) → step-specific `data` (`existing_changes`,
+      `markdown`/`commands` from `steps.yaml` (template vars `SDLC`,
+      `change_name`, `stage`) → step-specific `data` (`existing_changes`,
      `next_ids`, `errors`, `delta_allowed_target_docs`) + `getData` booleans +
      `metadata` + `step_help` + `review_report` → `writeJson` (state:
      `complete`/`in_progress`/`blocked`).

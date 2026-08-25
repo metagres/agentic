@@ -55,15 +55,15 @@ test('reject then recover preserves history and bumps version', () => {
 
   out = run(
     tmp,
-    ['requirements', '--dir', changeDir, '--update-artifact'],
+    ['requirements', '--change', changeDir, '--update-artifact'],
     JSON.stringify(validRequirements({ request: 'Add login' }))
   );
   assert.notEqual(out.state, 'blocked');
 
-  out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
+  out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['requirements-review', '--dir', changeDir, '--reject']);
+  out = run(tmp, ['requirements-review', '--change', changeDir, '--reject']);
   assert.equal(out.state, 'blocked', JSON.stringify(out));
 
   let req = readYaml(path.join(changeRoot, 'requirements.yaml'));
@@ -76,15 +76,15 @@ test('reject then recover preserves history and bumps version', () => {
 
   out = run(
     tmp,
-    ['requirements', '--dir', changeDir, '--update-artifact'],
+    ['requirements', '--change', changeDir, '--update-artifact'],
     JSON.stringify(validRequirements({ title: 'Add login recovered', request: 'Add login' }))
   );
   assert.notEqual(out.state, 'blocked');
 
-  out = run(tmp, ['requirements', '--dir', changeDir, '--finalize', '--confirm-semantic']);
+  out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['requirements-review', '--dir', changeDir, '--accept']);
+  out = run(tmp, ['requirements-review', '--change', changeDir, '--accept']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   req = readYaml(path.join(changeRoot, 'requirements.yaml'));

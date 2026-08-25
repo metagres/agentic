@@ -10,7 +10,7 @@ steps:
 
       For a new request, ask the user for the request text.
     commands:
-      - "{{SDLC}} requirements --dir <change-dir>"
+      - "{{SDLC}} requirements --change <change-name>"
       - "{{SDLC}} requirements --request \"<request text>\""
 
   init:
@@ -22,7 +22,7 @@ steps:
       Read `docs/current/index.md` and use it to decide which living docs are relevant.
       Read only what is needed for this request.
     commands:
-      - "{{SDLC}} requirements --dir {{change_dir}}"
+      - "{{SDLC}} requirements --change {{change_name}}"
     complete_when:
       all:
         - field: metadata.title
@@ -41,9 +41,9 @@ steps:
       Do not stop until `data.discovery_gate.passed` is true. Passing on counts alone is not
       enough: after the gate passes, confirm convergence with --complete-step --step discovery.
     commands:
-      - "{{SDLC}} requirements --dir {{change_dir}} --record-answer --lens <lens> --question \"<question>\" --answer \"<answer>\""
-      - "{{SDLC}} requirements --dir {{change_dir}} --set-clarity <clear|partial|vague>"
-      - "{{SDLC}} requirements --dir {{change_dir}} --complete-step --step discovery"
+      - "{{SDLC}} requirements --change {{change_name}} --record-answer --lens <lens> --question \"<question>\" --answer \"<answer>\""
+      - "{{SDLC}} requirements --change {{change_name}} --set-clarity <clear|partial|vague>"
+      - "{{SDLC}} requirements --change {{change_name}} --complete-step --step discovery"
     exit_criteria:
       all:
         - field: data.discovery_gate.passed
@@ -68,10 +68,10 @@ steps:
       Mark each scenario resolved once its outcome is decided. If you genuinely have no examples,
       confirm the empty set with --complete-step --step scenarios.
     commands:
-      - "{{SDLC}} requirements --dir {{change_dir}} --next-ids"
-      - "{{SDLC}} requirements --dir {{change_dir}} --update-artifact < requirements.yaml"
-      - "{{SDLC}} requirements --dir {{change_dir}} --record-answer --lens <lens> --question \"<question>\" --answer \"<answer>\""
-      - "{{SDLC}} requirements --dir {{change_dir}} --complete-step --step scenarios"
+      - "{{SDLC}} requirements --change {{change_name}} --next-ids"
+      - "{{SDLC}} requirements --change {{change_name}} --update-artifact < requirements.yaml"
+      - "{{SDLC}} requirements --change {{change_name}} --record-answer --lens <lens> --question \"<question>\" --answer \"<answer>\""
+      - "{{SDLC}} requirements --change {{change_name}} --complete-step --step scenarios"
     exit_criteria: null
 
   assumptions:
@@ -84,8 +84,8 @@ steps:
 
       If there are genuinely no assumptions, mark the step complete.
     commands:
-      - "{{SDLC}} requirements --dir {{change_dir}} --update-artifact < requirements.yaml"
-      - "{{SDLC}} requirements --dir {{change_dir}} --complete-step --step assumptions"
+      - "{{SDLC}} requirements --change {{change_name}} --update-artifact < requirements.yaml"
+      - "{{SDLC}} requirements --change {{change_name}} --complete-step --step assumptions"
     complete_when:
       any:
         - array: assumptions
@@ -110,8 +110,8 @@ steps:
 
       Write the artifact through the script.
     commands:
-      - "{{SDLC}} requirements --dir {{change_dir}} --next-ids"
-      - "{{SDLC}} requirements --dir {{change_dir}} --update-artifact < requirements.yaml"
+      - "{{SDLC}} requirements --change {{change_name}} --next-ids"
+      - "{{SDLC}} requirements --change {{change_name}} --update-artifact < requirements.yaml"
     complete_when:
       all:
         - field: problem_statement
@@ -132,7 +132,7 @@ steps:
 
       Then run `--finalize` to review the semantic checks.
     commands:
-      - "{{SDLC}} requirements --dir {{change_dir}} --finalize"
+      - "{{SDLC}} requirements --change {{change_name}} --finalize"
 
   delta:
     title: Delta
@@ -146,8 +146,8 @@ steps:
 
       If no docs are affected, mark the step complete.
     commands:
-      - "{{SDLC}} requirements --dir {{change_dir}} --append-delta < delta.yaml"
-      - "{{SDLC}} requirements --dir {{change_dir}} --complete-step --step delta"
+      - "{{SDLC}} requirements --change {{change_name}} --append-delta < delta.yaml"
+      - "{{SDLC}} requirements --change {{change_name}} --complete-step --step delta"
     complete_when:
       any:
         - array: delta
@@ -167,8 +167,8 @@ steps:
 
       If the artifact was rejected, finalizing automatically applies a patch version bump unless you pass --bump-version.
     commands:
-      - "{{SDLC}} requirements --dir {{change_dir}} --update-artifact < requirements.yaml"
-      - "{{SDLC}} requirements --dir {{change_dir}} --finalize"
+      - "{{SDLC}} requirements --change {{change_name}} --update-artifact < requirements.yaml"
+      - "{{SDLC}} requirements --change {{change_name}} --finalize"
 
   ready:
     title: Ready
@@ -178,7 +178,7 @@ steps:
 
       Finalize the artifact.
     commands:
-      - "{{SDLC}} requirements --dir {{change_dir}} --finalize"
+      - "{{SDLC}} requirements --change {{change_name}} --finalize"
 
   complete:
     title: Complete
@@ -186,4 +186,4 @@ steps:
     markdown: |
       The requirements artifact is ready for the review gate.
     commands:
-      - "{{SDLC}} requirements-review --dir {{change_dir}}"
+      - "{{SDLC}} requirements-review --change {{change_name}}"
