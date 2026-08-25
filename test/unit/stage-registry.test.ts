@@ -189,6 +189,7 @@ test('the migrated repository stages are all discovered with the expected kinds'
     NFR: 'non_functional_requirements',
     AC: 'acceptance_criteria',
     DL: 'discovery_log',
+    SC: 'scenarios',
   });
 });
 

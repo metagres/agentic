@@ -1,0 +1,58 @@
+# architecture.md
+
+## Tech Stack
+
+| Layer | Technology | Version | Evidence |
+|-------|------------|---------|----------|
+| Runtime | Node.js | >=20 | package.json (engines) |
+| Language | TypeScript (ESM, strict) | compiler ^7.0.2 | tsconfig.json |
+| Bundling | tsup (single ESM entry, noExternal) | ^8.5.1 | tsup.config.ts |
+| Schema validation | ajv + ajv-formats | ^8.20.0 / ^3.0.1 | src/scripts/lib/schema.ts |
+| Config/artifact format | YAML | ^2.5.1 | src/scripts/lib/yaml-io.ts |
+| Test runner | node --test (built-in) | node >=20 | package.json (scripts) |
+
+## Component Boundaries
+
+```mermaid
+graph TD
+  AGENT[AI agent runtime] -->|argv + frozen JSON envelope| CLI[sdlc CLI: src/scripts/sdlc.ts]
+  CLI --> REG[workflow registry: src/scripts/workflows/index.ts]
+  REG -->|stage commands| KINDS[kind interpreters: src/scripts/lib/kinds/]
+  REG -->|cross-cutting| XW[status / feedback / doctor: src/scripts/workflows/]
+  KINDS --> ENGINE[engine core: stage-registry, requires-graph, validate]
+  ENGINE --> STAGES[stage folders: src/stages/<id>/]
+  ENGINE --> CHECKS[capped check catalog: src/scripts/lib/checks/]
+  ENGINE --> POLICIES[src/policies/errors.yaml]
+  BIN[developer bins: bin/] --> ENGINE
+  BIN --> DEPLOY[bin/deploy-to-agent.ts]
+  SKILLSRC[skill sources: src/skills/] --> DEPLOY
+  DEPLOY -->|two self-contained skills| RUNTIME[.opencode/skills/ build artifact]
+```
+
+## Folder Responsibilities
+
+| Folder | Claimed (CodeMap) | Actual Exports/Entry | Mismatch? | Evidence |
+|--------|-------------------|----------------------|-----------|----------|
+| src/scripts/ | CLI runtime: dispatch, workflow resolution, envelope | src/scripts/sdlc.ts (npm bin `sdlc`) | No | package.json, src/scripts/sdlc.ts |
+| src/scripts/lib/ | Engine core: discovery, requires-DAG + acceptance gate, validation orchestrator, step machine | stage-registry.ts, requires-graph.ts, validate.ts | No | src/scripts/lib/ |
+| src/scripts/lib/checks/ | Capped catalog of eleven named generic structural checks | index.ts catalog | No | src/scripts/lib/checks/index.ts |
+| src/scripts/lib/kinds/ | Four kind interpreters (authoring, review, tasks, aggregator) | authoring.ts, review.ts, tasks.ts, aggregator.ts | No | src/scripts/lib/kinds/ |
+| src/scripts/workflows/ | Cross-cutting commands + single skillManifest | index.ts (resolveWorkflow, listWorkflows) | No | src/scripts/workflows/index.ts |
+| src/stages/ | Structural source of truth: 9 stage folders, declarative config | stage.yaml per folder (5 authoring/tasks, 4 review) | No | src/stages/ |
+| src/skills/ | Version-controlled skill sources | src/skills/knowledge-init/SKILL.md | No | codemap.md, src/skills/ |
+| src/policies/ | YAML asset layer: single central policy | src/policies/errors.yaml | No | src/policies/ |
+| src/schemas/ | YAML asset layer: meta-schemas | stage.schema.yaml, cli-envelope.schema.yaml, docs-delta.schema.yaml | No | src/schemas/ |
+| bin/ | Developer CLI tooling: validation, lint, deployment | deploy-to-agent.ts, lint-artifact.ts, validate-{schemas,policies,templates}.ts | No | bin/ |
+| test/ | Unit + e2e suites | node --test test/unit, test/e2e | No | package.json (scripts) |
+| docs/current/ | Living docs, created only by knowledge-init, maintained by knowledge extraction | index.md + 9 documents | No | src/skills/knowledge-init/SKILL.md |
+
+## Integration Points
+
+| Boundary | Caller | Callee | Protocol | Evidence |
+|----------|--------|--------|----------|----------|
+| Agent ↔ CLI | AI agent | sdlc CLI | argv in; frozen 7-field JSON envelope out | src/schemas/cli-envelope.schema.yaml, src/scripts/sdlc.ts |
+| Deploy → runtime | bin/deploy-to-agent.ts | .opencode/skills/ | file copy + manifest.json per skill | bin/deploy-to-agent.ts |
+| Skill source → deploy | bin/deploy-to-agent.ts | src/skills/knowledge-init/SKILL.md | file copy (fail names missing source) | bin/deploy-to-agent.ts |
+| CLI → stage config | kind interpreters | src/stages/<id>/*.yaml | YAML load at startup | src/scripts/lib/stage-registry.ts |
+| Validation layers | validateArtifact | ajv (schema) → named checks → semantic checklist → review gate | function call, single orchestrator | src/scripts/lib/validate.ts |
+| Lint → validation | bin/lint-artifact.ts | validateArtifact | same path as internal finalize | bin/lint-artifact.ts |

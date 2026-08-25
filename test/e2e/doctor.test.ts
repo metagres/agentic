@@ -28,4 +28,16 @@ test('doctor warns when docs index missing', () => {
     normal.warnings.some((w) => w.code === 'DOCS_INDEX_MISSING'),
     `Expected DOCS_INDEX_MISSING warning. Got: ${JSON.stringify(normal.warnings)}`
   );
+
+  // The guidance names the knowledge-init skill as the sole creator.
+  const warning = normal.warnings.find((w) => w.code === 'DOCS_INDEX_MISSING');
+  assert.match(warning.fix, /knowledge-init/);
+
+  // The templates directory check is gone.
+  const checkIds = normal.data.checks.map((c) => c.id);
+  assert.ok(
+    !checkIds.includes('templates_available'),
+    `Expected no templates check. Got: ${checkIds.join(', ')}`
+  );
+  assert.ok(checkIds.includes('docs_index_present'));
 });

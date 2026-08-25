@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { skillManifest } from '../src/scripts/workflows/skill-manifest.ts';
 import { VERSION } from '../src/scripts/lib/version.ts';
 import { getStageDescriptions } from '../src/scripts/lib/stage-registry.ts';
+import { parseYamlString } from '../src/scripts/lib/yaml-io.ts';
 import { buildSync } from 'esbuild';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -165,6 +166,7 @@ const SKILL_TEMPLATE = [
   '## Workflow',
   '',
   '1. Run `node scripts/sdlc.js status --dir <change_dir>` (or `node scripts/sdlc.js --list-workflows`, `--help`).',
+  '   - `--dir` accepts the exact change directory name or a unique part of it; if resolution fails, data.available_changes lists the existing change directories.',
   '2. Follow the `instructions` field in the returned envelope `{workflow, step, state, instructions, data, errors, warnings}`.',
   '3. The CLI owns stage detection — do not guess which workflow to run.',
   '',
@@ -174,12 +176,48 @@ const SKILL_TEMPLATE = [
 
 function renderSkill() {
   const stages = getStageDescriptions(root).map((stage) => stage.id);
-  const workflowList = [...stages, 'status', 'feedback', 'doctor', 'docs-init'].join(' · ');
+  const workflowList = [...stages, 'status', 'feedback', 'doctor'].join(' · ');
 
   return SKILL_TEMPLATE.replaceAll('{{ID}}', skillManifest.id)
     .replaceAll('{{TITLE}}', skillManifest.title)
     .replaceAll('{{DESCRIPTION_INDENTED}}', indent(skillManifest.description, 2))
     .replaceAll('{{WORKFLOWS}}', workflowList);
+}
+
+const KNOWLEDGE_INIT_SKILL_ID = 'knowledge-init';
+
+/**
+ * Reads the YAML frontmatter between the opening --- markers of a SKILL.md.
+ * Used by the knowledge-init smoke check (DEC-008): the skill ships no CLI,
+ * so its smoke verifies the frontmatter instead of running a command.
+ */
+function readSkillFrontmatter(skillMdPath: string): Record<string, unknown> {
+  const content = fs.readFileSync(skillMdPath, 'utf8');
+  const lines = content.split('\n');
+
+  if (lines[0]?.trim() !== '---') {
+    fail(`Missing frontmatter in ${skillMdPath}`);
+  }
+
+  let end = -1;
+  for (let i = 1; i < lines.length; i += 1) {
+    if (lines[i].trim() === '---') {
+      end = i;
+      break;
+    }
+  }
+
+  if (end === -1) {
+    fail(`Unterminated frontmatter in ${skillMdPath}`);
+  }
+
+  const doc = parseYamlString(lines.slice(1, end).join('\n'), skillMdPath);
+
+  if (!doc || typeof doc !== 'object' || Array.isArray(doc)) {
+    fail(`Invalid frontmatter in ${skillMdPath}`);
+  }
+
+  return doc as Record<string, unknown>;
 }
 
 const LEGACY_SKILL_IDS = [
@@ -206,9 +244,11 @@ function main() {
 
   const destAbs = path.resolve(String(destArg));
   const skillAbs = path.join(destAbs, 'skills', 'agentic-sdlc');
+  const knowledgeInitAbs = path.join(destAbs, 'skills', KNOWLEDGE_INIT_SKILL_ID);
 
   if (args.clean) {
     rmrf(skillAbs);
+    rmrf(knowledgeInitAbs);
 
     // Remove legacy split layout (pre-consolidation): old runtime dir + per-skill dirs
     rmrf(path.join(destAbs, 'sdlc'));
@@ -229,7 +269,6 @@ function main() {
 
   fs.copyFileSync(bundleFile, path.join(skillAbs, 'scripts', 'sdlc.js'));
 
-  copyDir(path.join(root, 'src', 'templates'), path.join(skillAbs, 'templates'));
   copyDir(path.join(root, 'src', 'schemas'), path.join(skillAbs, 'schemas'));
   copyDir(path.join(root, 'src', 'policies'), path.join(skillAbs, 'policies'));
   copyDir(path.join(root, 'src', 'stages'), path.join(skillAbs, 'stages'));
@@ -256,9 +295,42 @@ function main() {
     'utf8'
   );
 
-  let smoke = 'skipped';
+  // Second skill (DEC-001): knowledge-init, source-controlled at
+  // src/skills/knowledge-init/SKILL.md. It ships SKILL.md and a manifest with
+  // name, version, and deployedAt only (DEC-007) — no CLI, no scripts.
+  const knowledgeInitSource = path.join(
+    root,
+    'src',
+    'skills',
+    KNOWLEDGE_INIT_SKILL_ID,
+    'SKILL.md'
+  );
+
+  if (!fs.existsSync(knowledgeInitSource)) {
+    fail(`Missing skill source file: ${knowledgeInitSource}`);
+  }
+
+  ensureDir(knowledgeInitAbs);
+  fs.copyFileSync(knowledgeInitSource, path.join(knowledgeInitAbs, 'SKILL.md'));
+
+  fs.writeFileSync(
+    path.join(knowledgeInitAbs, 'manifest.json'),
+    `${JSON.stringify(
+      {
+        name: KNOWLEDGE_INIT_SKILL_ID,
+        version: VERSION,
+        deployedAt: new Date().toISOString(),
+      },
+      null,
+      2
+    )}\n`,
+    'utf8'
+  );
+
+  const skills: { name: string; smoke: string }[] = [];
 
   if (!args['skip-smoke']) {
+    // agentic-sdlc: run the deployed CLI.
     const runtimeCliAbs = path.join(skillAbs, 'scripts', 'sdlc.js');
     const result = spawnSync(
       process.execPath,
@@ -275,8 +347,36 @@ function main() {
       );
     }
 
-    smoke = 'passed';
+    skills.push({ name: skillManifest.id, smoke: 'passed' });
+
+    // knowledge-init: no CLI to run, so verify the SKILL.md frontmatter
+    // (DEC-008): name equals the folder name and description is non-empty.
+    const frontmatter = readSkillFrontmatter(
+      path.join(knowledgeInitAbs, 'SKILL.md')
+    );
+
+    if (frontmatter.name !== KNOWLEDGE_INIT_SKILL_ID) {
+      fail(
+        `knowledge-init smoke test failed: frontmatter name '${String(frontmatter.name)}' does not match the folder name '${KNOWLEDGE_INIT_SKILL_ID}'.`
+      );
+    }
+
+    const description = frontmatter.description;
+    if (typeof description !== 'string' || description.trim() === '') {
+      fail(
+        'knowledge-init smoke test failed: frontmatter description is empty.'
+      );
+    }
+
+    skills.push({ name: KNOWLEDGE_INIT_SKILL_ID, smoke: 'passed' });
+  } else {
+    skills.push({ name: skillManifest.id, smoke: 'skipped' });
+    skills.push({ name: KNOWLEDGE_INIT_SKILL_ID, smoke: 'skipped' });
   }
+
+  const smoke = skills.every((entry) => entry.smoke === 'passed')
+    ? 'passed'
+    : 'skipped';
 
   console.log(
     JSON.stringify(
@@ -288,6 +388,7 @@ function main() {
         cliPath: 'scripts/sdlc.js',
         bundled: true,
         smoke,
+        skills,
       },
       null,
       2

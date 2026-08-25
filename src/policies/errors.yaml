@@ -5,10 +5,10 @@ errors:
     fix: Use --dir <change-dir>.
   AMBIGUOUS_CHANGE_DIR:
     message: Multiple change directories match the provided value.
-    fix: Choose one of the candidates.
+    fix: Pass one of the listed candidates as --dir.
   CHANGE_DIR_NOT_FOUND:
     message: No matching change directory was found.
-    fix: Create a change directory or provide a valid --dir value.
+    fix: Use one of the change directories listed in data.available_changes, or create a new change with --request.
   ARTIFACT_NOT_FOUND:
     message: Required artifact not found.
     fix: Run the corresponding stage first.
@@ -66,21 +66,24 @@ errors:
   POLICY_INVALID:
     message: A policy file is invalid.
     fix: Fix the policy file and rerun validation.
+  STAGE_POLICY_MISSING:
+    message: The stage policy file is missing.
+    fix: Restore requirements-policy.yaml in the requirements stage folder.
+  STAGE_POLICY_INVALID:
+    message: The stage policy file is invalid.
+    fix: Fix the named field in requirements-policy.yaml and rerun.
+  UNKNOWN_LENS:
+    message: The lens is not in the policy vocabulary.
+    fix: Use one of the lenses listed in requirements-policy.yaml.
   DOCS_INDEX_MISSING:
     message: docs/current/index.md not found.
-    fix: Run sdlc docs-init or create docs/current/index.md.
-  DOCS_INDEX_EXISTS:
-    message: docs/current/index.md already exists.
-    fix: Use --force to overwrite it.
+    fix: Run the knowledge-init skill to create docs/current/index.md.
   SCHEMAS_MISSING:
     message: No schemas directory found.
     fix: Deploy or restore the runtime schemas.
   POLICIES_MISSING:
     message: No policies directory found.
     fix: Deploy or restore the runtime policies.
-  TEMPLATES_MISSING:
-    message: No templates directory found.
-    fix: Deploy or restore the runtime templates.
 
   USAGE:
     message: Invalid command usage.

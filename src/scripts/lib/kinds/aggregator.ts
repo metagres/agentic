@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 
 import type { StageRecord } from '../stage-registry.ts';
@@ -74,6 +75,14 @@ export async function runAggregatorStage(
 
     const warnings: WarningItem[] = [];
     const collectedDeltas: Record<string, unknown>[] = [];
+
+    // The CLI never creates docs/current (DEC-002): when the target project
+    // has no docs index, warn on both the delta-listing and --complete paths
+    // and name the knowledge-init skill as the sole creator.
+    const docsIndexPath = path.join(cwd, 'docs', 'current', 'index.md');
+    if (!fs.existsSync(docsIndexPath)) {
+      warnings.push(makeError('DOCS_INDEX_MISSING'));
+    }
 
     // Collect deltas from all delta-producing stages in the registry.
     const deltaStages = loadStageRegistry(cwd).filter((s) => s.producesDelta);

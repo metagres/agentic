@@ -120,13 +120,21 @@ export async function runReviewStage(
             target: targetLabel,
             target_artifact: stage.artifact,
             candidates: err.candidates || [],
+            available_changes: err.available || [],
+            searched: err.searched || undefined,
           },
           errors: [
             makeError(
               err.candidates && err.candidates.length > 0
                 ? 'AMBIGUOUS_CHANGE_DIR'
                 : 'CHANGE_DIR_NOT_FOUND',
-              { message: err.message, candidates: err.candidates || [] }
+              {
+                message: err.message,
+                candidates: err.candidates || [],
+                ...(err.available.length > 0
+                  ? { fix: 'Use one of data.available_changes as --dir (the exact name or a unique part of it).' }
+                  : {}),
+              }
             ),
           ],
           warnings: [],

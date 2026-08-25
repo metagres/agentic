@@ -86,6 +86,12 @@
         },
         "delta_reviewed": {
           "type": "boolean"
+        },
+        "discovery_reviewed": {
+          "type": "boolean"
+        },
+        "scenarios_reviewed": {
+          "type": "boolean"
         }
       }
     },
@@ -122,6 +128,7 @@
               "interface",
               "behavior",
               "design",
+              "data",
               "constraint",
               "failure",
               "outcome"
@@ -129,6 +136,61 @@
           },
           "resolved": {
             "type": "boolean"
+          }
+        }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "statement",
+          "category",
+          "status",
+          "outcome"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^SC-[0-9]{3}$"
+          },
+          "statement": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "happy",
+              "edge",
+              "negative",
+              "boundary"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "resolved"
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "ac",
+              "question",
+              "out_of_scope"
+            ]
+          },
+          "ac_id": {
+            "type": "string",
+            "pattern": "^AC-[0-9]{3}$"
+          },
+          "question_id": {
+            "type": "string",
+            "pattern": "^DL-[0-9]{3}$"
           }
         }
       }

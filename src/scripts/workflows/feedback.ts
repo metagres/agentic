@@ -91,8 +91,17 @@ export function runFeedback(argv: string[]) {
         step: 'blocked',
         state: 'blocked',
         instructions: err.message,
-        data: { candidates: err.candidates || [] },
-        errors: [makeError(err.candidates.length > 0 ? 'AMBIGUOUS_CHANGE_DIR' : 'CHANGE_DIR_NOT_FOUND', { message: err.message })],
+        data: {
+          candidates: err.candidates || [],
+          available_changes: err.available || [],
+          searched: err.searched || undefined,
+        },
+        errors: [makeError(err.candidates.length > 0 ? 'AMBIGUOUS_CHANGE_DIR' : 'CHANGE_DIR_NOT_FOUND', {
+          message: err.message,
+          ...(err.available.length > 0
+            ? { fix: 'Use one of data.available_changes as --dir (the exact name or a unique part of it).' }
+            : {}),
+        })],
         warnings: [],
       }, EXIT.ambiguous);
     }

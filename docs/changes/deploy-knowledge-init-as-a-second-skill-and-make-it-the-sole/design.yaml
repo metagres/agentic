@@ -1,0 +1,339 @@
+metadata:
+  id: DES-001
+  title: "Design: deploy-knowledge-init-as-a-second-skill-and-make-it-the-sole"
+  stage: design
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-24
+  updated: 2026-08-24
+  based_on_requirements: 0.1.0
+  delta_reviewed: true
+  step: complete
+context_summary: "The design deploys knowledge-init as a second self-contained skill and removes
+  every docs/current creation path from the sdlc CLI. A versioned source store at
+  src/skills/knowledge-init/SKILL.md defines the bootstrap content contract: a four-column index and
+  nine living documents with no overview file. The deployment pipeline copies both skills, cleans
+  both on demand, and smoke-tests the CLI plus the skill frontmatter. Skill validation moves into
+  the existing validate-templates bin, which checks frontmatter name and description for every
+  folder under src/skills. The workflow registry drops the docs-init command, so the CLI returns
+  UNKNOWN_COMMAND for it. The knowledge-extraction aggregator and doctor warn with
+  DOCS_INDEX_MISSING and point at the knowledge-init skill whenever docs/current/index.md is absent.
+  Tests retire docs-init coverage, retarget fixtures from overview.md to the nine-document set, and
+  add coverage for the new warning, validation, and deployment behavior."
+components:
+  - id: CMP-001
+    name: Skill Source Store
+    responsibility: Hold the knowledge-init SKILL.md under version control at
+      src/skills/knowledge-init/SKILL.md and define its bootstrap content contract.
+    files:
+      - src/skills/knowledge-init/SKILL.md
+    changes:
+      - Port the orphaned .opencode/skills/knowledge-init/SKILL.md into
+        src/skills/knowledge-init/SKILL.md.
+      - "Precondition section: run when docs/current/index.md does not exist; state that this skill
+        is the only component that creates docs/current."
+      - "Index specification: exactly four columns File, Purpose, When to Read, Notes; nine fixed
+        rows for the living documents; drop the row-number, token-size, and last-updated columns and
+        the instruction to fill them."
+      - "Declared outputs: index.md plus the nine documents; overview.md appears nowhere."
+      - Keep the principles, per-document specifications, cross-check pass, exclusions, and the 3K
+        token per document budget unchanged.
+  - id: CMP-002
+    name: Deployment Pipeline
+    responsibility: Deploy both self-contained skills to the destination agent root and verify each one.
+    files:
+      - bin/deploy-to-agent.ts
+    changes:
+      - Copy src/skills/knowledge-init/SKILL.md to skills/knowledge-init/SKILL.md and write its
+        manifest.json with name, version, and deployedAt only.
+      - Fail with an error naming the missing source file when src/skills/knowledge-init/SKILL.md is
+        absent.
+      - With --clean, remove skills/agentic-sdlc and skills/knowledge-init in addition to the legacy
+        skill list.
+      - Remove the src/templates copy step.
+      - renderSkill workflow list drops docs-init.
+      - "Smoke test: run the agentic-sdlc CLI with --list-workflows and check the knowledge-init
+        SKILL.md frontmatter (name equals folder, description non-empty); report a skills array
+        covering both results."
+  - id: CMP-003
+    name: Skill Validation
+    responsibility: Validate stage templates and skill folder frontmatter in place of the removed
+      docs-index template check.
+    files:
+      - bin/validate-templates.ts
+    changes:
+      - Delete the docs-current-index.md validation block and the templatesDir constant.
+      - "Scan every folder under src/skills: require SKILL.md, parse the frontmatter between the
+        opening --- markers with the YAML parser, require name equal to the folder name and a
+        non-empty description."
+      - Emit results under a skills array beside the existing templates array and exit non-zero on
+        any failure.
+  - id: CMP-004
+    name: Workflow Registry
+    responsibility: Remove the docs-init command from the CLI surface.
+    files:
+      - src/scripts/workflows/index.ts
+      - src/scripts/workflows/docs-init.ts
+    changes:
+      - Delete src/scripts/workflows/docs-init.ts together with its CROSS_CUTTING registry entry and
+        import.
+      - The docs-init argument then resolves to UNKNOWN_COMMAND and the workflow list no longer
+        contains it.
+  - id: CMP-005
+    name: Aggregator Advisory
+    responsibility: Warn when the target project lacks docs/current and name the knowledge-init skill.
+    files:
+      - src/scripts/lib/kinds/aggregator.ts
+    changes:
+      - When cwd/docs/current/index.md does not exist, push a DOCS_INDEX_MISSING warning whose
+        message names the knowledge-init skill, on both the delta-listing path and the --complete
+        path.
+      - Never create docs/current; the stage state machine and envelope fields stay unchanged.
+  - id: CMP-006
+    name: Doctor and Error Catalog
+    responsibility: Align the doctor checks and the error catalog with the two-skill runtime.
+    files:
+      - src/scripts/workflows/doctor.ts
+      - src/policies/errors.yaml
+    changes:
+      - "doctor: remove the templates_available check and its TEMPLATES_MISSING error; keep
+        docs_index_present with DOCS_INDEX_MISSING whose fix names the knowledge-init skill."
+      - "errors.yaml: delete the TEMPLATES_MISSING and DOCS_INDEX_EXISTS entries; update the
+        DOCS_INDEX_MISSING fix text to name the knowledge-init skill."
+  - id: CMP-007
+    name: Test Suite
+    responsibility: Cover the new behavior and retire docs-init coverage.
+    files:
+      - test/e2e/docs-init.test.ts
+      - test/e2e/full-pipeline.test.ts
+      - test/e2e/doctor.test.ts
+      - test/e2e/deploy tests
+      - test/helpers/artifacts.ts
+    changes:
+      - Delete test/e2e/docs-init.test.ts.
+      - "full-pipeline fixture: docs/current/index.md lists knowledge-init documents; helper
+        defaultDelta retargets docs/current/overview.md to docs/current/architecture.md."
+      - "Add coverage: docs-init returns UNKNOWN_COMMAND; knowledge-extraction emits the
+        DOCS_INDEX_MISSING warning without creating docs/current; validate-templates fails on a
+        frontmatter name mismatch or empty description; deploy smoke reports both skills."
+  - id: CMP-008
+    name: Repository Documentation
+    responsibility: Update the repository's own documentation for the two-skill runtime.
+    files:
+      - AGENTS.md
+      - codemap.md
+    changes:
+      - "AGENTS.md invariant 2.9: the deployed runtime contains exactly two self-contained skills,
+        agentic-sdlc and knowledge-init; update the section 10 description of .opencode
+        accordingly."
+      - "codemap.md: remove the templates directory, add src/skills, and reflect the removed
+        docs-init workflow."
+data_models:
+  - id: DM-001
+    name: Skill Source Folder
+    shape: src/skills/<name>/SKILL.md; frontmatter requires name (equal to the folder name) and a
+      non-empty description; inputs and outputs lists are optional.
+    validated_by: bin/validate-templates.ts
+  - id: DM-002
+    name: Deployed Skill Folder
+    shape: skills/<name>/ containing SKILL.md and manifest.json; manifest fields are name, version,
+      deployedAt, plus cliPath only for skills that ship a CLI.
+  - id: DM-003
+    name: Docs Index Contract
+    shape: Markdown table with columns File, Purpose, When to Read, Notes; nine rows for architecture,
+      api-contract, glossary, capabilities, conventions, operations, dependencies, known-issues, and
+      decisions.
+    owner: The knowledge-init skill creates it; knowledge-extraction maintains it.
+  - id: DM-004
+    name: DOCS_INDEX_MISSING Error Entry
+    shape: Message states docs/current/index.md was not found; fix names the knowledge-init skill;
+      emitted as a warning by doctor (error under --strict) and as a warning by the aggregator.
+apis:
+  - id: API-001
+    path: bin/deploy-to-agent.ts
+    method: CLI
+    summary: --dest <root> [--clean] [--skip-smoke]; deploys both skills; output keeps existing fields
+      and adds a skills array with per-skill smoke results.
+  - id: API-002
+    path: docs-init
+    method: CLI (removed)
+    summary: Resolves to UNKNOWN_COMMAND with the workflow list, which no longer contains docs-init.
+  - id: API-003
+    path: knowledge-extraction
+    method: CLI
+    summary: Envelope warnings gain DOCS_INDEX_MISSING when docs/current/index.md is absent; envelope
+      top-level fields are unchanged.
+  - id: API-004
+    path: doctor
+    method: CLI
+    summary: Checks drop templates_available; docs_index_present guidance names the knowledge-init skill.
+  - id: API-005
+    path: bin/validate-templates.ts
+    method: CLI (npm run validate:templates)
+    summary: Validates stage templates plus skill frontmatter; output gains a skills array.
+flows:
+  - id: FLW-001
+    name: Deployment
+    steps:
+      - Parse args and resolve the destination agent root.
+      - With --clean, remove skills/agentic-sdlc, skills/knowledge-init, and the legacy skill
+        folders.
+      - Build the bundle, copy schemas, policies, and stages into skills/agentic-sdlc, and write its
+        SKILL.md and manifest.json.
+      - Copy src/skills/knowledge-init/SKILL.md into skills/knowledge-init and write its
+        manifest.json.
+      - Smoke-test the agentic-sdlc CLI and the knowledge-init frontmatter.
+      - Print the JSON report with the skills array.
+  - id: FLW-002
+    name: Cold start
+    steps:
+      - Doctor or knowledge-extraction reports DOCS_INDEX_MISSING for the target project.
+      - The agent invokes the knowledge-init skill, which generates index.md and the nine living
+        documents.
+      - Doctor reports docs_index_present and lifecycle cycles maintain the documents through
+        knowledge-extraction.
+  - id: FLW-003
+    name: Validation
+    steps:
+      - npm run validate invokes validate:templates.
+      - Stage template keys and skill frontmatter are checked.
+      - The bin exits non-zero and names the failing file on any failure.
+decisions:
+  - id: DEC-001
+    title: Second deployed skill
+    context: knowledge-init lived only in the gitignored .opencode runtime, and bundling it into
+      agentic-sdlc would load a run-once heavyweight procedure into every lifecycle session.
+    decision: Deploy knowledge-init as its own self-contained skill folder beside agentic-sdlc,
+      source-controlled at src/skills/knowledge-init/.
+    status: accepted
+  - id: DEC-002
+    title: Sole creator of docs/current
+    context: docs-init seeded a skeleton that conflicted with knowledge-init's richer baseline and left
+      an unfilled overview stub.
+    decision: Remove the docs-init workflow entirely; the CLI never creates docs/current; knowledge-init
+      is the only creator.
+    status: accepted
+  - id: DEC-003
+    title: Four-column index
+    context: The six-column index carried bookkeeping columns, while the index's job is telling the
+      agent what to read and when.
+    decision: Index columns are exactly File, Purpose, When to Read, Notes; the row-number, token-size,
+      and last-updated columns are dropped.
+    status: accepted
+  - id: DEC-004
+    title: No overview document
+    context: overview.md was written only as an unfilled stub by docs-init, read by nothing, and absent
+      from knowledge-init outputs.
+    decision: index.md is the single entry document; no overview.md is generated or seeded.
+    status: accepted
+  - id: DEC-005
+    title: Repurpose validate-templates in place
+    context: src/templates contained only the docs-index template, and renaming bins is out of scope for
+      this change.
+    decision: Delete src/templates and its consumers; validate-templates.ts keeps its path and gains
+      skill frontmatter validation.
+    status: proposed
+  - id: DEC-006
+    title: Reuse DOCS_INDEX_MISSING for the aggregator
+    context: A new error code would require catalog and unit test updates, and doctor already owns this
+      code for the same condition.
+    decision: The aggregator emits DOCS_INDEX_MISSING as a warning with a message naming the
+      knowledge-init skill; no new error code is added.
+    status: proposed
+  - id: DEC-007
+    title: Manifest without cliPath
+    context: knowledge-init ships no scripts, and its manifest exists for version traceability.
+    decision: The knowledge-init manifest.json carries name, version, and deployedAt only.
+    status: proposed
+  - id: DEC-008
+    title: File-level smoke for knowledge-init
+    context: The smoke test runs the deployed CLI, but knowledge-init has no CLI to run.
+    decision: "Its smoke verifies SKILL.md presence and frontmatter: name equals the folder name and
+      description is non-empty."
+    status: proposed
+  - id: DEC-009
+    title: Fixture retargeting
+    context: E2E fixtures and helper deltas target overview.md, which no longer exists after this change.
+    decision: Fixtures list knowledge-init documents in their index fixture, and helper deltas retarget
+      to docs/current/architecture.md.
+    status: proposed
+  - id: DEC-010
+    title: Deploy report gains a skills array
+    context: The deploy JSON is not a frozen CLI envelope and must report both skills per FR-004.
+    decision: The output keeps its existing fields and adds skills with name and smoke per skill.
+    status: proposed
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-002
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-002
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-002
+  - requirement_id: FR-005
+    component_ids:
+      - CMP-004
+  - requirement_id: FR-006
+    component_ids:
+      - CMP-002
+      - CMP-003
+      - CMP-004
+      - CMP-006
+  - requirement_id: FR-007
+    component_ids:
+      - CMP-005
+  - requirement_id: FR-008
+    component_ids:
+      - CMP-001
+  - requirement_id: FR-009
+    component_ids:
+      - CMP-001
+  - requirement_id: FR-010
+    component_ids:
+      - CMP-003
+  - requirement_id: FR-011
+    component_ids:
+      - CMP-006
+  - requirement_id: FR-012
+    component_ids:
+      - CMP-008
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-003
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-002
+  - requirement_id: NFR-003
+    component_ids:
+      - CMP-004
+      - CMP-005
+      - CMP-006
+delta:
+  - phase: Design
+    target_doc: docs/current/decisions.md
+    change: Add
+    reason: Record the design decisions DEC-005 through DEC-010 covering validation reuse, error-code
+      reuse, manifest shape, smoke strategy, fixture retargeting, and the deploy report.
+    date: 2026-08-24
+  - phase: Design
+    target_doc: docs/current/architecture.md
+    change: Modify
+    reason: Add the src/skills source store and the second deployed skill folder; remove the templates
+      directory from the runtime layout.
+    date: 2026-08-24
+  - phase: Design
+    target_doc: docs/current/operations.md
+    change: Modify
+    reason: Deployment now ships two skills, the smoke test covers both, and validate:templates checks
+      skill frontmatter.
+    date: 2026-08-24
+  - phase: Design
+    target_doc: docs/current/conventions.md
+    change: Modify
+    reason: Document the skill folder convention under src/skills and the four-column docs index contract.
+    date: 2026-08-24

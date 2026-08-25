@@ -33,7 +33,7 @@ npm run check:all
 6. Implementation state lives in `plan.yaml`.
 7. The toolkit is agent-agnostic — no hardcoded agent paths.
 8. The CLI envelope shape is frozen (workflow, step, state, instructions, data, errors, warnings).
-9. The deployed skill (`.opencode/skills/agentic-sdlc/`) is a build artifact: exactly one self-contained skill folder, fully bundled with all dependencies inlined (no `package.json`, no `node_modules`, no source `.ts` files inside it). It must never be treated as, or confused with, this repository's own source/config.
+9. The deployed skills (`.opencode/skills/agentic-sdlc/` and `.opencode/skills/knowledge-init/`) are build artifacts: exactly two self-contained skill folders, fully bundled with all dependencies inlined (no `package.json`, no `node_modules`, no source `.ts` files inside them). They must never be treated as, or confused with, this repository's own source/config.
 10. Stages are discovered by directory: every stage is one folder under `src/stages/<stage-id>/` and no central file enumerates stages.
 11. Validation logic is declarative: stages declare named checks from the capped catalog; stage-specific validation scripts are prohibited.
 12. A stage is runnable only when every required stage's tracked artifact has status `accepted`; a review stage is runnable when its tracked artifact is `ready-for-review` or `accepted`.
@@ -199,8 +199,8 @@ npm run deploy:smoke      # bundled deploy + CLI smoke test
 The `validate:schemas`, `validate:policies`, and `validate:templates` script entry points are
 unchanged because the bins keep their paths; `bin/validate-policies.ts` validates
 `errors.yaml` and the stage folders (descriptors, structural-checks declarations, steps.yaml,
-schema.yaml), and `bin/validate-templates.ts` validates the stage-folder templates and
-`docs-current-index.md`.
+schema.yaml), and `bin/validate-templates.ts` validates the stage-folder templates and the
+skill frontmatter under `src/skills/` (name equals folder, non-empty description).
 
 ---
 
@@ -225,7 +225,7 @@ If a new check type, error code, or ID prefix is added, update the corresponding
 | Utility | Purpose |
 |---|---|
 | `generate_context.js` | Compiles repo source into `llm_context.txt` (gitignored) for use as LLM context. Uses `.contextignore` or falls back to `.gitignore`. |
-| `.opencode/` | Deployed agent runtime — created by `npm run deploy:smoke` / `bin/deploy-to-agent.ts --dest .opencode`. Gitignored (see `.gitignore`, `.contextignore`). Contains exactly one self-contained skill at `.opencode/skills/agentic-sdlc/` (SKILL.md + bundled `scripts/sdlc.js` + `stages/` + `templates/`/`schemas/`/`policies/`). **This is a build artifact, not source** — never edit it directly, never read it to understand "how the toolkit works," and never confuse it with this repository's own development code under `src/`, `bin/`, `test/`. |
+| `.opencode/` | Deployed agent runtime — created by `npm run deploy:smoke` / `bin/deploy-to-agent.ts --dest .opencode`. Gitignored (see `.gitignore`, `.contextignore`). Contains exactly two self-contained skills: `.opencode/skills/agentic-sdlc/` (SKILL.md + bundled `scripts/sdlc.js` + `stages/` + `schemas/`/`policies/`) and `.opencode/skills/knowledge-init/` (SKILL.md + `manifest.json`). **This is a build artifact, not source** — never edit it directly, never read it to understand "how the toolkit works," and never confuse it with this repository's own development code under `src/`, `bin/`, `test/`. |
 
 ---
 

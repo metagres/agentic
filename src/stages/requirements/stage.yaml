@@ -10,6 +10,7 @@ next_ids:
   NFR: non_functional_requirements
   AC: acceptance_criteria
   DL: discovery_log
+  SC: scenarios
 produces_delta: true
 delta_phase: Requirements
 title_prefix: ""

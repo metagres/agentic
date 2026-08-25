@@ -1,0 +1,445 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: deploy-knowledge-init-as-a-second-skill-and-make-it-the-sole"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-24
+  updated: 2026-08-25
+  based_on_design: 0.1.0
+  based_on_requirements: 0.1.0
+  implementation_status: accepted
+  step: complete
+  delta_reviewed: true
+tasks:
+  - id: TASK-001
+    title: Port knowledge-init SKILL.md into src/skills
+    description: "Create src/skills/knowledge-init/SKILL.md by porting the orphaned
+      .opencode/skills/knowledge-init/SKILL.md verbatim, then apply the contract edits: precondition
+      states the skill runs when docs/current/index.md does not exist and that it is the only
+      component creating docs/current; the index specification uses exactly the columns File,
+      Purpose, When to Read, Notes with nine fixed document rows, dropping the row-number,
+      token-size, and last-updated columns and the instruction to fill them; declared outputs are
+      index.md plus the nine living documents with overview.md absent everywhere. Principles,
+      per-document specifications, cross-check pass, exclusions, and the 3K token budget stay
+      unchanged."
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-008
+      - FR-009
+    acceptance_ids:
+      - AC-001
+      - AC-008
+      - AC-009
+    design_refs:
+      - DEC-001
+      - DEC-003
+      - DEC-004
+    depends_on: []
+    files:
+      - path: src/skills/knowledge-init/SKILL.md
+        operation: create
+    implementation_note: "Ported .opencode/skills/knowledge-init/SKILL.md verbatim into
+      src/skills/knowledge-init/SKILL.md, then applied the contract edits: precondition now states
+      the skill runs when docs/current/index.md does not exist and that it is the only component
+      creating docs/current; the index specification uses exactly the columns File, Purpose, When to
+      Read, Notes with nine fixed rows (row-number, token-size, and last-updated columns and the
+      fill instruction dropped); declared outputs were already index.md plus the nine living
+      documents with overview.md absent, so no change was needed there. Diff against the .opencode
+      original contains only the specified edits."
+    completed_at: 2026-08-24
+    files_changed:
+      - path: src/skills/knowledge-init/SKILL.md
+        operation: create
+  - id: TASK-002
+    title: Deploy both skills with shared smoke and clean
+    description: "Modify bin/deploy-to-agent.ts: copy src/skills/knowledge-init/SKILL.md to
+      skills/knowledge-init/SKILL.md and write its manifest.json with name, version, and deployedAt
+      only; fail with an error naming the missing source file when
+      src/skills/knowledge-init/SKILL.md is absent; extend --clean to remove skills/knowledge-init
+      beside skills/agentic-sdlc and the legacy list; remove the src/templates copy step; drop
+      docs-init from the renderSkill workflow list; extend the smoke test to check the
+      knowledge-init SKILL.md frontmatter (name equals folder, description non-empty) beside the CLI
+      --list-workflows run; add a skills array with per-skill smoke results to the JSON report while
+      keeping existing fields."
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-002
+      - FR-003
+      - FR-004
+      - FR-006
+      - NFR-002
+    acceptance_ids:
+      - AC-002
+      - AC-003
+      - AC-004
+      - AC-014
+    design_refs:
+      - DEC-001
+      - DEC-007
+      - DEC-008
+      - DEC-010
+    depends_on:
+      - TASK-001
+    files:
+      - path: bin/deploy-to-agent.ts
+        operation: modify
+    implementation_note: "bin/deploy-to-agent.ts now deploys both skills:
+      src/skills/knowledge-init/SKILL.md is copied to skills/knowledge-init/SKILL.md with a
+      manifest.json carrying name, version, and deployedAt only; deployment fails with exit 1 naming
+      the missing source file when it is absent (verified); --clean removes skills/knowledge-init
+      beside skills/agentic-sdlc and the legacy list; the src/templates copy step is removed;
+      docs-init is dropped from the renderSkill workflow list; the smoke test runs the CLI
+      --list-workflows and checks the knowledge-init frontmatter (name equals folder, description
+      non-empty); the JSON report keeps all existing fields and adds a skills array with per-skill
+      smoke results. .deploy-build.lock serialization and copyDir fail-fast behavior are unchanged.
+      Verified with a live deploy to a temp dir: two skill folders, correct manifests, no templates
+      dir, docs-init absent from the workflow list."
+    completed_at: 2026-08-24
+    files_changed:
+      - path: bin/deploy-to-agent.ts
+        operation: modify
+  - id: TASK-003
+    title: Remove the docs-init workflow
+    description: Delete src/scripts/workflows/docs-init.ts and remove its CROSS_CUTTING registry entry
+      and import from src/scripts/workflows/index.ts. The docs-init argument then resolves to
+      UNKNOWN_COMMAND with the workflow list, which no longer contains it. No envelope top-level
+      fields change anywhere.
+    type: refactor
+    status: done
+    complexity: low
+    covers:
+      - FR-005
+      - NFR-003
+    acceptance_ids:
+      - AC-005
+      - AC-015
+    design_refs:
+      - DEC-002
+    depends_on: []
+    files:
+      - path: src/scripts/workflows/docs-init.ts
+        operation: delete
+      - path: src/scripts/workflows/index.ts
+        operation: modify
+    implementation_note: "Deleted src/scripts/workflows/docs-init.ts and removed its CROSS_CUTTING
+      registry entry and import from src/scripts/workflows/index.ts. The docs-init argument now
+      resolves to UNKNOWN_COMMAND with the workflow list (verified: blocked state, errors carry
+      UNKNOWN_COMMAND, list omits docs-init). Envelope top-level fields unchanged. Incidental: the
+      doctor description in index.ts dropped the word 'templates' because TASK-005 removes the
+      templates check it described."
+    completed_at: 2026-08-24
+    files_changed:
+      - path: src/scripts/workflows/docs-init.ts
+        operation: delete
+      - path: src/scripts/workflows/index.ts
+        operation: modify
+  - id: TASK-004
+    title: Repurpose validate-templates for skill folders
+    description: "Modify bin/validate-templates.ts: delete the docs-current-index.md validation block
+      and the templatesDir constant; delete src/templates/docs-current-index.md; scan every folder
+      under src/skills, require SKILL.md, parse the frontmatter between the opening --- markers with
+      the YAML parser, and require name equal to the folder name plus a non-empty description; emit
+      results under a skills array beside the existing templates array and exit non-zero on any
+      failure. The bin path and npm script entry point stay unchanged."
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-006
+      - FR-010
+      - NFR-001
+    acceptance_ids:
+      - AC-006
+      - AC-010
+      - AC-013
+    design_refs:
+      - DEC-005
+    depends_on:
+      - TASK-001
+    files:
+      - path: bin/validate-templates.ts
+        operation: modify
+      - path: src/templates/docs-current-index.md
+        operation: delete
+    implementation_note: "bin/validate-templates.ts: deleted the docs-current-index.md validation block
+      and the templatesDir constant; added a scan of every folder under src/skills that requires
+      SKILL.md, parses the frontmatter between the opening --- markers with parseYamlString, and
+      requires name equal to the folder name plus a non-empty description; results are emitted under
+      a skills array beside the existing templates array with non-zero exit on any failure. Deleted
+      src/templates/docs-current-index.md and the now-empty src/templates directory (DEC-005). Bin
+      path and npm script entry point unchanged. Verified: passes on the real tree; fails with exit
+      1 naming the folder on a frontmatter name mismatch and on an empty description (both tested by
+      temporary mutation, then restored byte-identical). Check is synchronous and cheap (one YAML
+      parse per skill folder)."
+    completed_at: 2026-08-24
+    files_changed:
+      - path: bin/validate-templates.ts
+        operation: modify
+      - path: src/templates/docs-current-index.md
+        operation: delete
+  - id: TASK-005
+    title: Aggregator warning, doctor check, error catalog
+    description: Modify src/scripts/lib/kinds/aggregator.ts so both the delta-listing path and the
+      --complete path push a DOCS_INDEX_MISSING warning naming the knowledge-init skill when
+      cwd/docs/current/index.md does not exist, without ever creating docs/current. Modify
+      src/scripts/workflows/doctor.ts to remove the templates_available check and its
+      TEMPLATES_MISSING error while keeping docs_index_present. Modify src/policies/errors.yaml to
+      delete the TEMPLATES_MISSING and DOCS_INDEX_EXISTS entries and update the DOCS_INDEX_MISSING
+      fix text to name the knowledge-init skill. Envelope top-level fields stay unchanged.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-006
+      - FR-007
+      - FR-011
+      - NFR-003
+    acceptance_ids:
+      - AC-007
+      - AC-011
+      - AC-015
+    design_refs:
+      - DEC-006
+    depends_on: []
+    files:
+      - path: src/scripts/lib/kinds/aggregator.ts
+        operation: modify
+      - path: src/scripts/workflows/doctor.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+    implementation_note: "aggregator.ts: both the delta-listing path and the --complete path now push a
+      DOCS_INDEX_MISSING warning (via makeError, so the fix text names the knowledge-init skill)
+      when cwd/docs/current/index.md does not exist; the stage never creates docs/current (verified
+      live: warning present on both paths, directory uncreated, envelope top-level fields
+      unchanged). doctor.ts: removed the templates_available check and its TEMPLATES_MISSING error;
+      docs_index_present kept (verified live: checks list has no templates entry, warning fix names
+      knowledge-init). errors.yaml: deleted TEMPLATES_MISSING and DOCS_INDEX_EXISTS;
+      DOCS_INDEX_MISSING fix now reads 'Run the knowledge-init skill to create
+      docs/current/index.md.' validate:policies passes."
+    completed_at: 2026-08-24
+    files_changed:
+      - path: src/scripts/lib/kinds/aggregator.ts
+        operation: modify
+      - path: src/scripts/workflows/doctor.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+  - id: TASK-006
+    title: Retire and retarget the test suite
+    description: Delete test/e2e/docs-init.test.ts. Update test/e2e/deploy.test.ts for the two-skill
+      deploy, clean, smoke report, and folder purity. Update test/e2e/full-pipeline.test.ts so the
+      docs/current/index.md fixture lists knowledge-init documents. Update test/e2e/doctor.test.ts
+      to assert the knowledge-init guidance and the absence of a templates check. Update
+      test/e2e/knowledge-extraction.test.ts to assert the DOCS_INDEX_MISSING warning without
+      docs/current creation. Update test/e2e/workflows.test.ts so the workflow list omits docs-init
+      and the command returns UNKNOWN_COMMAND. Update test/helpers/artifacts.ts so defaultDelta
+      targets docs/current/architecture.md instead of overview.md. Add coverage for
+      validate-templates failing on a frontmatter name mismatch or empty description.
+    type: test
+    status: done
+    complexity: high
+    covers:
+      - FR-004
+      - FR-005
+      - FR-007
+      - FR-010
+    acceptance_ids:
+      - AC-004
+      - AC-005
+      - AC-007
+      - AC-010
+    design_refs:
+      - DEC-009
+    depends_on:
+      - TASK-002
+      - TASK-003
+      - TASK-004
+      - TASK-005
+    files:
+      - path: test/e2e/docs-init.test.ts
+        operation: delete
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+      - path: test/e2e/full-pipeline.test.ts
+        operation: modify
+      - path: test/e2e/doctor.test.ts
+        operation: modify
+      - path: test/e2e/knowledge-extraction.test.ts
+        operation: modify
+      - path: test/e2e/workflows.test.ts
+        operation: modify
+      - path: test/helpers/artifacts.ts
+        operation: modify
+    implementation_note: "Deleted test/e2e/docs-init.test.ts. deploy.test.ts now asserts the two-skill
+      deploy (knowledge-init SKILL.md + manifest with name/version/deployedAt only, no cliPath),
+      --clean removing stale content from both skill folders, the skills array in the smoke report
+      with both skills passed, no templates dir in the deployed agentic-sdlc skill, and folder
+      purity (exactly SKILL.md + manifest.json, no package.json/node_modules/.ts). full-pipeline,
+      status, review-history, and reject-recover fixtures now list the nine knowledge-init documents
+      in the four-column index. doctor.test.ts asserts the knowledge-init guidance in the
+      DOCS_INDEX_MISSING fix and the absence of a templates check. knowledge-extraction.test.ts runs
+      without docs/current and asserts the DOCS_INDEX_MISSING warning (naming knowledge-init) on
+      both the listing and --complete paths with no docs/current creation; deltas retargeted to
+      architecture.md. workflows.test.ts adds docs-init UNKNOWN_COMMAND and workflow-list omission
+      coverage. registry.test.ts CROSS_CUTTING_IDS drops docs-init. helpers/artifacts.ts
+      defaultDelta targets docs/current/architecture.md. New test/e2e/validate-templates.test.ts
+      (hermetic bin+src sandbox with node_modules symlink) covers frontmatter name mismatch, empty
+      description, and the passing case. Full e2e suite: 44/44 pass; unit suite: 61/61 pass."
+    completed_at: 2026-08-24
+    files_changed:
+      - path: test/e2e/docs-init.test.ts
+        operation: delete
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+      - path: test/e2e/full-pipeline.test.ts
+        operation: modify
+      - path: test/e2e/doctor.test.ts
+        operation: modify
+      - path: test/e2e/knowledge-extraction.test.ts
+        operation: modify
+      - path: test/e2e/workflows.test.ts
+        operation: modify
+      - path: test/helpers/artifacts.ts
+        operation: modify
+      - path: test/e2e/status.test.ts
+        operation: modify
+      - path: test/e2e/review-history.test.ts
+        operation: modify
+      - path: test/e2e/reject-recover.test.ts
+        operation: modify
+      - path: test/e2e/registry.test.ts
+        operation: modify
+      - path: test/e2e/validate-templates.test.ts
+        operation: create
+  - id: TASK-007
+    title: Update AGENTS.md and codemap.md
+    description: "Modify AGENTS.md: invariant 2.9 describes the deployed runtime as exactly two
+      self-contained skills, agentic-sdlc and knowledge-init; the section 10 .opencode description
+      and any docs-init or templates references follow. Modify codemap.md: remove the templates
+      directory, add src/skills, and reflect the removed docs-init workflow."
+    type: documentation
+    status: done
+    complexity: low
+    covers:
+      - FR-012
+    acceptance_ids:
+      - AC-012
+    design_refs:
+      - DEC-001
+    depends_on:
+      - TASK-002
+    files:
+      - path: AGENTS.md
+        operation: modify
+      - path: codemap.md
+        operation: modify
+    implementation_note: "AGENTS.md: invariant 2.9 now describes the deployed runtime as exactly two
+      self-contained skills (agentic-sdlc and knowledge-init); the section 8 validate-templates
+      description now says it validates stage-folder templates plus skill frontmatter under
+      src/skills/ (name equals folder, non-empty description) instead of docs-current-index.md; the
+      section 10 .opencode description now lists both deployed skill folders with their contents
+      (agentic-sdlc without the templates dir, knowledge-init with SKILL.md + manifest.json).
+      codemap.md: project responsibility now says the built output is two self-contained skills; the
+      src/ directory row drops templates and names the skill source store; the workflows row drops
+      docs-init; a new src/skills/ row documents the version-controlled skill sources. No docs-init
+      or docs-current-index references remain in either file; remaining 'templates' mentions are the
+      still-valid stage-template and validate:templates references."
+    completed_at: 2026-08-25
+    files_changed:
+      - path: AGENTS.md
+        operation: modify
+      - path: codemap.md
+        operation: modify
+  - id: TASK-008
+    title: Full validation and deployment verification
+    description: Run npm run validate and npm run check:all on the finished change; run npm run
+      deploy:smoke and confirm the deployed .opencode/skills contains exactly two skill folders,
+      each with exactly one SKILL.md, and that skills/knowledge-init holds SKILL.md and
+      manifest.json with no package.json, node_modules, or TypeScript sources. Confirm no envelope
+      from the changed workflows gained top-level fields.
+    type: verification
+    status: done
+    complexity: low
+    covers:
+      - NFR-001
+      - NFR-002
+      - NFR-003
+    acceptance_ids:
+      - AC-013
+      - AC-014
+      - AC-015
+    design_refs:
+      - DEC-008
+    depends_on:
+      - TASK-006
+      - TASK-007
+    files: []
+    implementation_note: "npm run validate passes (schemas + policies + templates + typecheck + 105/105
+      tests). npm run check:all passes (all test layers + deploy smoke). npm run deploy:smoke passes
+      with the skills array reporting both skills passed. Deployed .opencode/skills verified:
+      exactly the two toolkit skill folders (agentic-sdlc, knowledge-init; user-installed
+      codemap/context7 untouched), each with exactly one SKILL.md; skills/knowledge-init holds
+      SKILL.md and manifest.json (name/version/deployedAt) with zero .ts files, package.json, or
+      node_modules in either toolkit skill; agentic-sdlc no longer ships a templates dir. Envelope
+      check: doctor, knowledge-extraction (listing and --complete), and the docs-init
+      UNKNOWN_COMMAND envelope all carry exactly workflow, step, state, instructions, data, errors,
+      warnings at top level; the cli-envelope e2e suite (additionalProperties: false) passes."
+    completed_at: 2026-08-25
+    files_changed: []
+milestones:
+  - id: M1
+    title: Source and deployment
+    tasks:
+      - TASK-001
+      - TASK-002
+  - id: M2
+    title: CLI surface
+    tasks:
+      - TASK-003
+  - id: M3
+    title: Validation and advisories
+    tasks:
+      - TASK-004
+      - TASK-005
+  - id: M4
+    title: Tests and documentation
+    tasks:
+      - TASK-006
+      - TASK-007
+  - id: M5
+    title: Full verification
+    tasks:
+      - TASK-008
+risks:
+  - "Deleting src/templates before doctor and validate-templates drop their references leaves the
+    repository in an intermediate failing state; mitigation: complete TASK-004 and TASK-005 before
+    running full validation, with TASK-008 as the gate."
+  - "E2E tests asserting the workflow list may reference docs-init in places beyond
+    workflows.test.ts; mitigation: TASK-008 runs the full suite and any straggler assertion is fixed
+    within TASK-006 scope."
+  - "The SKILL.md port could drift from the .opencode original during editing; mitigation: TASK-001
+    ports verbatim and applies only the four specified edits."
+  - "The tsup bundle must keep building after the workflows/index.ts import removal; mitigation:
+    typecheck and the deploy build in TASK-002 surface any breakage."
+  - Concurrent deploy invocations race on dist/; the existing .deploy-build.lock serialization is
+    kept unchanged by TASK-002.
+delta:
+  - phase: Planning
+    target_doc: docs/current/architecture.md
+    change: Modify
+    reason: The plan adds the src/skills source store and removes the templates directory from the
+      repository layout.
+    date: 2026-08-24
+  - phase: Planning
+    target_doc: docs/current/operations.md
+    change: Modify
+    reason: "The plan changes the verification workflow: validate covers skill frontmatter and deploy
+      ships two skills."
+    date: 2026-08-24

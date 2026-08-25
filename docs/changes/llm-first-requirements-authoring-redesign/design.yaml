@@ -1,0 +1,453 @@
+metadata:
+  id: DES-001
+  title: "Design: llm-first-requirements-authoring-redesign"
+  stage: design
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-24
+  updated: 2026-08-24
+  based_on_requirements: 0.1.0
+  delta_reviewed: true
+  step: complete
+context_summary: The requirements stage currently exits discovery on question counts alone, silently
+  falls back to hardcoded thresholds when requirements-policy.yaml is missing or unreadable, and
+  uses concrete examples only as drafting output. This redesign makes the shipped policy file the
+  single fail-loud source of discovery thresholds, adds an explicit convergence confirmation on top
+  of the count-based floor, and introduces an example-mapping scenarios step between discovery and
+  assumptions whose open cases loop back into the discovery log. The requirements hooks module loads
+  and validates the policy at stage startup through a new optional startup entry point, throwing
+  coded errors (STAGE_POLICY_MISSING, STAGE_POLICY_INVALID, UNKNOWN_LENS) that the authoring
+  interpreter's existing error mapping turns into blocked envelopes. The artifact schema gains a
+  scenarios array with enum-constrained category, status, and outcome fields, optional
+  discovery_reviewed and scenarios_reviewed metadata flags, and the data lens while keeping design
+  valid for in-flight artifacts. Structural validation extends the existing capped-catalog
+  declarations with unique-ids and given-when-then over scenarios and five ref-exists declarations
+  covering bidirectional requirement and acceptance-criterion references and scenario links; no new
+  check types are added. The semantic checklist gains interpretation-divergence, EARS pattern
+  conformance, requirement atomicity, and scenario-coverage advisories served identically at
+  finalize and review, and the template initializes scenarios as an empty array with both
+  confirmation flags false. The authoring interpreter gains only generic extensions — the startup
+  hook invocation, two new completeStep step names, and next-ids service for the scenarios step —
+  keeping the engine stage-agnostic.
+components:
+  - id: CMP-001
+    name: Requirements Discovery Policy
+    responsibility: "The file src/stages/requirements/requirements-policy.yaml becomes the single source
+      of discovery thresholds, reshaped to the FR-004 vocabulary: discovery.lenses lists exactly
+      stakeholder, scope, interface, behavior, data, constraint, failure, and outcome (data replaces
+      design), and discovery.clarity defines the three anchors clear, partial, and vague with
+      required lens sets {failure, constraint}, {stakeholder, interface, data, failure, constraint},
+      and all eight lenses, and minimum resolved questions of 3, 5, and 8 respectively. The file
+      keeps version 1 and ships in the deployed bundle unchanged because the deploy script copies
+      stage folders wholesale. Tuning discovery behavior means editing this file only; no threshold
+      is duplicated in code."
+  - id: CMP-002
+    name: Fail-Loud Policy Loader
+    responsibility: "The requirements hooks module (src/stages/requirements/hooks.ts) gains a startup
+      entry point that loads and validates the policy once per CLI invocation and caches it in a
+      module-level variable consumed by every other hook. Loading distinguishes three failure modes:
+      the file is absent (fs.existsSync; hooks may import node builtins because esbuild bundles
+      them), yielding error code STAGE_POLICY_MISSING; the file is present but unparsable or not a
+      mapping (safeReadYaml via env.readYaml returns null), yielding STAGE_POLICY_INVALID naming the
+      file; and the file parses but violates the DM-001 shape, yielding STAGE_POLICY_INVALID naming
+      the offending field path (for example discovery.clarity.partial.required_lenses). Shape
+      validation enforces version 1, a non-empty duplicate-free lenses array, exactly the three
+      clarity anchors, per-anchor required_lenses that are non-empty subsets of the vocabulary, and
+      per-anchor min_resolved_questions as positive integers. The silent fallback constants in the
+      current discoveryGate are deleted."
+  - id: CMP-003
+    name: Confirmed Discovery Gate
+    responsibility: "discoveryGate evaluates the policy floor against the artifact: resolved
+      discovery_log entries must cover every required lens for the current clarity anchor and meet
+      the minimum resolved count. The gate result (DM-004) adds confirmed, reflecting
+      metadata.discovery_reviewed, and clarity_valid, which is false when metadata.clarity is not a
+      policy anchor; an invalid clarity fails the gate instead of silently defaulting to partial.
+      The extraStep hook keeps the step at discovery until the gate passes and discovery_reviewed is
+      true. recordAnswer validates its --lens argument against the policy vocabulary and rejects
+      unknown lenses with error code UNKNOWN_LENS listing the valid lenses; setClarity validates its
+      value against the policy anchors instead of a hardcoded list."
+  - id: CMP-004
+    name: Scenario Elicitation and Promotion Step
+    responsibility: "A new scenarios step sits between discovery and assumptions in the requirements
+      step machine, routed by the extraStep hook: the step is active while any scenario has status
+      open, or while the scenarios array is empty and metadata.scenarios_reviewed is not true
+      (FR-006). The steps.yaml definition (SC ids served through data.next_ids) instructs the
+      authoring agent to draft concrete examples as Given-When-Then scenario entries across the
+      happy, edge, negative, and boundary categories; for examples that expose unresolved questions,
+      the agent records the question with --record-answer, links the scenario through question_id,
+      and marks the scenario resolved with outcome question; scenarios decided out of scope are
+      recorded in the out_of_scope section and marked resolved with outcome out_of_scope; an
+      explicitly confirmed empty scenario set is allowed through --complete-step --step scenarios.
+      The drafting step markdown gains EARS phrasing guidance and the promotion rule: each resolved
+      scenario with outcome ac is promoted to an acceptance criterion in Given-When-Then form with
+      parent_id linked to an FR or NFR and ac_id back-filled on the scenario. getExtraData exposes
+      scenarios_state (DM-005) so the envelope reports open and resolved counts and the reviewed
+      flag."
+  - id: CMP-005
+    name: Scenario-Aware Artifact Contract
+    responsibility: The requirements schema (src/stages/requirements/schema.yaml) adds an optional
+      top-level scenarios array whose entries require id (pattern SC-NNN), statement, category (enum
+      happy, edge, negative, boundary), status (enum open, resolved), and outcome (enum ac,
+      question, out_of_scope), with optional ac_id (AC-NNN) and question_id (DL-NNN) and
+      additionalProperties true so the taxonomy can grow. Metadata gains optional boolean flags
+      discovery_reviewed and scenarios_reviewed; the discovery_log lens enum gains data while
+      keeping design valid for in-flight artifacts. The template initializes scenarios as an empty
+      array with both confirmation flags false, and stage.yaml maps the SC id prefix to the
+      scenarios array for --next-ids. All additions are optional so artifacts created before the
+      change remain schema-valid (NFR-002).
+  - id: CMP-006
+    name: Scenario Structural Validation
+    responsibility: "The requirements structural-checks.yaml extends its declarations over the capped
+      catalog with no new check types: unique-ids adds the scenarios array; given-when-then adds
+      scenarios with statement_field statement; and five ref-exists declarations cover reference
+      validity in both directions — functional_requirements.ac_ids and
+      non_functional_requirements.ac_ids to acceptance_criteria.id, acceptance_criteria.parent_id to
+      the requirement ids, scenarios.ac_id to acceptance_criteria.id, and scenarios.question_id to
+      discovery_log.id. Because ref-exists skips absent fields, optional ac_id and question_id links
+      are validated only when present, so an open scenario without links passes while a back-filled
+      link to a missing entry blocks finalize (AC-009, AC-011, AC-012). The existing referenced-by,
+      duplicate-refs, forbidden-words, and sentence-count declarations are unchanged."
+  - id: CMP-007
+    name: Extended Semantic Advisory
+    responsibility: "The requirements semantic-checks.yaml gains four advisories:
+      interpretation-divergence (could any requirement, scenario, or acceptance criterion be read in
+      more than one way by a machine consumer), EARS pattern conformance (are requirement
+      descriptions phrased as When <trigger>, the system shall <response> or an equally unambiguous
+      form), requirement atomicity (one verifiable behavior per requirement, no conjoined unrelated
+      behaviors), and scenario coverage (is every resolved scenario with outcome ac promoted to a
+      matching acceptance criterion through ac_id, and do the scenarios cover all four categories
+      for the core behaviors). Because the review interpreter loads the tracked stage's semantic
+      checklist, the same declaration serves authoring --finalize and requirements-review
+      identically (FR-010)."
+  - id: CMP-008
+    name: Authoring Interpreter Extensions
+    responsibility: "Three generic extensions to src/scripts/lib/kinds/authoring.ts: first, after
+      constructing the stage environment and loading hooks, the interpreter invokes an optional
+      hooks startup(env) entry point whose thrown coded errors surface as blocked envelopes through
+      the existing catch that maps err.code through makeError; second, completeStep recognizes step
+      discovery and step scenarios, setting metadata.discovery_reviewed and
+      metadata.scenarios_reviewed respectively, alongside the existing assumptions, delta, and init
+      steps; third, the envelope's data.next_ids is served for the scenarios step in addition to
+      drafting, discovery, and assumptions. No stage-specific knowledge enters the interpreter:
+      startup is a generic hooks contract and the step names follow the existing completeStep
+      precedent."
+  - id: CMP-009
+    name: Error Catalog Entries
+    responsibility: "src/policies/errors.yaml gains three codes with messages and fix hints:
+      STAGE_POLICY_MISSING (the stage policy file is missing; restore requirements-policy.yaml in
+      the requirements stage folder), STAGE_POLICY_INVALID (the stage policy file is invalid; fix
+      the named field in requirements-policy.yaml), and UNKNOWN_LENS (the lens is not in the policy
+      vocabulary; use one of the listed lenses). The authoring catch already resolves err.code
+      through makeError, so hook-thrown coded errors pick up these messages and fix hints without
+      further engine change."
+  - id: CMP-010
+    name: Template Validator Pin
+    responsibility: "bin/validate-templates.ts adds scenarios to the expected top-level keys of the
+      requirements template and pins the initialization contract: the template's scenarios must be
+      an empty array and metadata.discovery_reviewed and metadata.scenarios_reviewed must both be
+      false (AC-016). This keeps the template honest against schema drift and gives npm run validate
+      a static guard independent of the runtime hooks."
+  - id: CMP-011
+    name: Verification Suite
+    responsibility: Unit tests cover the policy pin (the shipped requirements-policy.yaml matches the
+      FR-004 vocabulary, anchors, required lens sets, and thresholds 3, 5, and 8), the fail-loud
+      loader (missing file, unparsable file, and each shape violation produce STAGE_POLICY_MISSING
+      or STAGE_POLICY_INVALID naming the field, exercised against fixture stage folders), the
+      confirmed gate (count-only passage leaves the step at discovery; complete-step advances it),
+      recordAnswer lens rejection (UNKNOWN_LENS listing valid lenses), and completeStep flag
+      setting. E2e tests drive the full scenarios flow in a temp change dir — open scenario,
+      loop-back through record-answer with question_id link, resolution, promotion to an acceptance
+      criterion with back-filled ac_id, finalize, and review acceptance — plus an in-flight artifact
+      without scenarios or flags routing to discovery then scenarios, and a deploy assertion that
+      requirements-policy.yaml ships in the bundle. The shared e2e artifact helper gains a data-lens
+      discovery answer and both confirmation flags so the existing full-pipeline test passes the new
+      gate.
+data_models:
+  - id: DM-001
+    name: RequirementsPolicy (requirements-policy.yaml)
+    fields: "version (must be 1); discovery.lenses (non-empty array of unique non-empty strings;
+      shipped: stakeholder, scope, interface, behavior, data, constraint, failure, outcome);
+      discovery.clarity (exactly the anchors clear, partial, vague), each with required_lenses (a
+      non-empty, duplicate-free subset of discovery.lenses) and min_resolved_questions (a positive
+      integer)."
+  - id: DM-002
+    name: ScenarioEntry
+    fields: id (SC-NNN, unique across the scenarios array), statement (string in Given-When-Then form),
+      category (enum happy, edge, negative, boundary), status (enum open, resolved), outcome (enum
+      ac, question, out_of_scope), optional ac_id (AC-NNN, back-filled at promotion), optional
+      question_id (DL-NNN, set when the scenario loops back into the discovery log); additional
+      properties are allowed so the taxonomy can evolve.
+  - id: DM-003
+    name: Confirmation Flags
+    fields: metadata.discovery_reviewed and metadata.scenarios_reviewed, optional booleans defaulting to
+      absent; set to true only by complete-step with step discovery or step scenarios;
+      discovery_reviewed gates the discovery step together with the gate floor, while
+      scenarios_reviewed gates only the empty-scenarios case.
+  - id: DM-004
+    name: DiscoveryGateResult
+    fields: "passed (the floor is satisfied: required lenses covered and minimum resolved questions
+      met), confirmed (metadata.discovery_reviewed is true), clarity, clarity_valid (false when the
+      artifact clarity is not a policy anchor), required_lenses, missing_lenses, resolved_questions,
+      minimum_questions. Exposed as data.discovery_gate in the envelope."
+  - id: DM-005
+    name: ScenariosStepState
+    fields: total, open, and resolved (counts over the scenarios array), reviewed
+      (metadata.scenarios_reviewed is true), needs_attention (any open scenario, or the set is empty
+      and not reviewed). Exposed as data.scenarios_state in the envelope.
+  - id: DM-006
+    name: CodedHookError
+    fields: An Error carrying a code property matching an errors.yaml entry (STAGE_POLICY_MISSING,
+      STAGE_POLICY_INVALID, UNKNOWN_LENS); the authoring interpreter's catch maps err.code through
+      makeError into the blocked envelope's errors array, with the thrown message taking precedence
+      and the catalog fix hint attached.
+apis:
+  - id: API-001
+    path: sdlc requirements --record-answer --lens <lens> --question <q> --answer <a>
+    method: CLI command
+    description: Appends a resolved discovery_log entry with the next DL id; rejects lenses outside the
+      policy vocabulary with error code UNKNOWN_LENS listing the valid lenses; requires the policy,
+      so it also fails loud with STAGE_POLICY_MISSING or STAGE_POLICY_INVALID.
+  - id: API-002
+    path: sdlc requirements --set-clarity <clear|partial|vague>
+    method: CLI command
+    description: Sets metadata.clarity; the accepted values are the clarity anchors defined by the
+      policy, and the step machine re-evaluates the gate against the new anchor's required lenses
+      and minimum.
+  - id: API-003
+    path: sdlc requirements --complete-step --step <discovery|scenarios>
+    method: CLI command
+    description: Sets metadata.discovery_reviewed or metadata.scenarios_reviewed to true; the discovery
+      flag is meaningful only together with a passing gate (the step machine holds the step until
+      both hold), and the scenarios flag confirms an explicitly empty scenario set.
+  - id: API-004
+    path: sdlc requirements --dir <change-dir>
+    method: CLI command
+    description: The status envelope reports data.discovery_gate (including confirmed and clarity_valid)
+      and data.scenarios_state, serves next_ids (FR, NFR, AC, DL, SC) on the discovery, scenarios,
+      assumptions, and drafting steps, and routes through needs_input, init, discovery, scenarios,
+      assumptions, drafting, validation, delta, ready, complete, and recovery.
+  - id: API-005
+    path: hooks.startup(env)
+    method: hooks contract
+    description: New optional entry point in a stage's hooks module, invoked once per authoring command
+      after the stage environment is constructed and before flag handling; used by the requirements
+      stage to load and validate requirements-policy.yaml; thrown coded errors become blocked
+      envelopes.
+flows:
+  - id: FLW-001
+    name: Stage startup and policy loading
+    steps:
+      - The authoring interpreter resolves the change directory and artifact, loads the stage hooks,
+        and constructs the environment.
+      - It invokes hooks.startup, which checks the policy file exists, parses it, and validates its
+        shape.
+      - A missing file blocks with STAGE_POLICY_MISSING; an unparsable file or a shape violation
+        blocks with STAGE_POLICY_INVALID naming the file or the offending field; the block applies
+        to every executing command, including --next-ids, while the static introspection commands
+        --help, --describe, and --describe-step are unaffected.
+      - On success the parsed policy is cached for the whole process and reused by the gate,
+        record-answer, and set-clarity hooks.
+  - id: FLW-002
+    name: Confirmed discovery exit
+    steps:
+      - The discovery step instructs the agent to ask questions one at a time and record answers
+        with --record-answer until data.discovery_gate.passed is true.
+      - Count-only satisfaction leaves the step at discovery, with instructions requiring explicit
+        confirmation.
+      - The agent runs --complete-step --step discovery, setting metadata.discovery_reviewed.
+      - The step machine advances only when the gate passes and the flag is true; later edits that
+        unresolve entries can re-fail the gate and re-activate the step.
+  - id: FLW-003
+    name: Scenario elicitation with loop-back
+    steps:
+      - After discovery is confirmed, the machine routes to scenarios while any scenario is open or
+        the set is empty and unconfirmed.
+      - The agent drafts concrete Given-When-Then examples with SC ids across the four categories.
+      - For an example that exposes an unresolved question, the agent records the question with
+        --record-answer and links the scenario through question_id, then marks the scenario resolved
+        with outcome question.
+      - Scenarios decided out of scope are recorded in out_of_scope and marked resolved with outcome
+        out_of_scope.
+      - When every scenario is resolved — or the agent explicitly confirms an empty set with
+        --complete-step --step scenarios — the machine advances to assumptions.
+  - id: FLW-004
+    name: Scenario promotion during drafting
+    steps:
+      - The drafting step instructs EARS phrasing for requirements and promotion for scenarios.
+      - Each resolved scenario with outcome ac becomes an acceptance criterion in Given-When-Then
+        form with parent_id linked to an FR or NFR, and the scenario's ac_id is back-filled.
+      - ref-exists validates the back-filled ac_id against acceptance_criteria at every validation
+        run, so a dangling promotion link blocks finalize.
+      - The scenario-coverage advisory at finalize and review asks whether every resolved ac-outcome
+        scenario was promoted.
+  - id: FLW-005
+    name: Structural validation of the extended artifact
+    steps:
+      - Schema validation checks the scenarios entry enums, id patterns, and optional metadata flags.
+      - unique-ids covers scenarios; given-when-then covers scenario statements.
+      - Five ref-exists declarations validate FR and NFR ac_ids, AC parent_id, scenario ac_id, and
+        scenario question_id references.
+      - Findings surface identically at authoring --finalize, requirements-review, and
+        bin/lint-artifact.ts through the single validateArtifact path.
+  - id: FLW-006
+    name: In-flight artifact routing
+    steps:
+      - An artifact created before the change carries no scenarios section and no confirmation
+        flags; both are optional, so schema validation passes.
+      - The step machine treats a missing scenarios array as empty, routing the artifact to
+        discovery (gate and confirmation) and then to scenarios until confirmed.
+      - Discovery_log entries with the legacy design lens remain schema-valid, count toward resolved
+        totals, and are never required by an anchor; new record-answer calls with design are
+        rejected with UNKNOWN_LENS.
+decisions:
+  - id: DEC-001
+    title: Policy as the single source, fallback removed
+    context: The current discoveryGate silently falls back to hardcoded thresholds when the policy is
+      missing or unreadable, so shipped behavior can drift from the file (problem statement,
+      DL-003).
+    decision: requirements-policy.yaml is the only source of discovery thresholds; the fallback
+      constants are deleted and every policy failure blocks the stage with a named error code.
+    status: accepted
+  - id: DEC-002
+    title: Startup hook with coded errors
+    context: FR-001 and FR-002 require blocked envelopes with specific error codes for any requirements
+      command, but hooks currently have no early entry point and thrown errors surface as
+      INTERNAL_ERROR.
+    decision: The authoring interpreter invokes an optional hooks startup(env) entry point right after
+      environment construction; hooks throw Errors carrying a code property, and the existing catch
+      already maps err.code through makeError, so no new error plumbing is needed. The mechanism is
+      generic and available to any stage's hooks.
+    status: accepted
+  - id: DEC-003
+    title: Floor plus explicit confirmation
+    context: LLM agents satisfice against count-based gates (problem statement); AC-005 requires the
+      discovery step to remain active after count-only passage.
+    decision: "The discovery step advances only when the policy floor passes and
+      metadata.discovery_reviewed is true, the flag being settable only through complete-step with
+      step discovery. complete-step does not re-evaluate the gate: the step machine is the single
+      routing authority, so a premature confirmation cannot bypass the floor."
+    status: accepted
+  - id: DEC-004
+    title: Scenario routing lives in the hooks module
+    context: FR-006's activation rule (any open scenario, or empty and unconfirmed) needs per-element
+      status inspection, which the declarative complete_when predicate vocabulary cannot express.
+    decision: The scenarios step is routed from hooks.extraStep like discovery and assumptions, and its
+      steps.yaml entry carries no complete_when predicate; the step definition supplies only title,
+      markdown, commands, and exit criteria.
+    status: accepted
+  - id: DEC-005
+    title: design stays schema-valid, data enters the vocabulary
+    context: In-flight artifacts may carry design-lens discovery entries (NFR-002), while FR-004 defines
+      an eight-lens vocabulary with data and AC-003 uses design as the rejected example.
+    decision: The schema's lens enum keeps design and adds data; the policy vocabulary excludes design,
+      so record-answer rejects it with UNKNOWN_LENS while old entries remain valid and count toward
+      resolved totals.
+    status: accepted
+  - id: DEC-006
+    title: Promotion is guided, not structurally forced
+    context: FR-008 requires promotion of resolved ac-outcome scenarios, but the check catalog is capped
+      at eleven and ref-exists skips absent fields (verified assumption), so the presence of ac_id
+      cannot be enforced without a new check type.
+    decision: Promotion is drafting-step instructions plus the scenario-coverage advisory at finalize
+      and review; the back-filled ac_id, once present, is validated by ref-exists. Escalation to a
+      structural catalog check remains a future design-review event, matching the accepted
+      advisory-only EARS assumption.
+    status: accepted
+  - id: DEC-007
+    title: Four enum-constrained scenario categories
+    context: The requirements accept happy, edge, negative, and boundary as the taxonomy while flagging
+      that real changes may need more (unverified assumption).
+    decision: category is enum-constrained to the four values for deterministic machine parsing
+      (NFR-001), and scenario entries allow additional properties so the taxonomy can evolve without
+      schema migration.
+    status: accepted
+  - id: DEC-008
+    title: scenarios_reviewed gates only the empty case
+    context: FR-006 activates the scenarios step while any scenario is open or the set is empty and
+      unconfirmed; AC-008 advances past all-resolved scenarios without mention of the flag.
+    decision: A non-empty scenario set with every entry resolved advances without confirmation; the flag
+      exists to make an empty scenario set an explicit decision rather than an oversight.
+    status: accepted
+  - id: DEC-009
+    title: Introspection commands do not load the policy
+    context: AC-001 says any requirements command blocks on a missing policy, but --help, --describe,
+      and --describe-step return before the stage environment is constructed and answer from static
+      steps.yaml content.
+    decision: The policy loads when the stage executes — every command that constructs the stage
+      environment, including bare invocations and --next-ids; the three static introspection
+      commands are out of scope because they never load stage configuration.
+    status: accepted
+  - id: DEC-010
+    title: Strict policy shape and loud clarity handling
+    context: FR-002 requires field-naming errors, and the current gate silently defaults an unknown
+      clarity to partial — another silent fallback.
+    decision: Policy shape validation is strict (version 1, exactly three anchors, required_lenses
+      subsets of the vocabulary, positive integer minimums) and names the offending field path. An
+      artifact clarity outside the anchors fails the gate with clarity_valid false and a named
+      reason instead of defaulting; the schema enum independently flags the value as a blocking
+      finding.
+    status: accepted
+  - id: DEC-011
+    title: Finalize validates structure, routing enforces steps
+    context: --finalize currently validates structure without consulting the step machine (the
+      assumptions step has the same property), and the requirements scope the confirmation to step
+      routing only.
+    decision: --finalize continues to validate schema, structural checks, and the semantic checklist
+      without requiring discovery or scenarios confirmation; the step machine remains the authority
+      for the authoring flow, and review acceptance operates on structural and semantic findings.
+      E2e fixtures therefore set the confirmation flags explicitly.
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-002
+      - CMP-009
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-001
+      - CMP-002
+      - CMP-009
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-003
+      - CMP-009
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-001
+  - requirement_id: FR-005
+    component_ids:
+      - CMP-003
+      - CMP-008
+  - requirement_id: FR-006
+    component_ids:
+      - CMP-004
+      - CMP-008
+  - requirement_id: FR-007
+    component_ids:
+      - CMP-005
+      - CMP-006
+  - requirement_id: FR-008
+    component_ids:
+      - CMP-004
+      - CMP-007
+  - requirement_id: FR-009
+    component_ids:
+      - CMP-006
+  - requirement_id: FR-010
+    component_ids:
+      - CMP-007
+  - requirement_id: FR-011
+    component_ids:
+      - CMP-008
+  - requirement_id: FR-012
+    component_ids:
+      - CMP-005
+      - CMP-010
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-005
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-004
+      - CMP-005
+delta: []

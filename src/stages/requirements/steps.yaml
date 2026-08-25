@@ -38,13 +38,41 @@ steps:
 
       Record each resolved answer through the script. The script allocates the next DL-NNN id.
 
-      Do not stop until `data.discovery_gate.passed` is true.
+      Do not stop until `data.discovery_gate.passed` is true. Passing on counts alone is not
+      enough: after the gate passes, confirm convergence with --complete-step --step discovery.
     commands:
       - "{{SDLC}} requirements --dir {{change_dir}} --record-answer --lens <lens> --question \"<question>\" --answer \"<answer>\""
       - "{{SDLC}} requirements --dir {{change_dir}} --set-clarity <clear|partial|vague>"
+      - "{{SDLC}} requirements --dir {{change_dir}} --complete-step --step discovery"
     exit_criteria:
-      field: data.discovery_gate.passed
-      equals: true
+      all:
+        - field: data.discovery_gate.passed
+          equals: true
+        - field: data.discovery_gate.confirmed
+          equals: true
+
+  scenarios:
+    title: Scenarios
+    next_action: map_examples_or_complete_step
+    markdown: |
+      Draft concrete examples as scenario entries (SC-NNN ids via `data.next_ids`) in
+      Given-When-Then form, covering the happy, edge, negative, and boundary categories for the
+      core behaviors.
+
+      Decide an outcome for each example:
+      - ac: the example becomes an acceptance criterion during drafting.
+      - question: the example exposes an unresolved question. Record the question with
+        --record-answer, link the scenario through question_id, then mark the scenario resolved.
+      - out_of_scope: add the example to the out_of_scope section and mark the scenario resolved.
+
+      Mark each scenario resolved once its outcome is decided. If you genuinely have no examples,
+      confirm the empty set with --complete-step --step scenarios.
+    commands:
+      - "{{SDLC}} requirements --dir {{change_dir}} --next-ids"
+      - "{{SDLC}} requirements --dir {{change_dir}} --update-artifact < requirements.yaml"
+      - "{{SDLC}} requirements --dir {{change_dir}} --record-answer --lens <lens> --question \"<question>\" --answer \"<answer>\""
+      - "{{SDLC}} requirements --dir {{change_dir}} --complete-step --step scenarios"
+    exit_criteria: null
 
   assumptions:
     title: Assumptions
@@ -72,6 +100,13 @@ steps:
       Draft the full requirements artifact.
 
       Use `data.next_ids` to choose the next FR/NFR/AC ids.
+
+      Phrase each requirement in EARS form (When <trigger>, the system shall <response>) or an
+      equally unambiguous pattern.
+
+      Promote every resolved scenario with outcome `ac` to an acceptance criterion in
+      Given-When-Then form, link its parent_id to the FR or NFR it verifies, and back-fill the
+      scenario's ac_id.
 
       Write the artifact through the script.
     commands:

@@ -1,0 +1,6 @@
+metadata:
+  stage: knowledge-extraction
+  status: complete
+  updated: 2026-08-24
+  change_root: /home/elton/repos/agentic/docs/changes/llm-first-requirements-authoring-redesign
+deltas_applied: 0

@@ -7,6 +7,53 @@ checks:
         - non_functional_requirements
         - acceptance_criteria
         - discovery_log
+        - scenarios
+  - check: ref-exists
+    params:
+      from:
+        array: functional_requirements
+        field: ac_ids
+      to:
+        arrays:
+          - acceptance_criteria
+        field: id
+  - check: ref-exists
+    params:
+      from:
+        array: non_functional_requirements
+        field: ac_ids
+      to:
+        arrays:
+          - acceptance_criteria
+        field: id
+  - check: ref-exists
+    params:
+      from:
+        array: acceptance_criteria
+        field: parent_id
+      to:
+        arrays:
+          - functional_requirements
+          - non_functional_requirements
+        field: id
+  - check: ref-exists
+    params:
+      from:
+        array: scenarios
+        field: ac_id
+      to:
+        arrays:
+          - acceptance_criteria
+        field: id
+  - check: ref-exists
+    params:
+      from:
+        array: scenarios
+        field: question_id
+      to:
+        arrays:
+          - discovery_log
+        field: id
   - check: referenced-by
     params:
       array: acceptance_criteria
@@ -26,6 +73,10 @@ checks:
   - check: given-when-then
     params:
       array: acceptance_criteria
+      statement_field: statement
+  - check: given-when-then
+    params:
+      array: scenarios
       statement_field: statement
   - check: forbidden-words
     params:

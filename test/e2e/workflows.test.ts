@@ -116,3 +116,26 @@ test('the dedicated review command no longer exists', () => {
   assert.equal(json.state, 'blocked');
   assert.ok(json.errors.some((e) => e.code === 'UNKNOWN_COMMAND'));
 });
+
+test('docs-init is removed and returns UNKNOWN_COMMAND', () => {
+  const res = runCli(['docs-init']);
+
+  assert.equal(res.status, 2);
+
+  const json = JSON.parse(res.stdout);
+
+  assert.equal(json.workflow, 'docs-init');
+  assert.equal(json.state, 'blocked');
+  assert.ok(json.errors.some((e) => e.code === 'UNKNOWN_COMMAND'));
+});
+
+test('the workflow list omits docs-init', () => {
+  const res = runCli(['--list-workflows']);
+
+  assert.equal(res.status, 0, res.stderr);
+
+  const json = JSON.parse(res.stdout);
+  const ids = json.data.workflows.map((w) => w.id);
+
+  assert.ok(!ids.includes('docs-init'), `docs-init must not be listed: ${ids.join(', ')}`);
+});

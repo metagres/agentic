@@ -64,13 +64,22 @@ hardcoded stage lists.
 - **Frozen envelope + exit codes**: `cli.ts` — `EXIT` (`:3`), `parseArgs` (`:11`),
   `normalizeEnvelope` (`:43`) and `writeJson` (`:105`) (see
   [../codemap.md](../codemap.md) for the full contract).
-- **Change-dir resolution**: `resolve-root.ts` `resolveRootOrError` (`:15`) —
-  explicit paths (with a refuse-outside-repo guard unless `allowExternal`), then
-  slug lookup under `docs/changes/` (case-insensitive exact, then unique partial,
-  else `ResolveRootError` with `candidates` for the ambiguous case).
-  `change-root.ts` `requireChangeRoot(args, cwd, base)` (`:9`) wraps this into
+- **Change-dir resolution**: `resolve-root.ts` `resolveRootOrError` (`:56`) —
+  the `cwd` is the project root (the agent always invokes the CLI from the
+  folder where it started; the CLI script's own location — which may be a
+  global skill dir — is never used to infer it). Explicit paths (with a
+  refuse-outside-repo guard unless `allowExternal`), then slug lookup under
+  `docs/changes/` via a matching cascade: case-insensitive exact → normalized
+  exact → token subset (every input token must appear in the entry's
+  normalized tokens) → normalized substring; a unique match resolves, multiple
+  matches throw `ResolveRootError` with `candidates`, zero matches is
+  not-found. Failures also carry `available` (sorted change-dir names, `[]`
+  when the dir is missing) and `searched` (the `docs/changes` path).
+  `change-root.ts` `requireChangeRoot(args, cwd, base)` (`:31`) wraps this into
   blocked envelopes: `MISSING_CHANGE_DIR`, `AMBIGUOUS_CHANGE_DIR` (exit
-  `EXIT.ambiguous` 3), `CHANGE_DIR_NOT_FOUND`.
+  `EXIT.ambiguous` 3), `CHANGE_DIR_NOT_FOUND`; these surface
+  `data.available_changes`, `data.searched` and a contextual `fix` on the
+  error item.
 - **Context abstraction**: `context.ts` `makeCtx(cwd, changeRoot)` (`:18`) returns
   `Ctx` (`types.ts:49`) with `loadFile`/`fileExists`/`readFile` resolving
   change-root-first then cwd, plus `safeReadYaml` (`:10`) and

@@ -15,6 +15,14 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-deploy-smoke-'));
   const dest = path.join(tmp, '.agent');
 
+  // Stale content in both skill folders must be removed by --clean.
+  const staleSdlc = path.join(dest, 'skills', 'agentic-sdlc', 'stale.txt');
+  const staleKi = path.join(dest, 'skills', 'knowledge-init', 'stale.txt');
+  fs.mkdirSync(path.dirname(staleSdlc), { recursive: true });
+  fs.mkdirSync(path.dirname(staleKi), { recursive: true });
+  fs.writeFileSync(staleSdlc, 'stale', 'utf8');
+  fs.writeFileSync(staleKi, 'stale', 'utf8');
+
   const deploy = spawnSync(
     process.execPath,
     [deployScript, '--dest', dest, '--clean'],
@@ -28,6 +36,18 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
     deployJsonStart === -1 ? deployStdout : deployStdout.slice(deployJsonStart + 1)
   );
   assert.equal(deployJson.ok, true);
+
+  // --clean removed the stale folders before redeploying.
+  assert.ok(!fs.existsSync(staleSdlc), 'stale agentic-sdlc content must be cleaned');
+  assert.ok(!fs.existsSync(staleKi), 'stale knowledge-init content must be cleaned');
+
+  // The smoke report covers both skills (DEC-010).
+  assert.equal(deployJson.smoke, 'passed');
+  const skillNames = deployJson.skills.map((s) => s.name).sort();
+  assert.deepEqual(skillNames, ['agentic-sdlc', 'knowledge-init']);
+  for (const entry of deployJson.skills) {
+    assert.equal(entry.smoke, 'passed', JSON.stringify(deployJson.skills));
+  }
 
   const skillDir = path.join(dest, 'skills', 'agentic-sdlc');
 
@@ -68,15 +88,42 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
     );
   }
 
-  const expectedTemplates = [
-    'docs-current-index.md'
-  ];
-  for (const file of expectedTemplates) {
-    assert.ok(
-      fs.existsSync(path.join(skillDir, 'templates', file)),
-      `missing deployed template: ${file}`
-    );
-  }
+  // The templates directory is no longer deployed (DEC-005).
+  assert.ok(
+    !fs.existsSync(path.join(skillDir, 'templates')),
+    'deployed agentic-sdlc skill must not contain a templates directory'
+  );
+
+  // Second skill: knowledge-init ships SKILL.md and manifest.json only.
+  const knowledgeInitDir = path.join(dest, 'skills', 'knowledge-init');
+  assert.ok(
+    fs.existsSync(path.join(knowledgeInitDir, 'SKILL.md')),
+    'missing deployed knowledge-init SKILL.md'
+  );
+  assert.ok(
+    fs.existsSync(path.join(knowledgeInitDir, 'manifest.json')),
+    'missing deployed knowledge-init manifest'
+  );
+
+  const knowledgeInitManifest = JSON.parse(
+    fs.readFileSync(path.join(knowledgeInitDir, 'manifest.json'), 'utf8')
+  );
+  assert.equal(knowledgeInitManifest.name, 'knowledge-init');
+  assert.ok(knowledgeInitManifest.version, 'manifest must carry a version');
+  assert.ok(knowledgeInitManifest.deployedAt, 'manifest must carry deployedAt');
+  assert.equal(knowledgeInitManifest.cliPath, undefined, 'knowledge-init ships no CLI');
+
+  // Folder purity: exactly SKILL.md and manifest.json, nothing else.
+  const knowledgeInitEntries = fs.readdirSync(knowledgeInitDir).sort();
+  assert.deepEqual(knowledgeInitEntries, ['SKILL.md', 'manifest.json']);
+  assert.ok(
+    !fs.existsSync(path.join(knowledgeInitDir, 'package.json')),
+    'deployed knowledge-init skill must not contain package.json'
+  );
+  assert.ok(
+    !fs.existsSync(path.join(knowledgeInitDir, 'node_modules')),
+    'deployed knowledge-init skill must not contain node_modules'
+  );
 
   // Every stage folder is bundled (NFR-002), and the bundle contains no
   // source TypeScript files (build-artifact invariant). Expectations derive
@@ -99,6 +146,12 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
   assert.ok(
     fs.existsSync(path.join(skillDir, 'stages', 'requirements', 'hooks.js')),
     'compiled stage hooks.js must be present'
+  );
+  assert.ok(
+    fs.existsSync(
+      path.join(skillDir, 'stages', 'requirements', 'requirements-policy.yaml')
+    ),
+    'the requirements discovery policy must ship in the bundle'
   );
 
   // No source TypeScript anywhere inside the bundle.

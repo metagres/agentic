@@ -11,10 +11,14 @@ metadata:
   clarity: partial
   assumptions_reviewed: false
   delta_reviewed: false
+  discovery_reviewed: false
+  scenarios_reviewed: false
 
 problem_statement: ""
 
 discovery_log: []
+
+scenarios: []
 
 assumptions: []
 

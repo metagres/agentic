@@ -4,24 +4,81 @@ import * as path from 'node:path';
 
 export class ResolveRootError extends Error {
   candidates: string[];
+  available: string[]; // all change dir names in the searched changes dir (sorted; [] if dir missing)
+  searched: string; // the docs/changes path that was searched
 
-  constructor(message: string, candidates: string[] = []) {
+  constructor(
+    message: string,
+    details: {
+      candidates?: string[];
+      available?: string[];
+      searched?: string;
+    } = {}
+  ) {
     super(message);
     this.name = 'ResolveRootError';
-    this.candidates = candidates;
+    this.candidates = details.candidates || [];
+    this.available = details.available || [];
+    this.searched = details.searched || '';
   }
+}
+
+export function normalizeName(name: string): string {
+  return String(name || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function tokensOf(name: string): string[] {
+  const normalized = normalizeName(name);
+  if (!normalized) return [];
+  return normalized.split('-');
+}
+
+function listDirNames(changesDir: string): string[] {
+  if (!fs.existsSync(changesDir)) return [];
+  return fs
+    .readdirSync(changesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+}
+
+function availableSuffix(available: string[]): string {
+  if (available.length === 0) return '';
+  const shown = available.slice(0, 10).join(', ');
+  const more = available.length > 10 ? ` (and ${available.length - 10} more)` : '';
+  return ` Available changes: ${shown}${more}`;
 }
 
 export function resolveRootOrError(
   dir: string,
   { cwd = process.cwd(), allowExternal = false }: { cwd?: string; allowExternal?: boolean } = {}
 ) {
+  // The cwd is the project root: the agent always invokes the CLI from the
+  // folder where it started, and docs/changes lives directly under it. The
+  // CLI script's own location (which may be a global skill dir) is never used
+  // to infer the project root.
+  const changesDir = path.join(cwd, 'docs', 'changes');
+
+  const mkError = (
+    message: string,
+    extra: { candidates?: string[]; available?: string[] } = {}
+  ): ResolveRootError =>
+    new ResolveRootError(message, {
+      candidates: extra.candidates || [],
+      available:
+        extra.available !== undefined ? extra.available : listDirNames(changesDir),
+      searched: changesDir,
+    });
+
   if (!dir || typeof dir !== 'string') {
-    throw new ResolveRootError('A change directory or slug is required.');
+    throw mkError('A change directory or slug is required.');
   }
 
   const raw = dir.trim();
-  const changesDir = path.join(cwd, 'docs', 'changes');
 
   const resolveExplicit = (p: string): string | null => {
     const abs = path.resolve(cwd, p);
@@ -36,9 +93,7 @@ export function resolveRootOrError(
       path.isAbsolute(rel);
 
     if (!allowExternal && outsideRepo) {
-      throw new ResolveRootError(
-        `Refusing to use a directory outside the repository: ${p}`
-      );
+      throw mkError(`Refusing to use a directory outside the repository: ${p}`);
     }
 
     return abs;
@@ -49,44 +104,83 @@ export function resolveRootOrError(
 
     if (abs) return abs;
 
-    throw new ResolveRootError(`Change directory not found: ${raw}`);
+    const available = listDirNames(changesDir);
+    throw mkError(`Change directory not found: ${raw}.` + availableSuffix(available), {
+      available,
+    });
   }
 
   if (!fs.existsSync(changesDir)) {
-    throw new ResolveRootError(
-      'docs/changes does not exist. Create a change directory first.'
+    throw mkError(
+      `docs/changes does not exist under ${cwd}. Create a change directory first.`
     );
   }
 
-  const entries = fs
-    .readdirSync(changesDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
+  const entries = listDirNames(changesDir);
 
-  const lower = raw.toLowerCase();
-
-  const exact = entries.find((name) => name.toLowerCase() === lower);
+  // 1. Case-insensitive exact match.
+  const exact = entries.find((name) => name.toLowerCase() === raw.toLowerCase());
 
   if (exact) {
     return path.join(changesDir, exact);
   }
 
-  const partial = entries.filter((name) =>
-    name.toLowerCase().includes(lower)
-  );
+  const rawNormalized = normalizeName(raw);
 
-  if (partial.length === 1) {
-    return path.join(changesDir, partial[0]);
+  // 2. Normalized exact.
+  if (rawNormalized) {
+    const matches = entries.filter((name) => normalizeName(name) === rawNormalized);
+
+    if (matches.length === 1) {
+      return path.join(changesDir, matches[0]);
+    }
+
+    if (matches.length > 1) {
+      throw mkError(
+        `Ambiguous change directory '${raw}'. Matches: ${matches.join(', ')}`,
+        { candidates: matches }
+      );
+    }
   }
 
-  if (partial.length > 1) {
-    throw new ResolveRootError(
-      `Ambiguous change directory '${raw}'. Matches: ${partial.join(', ')}`,
-      partial
-    );
+  // 3. Token subset: every input token must appear in the entry's token set.
+  const inputTokens = tokensOf(raw);
+
+  if (inputTokens.length > 0) {
+    const matches = entries.filter((entry) => {
+      const entryTokens = tokensOf(entry);
+      return inputTokens.every((token) => entryTokens.includes(token));
+    });
+
+    if (matches.length === 1) {
+      return path.join(changesDir, matches[0]);
+    }
+
+    if (matches.length > 1) {
+      throw mkError(
+        `Ambiguous change directory '${raw}'. Matches: ${matches.join(', ')}`,
+        { candidates: matches }
+      );
+    }
   }
 
-  throw new ResolveRootError(`No change directory matching '${raw}'.`);
+  // 4. Normalized substring.
+  if (rawNormalized) {
+    const matches = entries.filter((name) => normalizeName(name).includes(rawNormalized));
+
+    if (matches.length === 1) {
+      return path.join(changesDir, matches[0]);
+    }
+
+    if (matches.length > 1) {
+      throw mkError(
+        `Ambiguous change directory '${raw}'. Matches: ${matches.join(', ')}`,
+        { candidates: matches }
+      );
+    }
+  }
+
+  throw mkError(`No change directory matching '${raw}'.` + availableSuffix(entries), {
+    available: entries,
+  });
 }
-
-

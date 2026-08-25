@@ -1,0 +1,550 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: llm-first-requirements-authoring-redesign"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-24
+  updated: 2026-08-24
+  based_on_design: 0.1.0
+  based_on_requirements: 0.1.0
+  implementation_status: accepted
+  step: complete
+  delta_reviewed: true
+tasks:
+  - id: TASK-001
+    title: Reshape requirements-policy.yaml to the FR-004 vocabulary
+    description: Update src/stages/requirements/requirements-policy.yaml (CMP-001) so discovery.lenses
+      lists exactly stakeholder, scope, interface, behavior, data, constraint, failure, and outcome
+      (data replaces design), and discovery.clarity defines the anchors clear, partial, and vague
+      with required lens sets {failure, constraint}, {stakeholder, interface, data, failure,
+      constraint}, and all eight lenses, and minimum resolved questions of 3, 5, and 8 respectively.
+      Keep version 1. The file ships in the bundle unchanged because the deploy script copies stage
+      folders wholesale.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-004
+    acceptance_ids:
+      - AC-004
+    design_refs:
+      - DEC-001
+      - DEC-005
+    depends_on: []
+    files:
+      - path: src/stages/requirements/requirements-policy.yaml
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: "Reshaped requirements-policy.yaml: lenses now stakeholder, scope, interface,
+      behavior, data, constraint, failure, outcome (data replaces design); partial anchor adds data
+      to required lenses; vague anchor requires all eight lenses; thresholds 3/5/8 unchanged."
+    files_changed:
+      - path: src/stages/requirements/requirements-policy.yaml
+        operation: modify
+  - id: TASK-002
+    title: Extend the requirements schema, template, and stage descriptor with scenarios and
+      confirmation flags
+    description: Extend the requirements stage artifact contract (CMP-005). In schema.yaml add an
+      optional top-level scenarios array whose entries require id (pattern SC-NNN), statement,
+      category (enum happy, edge, negative, boundary), status (enum open, resolved), and outcome
+      (enum ac, question, out_of_scope), with optional ac_id (AC-NNN) and question_id (DL-NNN) and
+      additionalProperties true; add optional boolean metadata flags discovery_reviewed and
+      scenarios_reviewed; add data to the discovery_log lens enum while keeping design valid for
+      in-flight artifacts. In template.yaml initialize scenarios as an empty array and both
+      confirmation flags false. In stage.yaml add the SC prefix mapping to the scenarios array in
+      next_ids. All additions are optional so pre-change artifacts remain schema-valid (NFR-002,
+      AC-018).
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-012
+      - NFR-001
+      - NFR-002
+    acceptance_ids:
+      - AC-015
+      - AC-016
+      - AC-017
+      - AC-018
+    design_refs:
+      - DEC-005
+      - DEC-007
+    depends_on: []
+    files:
+      - path: src/stages/requirements/schema.yaml
+        operation: modify
+      - path: src/stages/requirements/template.yaml
+        operation: modify
+      - path: src/stages/requirements/stage.yaml
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: Schema gains optional scenarios array (SC-NNN id, statement,
+      category/status/outcome enums, optional ac_id/question_id, additionalProperties true),
+      optional discovery_reviewed/scenarios_reviewed metadata flags, and data added to the lens enum
+      with design kept for in-flight artifacts. Template initializes scenarios as [] with both flags
+      false. stage.yaml maps SC to scenarios in next_ids.
+    files_changed:
+      - path: src/stages/requirements/schema.yaml
+        operation: modify
+      - path: src/stages/requirements/template.yaml
+        operation: modify
+      - path: src/stages/requirements/stage.yaml
+        operation: modify
+  - id: TASK-003
+    title: Extend the authoring interpreter with the startup hook, new completeStep steps, and scenarios
+      next-ids
+    description: "Make three generic extensions to src/scripts/lib/kinds/authoring.ts (CMP-008): invoke
+      an optional hooks startup(env) entry point immediately after the stage environment is
+      constructed and before flag handling, letting thrown coded errors surface as blocked envelopes
+      through the existing catch that maps err.code through makeError; extend completeStep to
+      recognize step discovery and step scenarios, setting metadata.discovery_reviewed and
+      metadata.scenarios_reviewed alongside the existing assumptions, delta, and init steps; and
+      serve data.next_ids for the scenarios step in addition to drafting, discovery, and
+      assumptions. No stage-specific knowledge enters the interpreter."
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-005
+      - FR-006
+      - FR-011
+    acceptance_ids:
+      - AC-005
+      - AC-006
+      - AC-014
+    design_refs:
+      - DEC-002
+      - DEC-003
+      - DEC-004
+    depends_on: []
+    files:
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: "authoring.ts gains three generic extensions: optional hooks startup(env)
+      invocation after env construction (coded errors surface via the existing err.code->makeError
+      catch), completeStep recognizes discovery and scenarios setting
+      discovery_reviewed/scenarios_reviewed, and data.next_ids is served for the scenarios step."
+    files_changed:
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+  - id: TASK-004
+    title: Implement the fail-loud policy loader and confirmed discovery gate with error codes
+    description: "Rework src/stages/requirements/hooks.ts (CMP-002, CMP-003) and add the three error
+      codes to src/policies/errors.yaml (CMP-009). The hooks module gains a startup entry point that
+      loads requirements-policy.yaml once per invocation: a missing file throws a coded
+      STAGE_POLICY_MISSING error, an unparsable file or non-mapping throws STAGE_POLICY_INVALID
+      naming the file, and shape violations (version not 1, empty or duplicate lenses, missing or
+      extra clarity anchors, required_lenses not a subset of the vocabulary, non-positive-integer
+      minimums) throw STAGE_POLICY_INVALID naming the offending field path. Delete the silent
+      fallback constants. discoveryGate reads only the policy, adds confirmed
+      (metadata.discovery_reviewed) and clarity_valid (false when the artifact clarity is not an
+      anchor, failing the gate) to its result, and extraStep holds the discovery step until the gate
+      passes and the flag is true. recordAnswer validates --lens against the policy vocabulary and
+      throws UNKNOWN_LENS listing the valid lenses; setClarity validates against the policy anchors.
+      Error catalog entries carry messages and fix hints."
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-001
+      - FR-002
+      - FR-003
+      - FR-004
+      - FR-005
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-006
+    design_refs:
+      - DEC-001
+      - DEC-002
+      - DEC-003
+      - DEC-009
+      - DEC-010
+    depends_on:
+      - TASK-001
+      - TASK-003
+    files:
+      - path: src/stages/requirements/hooks.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: "Reworked hooks.ts: fail-loud policy loader (startup hook) with fs.existsSync
+      missing-file detection and strict shape validation naming offending fields, module-level
+      per-path policy cache, confirmed discovery gate (floor + discovery_reviewed, clarity_valid for
+      non-anchor clarity), recordAnswer UNKNOWN_LENS rejection listing valid lenses, setClarity
+      anchors from policy, fallback constants removed. Added STAGE_POLICY_MISSING,
+      STAGE_POLICY_INVALID, UNKNOWN_LENS to errors.yaml."
+    files_changed:
+      - path: src/stages/requirements/hooks.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+  - id: TASK-005
+    title: Implement the scenarios step routing and step definitions
+    description: Add the scenarios step between discovery and assumptions (CMP-004). In hooks.ts
+      implement the routing rule in extraStep — the step is active while any scenario has status
+      open, or while the scenarios array is empty and metadata.scenarios_reviewed is not true — and
+      expose scenarios_state (total, open, resolved, reviewed, needs_attention) through
+      getExtraData. In steps.yaml add the scenarios step definition (title, markdown describing
+      example mapping across the four categories, the loop-back through --record-answer with
+      question_id links, resolution outcomes, and the explicit empty-set confirmation; commands for
+      --next-ids, --update-artifact, --record-answer, and --complete-step --step scenarios; exit
+      criteria; no complete_when predicate since routing is owned by the hooks). Update the
+      discovery step markdown to require gate passage plus explicit confirmation, and the drafting
+      step markdown to add EARS phrasing guidance and the promotion rule for resolved ac-outcome
+      scenarios with parent_id links and back-filled ac_id.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-006
+      - FR-008
+    acceptance_ids:
+      - AC-007
+      - AC-008
+      - AC-010
+    design_refs:
+      - DEC-004
+      - DEC-006
+      - DEC-008
+    depends_on:
+      - TASK-002
+      - TASK-003
+      - TASK-004
+    files:
+      - path: src/stages/requirements/hooks.ts
+        operation: modify
+      - path: src/stages/requirements/steps.yaml
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: hooks.ts gains scenariosActive/scenariosState and routes extraStep discovery ->
+      scenarios -> assumptions; getExtraData exposes scenarios_state. steps.yaml gains the scenarios
+      step (example mapping, loop-back via record-answer + question_id, outcomes, empty-set
+      confirmation), discovery step now requires gate passage plus explicit --complete-step --step
+      discovery, drafting step gains EARS phrasing and scenario promotion guidance.
+    files_changed:
+      - path: src/stages/requirements/hooks.ts
+        operation: modify
+      - path: src/stages/requirements/steps.yaml
+        operation: modify
+  - id: TASK-006
+    title: Extend the requirements structural checks for scenarios and bidirectional references
+    description: "Extend src/stages/requirements/structural-checks.yaml over the capped catalog with no
+      new check types (CMP-006): add scenarios to the unique-ids arrays; add a given-when-then entry
+      for the scenarios array with statement_field statement; and add five ref-exists declarations —
+      functional_requirements.ac_ids to acceptance_criteria.id, non_functional_requirements.ac_ids
+      to acceptance_criteria.id, acceptance_criteria.parent_id to the requirement ids,
+      scenarios.ac_id to acceptance_criteria.id, and scenarios.question_id to discovery_log.id, all
+      in-artifact. Existing referenced-by, duplicate-refs, forbidden-words, and sentence-count
+      declarations are unchanged. Optional links are validated only when present because ref-exists
+      skips absent fields."
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-007
+      - FR-009
+    acceptance_ids:
+      - AC-009
+      - AC-011
+      - AC-012
+    design_refs:
+      - DEC-006
+    depends_on:
+      - TASK-002
+    files:
+      - path: src/stages/requirements/structural-checks.yaml
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: "structural-checks.yaml extends the capped catalog declarations: unique-ids
+      adds scenarios, given-when-then adds scenarios with statement_field statement, and five
+      ref-exists declarations cover FR/NFR ac_ids -> acceptance_criteria, acceptance_criteria
+      parent_id -> requirements, scenarios ac_id -> acceptance_criteria, and scenarios question_id
+      -> discovery_log. Existing referenced-by, duplicate-refs, forbidden-words, sentence-count
+      unchanged."
+    files_changed:
+      - path: src/stages/requirements/structural-checks.yaml
+        operation: modify
+  - id: TASK-007
+    title: Extend the requirements semantic checklist with the four LLM-first advisories
+    description: "Add four advisories to src/stages/requirements/semantic-checks.yaml (CMP-007):
+      interpretation-divergence (could any requirement, scenario, or acceptance criterion be read in
+      more than one way by a machine consumer), EARS pattern conformance (When <trigger>, the system
+      shall <response> or an equally unambiguous form), requirement atomicity (one verifiable
+      behavior per requirement), and scenario coverage (every resolved ac-outcome scenario promoted
+      through ac_id, and all four categories covered for core behaviors). The same declaration
+      serves authoring --finalize and requirements-review because the review interpreter loads the
+      tracked stage's checklist."
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-010
+    acceptance_ids:
+      - AC-013
+    design_refs:
+      - DEC-006
+    depends_on: []
+    files:
+      - path: src/stages/requirements/semantic-checks.yaml
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: "semantic-checks.yaml gains four advisories: interpretation-divergence, EARS
+      pattern conformance, requirement atomicity, and scenario coverage (promotion via ac_id plus
+      category sweep). Served at finalize and requirements-review from the same declaration."
+    files_changed:
+      - path: src/stages/requirements/semantic-checks.yaml
+        operation: modify
+  - id: TASK-008
+    title: Pin the template contract in validate-templates.ts
+    description: "Extend bin/validate-templates.ts (CMP-010): add scenarios to the expected top-level
+      keys of the requirements template and assert the initialization contract — the template's
+      scenarios is an empty array and metadata.discovery_reviewed and metadata.scenarios_reviewed
+      are both false (AC-016). This gives npm run validate a static guard independent of the runtime
+      hooks."
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-012
+    acceptance_ids:
+      - AC-016
+    design_refs: []
+    depends_on:
+      - TASK-002
+    files:
+      - path: bin/validate-templates.ts
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: "validate-templates.ts adds scenarios to the requirements expected top-level
+      keys and pins the initialization contract: scenarios must be an empty array and both
+      confirmation flags false."
+    files_changed:
+      - path: bin/validate-templates.ts
+        operation: modify
+  - id: TASK-009
+    title: Unit tests for the policy pin, fail-loud loader, confirmed gate, and completeStep flags
+    description: "Create test/unit/requirements-stage.test.ts (CMP-011) covering: the policy pin (the
+      shipped requirements-policy.yaml matches the FR-004 vocabulary, anchors, required lens sets,
+      and thresholds 3, 5, and 8); the fail-loud loader against fixture stage folders (missing file
+      produces STAGE_POLICY_MISSING; unparsable file and each shape violation produce
+      STAGE_POLICY_INVALID naming the field); the confirmed gate (count-only passage leaves the step
+      at discovery, complete-step advances it, invalid clarity fails with clarity_valid false);
+      recordAnswer rejection of lenses outside the vocabulary with UNKNOWN_LENS listing valid
+      lenses; and completeStep setting discovery_reviewed and scenarios_reviewed. Import the hooks
+      module directly with a mock env for gate and loader behavior."
+    type: test
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-002
+      - FR-003
+      - FR-004
+      - FR-005
+      - FR-011
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-006
+      - AC-014
+    design_refs:
+      - DEC-001
+      - DEC-002
+      - DEC-003
+      - DEC-010
+    depends_on:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+      - TASK-005
+      - TASK-006
+      - TASK-007
+      - TASK-008
+    files:
+      - path: test/unit/requirements-stage.test.ts
+        operation: create
+    started_at: null
+    completed_at: 2026-08-24
+    implementation_note: "Created test/unit/requirements-stage.test.ts with 10 tests: policy pin (FR-004
+      vocabulary, anchors, 3/5/8 thresholds), fail-loud loader (missing->STAGE_POLICY_MISSING,
+      unparsable + five shape violations -> STAGE_POLICY_INVALID naming the field), confirmed gate
+      (count-only stays at discovery, confirmed advances past discovery/scenarios, open scenario
+      holds, all-resolved advances, invalid clarity fails loudly), recordAnswer UNKNOWN_LENS
+      rejection and valid-lens append, and CLI-driven complete-step discovery/scenarios flag
+      setting. Updated stage-registry.test.ts nextIds expectation to include SC."
+    files_changed:
+      - path: test/unit/requirements-stage.test.ts
+        operation: create
+      - path: test/unit/stage-registry.test.ts
+        operation: modify
+  - id: TASK-010
+    title: E2E tests for the scenarios flow, loop-back, promotion, and in-flight routing
+    description: "Create test/e2e/requirements-scenarios.test.ts (CMP-011) driving the CLI in a temp
+      change dir: record answers until the gate passes, confirm discovery, verify the step routes to
+      scenarios; add an open scenario, verify the step stays scenarios; loop back by recording a
+      discovery answer and linking question_id, resolve the scenario, verify advancement; promote a
+      resolved ac-outcome scenario to an acceptance criterion with parent_id and back-filled ac_id,
+      finalize, and accept the review; verify a dangling ac_id blocks finalize with a ref-exists
+      finding; and verify an in-flight artifact without scenarios or flags routes to discovery then
+      scenarios while remaining schema-valid. Update test/helpers/artifacts.ts so the shared
+      validRequirements fixture gains a data-lens discovery answer and both confirmation flags,
+      keeping the existing full-pipeline test green under the new gate."
+    type: test
+    status: done
+    complexity: high
+    covers:
+      - FR-005
+      - FR-006
+      - FR-007
+      - FR-008
+      - NFR-002
+    acceptance_ids:
+      - AC-005
+      - AC-006
+      - AC-007
+      - AC-008
+      - AC-009
+      - AC-010
+      - AC-018
+    design_refs:
+      - DEC-003
+      - DEC-004
+      - DEC-006
+      - DEC-008
+      - DEC-011
+    depends_on:
+      - TASK-009
+    files:
+      - path: test/e2e/requirements-scenarios.test.ts
+        operation: create
+      - path: test/helpers/artifacts.ts
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: "Updated test/helpers/artifacts.ts validRequirements with a data-lens DL-006
+      answer and both confirmation flags, fixing the
+      full-pipeline/reject-recover/review-history/status e2e tests under the new gate. Created
+      test/e2e/requirements-scenarios.test.ts with 4 tests: full scenarios flow (open scenario
+      holds, record-answer loop-back with question_id link, resolution advances, ac promotion with
+      back-filled ac_id, finalize, review accept), dangling ac_id blocks finalize, dangling
+      question_id blocks finalize, and in-flight artifact routing to discovery then scenarios with
+      explicit empty-set confirmation."
+    files_changed:
+      - path: test/e2e/requirements-scenarios.test.ts
+        operation: create
+      - path: test/helpers/artifacts.ts
+        operation: modify
+  - id: TASK-011
+    title: Deploy bundle assertion and full validation
+    description: Extend test/e2e/deploy.test.ts (CMP-011) to assert the deployed bundle contains
+      stages/requirements/requirements-policy.yaml and the compiled hooks.js with no source
+      TypeScript in the stage folder. Then run npm run validate and npm run check:all and confirm
+      both pass, including the deployment smoke test, verifying the DL-007 outcome criteria.
+    type: verification
+    status: done
+    complexity: low
+    covers:
+      - FR-004
+    acceptance_ids:
+      - AC-004
+    design_refs:
+      - DEC-001
+    depends_on:
+      - TASK-010
+    files:
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+    started_at: 2026-08-24
+    completed_at: 2026-08-24
+    implementation_note: deploy.test.ts now asserts stages/requirements/requirements-policy.yaml ships
+      in the bundle alongside the compiled hooks.js. npm run validate (101 tests) and npm run
+      check:all (validate + e2e + deploy smoke) both pass.
+    files_changed:
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+milestones:
+  - id: MS-001
+    title: Artifact contract
+    description: Policy file and schema, template, and descriptor extensions land first so in-flight
+      artifacts never pass through an invalid intermediate state
+    tasks:
+      - TASK-001
+      - TASK-002
+  - id: MS-002
+    title: Engine and hooks
+    description: Generic interpreter extensions, fail-loud policy loader, confirmed gate, and the scenarios step
+    tasks:
+      - TASK-003
+      - TASK-004
+      - TASK-005
+  - id: MS-003
+    title: Validation layers
+    description: Structural check declarations, semantic advisories, and the template validator pin
+    tasks:
+      - TASK-006
+      - TASK-007
+      - TASK-008
+  - id: MS-004
+    title: Verification
+    description: Unit tests, e2e scenario flow, deploy bundle assertion, and full validation
+    tasks:
+      - TASK-009
+      - TASK-010
+      - TASK-011
+risks:
+  - risk: A missing or corrupt policy file blocks the whole requirements stage by design, so a bad edit
+      to requirements-policy.yaml takes down every requirements command.
+    severity: medium
+    mitigation: Fail-loud errors carry fix hints naming the offending field, TASK-009 unit-tests each
+      failure mode against fixture stage folders, and the policy pin test catches accidental content
+      drift from the FR-004 vocabulary.
+  - risk: The partial-clarity gate starts requiring the data lens once the policy lands, which can break
+      the existing full-pipeline e2e test whose fixture lacks a data-lens answer and the
+      confirmation flags.
+    severity: medium
+    mitigation: TASK-010 updates the shared validRequirements helper with a data-lens discovery answer
+      and both flags; TASK-009 runs first so gate behavior is verified cheaply before the e2e suite.
+  - risk: The startup hook invocation touches the authoring interpreter used by every authoring stage,
+      so a defect would break design, planning, and knowledge-extraction too.
+    severity: medium
+    mitigation: The invocation is a no-op for stages whose hooks define no startup entry point, and the
+      existing e2e suite for the other stages guards the interpreter behavior at every task
+      boundary.
+  - risk: The hooks module gains a node:fs import for the existsSync check; the deploy compile must keep
+      inlining node builtins or the bundled hooks break at runtime.
+    severity: low
+    mitigation: compileStageHooks already bundles hooks with platform node and the existing hooks import
+      node:path; TASK-011 asserts the compiled hooks.js and the policy file ship in the bundle and
+      the deploy smoke test runs the bundled CLI.
+  - risk: Advisory-only promotion and EARS guidance may be ignored by authoring agents, leaving
+      ac-outcome scenarios unpromoted.
+    severity: low
+    mitigation: The scenario-coverage advisory appears at finalize and at requirements-review from one
+      declaration, and ref-exists blocks dangling back-filled ac_id links; escalation to a
+      structural catalog check is a future design-review event per DEC-006.
+  - risk: In-flight artifacts created before the change carry no scenarios section or confirmation flags
+      and must route through the new steps without migration.
+    severity: low
+    mitigation: All schema additions are optional, the step machine treats a missing scenarios array as
+      empty, and TASK-010 includes an explicit in-flight routing e2e case (AC-018).
+delta: []

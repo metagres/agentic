@@ -1,0 +1,6 @@
+metadata:
+  stage: knowledge-extraction
+  status: complete
+  updated: 2026-08-25
+  change_root: /home/elton/repos/agentic/docs/changes/deploy-knowledge-init-as-a-second-skill-and-make-it-the-sole
+deltas_applied: 10

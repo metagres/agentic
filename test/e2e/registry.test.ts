@@ -15,7 +15,7 @@ function runCli(args) {
   });
 }
 
-const CROSS_CUTTING_IDS = ['status', 'feedback', 'doctor', 'docs-init'];
+const CROSS_CUTTING_IDS = ['status', 'feedback', 'doctor'];
 
 test('--list-workflows lists discovered stages plus cross-cutting commands', () => {
   const res = runCli(['--list-workflows']);

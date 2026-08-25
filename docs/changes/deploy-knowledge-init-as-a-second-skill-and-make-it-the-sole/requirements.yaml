@@ -1,0 +1,252 @@
+metadata:
+  id: REQ-001
+  title: Deploy knowledge-init as a second skill and make it the sole creator of docs/...
+  stage: requirements
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-24
+  updated: 2026-08-24
+  request_summary: Deploy knowledge-init as a second skill and make it the sole creator of docs/current
+  clarity: clear
+  assumptions_reviewed: true
+  delta_reviewed: true
+  step: complete
+problem_statement: "The knowledge-init bootstrap skill exists only as an unversioned file inside the
+  gitignored .opencode runtime, so a fresh clone loses it, deployment to other agent roots never
+  ships it, and no validation covers it. The sdlc toolkit's docs-init workflow overlaps it by
+  creating docs/current with a conflicting shape: a four-column index plus overview.md versus
+  knowledge-init's six-column index and nine documents without overview.md. Two creators with
+  disagreeing contracts leave agents without one authoritative entry document for living docs, and
+  the toolkit direction is that knowledge-init owns docs/current creation exclusively."
+discovery_log:
+  - id: DL-001
+    question: Which columns does the docs/current index require?
+    answer: File, Purpose, When to Read, and Notes; the index is the starting document that tells the
+      agent what to read and when.
+    lens: constraint
+    resolved: true
+  - id: DL-002
+    question: What happens when knowledge-extraction runs in a project without docs/current?
+    answer: The stage lists deltas and warns that docs/current is absent and that the knowledge-init
+      skill creates it; the sdlc CLI never creates docs/current.
+    lens: failure
+    resolved: true
+  - id: DL-003
+    question: Who consumes the deployed skills?
+    answer: Agent runtimes that receive the deployed skill set and the maintainers of this repository.
+    lens: stakeholder
+    resolved: true
+  - id: DL-004
+    question: How is the knowledge-init skill delivered to an agent root?
+    answer: bin/deploy-to-agent.ts deploys a second self-contained skill folder with SKILL.md and
+      manifest.json next to skills/agentic-sdlc.
+    lens: interface
+    resolved: true
+  - id: DL-005
+    question: May the sdlc skill create docs/current?
+    answer: No; knowledge-init is the only skill that creates docs/current when it does not exist, and
+      docs-init is removed.
+    lens: constraint
+    resolved: true
+  - id: DL-006
+    question: What happens when the knowledge-init source is missing at deploy time?
+    answer: Deployment fails with an error naming the missing skill source file.
+    lens: failure
+    resolved: true
+assumptions:
+  - type: verified
+    text: The templates directory contains only the docs-current-index.md template.
+    source: src/templates/docs-current-index.md
+    risk: Removing the templates pipeline touches deploy, doctor, and validation together.
+  - type: verified
+    text: Nothing in the toolkit reads docs/current/overview.md; the docs-init workflow writes it as an
+      unfilled stub.
+    source: src/scripts/workflows/docs-init.ts
+    risk: Dropping overview.md removes a document no stage consumes.
+  - type: verified
+    text: The knowledge-extraction aggregator lists deltas and never writes docs/current itself.
+    source: src/scripts/lib/kinds/aggregator.ts
+    risk: Without a warning, agents may create docs/current outside knowledge-init.
+  - type: unverified
+    text: Agent runtimes discover a second skill folder without extra registration.
+    source: bin/deploy-to-agent.ts
+    risk: A runtime may need registration steps beyond copying the folder.
+functional_requirements:
+  - id: FR-001
+    description: The repository shall maintain the knowledge-init skill source at
+      src/skills/knowledge-init/SKILL.md under version control.
+    ac_ids:
+      - AC-001
+  - id: FR-002
+    description: bin/deploy-to-agent.ts shall deploy a second self-contained skill folder at
+      skills/knowledge-init containing SKILL.md and manifest.json beside skills/agentic-sdlc.
+    ac_ids:
+      - AC-002
+  - id: FR-003
+    description: Deployment with --clean shall remove both deployed skill folders before redeploying them.
+    ac_ids:
+      - AC-003
+  - id: FR-004
+    description: The deployment smoke test shall verify the agentic-sdlc CLI and the knowledge-init
+      SKILL.md frontmatter.
+    ac_ids:
+      - AC-004
+  - id: FR-005
+    description: The sdlc CLI shall remove the docs-init workflow so that the command returns
+      UNKNOWN_COMMAND with the workflow list.
+    ac_ids:
+      - AC-005
+  - id: FR-006
+    description: "The repository shall remove the src/templates directory together with its consumers:
+      the deploy copy step, the docs-index template validation block, the doctor templates check,
+      and the TEMPLATES_MISSING and DOCS_INDEX_EXISTS error codes."
+    ac_ids:
+      - AC-006
+  - id: FR-007
+    description: The knowledge-extraction stage shall warn that docs/current is absent and name the
+      knowledge-init skill, and the sdlc CLI shall not create docs/current.
+    ac_ids:
+      - AC-007
+  - id: FR-008
+    description: The knowledge-init skill shall specify the docs/current index with exactly the columns
+      File, Purpose, When to Read, and Notes.
+    ac_ids:
+      - AC-008
+  - id: FR-009
+    description: The knowledge-init skill shall not generate overview.md; index.md shall be the single
+      entry document for living docs.
+    ac_ids:
+      - AC-009
+  - id: FR-010
+    description: Template validation shall fail when a skill folder under src/skills carries a SKILL.md
+      whose frontmatter name differs from its folder name or whose description is empty.
+    ac_ids:
+      - AC-010
+  - id: FR-011
+    description: The doctor workflow shall keep the docs index presence check with guidance naming the
+      knowledge-init skill and shall drop the templates directory check.
+    ac_ids:
+      - AC-011
+  - id: FR-012
+    description: "AGENTS.md shall describe the deployed runtime as exactly two self-contained skills:
+      agentic-sdlc and knowledge-init."
+    ac_ids:
+      - AC-012
+non_functional_requirements:
+  - id: NFR-001
+    description: The added skill validation shall not add more than one second to npm run validate.
+    ac_ids:
+      - AC-013
+  - id: NFR-002
+    description: The deployed knowledge-init skill folder shall contain no package.json, no
+      node_modules, and no TypeScript source files.
+    ac_ids:
+      - AC-014
+  - id: NFR-003
+    description: The change shall not add top-level fields to the CLI envelope.
+    ac_ids:
+      - AC-015
+acceptance_criteria:
+  - id: AC-001
+    statement: Given a fresh clone of the repository, When the source tree is inspected, Then
+      src/skills/knowledge-init/SKILL.md is present.
+    parent_id: FR-001
+  - id: AC-002
+    statement: Given a destination agent root, When bin/deploy-to-agent.ts finishes, Then
+      skills/knowledge-init contains SKILL.md and manifest.json beside skills/agentic-sdlc.
+    parent_id: FR-002
+  - id: AC-003
+    statement: Given a destination with stale skill folders, When deployment runs with --clean, Then
+      both skill folders are removed and redeployed.
+    parent_id: FR-003
+  - id: AC-004
+    statement: Given a completed deployment, When the smoke test runs, Then its output reports both
+      skills verified.
+    parent_id: FR-004
+  - id: AC-005
+    statement: Given the deployed CLI, When a user runs the docs-init command, Then the CLI returns
+      UNKNOWN_COMMAND and the workflow list omits docs-init.
+    parent_id: FR-005
+  - id: AC-006
+    statement: Given the repository after the change, When template validation runs, Then it succeeds
+      with no reference to src/templates and the directory is absent.
+    parent_id: FR-006
+  - id: AC-007
+    statement: Given a change directory with accepted implementation in a project without docs/current,
+      When knowledge-extraction runs, Then the envelope carries a warning naming the knowledge-init
+      skill and no docs/current directory is created.
+    parent_id: FR-007
+  - id: AC-008
+    statement: Given the knowledge-init SKILL.md, When its index specification is read, Then the table
+      header lists exactly File, Purpose, When to Read, and Notes.
+    parent_id: FR-008
+  - id: AC-009
+    statement: Given the knowledge-init SKILL.md, When its declared outputs are listed, Then index.md
+      and the nine living documents appear and overview.md does not.
+    parent_id: FR-009
+  - id: AC-010
+    statement: Given a skill folder whose SKILL.md frontmatter name differs from its folder name, When
+      template validation runs, Then validation fails and names the skill folder.
+    parent_id: FR-010
+  - id: AC-011
+    statement: Given a project without docs/current, When doctor runs, Then the DOCS_INDEX_MISSING
+      guidance names the knowledge-init skill and the checks contain no templates entry.
+    parent_id: FR-011
+  - id: AC-012
+    statement: Given AGENTS.md after the change, When the deployed-runtime invariant is read, Then it
+      names exactly the two skills agentic-sdlc and knowledge-init.
+    parent_id: FR-012
+  - id: AC-013
+    statement: Given the validation suite, When npm run validate runs, Then it completes with the skill
+      check included.
+    parent_id: NFR-001
+  - id: AC-014
+    statement: Given the deployed knowledge-init folder, When its contents are listed, Then it holds
+      SKILL.md and manifest.json and no package.json, node_modules, or TypeScript sources.
+    parent_id: NFR-002
+  - id: AC-015
+    statement: Given any envelope from the changed workflows, When its top-level fields are inspected,
+      Then they are exactly workflow, step, state, instructions, data, errors, and warnings.
+    parent_id: NFR-003
+out_of_scope:
+  - Changes to the knowledge-extraction stage beyond the missing-docs warning are out of scope.
+  - The codemap skill and other user-installed skills under .opencode are out of scope.
+  - Renaming bin/validate-templates.ts or altering CLI envelope shapes is out of scope.
+  - Regenerating this repository's own docs/current content is out of scope; the cycle-end knowledge
+    extraction handles it.
+failure_paths:
+  - Deployment fails with an error naming the missing skill source when
+    src/skills/knowledge-init/SKILL.md is absent.
+  - The removed docs-init command returns UNKNOWN_COMMAND with the available workflow list.
+  - knowledge-extraction in a project without docs/current warns and leaves the directory uncreated.
+  - A skill folder with a frontmatter name mismatch fails template validation naming the folder.
+risks_and_dependencies:
+  - Amending the single-skill invariant in AGENTS.md requires design review before implementation.
+  - Removing src/templates touches deploy, doctor, and validation together; a partial removal breaks
+    npm run validate.
+  - A runtime may need registration steps beyond copying a second skill folder.
+  - Dropping the Size and Last Updated columns removes token-budget visibility from the index; the
+    per-document 3K token budget remains a skill rule.
+  - Existing e2e fixtures and helper deltas reference overview.md and must be updated.
+delta:
+  - phase: Requirements
+    target_doc: docs/current/decisions.md
+    change: Add
+    reason: Record the decision to deploy knowledge-init as a second skill and the sole creator of
+      docs/current.
+    date: 2026-08-24
+  - phase: Requirements
+    target_doc: docs/current/architecture.md
+    change: Modify
+    reason: The deployed runtime gains a second skill folder delivered by bin/deploy-to-agent.ts.
+    date: 2026-08-24
+  - phase: Requirements
+    target_doc: docs/current/operations.md
+    change: Modify
+    reason: Deployment and smoke coverage now spans two skills.
+    date: 2026-08-24
+  - phase: Requirements
+    target_doc: docs/current/conventions.md
+    change: Modify
+    reason: The docs/current index contract becomes a four-column navigation table.
+    date: 2026-08-24

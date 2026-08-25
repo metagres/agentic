@@ -6,7 +6,7 @@ discovery:
     - scope
     - interface
     - behavior
-    - design
+    - data
     - constraint
     - failure
     - outcome
@@ -22,6 +22,7 @@ discovery:
       required_lenses:
         - stakeholder
         - interface
+        - data
         - failure
         - constraint
       min_resolved_questions: 5
@@ -32,6 +33,8 @@ discovery:
         - scope
         - interface
         - behavior
-        - failure
+        - data
         - constraint
+        - failure
+        - outcome
       min_resolved_questions: 8

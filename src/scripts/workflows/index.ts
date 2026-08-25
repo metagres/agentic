@@ -5,7 +5,6 @@ import { runStage } from '../lib/kinds/index.ts';
 import { runStatus } from './status.ts';
 import { runFeedback } from './feedback.ts';
 import { runDoctor } from './doctor.ts';
-import { runDocsInit } from './docs-init.ts';
 import { parseArgs } from '../lib/cli.ts';
 
 interface WorkflowEntry {
@@ -28,13 +27,8 @@ const CROSS_CUTTING: Record<string, WorkflowEntry> = {
   },
   doctor: {
     id: 'doctor',
-    description: 'Check contracts, schemas, policies, templates, stages, and docs index.',
+    description: 'Check contracts, schemas, policies, stages, and docs index.',
     run(argv: string[]) { runDoctor(argv); },
-  },
-  'docs-init': {
-    id: 'docs-init',
-    description: 'Bootstrap docs/current/index.md for a target project.',
-    run(argv: string[]) { runDocsInit(argv); },
   },
 };
 

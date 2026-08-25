@@ -6,10 +6,10 @@ metadata:
   status: accepted
   version: 0.1.1
   created: 2026-08-24
-  updated: 2026-08-24
+  updated: 2026-08-25
   based_on_design: 0.1.0
   based_on_requirements: 0.2.0
-  implementation_status: ready-for-review
+  implementation_status: accepted
   delta_reviewed: true
 tasks:
   - id: TASK-001

@@ -319,6 +319,10 @@ function completeStep(env: AuthorEnv): void {
     meta.delta_reviewed = true;
   } else if (step === 'init') {
     meta.context_loaded = true;
+  } else if (step === 'discovery') {
+    meta.discovery_reviewed = true;
+  } else if (step === 'scenarios') {
+    meta.scenarios_reviewed = true;
   } else {
     throw new Error(`Cannot manually complete step '${String(step)}'.`);
   }
@@ -520,12 +524,17 @@ export async function runAuthoringStage(
               data: {
                 existing_changes: listExistingChanges(cwd),
                 candidates: err.candidates,
+                available_changes: err.available || [],
+                searched: err.searched || undefined,
               },
               errors: [
                 {
                   code: err.candidates.length > 0 ? 'AMBIGUOUS_CHANGE_DIR' : 'CHANGE_DIR_NOT_FOUND',
                   message: err.message,
                   candidates: err.candidates,
+                  ...(err.available.length > 0
+                    ? { fix: 'Use one of data.available_changes as --dir (the exact name or a unique part of it).' }
+                    : {}),
                 },
               ],
               warnings,
@@ -572,6 +581,13 @@ export async function runAuthoringStage(
       hooks,
       readYaml: safeReadYaml,
     };
+
+    // Optional stage startup hook (DEC-002): stage-specific configuration
+    // loading that runs before any command executes. Thrown coded errors
+    // surface as blocked envelopes through the catch below via err.code.
+    if (hooks && typeof hooks.startup === 'function') {
+      (hooks.startup as (e: AuthorEnv) => void)(env);
+    }
 
     if (args['next-ids']) {
       ensureArtifact(env);
@@ -771,7 +787,7 @@ export async function runAuthoringStage(
 
     if (step === 'needs_input') {
       data.existing_changes = listExistingChanges(cwd);
-    } else if (step === 'drafting' || step === 'discovery' || step === 'assumptions') {
+    } else if (step === 'drafting' || step === 'discovery' || step === 'scenarios' || step === 'assumptions') {
       data.next_ids = nextIdsFromArrays(env.artifact || {}, stage.nextIds);
     } else if (step === 'validation') {
       data.errors = blocking;

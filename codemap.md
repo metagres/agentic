@@ -11,8 +11,9 @@ discovered as folders (no central enumeration), validated by a capped catalog
 of generic structural checks, ordered by a `requires` DAG with an acceptance
 gate, and surfaced through a frozen JSON envelope
 `{workflow, step, state, instructions, data, errors, warnings}`. The built
-output is a single self-contained skill deployed to the agent runtime
-(`.opencode/skills/agentic-sdlc/` — a build artifact, never source).
+output is two self-contained skills deployed to the agent runtime
+(`.opencode/skills/agentic-sdlc/` and `.opencode/skills/knowledge-init/` —
+build artifacts, never source).
 
 ## System Entry Points
 - `src/scripts/sdlc.ts` — the agent-facing CLI (npm bin `sdlc`); dispatches to
@@ -39,12 +40,13 @@ output is a single self-contained skill deployed to the agent runtime
 | Directory | Responsibility Summary | Detailed Map |
 |---|---|---|
 | `bin/` | Standalone CLI entry points for validation and deployment, each wrapped by an npm script; assembles the self-contained skill bundle. | [View Map](bin/codemap.md) |
-| `src/` | Source tree: engine code, stage configuration, and the YAML asset layer (schemas/policies/templates) the engine loads and enforces. | [View Map](src/codemap.md) |
+| `src/` | Source tree: engine code, stage configuration, the skill source store (`src/skills/`), and the YAML asset layer (schemas/policies) the engine loads and enforces. | [View Map](src/codemap.md) |
 | `src/scripts/` | The sdlc CLI runtime: command dispatch, workflow resolution, frozen envelope emission. | [View Map](src/scripts/codemap.md) |
 | `src/scripts/lib/` | Engine core: stage-folder discovery, requires-DAG + acceptance gate, unified validation orchestrator, declarative step machine, shared plumbing. | [View Map](src/scripts/lib/codemap.md) |
 | `src/scripts/lib/checks/` | The capped catalog of eleven named generic structural checks — the single extension path for structural validation logic. | [View Map](src/scripts/lib/checks/codemap.md) |
 | `src/scripts/lib/kinds/` | The four kind interpreters (authoring flag loop, review append-only rounds, tasks state machine over plan.yaml, aggregator delta collection). | [View Map](src/scripts/lib/kinds/codemap.md) |
-| `src/scripts/workflows/` | Cross-cutting commands (status, feedback, doctor, docs-init) and the single `skillManifest` for the deployed skill. | [View Map](src/scripts/workflows/codemap.md) |
+| `src/scripts/workflows/` | Cross-cutting commands (status, feedback, doctor) and the single `skillManifest` for the deployed skill. | [View Map](src/scripts/workflows/codemap.md) |
+| `src/skills/` | Version-controlled skill sources: the knowledge-init SKILL.md deployed as a second self-contained skill beside agentic-sdlc. | documented here |
 | `src/stages/` | The structural source of truth: one folder per stage (9 stages) carrying the full declarative configuration, discovered by directory scan. | [View Map](src/stages/codemap.md) |
 
 Not mapped (excluded by design): `test/` (unit + e2e suites), `docs/`

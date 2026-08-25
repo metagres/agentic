@@ -19,6 +19,7 @@ function discoveryLog() {
     mk('DL-003', 'failure', 'What happens on duplicate registration?', 'The system rejects with a conflict response and logs it.'),
     mk('DL-004', 'constraint', 'Are there constraints?', 'Registration must finish within 500 ms and require an API key.'),
     mk('DL-005', 'scope', 'What is in scope?', 'Only creation of new device records, not updates or deletion.'),
+    mk('DL-006', 'data', 'What data is stored per device?', 'A device record with an external identifier and a registration timestamp.'),
   ];
 }
 
@@ -26,9 +27,9 @@ function defaultDelta(phase) {
   return [
     {
       phase,
-      target_doc: 'docs/current/overview.md',
+      target_doc: 'docs/current/architecture.md',
       change: 'Add',
-      reason: 'Add an overview section describing this change for the living docs.',
+      reason: 'Add an architecture section describing this change for the living docs.',
       date: '2026-07-23',
     },
   ];
@@ -52,6 +53,8 @@ export function validRequirements({
       clarity: 'partial',
       assumptions_reviewed: true,
       delta_reviewed: true,
+      discovery_reviewed: true,
+      scenarios_reviewed: true,
     },
     problem_statement:
       'Operators cannot register devices, so onboarding requires manual database edits.',

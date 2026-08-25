@@ -82,17 +82,6 @@ export function runDoctor(argv: string[]): void {
     });
   }
 
-  const templatesDir = resolveRuntimeDir('templates', cwd);
-  if (templatesDir) {
-    addCheck('templates_available', true, templatesDir);
-  } else {
-    addCheck('templates_available', false, 'No templates directory found');
-    errors.push({
-      ...makeError('TEMPLATES_MISSING'),
-      message: 'No templates directory found.',
-    });
-  }
-
   const stagesDir = resolveRuntimeDir('stages', cwd);
   if (stagesDir) {
     addCheck('stages_available', true, stagesDir);
@@ -168,6 +157,11 @@ export function runDoctor(argv: string[]): void {
             {
               message: err.message,
               candidates: err.candidates || [],
+              available_changes: err.available || [],
+              searched: err.searched || undefined,
+              ...(err.available.length > 0
+                ? { fix: 'Use one of data.available_changes as --dir (the exact name or a unique part of it).' }
+                : {}),
             }
           )
         );

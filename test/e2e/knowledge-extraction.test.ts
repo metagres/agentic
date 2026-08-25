@@ -13,14 +13,9 @@ const root = path.resolve(__dirname, '../..');
 const cli = path.join(root, 'src', 'scripts', 'sdlc.ts');
 
 function makeTmpProject() {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-kx-'));
-  fs.mkdirSync(path.join(tmp, 'docs', 'current'), { recursive: true });
-  fs.writeFileSync(
-    path.join(tmp, 'docs', 'current', 'index.md'),
-    '# Current Docs Index\n| File | Purpose | When to Read | Notes |\n|---|---|---|---|\n| docs/current/overview.md | System overview | Start here | Fixture |\n',
-    'utf8'
-  );
-  return tmp;
+  // No docs/current: the knowledge-init skill is the sole creator, so the
+  // stage must warn (DOCS_INDEX_MISSING) without creating the directory.
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-kx-'));
 }
 
 function run(tmp, args, input) {
@@ -35,18 +30,18 @@ function run(tmp, args, input) {
 
 test('knowledge extraction lists deltas and completes', () => {
   const tmp = makeTmpProject();
-  let out = run(tmp, ['requirements', '--request', 'Add overview']);
+  let out = run(tmp, ['requirements', '--request', 'Add architecture note']);
   const changeRoot = out.data.change_root;
   const changeDir = path.basename(changeRoot);
 
   const withDelta = validRequirements({
-    request: 'Add overview',
+    request: 'Add architecture note',
     delta: [
       {
         phase: 'Requirements',
-        target_doc: 'docs/current/overview.md',
+        target_doc: 'docs/current/architecture.md',
         change: 'Add',
-        reason: 'Add device registration overview section.',
+        reason: 'Add device registration architecture section.',
         date: '2026-07-23',
       },
     ],
@@ -60,10 +55,32 @@ test('knowledge extraction lists deltas and completes', () => {
 
   out = run(tmp, ['knowledge-extraction', '--dir', changeDir]);
   assert.equal(out.data.deltas_to_apply.length, 1);
-  assert.equal(out.data.deltas_to_apply[0].target_doc, 'docs/current/overview.md');
+  assert.equal(out.data.deltas_to_apply[0].target_doc, 'docs/current/architecture.md');
+
+  // Without docs/current the stage warns and names the knowledge-init skill.
+  const listingWarning = out.warnings.find((w) => w.code === 'DOCS_INDEX_MISSING');
+  assert.ok(
+    listingWarning,
+    `Expected DOCS_INDEX_MISSING warning. Got: ${JSON.stringify(out.warnings)}`
+  );
+  assert.match(listingWarning.fix, /knowledge-init/);
+  assert.ok(
+    !fs.existsSync(path.join(tmp, 'docs', 'current')),
+    'the stage must not create docs/current'
+  );
 
   out = run(tmp, ['knowledge-extraction', '--dir', changeDir, '--complete']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
+
+  const completeWarning = out.warnings.find((w) => w.code === 'DOCS_INDEX_MISSING');
+  assert.ok(
+    completeWarning,
+    `Expected DOCS_INDEX_MISSING warning on --complete. Got: ${JSON.stringify(out.warnings)}`
+  );
+  assert.ok(
+    !fs.existsSync(path.join(tmp, 'docs', 'current')),
+    'the stage must not create docs/current'
+  );
 
   const dd = readYaml(path.join(changeRoot, 'docs-delta.yaml'));
   assert.equal(dd.metadata.status, 'complete');

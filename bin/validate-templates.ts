@@ -3,17 +3,18 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { readYaml } from '../src/scripts/lib/yaml-io.ts';
+import { readYaml, parseYamlString } from '../src/scripts/lib/yaml-io.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const stagesDir = path.join(root, 'src', 'stages');
-const templatesDir = path.join(root, 'src', 'templates');
+const skillsDir = path.join(root, 'src', 'skills');
 
 const expectedKeys = {
   requirements: [
     'metadata',
     'problem_statement',
     'discovery_log',
+    'scenarios',
     'assumptions',
     'functional_requirements',
     'non_functional_requirements',
@@ -85,6 +86,20 @@ for (const [stageId, keys] of Object.entries(expectedKeys)) {
       );
     }
 
+    // Requirements initialization contract (CMP-010, AC-016): the template must
+    // start scenarios as an empty array with both confirmation flags false so a
+    // freshly created change routes into discovery and scenarios.
+    if (stageId === 'requirements') {
+      if (!Array.isArray(doc.scenarios) || doc.scenarios.length !== 0) {
+        throw new Error('requirements template scenarios must be an empty array');
+      }
+      if (metadata.discovery_reviewed !== false || metadata.scenarios_reviewed !== false) {
+        throw new Error(
+          'requirements template must initialize discovery_reviewed and scenarios_reviewed to false'
+        );
+      }
+    }
+
     results.push({
       file: `stages/${stageId}/template.yaml`,
       ok: true,
@@ -100,32 +115,78 @@ for (const [stageId, keys] of Object.entries(expectedKeys)) {
   }
 }
 
-// Validate docs index template.
-try {
-  const indexFile = path.join(templatesDir, 'docs-current-index.md');
+// Validate skill folders: every folder under src/skills must carry a SKILL.md
+// whose frontmatter (the YAML block between the opening --- markers) has a
+// name equal to the folder name and a non-empty description.
+const skillResults: { file: string; ok: boolean; error?: string }[] = [];
 
-  if (!fs.existsSync(indexFile)) {
-    throw new Error(`Missing template file: ${indexFile}`);
-  }
-
-  const content = fs.readFileSync(indexFile, 'utf8');
-
-  if (!content.includes('| File | Purpose | When to Read | Notes |')) {
-    throw new Error('docs-current-index.md is missing the expected table header');
-  }
-
-  results.push({
-    file: 'docs-current-index.md',
-    ok: true,
-  });
-} catch (err: unknown) {
+if (!fs.existsSync(skillsDir)) {
   failed = true;
+  skillResults.push({ file: 'src/skills', ok: false, error: 'Missing skills directory' });
+} else {
+  const skillFolders = fs
+    .readdirSync(skillsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
 
-  results.push({
-    file: 'docs-current-index.md',
-    ok: false,
-    error: err instanceof Error ? err.message : String(err),
-  });
+  for (const folderName of skillFolders) {
+    const skillMdPath = path.join(skillsDir, folderName, 'SKILL.md');
+
+    try {
+      if (!fs.existsSync(skillMdPath)) {
+        throw new Error(`Missing SKILL.md in skill folder '${folderName}'`);
+      }
+
+      const lines = fs.readFileSync(skillMdPath, 'utf8').split('\n');
+
+      if (lines[0]?.trim() !== '---') {
+        throw new Error('SKILL.md is missing frontmatter');
+      }
+
+      let end = -1;
+      for (let i = 1; i < lines.length; i += 1) {
+        if (lines[i].trim() === '---') {
+          end = i;
+          break;
+        }
+      }
+
+      if (end === -1) {
+        throw new Error('SKILL.md frontmatter is not terminated');
+      }
+
+      const frontmatter = parseYamlString(
+        lines.slice(1, end).join('\n'),
+        `skills/${folderName}/SKILL.md`
+      );
+
+      if (!frontmatter || typeof frontmatter !== 'object' || Array.isArray(frontmatter)) {
+        throw new Error('SKILL.md frontmatter is not a YAML mapping');
+      }
+
+      const name = (frontmatter as Record<string, unknown>).name;
+      if (name !== folderName) {
+        throw new Error(
+          `frontmatter name '${String(name)}' does not match folder name '${folderName}'`
+        );
+      }
+
+      const description = (frontmatter as Record<string, unknown>).description;
+      if (typeof description !== 'string' || description.trim() === '') {
+        throw new Error('frontmatter description must be a non-empty string');
+      }
+
+      skillResults.push({ file: `skills/${folderName}/SKILL.md`, ok: true });
+    } catch (err: unknown) {
+      failed = true;
+      skillResults.push({
+        file: `skills/${folderName}/SKILL.md`,
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 }
 
 console.log(
@@ -133,6 +194,7 @@ console.log(
     {
       ok: !failed,
       templates: results,
+      skills: skillResults,
     },
     null,
     2
