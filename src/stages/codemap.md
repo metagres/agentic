@@ -13,11 +13,11 @@ directory is copied next to the CLI and `hooks.ts` is compiled to `hooks.js`
 ## Stage Inventory
 | Stage (folder) | Kind | Artifact / status field | requires | reviews / review file | Declared structural checks | Steps (steps.yaml) | Hooks | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `requirements/` | authoring | requirements.yaml / `status` | — | — | unique-ids, referenced-by, duplicate-refs ×2, given-when-then, forbidden-words, sentence-count | needs_input, init, **discovery**, **assumptions**, drafting, validation, delta, recovery, ready, complete | yes | Also carries `requirements-policy.yaml` (discovery gate policy); delta phase `Requirements`; next ids FR/NFR/AC/DL |
+| `requirements/` | authoring | requirements.yaml / `status` | — | — | unique-ids, ref-exists ×3, referenced-by, duplicate-refs ×2, given-when-then, forbidden-words, sentence-count | needs_input, init, authoring, recovery, ready, complete | yes | Also carries `requirements-policy.yaml` (discovery gate policy); ONE merged `acceptance_criteria` list (id, Given-When-Then statement, category happy/edge/negative/boundary, parent_id) — no scenarios array; delta phase `Requirements`; next ids FR/NFR/AC/DL |
 | `requirements-review/` | review | requirements.yaml / `status` | — | requirements → requirements-review.yaml | — (no structural checks of its own; runs the target stage's) | needs_input, review, accept, reject | no | |
-| `design/` | authoring | design.yaml / `status` | requirements-review | — | sentence-count, ref-exists, duplicate-refs | needs_input, init, drafting, validation, delta, recovery, ready, complete | yes | Cross-file `ref-exists` into requirements.yaml; delta phase `Design`; next ids CMP/DM/API/DEC |
+| `design/` | authoring | design.yaml / `status` | requirements-review | — | sentence-count, ref-exists, duplicate-refs | needs_input, init, authoring, recovery, ready, complete | yes | Cross-file `ref-exists` into requirements.yaml; delta phase `Design`; next ids CMP/DM/API/DEC |
 | `design-review/` | review | design.yaml / `status` | — | design → design-review.yaml | — | needs_input, review, accept, reject | no | |
-| `planning/` | authoring | plan.yaml / `status` | requirements-review, design-review | — | ref-exists ×3, dependency-acyclic, dependency-order | needs_input, init, drafting, validation, delta, recovery, ready, complete | yes | Cross-file refs into requirements.yaml + design.yaml; delta phase `Planning`; next id TASK |
+| `planning/` | authoring | plan.yaml / `status` | requirements-review, design-review | — | ref-exists ×3, dependency-acyclic, dependency-order | needs_input, init, authoring, recovery, ready, complete | yes | Cross-file refs into requirements.yaml + design.yaml; complexity/milestones/risks optional; delta phase `Planning`; next id TASK |
 | `planning-review/` | review | plan.yaml / `status` | — | planning → **plan-review.yaml** (note: not `planning-review.yaml`) | — | needs_input, review, accept, reject | no | |
 | `implementation/` | tasks | plan.yaml / `implementation_status` | planning-review | — | required-note-for-status, all-tasks-terminal | needs_input, progress, complete | no | Shares plan.yaml with planning; no template (not authoring); drives the task state machine |
 | `implementation-review/` | review | plan.yaml / `implementation_status` | — | implementation → implementation-review.yaml | — | needs_input, review, accept, reject | no | |
@@ -56,13 +56,17 @@ tasks = `stage.yaml` + `structural-checks.yaml` + `schema.yaml` +
 - **Step machine from steps.yaml**: `steps.yaml` defines the per-stage steps
   with `title`, `next_action`, `markdown` (LLM instructions, templated with
   `{{SDLC}}`, `{{change_name}}`, `{{stage}}`), `commands`, and declarative
-  `complete_when` predicates (DM-003). Authoring stages share the canonical
-  step set (needs_input, init, drafting, validation, delta, recovery, ready,
-  complete); requirements adds the non-canonical `discovery` and
-  `assumptions` steps (driven by hooks + predicates); review stages declare
-  needs_input/review/accept/reject; implementation declares needs_input/
-  progress/complete; knowledge-extraction declares needs_input/docs_delta/
-  complete.
+  `complete_when` predicates (DM-003). Every authoring stage declares the
+  same canonical six-step tour (needs_input, init, authoring, ready,
+  complete, recovery), detected from artifact state; discovery/scenarios/
+  assumptions guidance is folded into the `authoring` step, and any extra
+  steps.yaml step beyond the six remains declarative, driven by its
+  `complete_when` predicate. Finalize is one call (`--finalize
+  --confirm-semantic`) evaluating gate, mechanical validation, and semantic
+  confirmation; legacy `--complete-step` names are still accepted. Review
+  stages declare needs_input/review/accept/reject; implementation declares
+  needs_input/progress/complete; knowledge-extraction declares
+  needs_input/docs_delta/complete.
 - **hooks.ts — the only stage-specific code** (DEC-016; never participates in
   validation):
   - `requirements/hooks.ts` — the **discovery gate**: `discoveryGate(env)`
@@ -71,13 +75,16 @@ tasks = `stage.yaml` + `structural-checks.yaml` + `schema.yaml` +
     `clear`/`partial`/`vague` each with `required_lenses` and
     `min_resolved_questions`) with built-in fallbacks; the gate passes when
     every required lens has a resolved `discovery_log` entry and the resolved
-    question count meets the minimum. Exports `extraStep` (returns
-    `discovery` until the gate passes, else `assumptions` until
-    `assumptions` is non-empty or `metadata.assumptions_reviewed`),
-    `getExtraData` (exposes `discovery_gate` + `assumptions_complete` in the
-    envelope), `recordAnswer` (allocates the next `DL-NNN` id and appends a
-    resolved entry from `--lens/--question/--answer`), and `setClarity`
-    (validates `clear|partial|vague`, writes `metadata.clarity`).
+    question count meets the minimum. Exports `startup` (loads/validates the
+    policy before any command), `getExtraData` (exposes `discovery_gate`,
+    `scenarios_state`, and `assumptions_complete` in the envelope),
+    `recordAnswer` (allocates the next `DL-NNN` id and appends a
+    resolved entry from `--lens/--question/--answer`; also driven per entry by
+    batch `--record-answers <file>`), and `setClarity`
+    (validates `clear|partial|vague`, writes `metadata.clarity`). The legacy
+    `extraStep` export is retained but no longer consulted — step detection is
+    purely from artifact state, with discovery/assumptions guidance folded
+    into the `authoring` step.
   - `design/hooks.ts` — advisory `preconditionWarnings` (`PREVIOUS_STAGE_NOT_READY`
     when requirements.yaml is not ready-for-review/accepted) and
     `getExtraData` (`based_on_requirements`).

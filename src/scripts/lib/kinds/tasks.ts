@@ -271,6 +271,33 @@ export async function runTasksStage(
         return;
       }
 
+      // Write-time enforcement (DEC-002): a done transition without a
+      // non-empty note is rejected before any state is written.
+      if (status === 'done' && !String(args.note || '').trim()) {
+        writeJson(
+          {
+            ...base,
+            state: 'blocked',
+            instructions:
+              `Task ${taskId} cannot be marked done without a non-empty implementation note. ` +
+              'Re-run with --note "..." describing what was implemented.',
+            data: {
+              change_root: changeRoot,
+              plan: planPath,
+              task_id: taskId,
+            },
+            errors: [
+              makeError('TASK_DONE_REQUIRES_NOTE', {
+                message: `Task ${taskId} cannot be marked done without a non-empty --note.`,
+              }),
+            ],
+            warnings: [],
+          },
+          EXIT.usage
+        );
+        return;
+      }
+
       task.status = status;
 
       if (args.note) {
@@ -285,12 +312,22 @@ export async function runTasksStage(
         task.completed_at = today();
       }
 
-      if (args.files) {
-        task.files_changed = parseFiles(String(args.files));
-      }
-
       if (!Array.isArray(task.files_changed)) {
         task.files_changed = [];
+      }
+
+      if (args.files) {
+        const changed = task.files_changed as Record<string, unknown>[];
+        for (const entry of parseFiles(String(args.files))) {
+          const duplicate = changed.some(
+            (existing) =>
+              String(existing?.path) === entry.path &&
+              String(existing?.operation) === entry.operation
+          );
+          if (!duplicate) {
+            changed.push(entry);
+          }
+        }
       }
 
       const plannedPaths = new Set(

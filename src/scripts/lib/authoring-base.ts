@@ -4,14 +4,13 @@ import { deltaComplete } from './stage-helpers.ts';
 import type { StageRecord } from './stage-registry.ts';
 import type { WarningItem, Finding } from './types.ts';
 
-// Canonical authoring step ids; any other step declared in steps.yaml is an
-// extra step driven by its complete_when predicate or the stage hooks module.
+// Canonical authoring step ids (FLW-002): the six-step tour every authoring
+// stage declares in steps.yaml. Any other step declared in steps.yaml is an
+// extra step driven by its complete_when predicate.
 export const CANONICAL_STEPS = new Set([
   'needs_input',
   'init',
-  'drafting',
-  'validation',
-  'delta',
+  'authoring',
   'ready',
   'complete',
   'recovery',
@@ -42,12 +41,16 @@ export function stepPredicate(
 }
 
 /**
- * Generic authoring step machine (FLW-002): needs_input, init, recovery,
- * stage-declared extra steps, drafting, validation, delta, ready, complete.
- * Artifact-driven steps (init, drafting, delta, extra steps) are evaluated
- * through declarative complete_when predicates from steps.yaml (DM-003); the
- * interaction steps (validation, recovery, ready, complete) are evaluated from
- * runtime validation state and artifact status exactly as before.
+ * Generic authoring step machine (FLW-002): needs_input, init, authoring,
+ * ready, complete, recovery. The current step is detected purely from artifact
+ * state — never from stage hooks or granular in-artifact confirmation flags:
+ * - no change root -> needs_input; no artifact -> init
+ * - init predicate unsatisfied -> init (created but empty)
+ * - rejected status or blocking mechanical findings -> recovery
+ * - ready-for-review / accepted -> complete, otherwise the tour runs through
+ *   ready (authoring predicate satisfied) or authoring (still drafting).
+ * Stage-declared extra steps beyond the canonical six remain declarative and
+ * are evaluated through their complete_when predicates from steps.yaml.
  */
 export function detectStep(env: AuthorEnv): string {
   if (!env.changeRoot) return 'needs_input';
@@ -58,13 +61,8 @@ export function detectStep(env: AuthorEnv): string {
 
   if (!evaluatePredicate(stepPredicate(env, 'init'), artifact)) return 'init';
 
-  // Extra steps come first from the stage hooks module (requirements discovery
-  // gate / assumptions), then from declarative extra steps in steps.yaml.
-  const hooks = env.hooks as Record<string, unknown> | null;
-  if (hooks && typeof hooks.extraStep === 'function') {
-    const extra = (hooks.extraStep as (e: AuthorEnv) => string | null)(env);
-    if (extra) return extra;
-  }
+  const blockingCount = (env.blocking as unknown[])?.length || 0;
+  if (blockingCount > 0) return 'recovery';
 
   const steps = loadStepDefinitions(env.stage);
   for (const stepId of Object.keys(steps)) {
@@ -72,18 +70,10 @@ export function detectStep(env: AuthorEnv): string {
     if (!evaluatePredicate(steps[stepId]?.complete_when, artifact)) return stepId;
   }
 
-  if (!evaluatePredicate(stepPredicate(env, 'drafting'), artifact)) return 'drafting';
-
-  const blockingCount = (env.blocking as unknown[])?.length || 0;
-  const semantic = env.semantic as { complete?: boolean } | undefined;
-  const semanticComplete = Boolean(semantic?.complete);
-  if (blockingCount > 0 || !semanticComplete) return 'validation';
-
-  if (!evaluatePredicate(stepPredicate(env, 'delta'), artifact)) return 'delta';
   if (metadata?.status === 'ready-for-review' || metadata?.status === 'accepted') {
     return 'complete';
   }
-  return 'ready';
+  return evaluatePredicate(stepPredicate(env, 'authoring'), artifact) ? 'ready' : 'authoring';
 }
 
 export function isReadyForReview(env: AuthorEnv): { ready: boolean; reasons: string[] } {
@@ -97,8 +87,8 @@ export function isReadyForReview(env: AuthorEnv): { ready: boolean; reasons: str
   if (!evaluatePredicate(stepPredicate(env, 'init'), artifact)) {
     reasons.push('init is not complete');
   }
-  if (!evaluatePredicate(stepPredicate(env, 'drafting'), artifact)) {
-    reasons.push('draft is not complete');
+  if (!evaluatePredicate(stepPredicate(env, 'authoring'), artifact)) {
+    reasons.push('authoring is not complete');
   }
   const blockingCount = (env.blocking as unknown[])?.length || 0;
   if (blockingCount > 0) {
@@ -118,7 +108,7 @@ export function getData(env: AuthorEnv): Record<string, unknown> {
   const artifact = (env.artifact || {}) as Record<string, unknown>;
   const semantic = env.semantic as { complete?: boolean } | undefined;
   const data: Record<string, unknown> = {
-    draft_complete: evaluatePredicate(stepPredicate(env, 'drafting'), artifact),
+    authoring_complete: evaluatePredicate(stepPredicate(env, 'authoring'), artifact),
     mechanical_valid: ((env.blocking as unknown[])?.length || 0) === 0,
     semantic_complete: Boolean(semantic?.complete),
     delta_complete: deltaComplete(artifact),

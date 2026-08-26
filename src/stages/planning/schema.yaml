@@ -6,8 +6,6 @@
   "required": [
     "metadata",
     "tasks",
-    "milestones",
-    "risks",
     "delta"
   ],
   "properties": {

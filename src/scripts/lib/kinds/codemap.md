@@ -11,27 +11,34 @@ requires no TypeScript change; adding a kind is a design-review event.
   `runAggregatorStage`; an unknown kind throws (unreachable — the registry
   rejects unknown kinds at startup).
 - **Authoring — flag loop + declarative step machine** (`authoring.ts`):
-  `runAuthoringStage` (`:482`) is the generic authoring interpreter. The step
+  `runAuthoringStage` (`:555`) is the generic authoring interpreter. The step
   machine itself lives in `../authoring-base.ts` (`detectStep`,
   `isReadyForReview`, `getData`, `CANONICAL_STEPS`). Key sub-behaviors:
-  `createChangeDir` (`:109`, slug via `slugify`/`uniqueSlug` under
+  `createChangeDir` (`:109`, slug via `slugify` (word-boundary truncation at
+  60 chars)/`uniqueSlug` under
   `docs/changes/`), `instantiateArtifact` (`:74`, renders the stage
   `template.yaml` with title/`request_summary`/`based_on_*`/date tokens,
   status `draft`, step `init`, version `0.1.0`), `applyUpdateArtifact`
   (`:203`, merges stdin YAML over the artifact preserving existing
-  status/version/created), `appendDelta` (`:224`, validates each delta entry —
+  status/version/created; delta arrays in the merge are normalized like
+  `--append-delta` — phase defaults from the stage delta phase, date to
+  today, API-003), `appendDelta` (`:295`, validates each delta entry —
   `target_doc` must be listed in `docs/current/index.md` unless the index is
   missing (warning `DOCS_INDEX_MISSING`), `change` ∈ Add/Modify/Remove,
   `reason` ≥ 10 chars, `date` YYYY-MM-DD, Modify/Remove need
-  `target_anchor` (verified via `headingExists`) or `entity_id`),
-  `completeStep` (`:311`, manual completion only for `assumptions`, `delta`,
-  `init` → sets `assumptions_reviewed`/`delta_reviewed`/`context_loaded`),
-  `finalizeArtifact` (`:340`, validation pass → version bump (explicit
+  `target_anchor` (verified via `headingExists`) or `entity_id` — then
+  normalizes the entries before appending),
+  `completeStep` (`:380`, manual completion for `assumptions`, `delta`,
+  `init` plus the legacy `discovery`/`scenarios` names → sets
+  `assumptions_reviewed`/`delta_reviewed`/`context_loaded`/
+  `discovery_reviewed`/`scenarios_reviewed`),
+  `finalizeArtifact` (`:413`, validation pass → version bump (explicit
   `--bump-version`, else `patch` from `rejected` / `minor` from `accepted`) →
   status `ready-for-review`, step `complete`), `markMutated` (`:150`,
   downgrades status to `draft` unless already `draft`/`rejected` or
-  `--keep-status`). Hooks extension points: `extraStep`, `getExtraData`,
-  `recordAnswer`, `setClarity`, `preconditionWarnings`.
+  `--keep-status`). Hooks extension points: `startup`, `extraStep` (legacy —
+  no longer consulted by `detectStep`), `getExtraData`, `recordAnswer`,
+  `setClarity`, `preconditionWarnings`.
 - **Review — append-only round log + gate** (`review.ts`):
   `runReviewStage(stage, argv, cwd, options?)` (`:34`) resolves the `reviews`
   target, runs `evaluateGate` (review gate: tracked artifact
@@ -50,11 +57,14 @@ requires no TypeScript change; adding a kind is a design-review event.
 - **Tasks — plan.yaml state machine** (`tasks.ts`):
   `runTasksStage` (`:123`) over `stage.artifact` (plan.yaml). Allowed task
   statuses `ALLOWED_TASK_STATUS` (`:13`: pending, in_progress, done, blocked,
-  skipped). Task update: `--task-id` + `--status` (both required), optional
-  `--note` (→ `implementation_note`), `--files "op:path,..."`
-  (`parseFiles` `:53`, ops create/modify/delete, default modify); stamps
-  `started_at` on first `in_progress`, `completed_at` on `done`; warns
-  `UNPLANNED_FILE` for changes outside the task's planned `files`.
+   skipped). Task update: `--task-id` + `--status` (both required), optional
+   `--note` (→ `implementation_note`; required when `--status done`,
+   `TASK_DONE_REQUIRES_NOTE`), `--files "op:path,..."`
+   (`parseFiles` `:53`, ops create/modify/delete, default modify); the
+   interpreter owns `started_at`/`completed_at`/`files_changed`: stamps
+   `started_at` on first `in_progress`, `completed_at` on `done`, and
+   initializes `files_changed`; warns
+   `UNPLANNED_FILE` for changes outside the task's planned `files`.
   `computeProgress` (`:78`) derives counts, `complete` (done+skipped ==
   total), and `next_task_ids` (pending tasks whose `depends_on` are all
   `done`). `implementation_status` transitions: `ready-for-review` when
@@ -85,15 +95,20 @@ All four share the same skeleton:
 4. Kind-specific work (mutates the artifact/plan/review file via
    `writeYamlAtomic`):
    - authoring: optional mutation flags (`--next-ids`, `--update-artifact`,
-     `--record-answer`, `--set-clarity`, `--append-delta`, `--complete-step`),
+     `--record-answer`, `--record-answers <file>` (batch: YAML array of
+     `{lens, question, answer}` entries routed through the same `recordAnswer`
+     hook per entry, sequential DL ids, failures name the entry index),
+     `--set-clarity`, `--append-delta`, `--complete-step`),
      then `--finalize` (gate → `validateArtifact` → blocking findings block
-     with step `validation` → semantic checklist requires
-     `--confirm-semantic` → `finalizeArtifact`), then the state-recalculation
-     path: `validateArtifact` → `detectStep` → render the step's
-      `markdown`/`commands` from `steps.yaml` (template vars `SDLC`,
-      `change_name`, `stage`) → step-specific `data` (`existing_changes`,
-     `next_ids`, `errors`, `delta_allowed_target_docs`) + `getData` booleans +
-     `metadata` + `step_help` + `review_report` → `writeJson` (state:
+     with step `recovery` → semantic checklist blocks with step
+     `semantic_review` until `--confirm-semantic` → `finalizeArtifact`), then
+     the state-recalculation path: `validateArtifact` → `detectStep` → render
+     the step's `markdown`/`commands` from `steps.yaml` (template vars `SDLC`,
+     `change_name`, `stage`) as the envelope instructions → step-specific
+     `data` (`existing_changes`, `next_ids`, `errors`,
+     `delta_allowed_target_docs`) + `getData` booleans + `metadata` +
+     `review_report`; `step_help` is opt-in, included only when the invocation
+     carries `--help-step` (DEC-003) → `writeJson` (state:
      `complete`/`in_progress`/`blocked`).
    - review: gate → read target artifact (`ARTIFACT_NOT_FOUND` if missing) →
      `validateArtifact(targetStage.id, ...)` → decision (`accepted` /

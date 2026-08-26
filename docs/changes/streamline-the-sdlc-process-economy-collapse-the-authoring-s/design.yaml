@@ -1,0 +1,187 @@
+metadata:
+  id: DES-001
+  title: "Design: streamline-the-sdlc-process-economy-collapse-the-authoring-s"
+  stage: design
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-25
+  updated: 2026-08-25
+  based_on_requirements: 0.1.0
+  delta_reviewed: false
+  step: complete
+context_summary: "Two dogfooded cycles measured the toolkit's process economy and found the cost
+  concentrated in round-trips, duplicated artifact text, and late failures. This design reforms the
+  engine along six axes: a slimmer envelope payload with opt-in step guidance, write-time
+  enforcement replacing review-time discovery, a real docs-index parser, one merged
+  acceptance-criteria list replacing the scenario/AC duality, a collapsed authoring step tour with
+  one-call finalize, and a leaner planning model with CLI-owned task state. Validate splits from e2e
+  so the fast gate actually gets run, and batch recording plus word-boundary slugs remove two
+  recurring irritations."
+components:
+  - id: CMP-001
+    name: Envelope Payload Slimming
+    responsibility: Authoring envelope assembly omits data.step_help unless the invocation carries
+      --help-step; all seven frozen top-level fields remain. Existing consumers reading instructions
+      continue unchanged.
+  - id: CMP-002
+    name: Write-Time Enforcement
+    responsibility: The tasks interpreter rejects a done transition without a non-empty note at write
+      time naming the task; applyUpdateArtifact normalizes delta entries identically to append-delta
+      (phase defaults from the stage delta phase, date defaults to today). The tasks interpreter
+      also owns started_at, completed_at, and files_changed, setting them on transitions so plans
+      carry authored content only.
+  - id: CMP-003
+    name: Docs-Index Parser Fix
+    responsibility: parseDocsIndex accepts table rows whose first cell is a bare filename
+      (architecture.md) in addition to docs/current-prefixed paths, normalizing to the prefixed
+      form, so loadDocsIndex returns the real documents and delta target and anchor validation
+      executes.
+  - id: CMP-004
+    name: Merged Acceptance-Criteria Model
+    responsibility: The requirements stage validates one acceptance_criteria list whose entries carry
+      id, statement (Given-When-Then), category (happy, edge, negative, boundary), and parent_id.
+      The scenarios list, its ref-exists declarations, and the promotion/back-fill workflow
+      disappear; structural checks are redeclared against the merged list with every removed check
+      consciously re-declared or dropped with rationale; template, steps guidance, and semantic
+      checklist wording follow.
+  - id: CMP-005
+    name: Delta Deduplication
+    responsibility: The aggregator merges collected delta entries per target document and change type
+      before presenting deltas_to_apply, so triple-phase authoring collapses to one edit per doc at
+      application time.
+  - id: CMP-006
+    name: Collapsed Authoring Steps
+    responsibility: The three authoring stages expose needs_input, init, authoring, ready, complete, and
+      recovery; detectStep maps artifact state onto the reduced set; finalize evaluates mechanical
+      validation and the semantic gate in one call. record-answer, set-clarity, and all other flags
+      remain functional; the requirements discovery policy keeps loading and its gate result stays
+      reported without gating intermediate steps.
+  - id: CMP-007
+    name: Lean Planning Model
+    responsibility: The planning schema makes complexity optional and milestones and risks optional
+      lists; the template stops emitting task bookkeeping fields; validation passes artifacts that
+      omit them.
+  - id: CMP-008
+    name: Validate Tier Split
+    responsibility: npm run validate runs schemas, policies, templates, typecheck, and unit tests only;
+      e2e remains in test:e2e and check:all. Documentation states the new contract.
+  - id: CMP-009
+    name: Batch Recording and Slug Generation
+    description: ""
+    responsibility: --record-answers accepts a YAML file of lens, question, answer entries recorded
+      sequentially in one call; change-directory slugs derive from the request at word boundaries
+      within the length budget with no trailing hyphen or mid-word truncation.
+data_models:
+  - id: DM-001
+    name: Merged criterion entry
+    fields: id (AC-NNN), statement (Given-When-Then), category (happy, edge, negative, boundary),
+      parent_id (FR-NNN or NFR-NNN). Replaces both the scenarios entry and the old
+      acceptance_criteria entry.
+  - id: DM-002
+    name: Collapsed authoring step set
+    fields: needs_input, init, authoring, ready, complete, recovery; detection derives from artifact
+      completeness and status exactly as today but mapping onto fewer targets.
+apis:
+  - id: API-001
+    path: --help-step
+    method: cli-flag
+    description: Restores data.step_help in the response for the current step when passed.
+  - id: API-002
+    path: --record-answers <file>
+    method: cli-flag
+    description: Records a YAML array of lens, question, answer entries in one invocation with
+      sequential DL allocation.
+  - id: API-003
+    path: normalizeDeltaEntries(entries, stage)
+    method: internal
+    description: "Shared normalization for append-delta and update-artifact delta arrays: defaults phase
+      and date, validates target and change values."
+flows:
+  - id: FLW-001
+    name: One-call authoring finalize
+    steps:
+      - The agent authors the full artifact and pipes it through --update-artifact.
+      - A single --finalize --confirm-semantic call runs schema validation, structural checks, and
+        the semantic evaluation, returning findings and status together.
+      - The review stage appends its round and accepts or rejects as before.
+decisions:
+  - id: DEC-001
+    title: One criteria list replaces scenarios and acceptance criteria
+    context: Measured 99 percent average text similarity between promoted pairs; double authoring and
+      review for identical content.
+    decision: A single acceptance_criteria list with category and parent_id; completed changes are never
+      migrated because they are final.
+    status: accepted
+  - id: DEC-002
+    title: Enforce at write time
+    context: Eleven review-time findings traced to one missing-note root cause; fourteen schema errors
+      from unnormalized delta entries.
+    decision: Transitions and updates validate their own completeness at write time; review gates stop
+      re-discovering construction errors.
+    status: accepted
+  - id: DEC-003
+    title: Step guidance becomes opt-in
+    context: step_help dominated envelope payloads on every call while experienced agents rarely read it.
+    decision: Omit step_help by default; --help-step restores it; top-level envelope shape untouched.
+    status: accepted
+  - id: DEC-004
+    title: Collapse the authoring tour, keep granular recovery
+    context: Eight step stops taxed capable agents without catching what mattered; gates that remained
+      were self-confirmed.
+    decision: Six steps with one-call finalize; record-answer and set-clarity stay functional; recovery
+      paths keep their dedicated steps.
+    status: accepted
+  - id: DEC-005
+    title: Fast validation is the default gate
+    context: Validate including e2e deploy builds was slow enough that implementers skipped it.
+    decision: validate runs the seconds-long suite; check:all keeps full coverage before completion.
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-002
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-002
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-003
+  - requirement_id: FR-005
+    component_ids:
+      - CMP-004
+  - requirement_id: FR-006
+    component_ids:
+      - CMP-005
+  - requirement_id: FR-007
+    component_ids:
+      - CMP-006
+  - requirement_id: FR-008
+    component_ids:
+      - CMP-007
+      - CMP-002
+  - requirement_id: FR-009
+    component_ids:
+      - CMP-008
+  - requirement_id: FR-010
+    component_ids:
+      - CMP-009
+  - requirement_id: FR-011
+    component_ids:
+      - CMP-009
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-001
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-004
+delta:
+  - phase: Design
+    change: Modify
+    reason: "Record the reform decisions: merged criteria list, write-time enforcement, opt-in step
+      guidance, collapsed authoring tour, validate tier split, CLI-owned task state."
+    target_doc: docs/current/decisions.md
+    target_anchor: "Living: Cycle Decisions"
+    date: 2026-08-25

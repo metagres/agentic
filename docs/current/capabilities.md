@@ -4,7 +4,8 @@
 
 | Capability | Evidence | Related Entities | Related Endpoints | Notes |
 |------------|----------|------------------|-------------------|-------|
-| SDLC pipeline execution (9 stages, config-driven) | src/stages/, src/scripts/lib/stage-registry.ts | Stage Descriptor, CLI Envelope | sdlc <stage-id> | stages discovered by folder scan; kind interprets flags |
+| SDLC pipeline execution (9 stages, config-driven) | src/stages/, src/scripts/lib/stage-registry.ts | Stage Descriptor, CLI Envelope | sdlc <stage-id> | stages discovered by folder scan; kind interprets flags; authoring stages run a six-step tour (needs_input, init, authoring, ready, complete, recovery) with one-call finalize (--finalize --confirm-semantic) |
+| Merged acceptance criteria (requirements) | src/stages/requirements/schema.yaml, src/stages/requirements/structural-checks.yaml | Requirements Artifact | sdlc requirements | one acceptance_criteria list (id AC-NNN, Given-When-Then statement, category happy/edge/negative/boundary, parent_id FR/NFR-NNN); no separate scenarios list |
 | Pipeline state reporting | src/scripts/workflows/status.ts | CLI Envelope | sdlc status | shows per-stage status + suggested next command |
 | Cross-stage feedback | src/scripts/workflows/feedback.ts | Artifact Status | sdlc feedback | reverts a previous stage to draft for corrections |
 | Toolkit self-check | src/scripts/workflows/doctor.ts | Stage Descriptor | sdlc doctor | checks contracts, schemas, policies, stages, docs index |

@@ -25,9 +25,15 @@ export function parseDocsIndex(content: string): DocEntry[] {
 
     if (cells.length < 2) continue;
 
-    const file = cells[0];
+    // Accept both 'docs/current/<name>' and bare '<name>' forms; the index
+    // uses bare filenames, so normalize them to the prefixed file key.
+    const raw = cells[0];
+    const file = raw.startsWith('docs/current/') ? raw : `docs/current/${raw}`;
 
-    if (!file.startsWith('docs/current/')) continue;
+    // Quality filter: a real document row's first cell always ends with
+    // '.md'. Header and noise rows of auxiliary tables ('File', '#',
+    // numbered checks, notes) would otherwise become pseudo-docs.
+    if (!file.endsWith('.md')) continue;
 
     docs.push({
       file,

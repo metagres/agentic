@@ -48,6 +48,9 @@ errors:
   MISSING_TASK_UPDATE_FIELDS:
     message: Task update requires both --task-id and --status.
     fix: Provide both --task-id and --status.
+  TASK_DONE_REQUIRES_NOTE:
+    message: Marking a task done requires a non-empty implementation note.
+    fix: Re-run the update with --note describing what was implemented.
   CANNOT_COMPLETE:
     message: Knowledge extraction cannot complete.
     fix: Resolve validation errors and mark entries extracted.

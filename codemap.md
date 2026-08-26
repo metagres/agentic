@@ -22,8 +22,9 @@ build artifacts, never source), alongside rendered agent files under
   envelope. Bundled by tsup to `dist/sdlc.js` and deployed as
   `scripts/sdlc.js` inside the skill.
 - `package.json` — dependency manifest (ajv, ajv-formats, ignore, yaml) and
-  the validation pipeline: `validate` (schemas + policies + templates +
-  typecheck + tests), `check:all` (validate + all test layers + deploy smoke),
+  the validation pipeline: `validate` (fast gate: schemas + policies +
+  templates + typecheck + unit tests), `test:e2e` (end-to-end suite),
+  `check:all` (full coverage: validate + unit + e2e + deploy smoke),
   `deploy:smoke` (deploy to `.tmp/agent` + CLI smoke test).
 - `bin/` — developer/CLI tooling: `deploy-to-agent.ts` (bundle + skill
   assembly + smoke test), `lint-artifact.ts` (external artifact lint via the

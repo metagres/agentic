@@ -7,7 +7,7 @@ CLI toolkit: no HTTP endpoints. The contract surface is the `sdlc` command line 
 | Method | Path | Auth | Request Shape | Response Shape | Source File | Schema Drift? |
 |--------|------|------|---------------|----------------|-------------|---------------|
 | CLI | sdlc --help / --version / --list-workflows | none (local process) | no args | envelope, data.workflows (each entry carries agent: id or null) | src/scripts/sdlc.ts | No |
-| CLI | sdlc <stage-id> --change <change-name> [kind flags] | none | --change + flags per kind (authoring: --request, --finalize, --confirm-semantic; review: --accept, --reject, --dry-run; tasks: --task-id, --status) | frozen envelope | src/scripts/workflows/index.ts, src/scripts/lib/kinds/ | No |
+| CLI | sdlc <stage-id> --change <change-name> [kind flags] | none | --change + flags per kind (authoring: --request, --finalize, --confirm-semantic, --help-step, --record-answers <file>; review: --accept, --reject, --dry-run; tasks: --task-id, --status, --note — required for --status done, else TASK_DONE_REQUIRES_NOTE) | frozen envelope | src/scripts/workflows/index.ts, src/scripts/lib/kinds/ | No |
 | CLI | sdlc status --change <change-name> | none | --change | envelope, data.pipeline (per-stage agent: id or null) | src/scripts/workflows/status.ts | No |
 | CLI | sdlc feedback --change <change-name> --from <stage> --to <stage> --reason "..." [--resolve <FB-id>] | none | --change, --from, --to, --reason, optional --resolve | frozen envelope | src/scripts/workflows/feedback.ts | No |
 | CLI | sdlc doctor [--strict] | none | --strict optional | envelope with checks list | src/scripts/workflows/doctor.ts | No |
@@ -29,6 +29,7 @@ CLI toolkit: no HTTP endpoints. The contract surface is the `sdlc` command line 
 
 - Envelope top-level fields are frozen: no new fields may be added. Evidence: src/schemas/cli-envelope.schema.yaml (additionalProperties: false), AGENTS.md (invariant 8).
 - `data.workflows[]` entries (from `--list-workflows` / `--help`) and per-stage entries in `data.pipeline` (from `status`) each carry an `agent` field: the bound agent id or null. Cross-cutting commands (status, feedback, doctor) are always null. The envelope top-level shape is unchanged.
+- `data.step_help` (current step's title, markdown, commands, exit_criteria) is omitted from authoring envelopes unless the invocation passes `--help-step`; the seven top-level fields are unchanged. Evidence: src/scripts/lib/kinds/authoring.ts.
 
 ## Internal APIs
 

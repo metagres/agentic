@@ -21,46 +21,27 @@ steps:
       field: metadata.based_on_design
       non_empty: true
 
-  drafting:
-    title: Drafting
+  authoring:
+    title: Authoring
     next_action: update_artifact
     markdown: |
       Draft the plan artifact.
 
       Use `data.next_ids` to choose the next TASK ids.
+
+      While drafting, determine which living docs are affected by the plan and
+      append delta entries via --append-delta (allowed targets:
+      `data.delta_allowed_target_docs`) or include them in --update-artifact.
+      Knowledge extraction dedupes.
+
+      Write the artifact through the script.
     commands:
       - "{{SDLC}} planning --change {{change_name}} --next-ids"
       - "{{SDLC}} planning --change {{change_name}} --update-artifact < plan.yaml"
+      - "{{SDLC}} planning --change {{change_name}} --append-delta < delta.yaml"
     complete_when:
       array: tasks
       min_items: 1
-
-  validation:
-    title: Validation
-    next_action: fix_mechanical_errors
-    markdown: |
-      Fix mechanical validation errors first.
-
-      Then run `--finalize` to review the semantic checks.
-    commands:
-      - "{{SDLC}} planning --change {{change_name}} --finalize"
-
-  delta:
-    title: Delta
-    next_action: append_delta_or_complete_step
-    markdown: |
-      Determine which living docs are affected by the plan.
-
-      Use `data.delta_allowed_target_docs`.
-    commands:
-      - "{{SDLC}} planning --change {{change_name}} --append-delta < delta.yaml"
-      - "{{SDLC}} planning --change {{change_name}} --complete-step --step delta"
-    complete_when:
-      any:
-        - array: delta
-          min_items: 1
-        - field: metadata.delta_reviewed
-          equals: true
 
   recovery:
     title: Recovery
@@ -79,9 +60,9 @@ steps:
     markdown: |
       All gates passed.
 
-      Finalize the plan artifact.
+      Finalize with --finalize --confirm-semantic.
     commands:
-      - "{{SDLC}} planning --change {{change_name}} --finalize"
+      - "{{SDLC}} planning --change {{change_name}} --finalize --confirm-semantic"
 
   complete:
     title: Complete

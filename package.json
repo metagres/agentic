@@ -16,7 +16,7 @@
     "sdlc": "node src/scripts/sdlc.ts",
     "build": "tsup",
     "validate:templates": "node bin/validate-templates.ts",
-    "validate": "npm run validate:schemas && npm run validate:policies && npm run validate:templates && npm run typecheck && npm test",
+    "validate": "npm run validate:schemas && npm run validate:policies && npm run validate:templates && npm run typecheck && npm run test:unit",
     "test:unit": "node --test test/unit/*.test.ts",
     "test:e2e": "node --test test/e2e/*.test.ts",
     "validate:schemas": "node bin/validate-schemas.ts",

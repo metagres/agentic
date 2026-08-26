@@ -97,12 +97,10 @@ function floorArtifact(overrides: Record<string, unknown> = {}) {
       lens: l,
       resolved: true,
     })),
-    scenarios: [],
     assumptions: [],
     ...overrides,
   };
 }
-
 test('the shipped requirements-policy.yaml pins the FR-004 vocabulary and thresholds', () => {
   const doc = readYaml(SHIPPED_POLICY) as {
     discovery: {
@@ -219,7 +217,7 @@ test('a passing floor without confirmation leaves the step at discovery (AC-005)
   assert.equal(extraStep(env), 'discovery');
 });
 
-test('complete-step confirmation advances past discovery and scenarios (AC-006, AC-008)', () => {
+test('complete-step confirmation advances past discovery; assumptions route by content', () => {
   const folder = fixtureStageFolder(VALID_POLICY);
   const artifact = floorArtifact({
     metadata: { clarity: 'partial', discovery_reviewed: true },
@@ -227,42 +225,31 @@ test('complete-step confirmation advances past discovery and scenarios (AC-006, 
   const env = mockEnv(folder, artifact);
   const extraStep = (hooks as { extraStep: (e: unknown) => string | null }).extraStep;
 
-  // Confirmed discovery, empty scenarios not yet reviewed -> scenarios.
+  // Confirmed discovery, empty criteria set not yet confirmed -> scenarios.
   assert.equal(extraStep(env), 'scenarios');
 
-  // Open scenario keeps the step at scenarios (AC-007).
-  const withOpen = floorArtifact({
-    metadata: { clarity: 'partial', discovery_reviewed: true, scenarios_reviewed: true },
-    scenarios: [
-      {
-        id: 'SC-001',
-        statement: 'Given no device exists, When a registration arrives, Then the system accepts it.',
-        category: 'happy',
-        status: 'open',
-        outcome: 'ac',
-      },
-    ],
-  });
-  const envOpen = mockEnv(folder, withOpen);
-  assert.equal(extraStep(envOpen), 'scenarios');
-
-  // All scenarios resolved, assumptions reviewed -> machine advances past
-  // scenarios to assumptions (AC-008) even without the confirmation flag.
-  const allResolved = floorArtifact({
-    metadata: { clarity: 'partial', discovery_reviewed: true },
-    scenarios: [
-      {
-        id: 'SC-001',
-        statement: 'Given no device exists, When a registration arrives, Then the system accepts it.',
-        category: 'happy',
-        status: 'resolved',
-        outcome: 'ac',
-      },
-    ],
+  // With the criteria step confirmed and assumptions recorded, no extra step
+  // blocks the machine.
+  const withAssumptions = floorArtifact({
+    metadata: {
+      clarity: 'partial',
+      discovery_reviewed: true,
+      scenarios_reviewed: true,
+    },
     assumptions: [{ type: 'verified', text: 'The database stores device records.' }],
   });
-  const envResolved = mockEnv(folder, allResolved);
-  assert.equal(extraStep(envResolved), null);
+  assert.equal(extraStep(mockEnv(folder, withAssumptions)), null);
+
+  // Missing assumptions keep the machine at assumptions even with the
+  // confirmation flag set.
+  const withoutAssumptions = floorArtifact({
+    metadata: {
+      clarity: 'partial',
+      discovery_reviewed: true,
+      scenarios_reviewed: true,
+    },
+  });
+  assert.equal(extraStep(mockEnv(folder, withoutAssumptions)), 'assumptions');
 });
 
 test('an artifact clarity outside the policy anchors fails the gate loudly', () => {

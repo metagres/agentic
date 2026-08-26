@@ -19,7 +19,7 @@ function runCli(args) {
   });
 }
 
-test('requirements --request creates change and enters discovery', () => {
+test('requirements --request creates change and enters authoring', () => {
   const tmp = makeTmpProject();
 
   const res = runCli([
@@ -35,7 +35,7 @@ test('requirements --request creates change and enters discovery', () => {
   const json = JSON.parse(res.stdout);
 
   assert.equal(json.workflow, 'requirements');
-  assert.equal(json.step, 'discovery');
+  assert.equal(json.step, 'authoring');
   assert.ok(json.data.change_root);
 
   const artifactPath = path.join(

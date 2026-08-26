@@ -12,10 +12,14 @@ npm run validate
 
 If it fails, the work is not done. No exceptions.
 
+`validate` is the fast gate: schemas + policies + templates + typecheck + unit
+tests only (~seconds). End-to-end tests are not part of it — they run through
+`check:all`.
+
 Documentation-only changes (e.g. `*.md` files, codemaps, README) do **not** require
 `npm run validate`.
 
-For full confidence (includes deployment smoke test):
+For full confidence (unit + e2e tests plus deployment smoke test):
 
 ```bash
 npm run check:all
@@ -111,6 +115,13 @@ contract.
 - **authoring** — generic flag loop (`--change`, `--request`, `--next-ids`, `--update-artifact`,
   `--append-delta`, `--complete-step`, `--finalize`, `--confirm-semantic`, `--describe`,
   `--describe-step`, `--help`) driving the step machine from `steps.yaml` completion predicates.
+  Every authoring stage declares the same six-step tour (`needs_input`, `init`, `authoring`,
+  `ready`, `complete`, `recovery`), detected from artifact state; discovery/scenarios/assumptions
+  guidance is folded into the `authoring` step, and `--finalize --confirm-semantic` evaluates
+  gate, mechanical validation, and semantic confirmation in one call (legacy `--complete-step`
+  step names are still accepted). Requirements artifacts carry ONE merged `acceptance_criteria`
+  list (id, Given-When-Then statement, category happy/edge/negative/boundary, parent_id) —
+  there is no separate scenarios list and no promotion pass.
 - **review** — resolves its `reviews` target, checks the review gate, runs the unified
   validation, appends rounds to the review file (append-only), and applies
   `--accept`/`--reject`/`--dry-run`.
@@ -211,8 +222,8 @@ must pass.
 ## 8. Quick Reference Commands
 
 ```bash
-npm run validate          # schemas + policies + templates + typecheck + tests
-npm run check:all         # validate + all test layers + deploy smoke
+npm run validate          # fast gate: schemas + policies + templates + typecheck + unit tests
+npm run check:all         # full coverage: validate + unit + e2e tests + deploy smoke
 npm run test:unit         # unit tests only
 npm run test:e2e          # end-to-end tests only
 npm run deploy:smoke      # bundled deploy + CLI smoke test

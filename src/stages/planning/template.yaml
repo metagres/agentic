@@ -20,7 +20,6 @@ tasks: []
 #     Implement POST /devices, including validation and persistence.
 #   type: implementation
 #   status: pending
-#   complexity: medium
 #
 #   covers:
 #     - FR-001
@@ -40,11 +39,6 @@ tasks: []
 #       operation: modify
 #     - path: test/devices.test.js
 #       operation: create
-#
-#   started_at: null
-#   completed_at: null
-#   implementation_note: ""
-#   files_changed: []
 
 milestones: []
 

@@ -30,130 +30,45 @@ steps:
         - field: metadata.request_summary
           non_empty: true
 
-  discovery:
-    title: Discovery
-    next_action: ask_user_question
-    markdown: |
-      Ask the user one question at a time.
-
-      Record each resolved answer through the script. The script allocates the next DL-NNN id.
-
-      Do not stop until `data.discovery_gate.passed` is true. Passing on counts alone is not
-      enough: after the gate passes, confirm convergence with --complete-step --step discovery.
-    commands:
-      - "{{SDLC}} requirements --change {{change_name}} --record-answer --lens <lens> --question \"<question>\" --answer \"<answer>\""
-      - "{{SDLC}} requirements --change {{change_name}} --set-clarity <clear|partial|vague>"
-      - "{{SDLC}} requirements --change {{change_name}} --complete-step --step discovery"
-    exit_criteria:
-      all:
-        - field: data.discovery_gate.passed
-          equals: true
-        - field: data.discovery_gate.confirmed
-          equals: true
-
-  scenarios:
-    title: Scenarios
-    next_action: map_examples_or_complete_step
-    markdown: |
-      Draft concrete examples as scenario entries (SC-NNN ids via `data.next_ids`) in
-      Given-When-Then form, covering the happy, edge, negative, and boundary categories for the
-      core behaviors.
-
-      Decide an outcome for each example:
-      - ac: the example becomes an acceptance criterion during drafting.
-      - question: the example exposes an unresolved question. Record the question with
-        --record-answer, link the scenario through question_id, then mark the scenario resolved.
-      - out_of_scope: add the example to the out_of_scope section and mark the scenario resolved.
-
-      Mark each scenario resolved once its outcome is decided. If you genuinely have no examples,
-      confirm the empty set with --complete-step --step scenarios.
-    commands:
-      - "{{SDLC}} requirements --change {{change_name}} --next-ids"
-      - "{{SDLC}} requirements --change {{change_name}} --update-artifact < requirements.yaml"
-      - "{{SDLC}} requirements --change {{change_name}} --record-answer --lens <lens> --question \"<question>\" --answer \"<answer>\""
-      - "{{SDLC}} requirements --change {{change_name}} --complete-step --step scenarios"
-    exit_criteria: null
-
-  assumptions:
-    title: Assumptions
-    next_action: record_assumptions_or_complete_step
-    markdown: |
-      List every assumption implied by the request and discovery answers.
-
-      Classify each assumption as verified or unverified.
-
-      If there are genuinely no assumptions, mark the step complete.
-    commands:
-      - "{{SDLC}} requirements --change {{change_name}} --update-artifact < requirements.yaml"
-      - "{{SDLC}} requirements --change {{change_name}} --complete-step --step assumptions"
-    complete_when:
-      any:
-        - array: assumptions
-          min_items: 1
-        - field: metadata.assumptions_reviewed
-          equals: true
-
-  drafting:
-    title: Drafting
+  authoring:
+    title: Authoring
     next_action: update_artifact
     markdown: |
-      Draft the full requirements artifact.
+      Draft the full requirements artifact, recording as you go:
+
+      - Discovery answers: record each resolved question through the script
+        (--record-answer allocates the next DL-NNN id) and set clarity with
+        --set-clarity. Watch `data.discovery_gate` to confirm lens coverage.
+      - Assumptions: list every assumption implied by the request and the
+        discovery answers, classifying each as verified or unverified.
+      - Acceptance criteria: author every criterion directly in Given-When-Then
+        form, each with a category (happy, edge, negative, boundary) and a
+        parent_id linked to the FR or NFR it verifies. Cover every category for
+        the core behaviors. There is no separate promotion or back-fill pass: an
+        example is authored as an acceptance criterion or it does not enter the
+        artifact.
+      - Delta: determine which living docs are affected and append entries via
+        --append-delta (allowed targets: `data.delta_allowed_target_docs`) or
+        include them in --update-artifact. Knowledge extraction dedupes.
 
       Use `data.next_ids` to choose the next FR/NFR/AC ids.
 
       Phrase each requirement in EARS form (When <trigger>, the system shall <response>) or an
       equally unambiguous pattern.
 
-      Promote every resolved scenario with outcome `ac` to an acceptance criterion in
-      Given-When-Then form, link its parent_id to the FR or NFR it verifies, and back-fill the
-      scenario's ac_id.
+      If an example exposes an unresolved question instead, record it with --record-answer.
+      If it is out of scope, add it straight to the out_of_scope section.
 
       Write the artifact through the script.
     commands:
       - "{{SDLC}} requirements --change {{change_name}} --next-ids"
+      - "{{SDLC}} requirements --change {{change_name}} --record-answer --lens <lens> --question \"<question>\" --answer \"<answer>\""
+      - "{{SDLC}} requirements --change {{change_name}} --set-clarity <clear|partial|vague>"
       - "{{SDLC}} requirements --change {{change_name}} --update-artifact < requirements.yaml"
-    complete_when:
-      all:
-        - field: problem_statement
-          non_empty: true
-        - any:
-            - array: functional_requirements
-              min_items: 1
-            - array: non_functional_requirements
-              min_items: 1
-        - array: acceptance_criteria
-          min_items: 1
-
-  validation:
-    title: Validation
-    next_action: fix_mechanical_errors
-    markdown: |
-      Fix mechanical validation errors first.
-
-      Then run `--finalize` to review the semantic checks.
-    commands:
-      - "{{SDLC}} requirements --change {{change_name}} --finalize"
-
-  delta:
-    title: Delta
-    next_action: append_delta_or_complete_step
-    markdown: |
-      Determine which living docs are affected.
-
-      Use `data.delta_allowed_target_docs` as the allowed target docs.
-
-      Append delta entries through the script.
-
-      If no docs are affected, mark the step complete.
-    commands:
       - "{{SDLC}} requirements --change {{change_name}} --append-delta < delta.yaml"
-      - "{{SDLC}} requirements --change {{change_name}} --complete-step --step delta"
     complete_when:
-      any:
-        - array: delta
-          min_items: 1
-        - field: metadata.delta_reviewed
-          equals: true
+      field: problem_statement
+      non_empty: true
 
   recovery:
     title: Recovery
@@ -176,9 +91,9 @@ steps:
     markdown: |
       All gates passed.
 
-      Finalize the artifact.
+      Finalize with --finalize --confirm-semantic.
     commands:
-      - "{{SDLC}} requirements --change {{change_name}} --finalize"
+      - "{{SDLC}} requirements --change {{change_name}} --finalize --confirm-semantic"
 
   complete:
     title: Complete

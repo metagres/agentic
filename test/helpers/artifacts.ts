@@ -88,12 +88,14 @@ export function validRequirements({
         id: 'AC-001',
         statement:
           'Given no device exists, When the client submits a registration, Then the system returns 201 and a device identifier.',
+        category: 'happy',
         parent_id: 'FR-001',
       },
       {
         id: 'AC-002',
         statement:
           'Given load conditions, When 95 percent of requests are measured, Then response time is below 500 ms.',
+        category: 'boundary',
         parent_id: 'NFR-001',
       },
     ],

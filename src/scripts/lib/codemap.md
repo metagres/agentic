@@ -50,17 +50,20 @@ hardcoded stage lists.
   `array` + `min_items`, and `all`/`any` combinators — in
   `evaluatePredicate` (`:43`); a missing predicate means complete.
 - **Generic authoring step machine (FLW-002)**: `authoring-base.ts` defines
-  `CANONICAL_STEPS` (`:9`: needs_input, init, recovery, drafting, validation,
-  delta, ready, complete) and `detectStep(env)` (`:52`): no change dir →
-  `needs_input`; no artifact → `init`; `metadata.status === 'rejected'` →
-  `recovery`; then hooks `extraStep(env)` (e.g. requirements discovery gate),
-  then non-canonical steps.yaml steps, then the `init`/`drafting`/`delta`
-  predicates; `validation` while blocking findings exist or the semantic
-  summary is incomplete; `complete` when status is `ready-for-review`/`accepted`,
-  else `ready`. `isReadyForReview` (`:89`) and `getData` (`:117`) expose the
-  same signals (`draft_complete`, `mechanical_valid`, `semantic_complete`,
-  `delta_complete`; `deltaComplete` in `stage-helpers.ts:5` accepts a non-empty
-  `delta` array or `metadata.delta_reviewed === true`).
+  `CANONICAL_STEPS` (`:10`: needs_input, init, authoring, ready, complete,
+  recovery — the six-step tour every authoring stage declares in steps.yaml)
+  and `detectStep(env)` (`:55`), detected purely from artifact state — never
+  from stage hooks: no change dir → `needs_input`; no artifact → `init`;
+  `metadata.status === 'rejected'` → `recovery`; unsatisfied `init`
+  predicate → `init`; blocking mechanical findings → `recovery`; then any
+  non-canonical steps.yaml step whose `complete_when` predicate is
+  unsatisfied; `complete` when status is `ready-for-review`/`accepted`, else
+  `ready` when the `authoring` predicate is satisfied and `authoring` while
+  still drafting. `isReadyForReview` (`:79`) and `getData` (`:107`) expose
+  the same signals (`authoring_complete`, `mechanical_valid`,
+  `semantic_complete`, `delta_complete`; `deltaComplete` in
+  `stage-helpers.ts:5` accepts a non-empty `delta` array or
+  `metadata.delta_reviewed === true`).
 - **Frozen envelope + exit codes**: `cli.ts` — `EXIT` (`:3`), `parseArgs` (`:11`),
   `normalizeEnvelope` (`:43`) and `writeJson` (`:105`) (see
   [../codemap.md](../codemap.md) for the full contract).
@@ -95,12 +98,16 @@ hardcoded stage lists.
   this is how the same code runs from `src/scripts/` in the repo and from
   `scripts/sdlc.js` in the deployed skill.
 - **Utilities**: `ids.ts` — `nextId(existingIds, prefix)` (max+1, zero-padded to
-  3), `nextIdsFromArrays(artifact, specs)`, `today()`, `nowIso()`, `slugify`,
+  3), `nextIdsFromArrays(artifact, specs)`, `today()`, `nowIso()`, `slugify`
+  (word-boundary truncation: whole words dropped to fit the 60-char budget,
+  never mid-word, no trailing hyphen),
   `uniqueSlug`; `stage-helpers.ts` — `deltaComplete`, `titleFromRequest` (80-char
   truncation), `baseVersion`; `semver.ts` `bumpVersion`; `yaml-io.ts` —
   `readYaml` (null when missing, throwing on bad YAML), `writeYamlAtomic`
   (tmp-file + rename), `readStdin`, `parseYamlString`; `docs-index.ts` —
-  `loadDocsIndex`/`parseDocsIndex` (markdown table under `docs/current/`),
+  `loadDocsIndex`/`parseDocsIndex` (markdown table under `docs/current/`;
+  accepts bare filenames and prefixed paths, filters non-`.md` noise rows so
+  delta target/anchor validation runs against real docs),
   `headingExists`/`normalizeHeading`; `version.ts` — `VERSION = '1.0.0'`;
   `types.ts` — shared interfaces (`Finding`, `ErrorItem`, `WarningItem`,
   `SemanticSummary`, `StageRecord` consumers, `RunEnv`, `WorkflowDef`,

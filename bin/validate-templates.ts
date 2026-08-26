@@ -14,7 +14,6 @@ const expectedKeys = {
     'metadata',
     'problem_statement',
     'discovery_log',
-    'scenarios',
     'assumptions',
     'functional_requirements',
     'non_functional_requirements',
@@ -87,12 +86,9 @@ for (const [stageId, keys] of Object.entries(expectedKeys)) {
     }
 
     // Requirements initialization contract (CMP-010, AC-016): the template must
-    // start scenarios as an empty array with both confirmation flags false so a
-    // freshly created change routes into discovery and scenarios.
+    // start with both confirmation flags false so a freshly created change
+    // routes into discovery first.
     if (stageId === 'requirements') {
-      if (!Array.isArray(doc.scenarios) || doc.scenarios.length !== 0) {
-        throw new Error('requirements template scenarios must be an empty array');
-      }
       if (metadata.discovery_reviewed !== false || metadata.scenarios_reviewed !== false) {
         throw new Error(
           'requirements template must initialize discovery_reviewed and scenarios_reviewed to false'

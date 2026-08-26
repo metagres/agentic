@@ -1,0 +1,454 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: streamline-the-sdlc-process-economy-collapse-the-authoring-s"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-25
+  updated: 2026-08-25
+  based_on_design: 0.1.0
+  based_on_requirements: 0.1.0
+  implementation_status: accepted
+  step: complete
+tasks:
+  - id: TASK-001
+    title: Slim the envelope payload behind --help-step
+    description: >
+      Authoring envelope assembly stops including data.step_help unless the invocation carries
+      --help-step; all seven top-level envelope fields stay. Update unit tests that read step_help
+      to pass the flag or assert its absence. Files: src/scripts/lib/kinds/authoring.ts (or
+      authoring-base.ts, wherever step_help is assembled), tests.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-001
+      - NFR-001
+    acceptance_ids:
+      - AC-006
+    design_refs:
+      - DEC-003
+    depends_on: []
+    files:
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: test/unit/authoring-envelope.test.ts
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: step_help omitted from data unless --help-step; seven top-level fields intact;
+      covered in write-time-enforcement tests.
+    files_changed:
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+  - id: TASK-002
+    title: Enforce note at done and normalize deltas at update
+    description: >
+      Tasks interpreter rejects a done transition without a non-empty note (error naming the task)
+      and owns started_at, completed_at, files_changed (set on transitions). Extract or add
+      normalizeDeltaEntries and use it in applyUpdateArtifact so piped delta entries get phase/date
+      defaults exactly like append-delta. Unit tests for both behaviors. Files:
+      src/scripts/lib/kinds/tasks.ts, src/scripts/lib/kinds/authoring.ts,
+      src/scripts/lib/stage-helpers.ts if shared, tests.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-002
+      - FR-003
+      - FR-008
+    acceptance_ids:
+      - AC-003
+      - AC-004
+    design_refs:
+      - DEC-002
+    depends_on: []
+    files:
+      - path: src/scripts/lib/kinds/tasks.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: test/unit/write-time-enforcement.test.ts
+        operation: create
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: done requires note (TASK_DONE_REQUIRES_NOTE in errors.yaml); interpreter owns
+      started_at/completed_at/files_changed with idempotent append; normalizeDeltaEntries shared by
+      append-delta and update-artifact; 4 new tests green.
+    files_changed:
+      - path: src/scripts/lib/kinds/tasks.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: src/scripts/lib/stage-helpers.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+      - path: test/unit/write-time-enforcement.test.ts
+        operation: create
+  - id: TASK-003
+    title: Fix the docs-index parser for bare filenames
+    description: >
+      parseDocsIndex accepts first cells that are bare filenames, normalizing to
+      docs/current/<name>; keep prefixed rows working. loadDocsIndex on the real index returns ten
+      documents. Unit test with both row styles plus a mixed table. Verify appendDelta target
+      validation now executes against the real index (allowed set non-empty). Files:
+      src/scripts/lib/docs-index.ts, test/unit/docs-index.test.ts.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-004
+    acceptance_ids:
+      - AC-005
+    design_refs:
+      - DEC-002
+    depends_on: []
+    files:
+      - path: src/scripts/lib/docs-index.ts
+        operation: modify
+      - path: test/unit/docs-index.test.ts
+        operation: create
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: Parser normalizes bare filenames to docs/current/*; real index yields non-empty
+      allowed set so target and anchor validation now executes; 5 tests green. Junk pseudo-doc rows
+      from header cells flagged for filter follow-up.
+    files_changed:
+      - path: src/scripts/lib/docs-index.ts
+        operation: modify
+      - path: test/unit/docs-index.test.ts
+        operation: create
+  - id: TASK-004
+    title: Merge scenarios into acceptance criteria in the requirements stage
+    description: >
+      Requirements stage folder: schema.yaml replaces scenarios and old acceptance_criteria with one
+      list (id, statement GWT, category enum, parent_id); structural-checks.yaml redeclares
+      given-when-then, unique-ids, parent ref-exists, referenced-by against the merged list and
+      drops scenario-only checks with rationale in comments; template.yaml emits acceptance_criteria
+      only; steps.yaml drafting guidance loses promotion/back-fill; semantic-checks wording updated.
+      Update lint/unit fixtures using scenarios. Completed changes are not migrated. Files:
+      src/stages/requirements/*, affected tests/fixtures.
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-005
+      - NFR-002
+    acceptance_ids:
+      - AC-002
+    design_refs:
+      - DEC-001
+    depends_on: []
+    files:
+      - path: src/stages/requirements/schema.yaml
+        operation: modify
+      - path: src/stages/requirements/structural-checks.yaml
+        operation: modify
+      - path: src/stages/requirements/template.yaml
+        operation: modify
+      - path: src/stages/requirements/steps.yaml
+        operation: modify
+      - path: src/stages/requirements/semantic-checks.yaml
+        operation: modify
+      - path: bin/validate-templates.ts
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: Single acceptance_criteria list (id, statement GWT, category, parent_id);
+      checks redeclared, scenario-only checks dropped with rationale comment;
+      template/steps/semantics updated; legacy artifacts correctly fail new schema; 41 unit tests
+      green.
+    files_changed:
+      - path: src/stages/requirements/schema.yaml
+        operation: modify
+      - path: src/stages/requirements/structural-checks.yaml
+        operation: modify
+      - path: src/stages/requirements/template.yaml
+        operation: modify
+      - path: src/stages/requirements/steps.yaml
+        operation: modify
+      - path: src/stages/requirements/semantic-checks.yaml
+        operation: modify
+      - path: bin/validate-templates.ts
+        operation: modify
+      - path: test/helpers/artifacts.ts
+        operation: modify
+      - path: test/unit/requirements-stage.test.ts
+        operation: modify
+      - path: test/e2e/requirements-scenarios.test.ts
+        operation: modify
+  - id: TASK-005
+    title: Deduplicate collected deltas per document
+    description: >
+      Aggregator merges delta entries per target_doc plus change before presenting deltas_to_apply
+      (later phases win on conflicting reasons; entries concatenating distinct anchors stay
+      separate). Unit tests with overlapping three-phase entries. Files:
+      src/scripts/lib/kinds/aggregator.ts, test/unit/aggregator-dedupe.test.ts.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-006
+    acceptance_ids:
+      - AC-002
+    design_refs:
+      - DEC-001
+    depends_on: []
+    files:
+      - path: src/scripts/lib/kinds/aggregator.ts
+        operation: modify
+      - path: test/unit/aggregator-dedupe.test.ts
+        operation: create
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: dedupeDeltas groups per target_doc+change, latest phase wins within collapsible
+      groups, distinct anchors preserved, deterministic sort; wired into deltas_to_apply and
+      deltas_applied count; 5 tests green.
+    files_changed:
+      - path: src/scripts/lib/kinds/aggregator.ts
+        operation: modify
+      - path: test/unit/aggregator-dedupe.test.ts
+        operation: create
+  - id: TASK-006
+    title: Make planning bookkeeping optional and CLI-owned
+    description: >
+      Planning schema: complexity optional, milestones and risks optional; template stops emitting
+      task timestamps/files_changed/implementation_note empties; steps guidance updated. The tasks
+      interpreter (TASK-002) owns state fields. Fixture artifacts without the optional fields must
+      validate. Files: src/stages/planning/schema.yaml, template.yaml, steps.yaml, tests.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-008
+    acceptance_ids:
+      - AC-007
+    design_refs:
+      - DEC-002
+    depends_on: []
+    files:
+      - path: src/stages/planning/schema.yaml
+        operation: modify
+      - path: src/stages/planning/template.yaml
+        operation: modify
+      - path: src/stages/planning/steps.yaml
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: milestones/risks optional in schema; template example trimmed of bookkeeping;
+      minimal artifact without optional fields validates.
+    files_changed:
+      - path: src/stages/planning/schema.yaml
+        operation: modify
+      - path: src/stages/planning/template.yaml
+        operation: modify
+  - id: TASK-007
+    title: Collapse the authoring step tour with one-call finalize
+    description: >
+      Restructure steps.yaml for requirements, design, planning onto needs_input, init, authoring,
+      ready, complete, recovery; detectStep maps states onto the reduced set; finalize evaluates
+      mechanical and semantic gates in one call (already supports --confirm-semantic; ensure no
+      intermediate gate blocks). record-answer and set-clarity remain functional; discovery policy
+      still loads and reports its gate result without gating steps. Update lifecycle unit/e2e tests
+      referencing removed step ids. Files: src/stages/*/steps.yaml,
+      src/scripts/lib/kinds/authoring.ts, src/scripts/lib/authoring-base.ts, tests.
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-007
+    acceptance_ids:
+      - AC-001
+    design_refs:
+      - DEC-004
+    depends_on:
+      - TASK-001
+      - TASK-002
+      - TASK-004
+    files:
+      - path: src/stages/requirements/steps.yaml
+        operation: modify
+      - path: src/stages/design/steps.yaml
+        operation: modify
+      - path: src/stages/planning/steps.yaml
+        operation: modify
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: src/scripts/lib/authoring-base.ts
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: Six-step authoring set across all three stages; detectStep remapped with nine
+      pinned routing tests; legacy complete-step flags still accepted; one-call finalize verified
+      through CLI smoke; docs-index junk-row filter also landed (.md-only). 145 unit + 46 e2e green.
+    files_changed:
+      - path: src/stages/requirements/steps.yaml
+        operation: modify
+      - path: src/stages/design/steps.yaml
+        operation: modify
+      - path: src/stages/planning/steps.yaml
+        operation: modify
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: src/scripts/lib/authoring-base.ts
+        operation: modify
+      - path: src/stages/requirements/semantic-checks.yaml
+        operation: modify
+      - path: test/e2e/authoring.test.ts
+        operation: modify
+      - path: test/e2e/requirements-scenarios.test.ts
+        operation: modify
+      - path: test/unit/authoring-routing.test.ts
+        operation: create
+      - path: src/scripts/lib/docs-index.ts
+        operation: modify
+      - path: test/unit/docs-index.test.ts
+        operation: modify
+  - id: TASK-008
+    title: Split validate from e2e
+    description: >
+      package.json: validate = validate:schemas && validate:policies && validate:templates &&
+      typecheck && test:unit; check:all unchanged (still runs e2e via test:all chain). Code-only;
+      docs land in TASK-010. Files: package.json.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-009
+    acceptance_ids:
+      - AC-008
+    design_refs:
+      - DEC-005
+    depends_on: []
+    files:
+      - path: package.json
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: validate now runs unit suite only (~2s total); e2e remains via test:e2e/check:all.
+    files_changed:
+      - path: package.json
+        operation: modify
+  - id: TASK-009
+    title: Add batch answer recording and word-boundary slugs
+    description: >
+      --record-answers <file> records a YAML array of lens, question, answer entries sequentially in
+      one call (reuse single-answer validation per entry). Change slug generation breaks at word
+      boundaries within the length budget, lowercases, strips punctuation, never leaves a trailing
+      hyphen; applies at change creation. Unit tests for slug cases (long titles, punctuation,
+      exact-budget words) and batch recording. Files: src/stages/requirements/hooks.ts or authoring
+      flag handling,  src/scripts/lib/stage-helpers.ts (titleFromRequest/slug), resolve-root or
+      change creation site, tests.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-010
+      - FR-011
+    acceptance_ids:
+      - AC-009
+      - AC-010
+    design_refs:
+      - DEC-004
+    depends_on:
+      - TASK-007
+    files:
+      - path: src/scripts/lib/stage-helpers.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: test/unit/slug-and-batch.test.ts
+        operation: create
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: recordAnswersBatch routes entries through the existing recordAnswer hook with
+      sequential DL ids and all-or-nothing persistence; slugify rewritten for word-boundary
+      truncation in ids.ts (single source of truth); 12 new tests; 157 unit tests green.
+    files_changed:
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: src/scripts/lib/ids.ts
+        operation: modify
+      - path: test/unit/slug-and-batch.test.ts
+        operation: create
+  - id: TASK-010
+    title: Update repository documentation for the reform
+    description: >
+      AGENTS.md: section 1 validate contract (no e2e), section 5 authoring flow summary (collapsed
+      steps, merged criteria list), section 8 quick reference commands. Root and src codemaps where
+      they describe the authoring kind or stage folders. Facts verified against implementation.
+      Files: AGENTS.md, codemap.md, src/codemap.md.
+    type: documentation
+    status: done
+    complexity: low
+    covers:
+      - NFR-001
+      - NFR-002
+    acceptance_ids:
+      - AC-001
+      - AC-008
+    design_refs:
+      - DEC-003
+      - DEC-004
+      - DEC-005
+    depends_on:
+      - TASK-007
+      - TASK-009
+    files:
+      - path: AGENTS.md
+        operation: modify
+      - path: codemap.md
+        operation: modify
+      - path: src/codemap.md
+        operation: modify
+    started_at: 2026-08-25
+    completed_at: 2026-08-25
+    implementation_note: AGENTS.md validate contract and authoring flow updated; all codemaps de-staled
+      (20 stale hits resolved); facts verified against source; validate exit 0.
+    files_changed:
+      - path: AGENTS.md
+        operation: modify
+      - path: codemap.md
+        operation: modify
+      - path: src/codemap.md
+        operation: modify
+      - path: src/scripts/lib/codemap.md
+        operation: modify
+      - path: src/scripts/lib/kinds/codemap.md
+        operation: modify
+      - path: src/stages/codemap.md
+        operation: modify
+milestones:
+  - id: M1
+    title: Independent fixes and model changes
+    description: Envelope slimming, write-time enforcement, parser fix, criteria merge, dedupe, planning
+      slim, tier split.
+    task_ids:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+      - TASK-005
+      - TASK-006
+      - TASK-008
+  - id: M2
+    title: Flow collapse and ergonomics
+    description: Collapsed authoring tour, batch recording, slugs.
+    task_ids:
+      - TASK-007
+      - TASK-009
+  - id: M3
+    title: Documentation
+    description: Repository docs match the reformed process.
+    task_ids:
+      - TASK-010
+risks: []
+delta:
+  - phase: Planning
+    change: Modify
+    reason: Validate command contract changes (unit-only); authoring flow collapses to fewer steps with
+      one-call finalize.
+    target_doc: docs/current/operations.md
+    target_anchor: Commands
+    date: 2026-08-25

@@ -4,8 +4,8 @@
 
 | Command | Purpose | Evidence |
 |---------|---------|----------|
-| npm run validate | schemas + policies (incl. agent definitions: schema, prompt markers, reference resolution, permission compatibility) + templates (incl. skill frontmatter) + typecheck + tests | package.json (scripts.validate) |
-| npm run check:all | test:all (validate + unit + e2e) + deploy smoke | package.json (scripts.check:all) |
+| npm run validate | fast gate: schemas + policies (incl. agent definitions: schema, prompt markers, reference resolution, permission compatibility) + templates (incl. skill frontmatter) + typecheck + unit tests only — no e2e builds | package.json (scripts.validate) |
+| npm run check:all | full coverage gate: test:all (validate + unit + e2e) + deploy smoke | package.json (scripts.check:all) |
 | npm run test:all | validate + unit + e2e | package.json |
 | npm test | node --test over unit + e2e | package.json (scripts.test) |
 | npm run test:unit | unit tests only | package.json |
@@ -20,6 +20,8 @@
 | npm run sdlc | run the CLI from source | package.json |
 | node bin/lint-artifact.ts | lint an artifact through the same validateArtifact path | bin/lint-artifact.ts |
 | node bin/deploy-to-agent.ts --dest <root> [--platform <id>] [--platform-version <n>] [--clean] [--skip-smoke] | deploy both skills + rendered agents to a destination agent root | bin/deploy-to-agent.ts |
+| sdlc requirements --change <name> --record-answers <file> | batch-record discovery answers from a YAML array of {lens, question, answer} entries in one call (stage must provide the recordAnswer hook) | src/scripts/lib/kinds/authoring.ts |
+| sdlc implementation --change <name> --task-id <id> --status done --note "<note>" | mark a task done; the transition is rejected at write time without a non-empty note (TASK_DONE_REQUIRES_NOTE) | src/scripts/lib/kinds/tasks.ts, src/policies/errors.yaml |
 
 ## Environment
 

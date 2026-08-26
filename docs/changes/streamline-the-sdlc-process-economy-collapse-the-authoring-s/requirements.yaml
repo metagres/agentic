@@ -1,0 +1,326 @@
+metadata:
+  id: REQ-001
+  title: "Streamline the SDLC process economy: collapse the authoring step tour into a ..."
+  stage: requirements
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-25
+  updated: 2026-08-25
+  request_summary: "Streamline the SDLC process economy: collapse the authoring step tour into a
+    single gated authoring step, merge scenarios and acceptance criteria into one list, consolidate
+    delta authoring, enforce completeness at write time instead of review time, fix the docs-index
+    parser that silently skips validation, slim the planning task model, trim envelope payloads,
+    split fast validation from e2e, add batch answer recording, and generate clean change slugs."
+  clarity: clear
+  assumptions_reviewed: true
+  delta_reviewed: false
+  discovery_reviewed: true
+  scenarios_reviewed: true
+  step: complete
+problem_statement: Driving this toolkit through two real changes cost roughly three to five times
+  the necessary tokens and rounds for a capable agent. The step tour demands a CLI round-trip per
+  micro-phase, scenarios and acceptance criteria duplicate the same text twice, and deltas are
+  authored three times for the same documents. Several checks fire only at review time after the
+  damage is done, one safety check has silently never executed, and planning artifacts carry fields
+  nothing consumes. The result is ceremony that taxes strong agents without catching what matters.
+discovery_log:
+  - id: DL-001
+    question: Who benefits from the process economy reform?
+    answer: Capable LLM agents driving the toolkit pay three to five times the necessary tokens and
+      rounds today; human reviewers read leaner artifacts; the toolkit stays usable for weaker
+      models through unchanged granular flags.
+    lens: stakeholder
+    resolved: true
+  - id: DL-002
+    question: How does the collapsed flow surface?
+    answer: Authoring stages expose a reduced step set (needs_input, init, authoring, ready, complete,
+      recovery); finalize evaluates all gates in one call; step_help leaves the default envelope and
+      returns only behind --help-step; all existing flags stay functional.
+    lens: interface
+    resolved: true
+  - id: DL-003
+    question: What artifact changes are made?
+    answer: Requirements carry one acceptance_criteria list (Given-When-Then statement, category,
+      parent_id) replacing the scenarios plus AC duality; delta entries are normalized at update
+      time; planning tasks keep authored fields only while timestamps become CLI-managed state;
+      complexity, milestones, and risks become optional.
+    lens: data
+    resolved: true
+  - id: DL-004
+    question: What failure modes drive the reform?
+    answer: Eleven review-time findings for missing implementation notes, fourteen schema errors from
+      unnormalized delta entries, and a docs-index parser that returned zero documents so anchor
+      validation silently never ran; all three move to write-time enforcement or get fixed.
+    lens: failure
+    resolved: true
+  - id: DL-005
+    question: Which constraints govern the reform?
+    answer: The envelope keeps its seven frozen top-level fields; completed changes are never migrated
+      or re-validated (append-only respected); the capped check catalog stays the extension path
+      with per-stage declarations; validate must stay under roughly thirty seconds so it actually
+      gets run.
+    lens: constraint
+    resolved: true
+  - id: DL-006
+    question: What does success look like?
+    answer: A full authoring cycle needs roughly half the CLI rounds, artifacts shrink by about a third,
+      no finding can be discovered first at review time, and npm run validate excludes e2e builds
+      while check:all retains full coverage.
+    lens: outcome
+    resolved: true
+scenarios:
+  - id: SC-001
+    statement: Given an authoring stage run that reaches finalize, when the agent calls --finalize
+      --confirm-semantic once, then all gates evaluate in that single call and the artifact reaches
+      ready-for-review without intermediate step round-trips.
+    category: happy
+    status: resolved
+    outcome: ac
+    ac_id: AC-001
+  - id: SC-002
+    statement: Given a requirements draft with Given-When-Then criteria carrying category and parent_id,
+      when validation runs, then the single acceptance_criteria list satisfies the structural checks
+      and no separate scenarios list exists.
+    category: happy
+    status: resolved
+    outcome: ac
+    ac_id: AC-002
+  - id: SC-003
+    statement: Given a task marked done without a note, when the CLI processes the status change, then
+      it rejects the transition with an error demanding the note instead of accepting it and failing
+      later at review.
+    category: negative
+    status: resolved
+    outcome: ac
+    ac_id: AC-003
+  - id: SC-004
+    statement: Given delta entries piped through --update-artifact without phase or date, when the
+      update applies, then the entries are normalized with the stage delta phase and today's date
+      instead of failing schema validation.
+    category: edge
+    status: resolved
+    outcome: ac
+    ac_id: AC-004
+  - id: SC-005
+    statement: Given the real docs/current/index.md with bare filenames, when the docs index loads, then
+      it parses the documents and delta target and anchor validation executes against them.
+    category: negative
+    status: resolved
+    outcome: ac
+    ac_id: AC-005
+  - id: SC-006
+    statement: Given an envelope response, when no --help-step flag is passed, then data omits step_help
+      while all seven top-level envelope fields remain present, and passing --help-step returns the
+      guidance.
+    category: boundary
+    status: resolved
+    outcome: ac
+    ac_id: AC-006
+  - id: SC-007
+    statement: Given a planning artifact whose tasks omit complexity and whose milestones and risks
+      lists are empty or absent, when validation runs, then the artifact passes because those fields
+      are optional.
+    category: edge
+    status: resolved
+    outcome: ac
+    ac_id: AC-007
+  - id: SC-008
+    statement: Given npm run validate on this repository, when it completes, then it finishes without
+      running e2e deploy builds while npm run check:all still runs the full e2e suite.
+    category: boundary
+    status: resolved
+    outcome: ac
+    ac_id: AC-008
+  - id: SC-009
+    statement: Given a YAML file of discovery answers, when --record-answers is invoked with it, then
+      every answer is recorded in one call with sequential DL ids exactly as individual recordings
+      would.
+    category: happy
+    status: resolved
+    outcome: ac
+    ac_id: AC-009
+  - id: SC-010
+    statement: Given a long request title, when a change is created, then the directory slug breaks at
+      word boundaries with no trailing hyphen and no mid-word truncation.
+    category: edge
+    status: resolved
+    outcome: ac
+    ac_id: AC-010
+assumptions:
+  - type: verified
+    text: Both existing changes are complete (knowledge-extraction done), so no active artifacts require
+      migration when the requirements schema merges scenarios into acceptance_criteria.
+    source: docs/changes pipeline state; both changes show all stages accepted.
+  - type: verified
+    text: The envelope schema requires seven top-level fields, so slimming must only touch the data
+      payload, never the top-level shape.
+    source: src/schemas/cli-envelope.schema.yaml
+  - type: unverified
+    text: Collapsing authoring steps will not break external consumers that hardcode step names from the
+      old tour.
+    source: The skill instructs agents to follow the instructions field rather than step names.
+    risk: A consumer could branch on specific step ids like discovery or drafting.
+    impact: Such consumers would see unknown steps and follow instructions instead.
+    severity: low
+functional_requirements:
+  - id: FR-001
+    description: When any stage envelope is emitted, the system shall omit step_help from data unless
+      the caller passes --help-step, keeping all seven frozen top-level fields present.
+    ac_ids:
+      - AC-006
+  - id: FR-002
+    description: When a task status transition to done is requested without a non-empty note, the system
+      shall reject the transition at write time with an error naming the task.
+    ac_ids:
+      - AC-003
+  - id: FR-003
+    description: When delta entries arrive through --update-artifact, the system shall normalize them
+      exactly as --append-delta does, defaulting phase from the stage delta phase and date to today.
+    ac_ids:
+      - AC-004
+  - id: FR-004
+    description: When the docs index file exists, the system shall parse table rows with bare filenames
+      as well as docs/current-prefixed paths, so target and anchor validation runs against the real
+      index.
+    ac_ids:
+      - AC-005
+  - id: FR-005
+    description: When a requirements artifact is authored, the system shall validate a single
+      acceptance_criteria list of Given-When-Then statements carrying category and parent_id, with
+      no separate scenarios list.
+    ac_ids:
+      - AC-002
+  - id: FR-006
+    description: When knowledge-extraction collects deltas, the system shall deduplicate entries per
+      target document and change type before presenting deltas_to_apply.
+    ac_ids:
+      - AC-002
+  - id: FR-007
+    description: When an authoring stage runs, the system shall expose the collapsed step set
+      needs_input, init, authoring, ready, complete, and recovery, with finalize evaluating every
+      gate in one call while record-answer and set-clarity remain functional.
+    ac_ids:
+      - AC-001
+  - id: FR-008
+    description: When a planning artifact is validated, the system shall treat complexity, milestones,
+      and risks as optional and manage started_at, completed_at, and files_changed as CLI-owned
+      state rather than authored fields.
+    ac_ids:
+      - AC-007
+  - id: FR-009
+    description: When npm run validate runs, the system shall complete schemas, policies, templates,
+      typecheck, and unit tests without executing e2e deploy builds, while check:all retains the
+      full suite.
+    ac_ids:
+      - AC-008
+  - id: FR-010
+    description: When --record-answers receives a YAML file of answer entries, the system shall record
+      each entry in order with sequentially allocated DL ids in one invocation.
+    ac_ids:
+      - AC-009
+  - id: FR-011
+    description: When a change directory name is derived from a request, the system shall slugify at
+      word boundaries within the length budget without trailing hyphens or mid-word truncation.
+    ac_ids:
+      - AC-010
+non_functional_requirements:
+  - id: NFR-001
+    description: The CLI envelope shall keep its seven frozen top-level fields; the reform shall only
+      change data payload contents.
+    ac_ids:
+      - AC-006
+  - id: NFR-002
+    description: "Completed changes shall remain untouched: no migration, no re-validation, append-only
+      history preserved."
+    ac_ids:
+      - AC-002
+acceptance_criteria:
+  - id: AC-001
+    statement: Given an authoring stage run reaching finalize, when --finalize --confirm-semantic is
+      called once, then all gates evaluate in that single call and the artifact reaches
+      ready-for-review with no intermediate step round-trips.
+    category: happy
+    parent_id: FR-007
+  - id: AC-002
+    statement: Given a requirements draft with categorized Given-When-Then criteria linked by parent_id,
+      when validation runs, then the single acceptance_criteria list passes the structural checks
+      and the artifact contains no scenarios list.
+    category: happy
+    parent_id: FR-005
+  - id: AC-003
+    statement: Given a done transition without a note, when the CLI processes it, then the transition is
+      rejected at write time with an error naming the task.
+    category: negative
+    parent_id: FR-002
+  - id: AC-004
+    statement: Given delta entries lacking phase and date arriving via --update-artifact, when the
+      update applies, then entries carry the stage delta phase and today's date and validation
+      passes.
+    category: edge
+    parent_id: FR-003
+  - id: AC-005
+    statement: Given the real docs index with bare filenames, when the index loads, then documents parse
+      and delta target and anchor validation executes against them.
+    category: negative
+    parent_id: FR-004
+  - id: AC-006
+    statement: Given an envelope response without --help-step, when it is inspected, then data contains
+      no step_help, all seven top-level fields are present, and --help-step restores the guidance.
+    category: boundary
+    parent_id: FR-001
+  - id: AC-007
+    statement: Given a planning artifact with tasks omitting complexity and absent milestones and risks,
+      when validation runs, then the artifact passes as optional fields.
+    category: edge
+    parent_id: FR-008
+  - id: AC-008
+    statement: Given npm run validate, when it completes, then no e2e deploy build executed, and npm run
+      check:all still runs the full e2e suite.
+    category: boundary
+    parent_id: FR-009
+  - id: AC-009
+    statement: Given a YAML answers file, when --record-answers runs with it, then all entries land in
+      one call with sequential DL ids matching individual recordings.
+    category: happy
+    parent_id: FR-010
+  - id: AC-010
+    statement: Given a long request title, when a change is created, then the slug breaks at word
+      boundaries inside the length budget with no trailing hyphen.
+    category: edge
+    parent_id: FR-011
+out_of_scope:
+  - Wiring runtime delegation so review stages execute through the stage-reviewer agent (strategic
+    follow-up).
+  - A formal fast-track lane for small changes; the collapsed authoring step delivers most of the
+    benefit.
+failure_paths:
+  - "A consumer branches on removed step ids: the instructions field still guides correctly;
+    granular flags remain functional for recovery."
+  - "Old completed artifacts fail new checks if re-linted: they are final and never re-validated;
+    lint-artifact against historical changes is out of contract."
+risks_and_dependencies:
+  - risk: The authoring step collapse touches detectStep logic shared by three stages plus requirements
+      hooks.
+    impact: Regression risk in stage detection; mitigated by the existing unit and e2e suites.
+    severity: medium
+  - risk: Structural-check redeclaration for the merged criteria list could silently weaken coverage.
+    impact: A lost check would weaken validation.
+    mitigation: Each removed scenario check is re-declared against acceptance_criteria or consciously
+      dropped with rationale.
+    severity: medium
+delta:
+  - phase: Requirements
+    change: Modify
+    reason: Document the collapsed authoring flow, merged acceptance criteria list, write-time
+      enforcement rules, slimmed task model, validate tier split, batch recording, and slug
+      generation.
+    target_doc: docs/current/capabilities.md
+    target_anchor: Capabilities
+    date: 2026-08-25
+  - phase: Requirements
+    change: Modify
+    reason: "The Agent-facing workflow changes: fewer steps, one-call finalize, step_help behind
+      --help-step, batch answer recording."
+    target_doc: docs/current/api-contract.md
+    target_anchor: Endpoints (CLI Commands)
+    date: 2026-08-25

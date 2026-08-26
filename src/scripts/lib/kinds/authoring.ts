@@ -8,7 +8,7 @@ import { safeReadYaml, loadReviewReport } from '../context.ts';
 import { loadDocsIndex, headingExists } from '../docs-index.ts';
 import { today, slugify, uniqueSlug, nextIdsFromArrays } from '../ids.ts';
 import { bumpVersion } from '../semver.ts';
-import { titleFromRequest, baseVersion } from '../stage-helpers.ts';
+import { titleFromRequest, baseVersion, normalizeDeltaEntries } from '../stage-helpers.ts';
 import { loadStepDefinitions, evaluatePredicate } from '../steps-loader.ts';
 import { detectStep, isReadyForReview, getData } from '../authoring-base.ts';
 import type { AuthorEnv } from '../authoring-base.ts';
@@ -217,8 +217,79 @@ function applyUpdateArtifact(env: AuthorEnv): void {
       env.changeRoot || env.cwd
     );
 
-  env.artifact = mergeArtifact(base, input, env.stage);
+  const merged = mergeArtifact(base, input, env.stage);
+
+  // Delta arrays piped through --update-artifact normalize identically to
+  // --append-delta (API-003): phase defaults from the stage delta phase and
+  // date defaults to today.
+  if (Array.isArray(merged.delta)) {
+    merged.delta = normalizeDeltaEntries(merged.delta as unknown[], env.stage);
+  }
+
+  env.artifact = merged;
   markMutated(env);
+}
+
+/**
+ * Batch discovery recording (--record-answers <file>, TASK-009): reads a YAML
+ * array of { lens, question, answer } entries and routes each one through the
+ * exact same validation/allocation path as --record-answer by invoking the
+ * stage's recordAnswer hook per entry with per-entry args. DL ids allocate
+ * sequentially because every entry appends to the same artifact. Failures name
+ * the offending entry index; nothing is persisted unless every entry applies
+ * (the caller saves only after this loop returns).
+ */
+export function recordAnswersBatch(env: AuthorEnv): void {
+  const hooks = env.hooks as Record<string, unknown> | null;
+  const recordAnswer = hooks?.recordAnswer as ((e: AuthorEnv) => void) | undefined;
+  if (typeof recordAnswer !== 'function') {
+    throw new Error(`--record-answers is not supported by stage '${env.stage.id}'.`);
+  }
+
+  const file = String(env.args['record-answers'] || '');
+  if (!file.trim()) {
+    throw new Error('--record-answers requires a file path.');
+  }
+
+  if (!fs.existsSync(file)) {
+    throw new Error(`--record-answers file not found: ${file}`);
+  }
+
+  const doc = readYaml(file) as unknown;
+  if (!Array.isArray(doc)) {
+    throw new Error(
+      `--record-answers file must contain a YAML array of { lens, question, answer } entries: ${file}`
+    );
+  }
+
+  doc.forEach((raw: unknown, idx: number) => {
+    const entry = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : null;
+    if (!entry) {
+      throw new Error(
+        `--record-answers entry ${idx} must be an object with lens, question, and answer.`
+      );
+    }
+
+    // A shallow env copy sharing the artifact: the hook validates and allocates
+    // exactly as it does for the singular flag, appending to the same log.
+    const entryEnv: AuthorEnv = {
+      ...env,
+      args: {
+        ...env.args,
+        lens: entry.lens,
+        question: entry.question,
+        answer: entry.answer,
+      },
+    };
+
+    try {
+      recordAnswer(entryEnv);
+    } catch (err: unknown) {
+      throw new Error(
+        `--record-answers entry ${idx} failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  });
 }
 
 function appendDelta(env: AuthorEnv): void {
@@ -245,7 +316,7 @@ function appendDelta(env: AuthorEnv): void {
     });
   }
 
-  const normalized: Record<string, unknown>[] = [];
+  const validated: Record<string, unknown>[] = [];
 
   entries.forEach((entryRaw: unknown, idx: number) => {
     const entry = entryRaw as Record<string, unknown>;
@@ -291,12 +362,10 @@ function appendDelta(env: AuthorEnv): void {
       }
     }
 
-    normalized.push({
-      ...entry,
-      phase: entry.phase || (env.stage).deltaPhase,
-      date: entry.date || today(),
-    });
+    validated.push(entry);
   });
+
+  const normalized = normalizeDeltaEntries(validated, env.stage);
 
   const artifact = env.artifact as Record<string, unknown>;
 
@@ -626,6 +695,13 @@ export async function runAuthoringStage(
       saveArtifact(env);
     }
 
+    if (args['record-answers']) {
+      ensureArtifact(env);
+      recordAnswersBatch(env);
+      markMutated(env);
+      saveArtifact(env);
+    }
+
     if (args['set-clarity']) {
       if (!hooks || typeof hooks.setClarity !== 'function') {
         throw new Error(`--set-clarity is not supported by stage '${stage.id}'.`);
@@ -685,7 +761,7 @@ export async function runAuthoringStage(
         writeJson(
           {
             workflow: stage.id,
-            step: 'validation',
+            step: 'recovery',
             state: 'blocked',
             instructions:
               'Fix the following structural/reference errors:\n - ' +
@@ -787,12 +863,11 @@ export async function runAuthoringStage(
 
     if (step === 'needs_input') {
       data.existing_changes = listExistingChanges(cwd);
-    } else if (step === 'drafting' || step === 'discovery' || step === 'scenarios' || step === 'assumptions') {
+    } else if (step === 'authoring') {
       data.next_ids = nextIdsFromArrays(env.artifact || {}, stage.nextIds);
-    } else if (step === 'validation') {
-      data.errors = blocking;
-    } else if (step === 'delta') {
       data.delta_allowed_target_docs = loadDocsIndex(cwd).map((doc) => doc.file);
+    } else if (step === 'recovery') {
+      data.errors = blocking;
     }
 
     Object.assign(data, getData(stepEnv));
@@ -800,14 +875,12 @@ export async function runAuthoringStage(
     // Expose artifact metadata (e.g. based_on_design) in the envelope.
     data.metadata = (env.artifact?.metadata as Record<string, unknown>) || {};
 
-    let state =
+    const state =
       step === 'complete'
         ? 'complete'
-        : step === 'recovery'
-          ? (blocking.length > 0 ? 'blocked' : 'in_progress')
-          : step === 'validation' && blocking.length > 0
-            ? 'blocked'
-            : 'in_progress';
+        : step === 'recovery' && blocking.length > 0
+          ? 'blocked'
+          : 'in_progress';
 
     let instructions = renderedMarkdown;
 
@@ -833,7 +906,9 @@ export async function runAuthoringStage(
         instructions,
         data: {
           ...data,
-          step_help: stepHelp,
+          // Opt-in step guidance (DEC-003): step_help dominates the payload
+          // and is only included when the invocation carries --help-step.
+          ...(args['help-step'] ? { step_help: stepHelp } : {}),
           review_report: reviewReport,
         },
         errors: [],
