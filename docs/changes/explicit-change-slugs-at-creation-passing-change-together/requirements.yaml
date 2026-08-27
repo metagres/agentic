@@ -1,0 +1,101 @@
+metadata:
+  id: REQ-001
+  title: "Explicit change slugs at creation: passing --change together with --request c..."
+  stage: requirements
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-26
+  updated: 2026-08-26
+  request_summary: "Explicit change slugs at creation: passing --change together with --request
+    creates the change under the provided validated unique slug instead of deriving it mechanically
+    from the request opening."
+  clarity: clear
+  assumptions_reviewed: false
+  delta_reviewed: false
+  discovery_reviewed: true
+  scenarios_reviewed: false
+  step: complete
+problem_statement: Change directory names are derived mechanically from the request opening, which
+  cannot know which words carry the essence; two of this repository's three changes got slugs with
+  trailing articles or mid-phrase cuts. The calling agent is best positioned to name the change but
+  has no way to pass that judgment to creation.
+discovery_log:
+  - id: DL-001
+    question: Who supplies the judgment for a change slug?
+    answer: The calling LLM, which just authored the request and knows its essence; the script supplies
+      only guardrails (charset, length, uniqueness), keeping the engine deterministic per the
+      established division of labor.
+    lens: stakeholder
+    resolved: true
+  - id: DL-002
+    question: How is the judged slug passed?
+    answer: On the existing creation invocation, sdlc <stage> --change <slug> --request "...", which
+      today errors when the directory is absent; proposed semantics create the change under the
+      exact slug instead, while an existing directory keeps meaning resume.
+    lens: interface
+    resolved: true
+  - id: DL-003
+    question: What are the failure modes?
+    answer: Invalid charset, over-length, or leading/trailing hyphen rejects creation naming the
+      violation; a collision with an existing change directory rejects naming it and listing
+      candidates; nothing is created partially.
+    lens: failure
+    resolved: true
+  - id: DL-004
+    question: Which constraints govern the mechanism?
+    answer: No renames of existing changes; bare --request keeps the mechanical word-boundary slugify as
+      fallback; envelope shape and all other flags untouched; no LLM inside the engine.
+    lens: constraint
+    resolved: true
+assumptions: []
+functional_requirements:
+  - id: FR-001
+    description: When a stage invocation carries both --change and --request and no matching change
+      directory exists, the system shall create the change under the exact provided slug after
+      validating it.
+    ac_ids:
+      - AC-001
+  - id: FR-002
+    description: When the provided slug violates charset or length rules, carries a leading or trailing
+      hyphen, or collides with an existing change directory, the system shall reject creation naming
+      the violation and listing existing candidates, while bare --request invocations keep the
+      mechanical fallback unchanged.
+    ac_ids:
+      - AC-002
+      - AC-003
+non_functional_requirements:
+  - id: NFR-001
+    description: Resume semantics for existing directories, the envelope shape, and all other flags
+      shall remain unchanged; no LLM involvement enters the engine.
+    ac_ids:
+      - AC-003
+acceptance_criteria:
+  - id: AC-001
+    statement: Given a stage invocation with --change my-slug and --request text where no matching
+      directory exists, when the CLI runs, then the change is created under docs/changes/my-slug
+      with the artifact initialized from the request.
+    category: happy
+    parent_id: FR-001
+  - id: AC-002
+    statement: Given a slug with invalid characters, excessive length, or edge hyphens, or one colliding
+      with an existing change, when creation runs, then it is rejected naming the violation and
+      existing candidates and no directory is created.
+    category: negative
+    parent_id: FR-002
+  - id: AC-003
+    statement: "Given a bare --request invocation or an --change naming an existing directory, when the
+      CLI runs, then behavior is byte-identical to before this change: mechanical slug for the
+      former, resume for the latter."
+    category: boundary
+    parent_id: NFR-001
+out_of_scope: []
+failure_paths: []
+risks_and_dependencies: []
+delta:
+  - phase: Requirements
+    change: Modify
+    reason: Document explicit slug creation semantics alongside the mechanical fallback and its
+      validation rules.
+    target_doc: docs/current/api-contract.md
+    target_anchor: Endpoints (CLI Commands)
+    date: 2026-08-26

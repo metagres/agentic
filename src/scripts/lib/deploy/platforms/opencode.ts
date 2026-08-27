@@ -80,7 +80,10 @@ function renderOpenCodeAgent(agent: AgentRecord, format: 'v1' | 'v2'): RenderedA
   const fields: Record<string, unknown> = {
     description: agent.description,
     mode: agent.mode,
-    model: agent.model,
+    // The effective model wins in rendered output (DEC-004): model_override
+    // when the descriptor carries one, else the team recommendation. The
+    // source YAML model field is never mutated by deployment.
+    model: agent.effectiveModel,
     temperature: agent.temperature,
   };
   if (format === 'v2') {

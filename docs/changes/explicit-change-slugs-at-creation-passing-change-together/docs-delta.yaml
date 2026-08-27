@@ -1,0 +1,6 @@
+metadata:
+  stage: knowledge-extraction
+  status: complete
+  updated: 2026-08-26
+  change_root: /home/elton/repos/agentic/docs/changes/explicit-change-slugs-at-creation-passing-change-together
+deltas_applied: 1

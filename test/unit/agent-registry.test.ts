@@ -21,14 +21,22 @@ function makeAgentsFixture(agents: Record<string, string>): string {
   return tmp;
 }
 
-function validAgent(id: string, description: string, mode?: string): string {
+function validAgent(
+  id: string,
+  description: string,
+  mode?: string,
+  modelOverride?: string
+): string {
   const lines = [
     'version: 1',
     `id: ${id}`,
     `description: ${description}`,
     'model: opencode-go/grok-4.5',
-    'temperature: 0.2',
   ];
+  if (modelOverride !== undefined) {
+    lines.push(`model_override: ${modelOverride}`);
+  }
+  lines.push('temperature: 0.2');
   if (mode !== undefined) {
     lines.push(`mode: ${mode}`);
   }
@@ -73,6 +81,65 @@ test('loadAgentRegistry discovers and parses valid agent definitions', () => {
   });
   assert.equal(reviewer.systemPrompt, 'You are a neutral agent.');
   assert.ok(reviewer.file.endsWith('code-reviewer.yaml'));
+  // Without model_override the record exposes null plus the recommendation as effective.
+  assert.equal(reviewer.modelOverride, null);
+  assert.equal(reviewer.effectiveModel, reviewer.model);
+});
+
+test('a descriptor with model_override exposes model, modelOverride, and effectiveModel', () => {
+  const tmp = makeAgentsFixture({
+    'overridden.yaml': validAgent(
+      'overridden',
+      'Carries a personal override',
+      undefined,
+      'anthropic/claude-opus'
+    ),
+  });
+
+  const registry = loadAgentRegistry(tmp, path.join(tmp, 'agents'));
+  assert.equal(registry.length, 1);
+  const agent = registry[0];
+  assert.equal(agent.model, 'opencode-go/grok-4.5');
+  assert.equal(agent.modelOverride, 'anthropic/claude-opus');
+  assert.equal(agent.effectiveModel, 'anthropic/claude-opus');
+});
+
+test('a descriptor without model_override exposes modelOverride null and effectiveModel equal to model', () => {
+  const tmp = makeAgentsFixture({
+    'plain.yaml': validAgent('plain', 'No override'),
+  });
+
+  const registry = loadAgentRegistry(tmp, path.join(tmp, 'agents'));
+  const agent = registry.find((a) => a.id === 'plain');
+  assert.ok(agent);
+  assert.equal(agent.model, 'opencode-go/grok-4.5');
+  assert.equal(agent.modelOverride, null);
+  assert.equal(agent.effectiveModel, 'opencode-go/grok-4.5');
+});
+
+test('an empty model_override string fails schema validation naming the file', () => {
+  const tmp = makeAgentsFixture({
+    'empty-override.yaml': [
+      'version: 1',
+      'id: empty-override',
+      'description: Empty override',
+      'model: opencode-go/grok-4.5',
+      "model_override: ''",
+      'temperature: 0.2',
+      'permissions:',
+      '  file_read: allow',
+      '  search: allow',
+      '  file_write: deny',
+      '  shell: deny',
+      '  subagent: deny',
+      '  web: deny',
+      '  question: deny',
+      'system_prompt: You are a neutral agent.',
+      '',
+    ].join('\n'),
+  });
+
+  assert.throws(() => loadAgentRegistry(tmp, path.join(tmp, 'agents')), /empty-override\.yaml/);
 });
 
 test('an invalid model enum value fails schema validation naming the file', () => {

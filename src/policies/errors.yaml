@@ -9,6 +9,12 @@ errors:
   CHANGE_DIR_NOT_FOUND:
     message: No matching change was found.
     fix: Use one of the changes listed in data.available_changes, or create a new change with --request.
+  INVALID_CHANGE_SLUG:
+    message: The provided --change name is not a valid change slug.
+    fix: Use lowercase letters, digits, and hyphens only; start with a letter or digit; at most 60 characters; no trailing hyphen.
+  CHANGE_DIR_EXISTS:
+    message: A change directory with that exact name already exists.
+    fix: Use one of the listed changes as --change, or pick a different name.
   ARTIFACT_NOT_FOUND:
     message: Required artifact not found.
     fix: Run the corresponding stage first.
@@ -167,6 +173,12 @@ errors:
   AGENT_PERMISSION_INCOMPATIBLE:
     message: A stage-to-agent binding violates the permission compatibility check.
     fix: Align the stage's permission contract with the agent's declared permissions.
+  AGENT_MODEL_OVERRIDE_EMPTY:
+    message: An agent definition declares an empty model_override.
+    fix: Set model_override to a non-empty free-form model id or remove the field.
+  AGENT_MODEL_OUTSIDE_CATALOG:
+    message: An agent definition's model is not a member of the current catalog enum.
+    fix: Set model to a qualified id from the current catalog enum in agent.schema.yaml.
   PLATFORM_UNKNOWN:
     message: Deployment platform or version selection does not resolve.
     fix: Use a known platform and version for the deployment target.

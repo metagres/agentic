@@ -7,6 +7,8 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { validateWithSchema } from '../../src/scripts/lib/schema.ts';
 import { parseYamlString } from '../../src/scripts/lib/yaml-io.ts';
+import { loadAgentRegistry } from '../../src/scripts/lib/agent-registry.ts';
+import { getRenderer } from '../../src/scripts/lib/deploy/platforms/index.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '../..');
@@ -213,6 +215,7 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
     'rendered agent files must match the source agent roster'
   );
 
+  const agentsSourceDir = path.join(root, 'src', 'agents');
   for (const file of renderedAgentFiles) {
     const content = fs.readFileSync(path.join(agentsDir, file), 'utf8');
     const lines = content.split('\n');
@@ -231,6 +234,29 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
         frontmatter.model.startsWith('opencode-go/'),
       `model must start with opencode-go/ in ${file}`
     );
+
+    // Effective-model rendering (DEC-004): the rendered frontmatter model must
+    // equal model_override when the source declares one, else the recommended
+    // model — and deployment never mutates the source YAML recommendation.
+    const source = parseYamlString(
+      fs.readFileSync(path.join(agentsSourceDir, file.replace(/\.md$/, '.yaml')), 'utf8'),
+      `source-${file}`
+    ) as Record<string, unknown>;
+    const expectedModel =
+      typeof source.model_override === 'string' && source.model_override.length > 0
+        ? source.model_override
+        : source.model;
+    assert.equal(frontmatter.model, expectedModel, `effective model in ${file}`);
+    if (expectedModel === source.model) {
+      // No override: the source YAML still carries the team recommendation
+      // unchanged and the rendered model equals it.
+      assert.equal(
+        typeof source.model,
+        'string',
+        `source recommendation must remain a non-empty string in ${file}`
+      );
+    }
+
     // Interactive questioning (TASK-003): only requirements-analyst may ask
     // questions; every other agent is denied.
     const permission = frontmatter.permission as Record<string, string>;
@@ -340,4 +366,86 @@ test('deploy with an unknown platform fails listing supported platforms', () => 
   assert.notEqual(deploy.status, 0, 'unknown platform must fail the deploy');
   assert.match(deploy.stderr, /Unknown platform 'nosuch'/);
   assert.match(deploy.stderr, /opencode/);
+});
+
+test('an agent carrying model_override renders the override; one without renders the recommendation', () => {
+  // Exercises the exact registry + renderer composition bin/deploy-to-agent.ts
+  // uses (loadAgentRegistry -> renderer.renderAgent) against fixture
+  // descriptors validated by the real agent schema (DEC-004, AC-017/AC-018).
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-deploy-override-'));
+  const agentsDir = path.join(tmp, 'agents');
+  fs.mkdirSync(agentsDir, { recursive: true });
+
+  const permissions = [
+    'permissions:',
+    '  file_read: allow',
+    '  search: allow',
+    '  file_write: deny',
+    '  shell: deny',
+    '  subagent: deny',
+    '  web: deny',
+    '  question: deny',
+  ];
+
+  const overriddenYaml = [
+    'version: 1',
+    'id: overridden-agent',
+    'description: Carries a personal model override.',
+    'model: opencode-go/kimi-k3',
+    "model_override: 'my-provider/my-model'",
+    'temperature: 0.2',
+    ...permissions,
+    'system_prompt: You are a neutral override agent.',
+    '',
+  ].join('\n');
+
+  const plainYaml = [
+    'version: 1',
+    'id: plain-agent',
+    'description: Uses the team recommendation.',
+    'model: opencode-go/kimi-k3',
+    'temperature: 0.2',
+    ...permissions,
+    'system_prompt: You are a neutral plain agent.',
+    '',
+  ].join('\n');
+
+  fs.writeFileSync(path.join(agentsDir, 'overridden-agent.yaml'), overriddenYaml, 'utf8');
+  fs.writeFileSync(path.join(agentsDir, 'plain-agent.yaml'), plainYaml, 'utf8');
+  const overriddenBefore = fs.readFileSync(path.join(agentsDir, 'overridden-agent.yaml'), 'utf8');
+  const plainBefore = fs.readFileSync(path.join(agentsDir, 'plain-agent.yaml'), 'utf8');
+
+  const registry = loadAgentRegistry(tmp, agentsDir);
+  const render = getRenderer('opencode').renderAgent;
+
+  const overriddenRendered = render(registry.find((a) => a.id === 'overridden-agent')!);
+  const plainRendered = render(registry.find((a) => a.id === 'plain-agent')!);
+
+  const parseModel = (content: string): unknown => {
+    const lines = content.split('\n');
+    assert.equal(lines[0], '---');
+    const closeIdx = lines.indexOf('---', 1);
+    const frontmatter = parseYamlString(
+      lines.slice(1, closeIdx).join('\n'),
+      'rendered-fixture'
+    ) as Record<string, unknown>;
+    return frontmatter.model;
+  };
+
+  // AC-017: both fields present -> rendered frontmatter model is the override.
+  assert.equal(parseModel(overriddenRendered.content), 'my-provider/my-model');
+
+  // AC-018: only model present -> rendered model equals the recommendation and
+  // the source YAML still carries it byte-identically.
+  assert.equal(parseModel(plainRendered.content), 'opencode-go/kimi-k3');
+  assert.equal(
+    fs.readFileSync(path.join(agentsDir, 'overridden-agent.yaml'), 'utf8'),
+    overriddenBefore,
+    'deployment must not mutate the source YAML'
+  );
+  assert.equal(
+    fs.readFileSync(path.join(agentsDir, 'plain-agent.yaml'), 'utf8'),
+    plainBefore,
+    'deployment must not mutate the source YAML'
+  );
 });

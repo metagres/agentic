@@ -456,6 +456,14 @@ function main() {
         );
       }
 
+      // The rendered frontmatter must carry the effective model (DEC-004):
+      // model_override when present, else the team recommendation.
+      if (frontmatter.model !== agent.effectiveModel) {
+        fail(
+          `Agent smoke test failed: rendered model '${String(frontmatter.model)}' does not match the effective model '${agent.effectiveModel}' for '${agent.id}'.`
+        );
+      }
+
       agentsReport.push({ name: agent.id, smoke: 'passed' });
     }
   } else {

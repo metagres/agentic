@@ -1,0 +1,6 @@
+metadata:
+  stage: knowledge-extraction
+  status: complete
+  updated: 2026-08-26
+  change_root: /home/elton/repos/agentic/docs/changes/add-a-dev-only-agent-audit-skill-that-refreshes-the-opencode
+deltas_applied: 7

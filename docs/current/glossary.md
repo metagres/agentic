@@ -149,6 +149,37 @@
 | Translation | file_read → read/list, search → glob/grep, file_write → edit/write/apply_patch, shell → bash, subagent → task, web → webfetch/websearch, question → question | src/scripts/lib/deploy/platforms/opencode.ts |
 | Frontmatter | rendered agents/<id>.md header carries description, mode (invocation mode), model, temperature beside the permission/tools map | src/scripts/lib/deploy/platforms/opencode.ts |
 
+## Entity: Agent Audit (src/skills/agent-audit/SKILL.md)
+
+| Field | Type | Nullable | Source |
+|-------|------|----------|--------|
+| location | src/skills/agent-audit/SKILL.md (dev-only, SKILL.md folder protocol) | No | src/skills/agent-audit/SKILL.md |
+| inputs | live catalog GET http://opencode.ai/zen/go/v1/models; src/agents/*.yaml; schema enum; stage.yaml bindings | No | src/skills/agent-audit/SKILL.md |
+| outputs | rewritten schema enum + agent fields (model, temperature, description, system_prompt, permissions); roster add/remove/dedupe with stage.yaml rebinding | No | src/skills/agent-audit/SKILL.md |
+| invocation | manual, by the maintainer; never deployed | No | src/skills/agent-audit/SKILL.md, bin/deploy-to-agent.ts |
+
+| Business Rules | Rule | Location |
+|----------------|------|----------|
+| Non-2xx fetch | abort naming URL and HTTP status with zero file writes | src/skills/agent-audit/SKILL.md |
+| LLM scope | the only component where LLM judgment drives configuration; runtime validation/deployment stay deterministic | src/skills/agent-audit/SKILL.md |
+| Post-run gate | finishes only when npm run validate passes with zero findings | src/skills/agent-audit/SKILL.md |
+| Override preservation | never modifies an existing model_override | src/skills/agent-audit/SKILL.md |
+
+## Entity: Model Override
+
+| Field | Type | Nullable | Source |
+|-------|------|----------|--------|
+| model | string (enum: sorted opencode/<id> catalog) | No | src/schemas/agent.schema.yaml |
+| model_override | string (free-form, minLength 1 when present, not enum-checked) | Yes (absent → null) | src/schemas/agent.schema.yaml |
+| modelOverride | string \| null on AgentRecord | Yes | src/scripts/lib/agent-registry.ts |
+| effectiveModel | string = model_override ?? model | No | src/scripts/lib/agent-registry.ts |
+
+| Business Rules | Rule | Location |
+|----------------|------|----------|
+| Precedence | effectiveModel = model_override ?? model; deploy renders effectiveModel into frontmatter while source model stays the recommendation | src/scripts/lib/agent-registry.ts, src/scripts/lib/deploy/platforms/opencode.ts |
+| Validation | model must be a member of the enum; empty model_override fails naming file and value; free-form non-empty overrides pass | src/scripts/lib/agent-model-fields.ts, src/policies/errors.yaml |
+| Surfacing | CLI data exposes both model (recommended) and effectiveModel for bound agents | src/scripts/workflows/index.ts, src/scripts/workflows/status.ts |
+
 ## Naming Cross-Check
 
 | Backend Term | Frontend Term | Same Concept? | Action |

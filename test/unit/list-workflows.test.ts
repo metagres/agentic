@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 import { listWorkflows } from '../../src/scripts/workflows/index.ts';
 import { loadStageRegistry, getStageById } from '../../src/scripts/lib/stage-registry.ts';
+import { loadAgentRegistry, getAgentModelFields } from '../../src/scripts/lib/agent-registry.ts';
 import { validateWithSchema } from '../../src/scripts/lib/schema.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -53,14 +54,95 @@ test('listWorkflows() carries the bound agent id for every discovered stage', ()
   }
 });
 
+test('bound workflow entries surface both the recommended and the effective model', () => {
+  const workflows = listWorkflows();
+  const agents = loadAgentRegistry(root);
+  const byId = new Map(agents.map((a) => [a.id, a]));
+
+  for (const entry of workflows) {
+    if (!entry.agent) {
+      // Unbound entries carry no model fields at all.
+      assert.ok(!('model' in entry), `unbound entry '${entry.id}' must not carry model`);
+      assert.ok(
+        !('effectiveModel' in entry),
+        `unbound entry '${entry.id}' must not carry effectiveModel`
+      );
+      continue;
+    }
+
+    const agent = byId.get(entry.agent);
+    assert.ok(agent, `entry '${entry.id}' bound to unknown agent '${entry.agent}'`);
+    assert.equal(entry.model, agent.model, `recommended model for '${entry.id}'`);
+    assert.equal(entry.effectiveModel, agent.effectiveModel, `effective model for '${entry.id}'`);
+  }
+
+  // The shipped roster currently pins no override, so recommendation and
+  // effective model coincide for every bound stage.
+  const requirements = workflows.find((w) => w.id === 'requirements');
+  const analyst = byId.get('requirements-analyst');
+  assert.ok(requirements && analyst);
+  assert.equal(requirements.model, analyst.model);
+  assert.equal(requirements.effectiveModel, analyst.effectiveModel);
+});
+
 test('cross-cutting workflow entries (status, feedback, doctor) carry agent: null', () => {
   const workflows = listWorkflows();
   for (const id of CROSS_CUTTING_IDS) {
     const entry = workflows.find((w) => w.id === id);
     assert.ok(entry, `missing cross-cutting entry '${id}'`);
     assert.equal(entry.agent, null, `cross-cutting entry '${id}' must be agent-null`);
+    assert.ok(!('model' in entry), `cross-cutting entry '${id}' must not carry model`);
+    assert.ok(
+      !('effectiveModel' in entry),
+      `cross-cutting entry '${id}' must not carry effectiveModel`
+    );
     assert.ok(entry.description, `cross-cutting entry '${id}' missing description`);
   }
+});
+
+test('getAgentModelFields resolves the override as effectiveModel from a fixture roster', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-model-fields-'));
+  const agentsDir = path.join(tmp, 'agents');
+  fs.mkdirSync(agentsDir, { recursive: true });
+
+  const base = (id: string, extra: string[] = []) =>
+    [
+      'version: 1',
+      `id: ${id}`,
+      'description: Fixture agent',
+      'model: opencode-go/kimi-k3',
+      ...extra,
+      'temperature: 0.2',
+      'permissions:',
+      '  file_read: allow',
+      '  search: allow',
+      '  file_write: deny',
+      '  shell: deny',
+      '  subagent: deny',
+      '  web: deny',
+      '  question: deny',
+      'system_prompt: You are a neutral agent.',
+      '',
+    ].join('\n');
+
+  fs.writeFileSync(path.join(agentsDir, 'overriding.yaml'), base('overriding', ["model_override: 'my-provider/my-model'"]), 'utf8');
+  fs.writeFileSync(path.join(agentsDir, 'plain.yaml'), base('plain'), 'utf8');
+
+  // An override surfaces as effectiveModel while the recommendation stays.
+  assert.deepEqual(getAgentModelFields(tmp, 'overriding', agentsDir), {
+    model: 'opencode-go/kimi-k3',
+    effectiveModel: 'my-provider/my-model',
+  });
+
+  // Without an override the effective model equals the recommendation.
+  assert.deepEqual(getAgentModelFields(tmp, 'plain', agentsDir), {
+    model: 'opencode-go/kimi-k3',
+    effectiveModel: 'opencode-go/kimi-k3',
+  });
+
+  // No binding or an unresolved id yields no model fields.
+  assert.deepEqual(getAgentModelFields(tmp, null, agentsDir), {});
+  assert.deepEqual(getAgentModelFields(tmp, 'does-not-exist', agentsDir), {});
 });
 
 test('every workflows[] entry carries an agent field and the envelope validates', () => {
@@ -99,6 +181,22 @@ test('status pipeline stage entries carry the bound agent id or null', () => {
     const stage = byId.get(id);
     assert.equal(typeof entry.status, 'string', `pipeline '${id}' missing status`);
     assert.equal(entry.agent, stage ? stage.agent : null, `pipeline '${id}' agent mismatch`);
+
+    if (entry.agent) {
+      // Bound pipeline entries surface the recommended/effective model pair.
+      assert.equal(typeof entry.model, 'string', `pipeline '${id}' missing model`);
+      assert.equal(
+        typeof entry.effectiveModel,
+        'string',
+        `pipeline '${id}' missing effectiveModel`
+      );
+    } else {
+      assert.ok(!('model' in entry), `unbound pipeline '${id}' must not carry model`);
+      assert.ok(
+        !('effectiveModel' in entry),
+        `unbound pipeline '${id}' must not carry effectiveModel`
+      );
+    }
   }
 
   // Spot checks: an authoring stage binds its analyst, a review stage binds

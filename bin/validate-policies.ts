@@ -7,6 +7,7 @@ import addFormats from 'ajv-formats';
 import { readYaml } from '../src/scripts/lib/yaml-io.ts';
 import { loadStageRegistry, getStageById } from '../src/scripts/lib/stage-registry.ts';
 import { loadAgentRegistry, getAgentById } from '../src/scripts/lib/agent-registry.ts';
+import { checkAgentModelFields } from '../src/scripts/lib/agent-model-fields.ts';
 import { checkAgentCompatibility } from '../src/scripts/lib/agent-permissions.ts';
 import { findPromptMarkers } from '../src/scripts/lib/agent-prompt-marker.ts';
 import { resolveAgentsDir } from '../src/scripts/lib/paths.ts';
@@ -200,9 +201,15 @@ const agentFiles = agentsDir && fs.existsSync(agentsDir)
   : [];
 
 if (agentFiles.length > 0 && agentsDir) {
-  const compileAgent = ajv.compile(
-    readYaml(path.join(root, 'src', 'schemas', 'agent.schema.yaml')) as Record<string, unknown>
-  );
+  const agentSchema = readYaml(
+    path.join(root, 'src', 'schemas', 'agent.schema.yaml')
+  ) as {
+    properties?: { model?: { enum?: string[] } };
+  };
+  const compileAgent = ajv.compile(agentSchema as Record<string, unknown>);
+  // The catalog enum lives in the schema; the cross-check below reuses it so
+  // both layers stay in sync (DEC-003).
+  const catalogModels: string[] = agentSchema.properties?.model?.enum ?? [];
 
   for (const fileName of agentFiles) {
     const agentFile = path.join(agentsDir, fileName);
@@ -250,6 +257,14 @@ if (agentFiles.length > 0 && agentsDir) {
         ok: false,
         error: `AGENT_SCHEMA_INVALID: ${err instanceof Error ? err.message : String(err)}`,
       });
+    }
+
+    // Engine-level model-field cross-check (DEC-003): an empty model_override
+    // and a model outside the catalog enum each fail naming the file and the
+    // offending value. Free-form non-empty overrides pass.
+    for (const finding of checkAgentModelFields(doc, label, catalogModels)) {
+      failed = true;
+      results.push({ file: label, ok: false, error: `${finding.code}: ${finding.finding}` });
     }
 
     // Prompt purity: the personality prose must not reference the toolkit's

@@ -18,13 +18,16 @@ const SYSTEM_PROMPT = [
 /** Realistic AgentRecord: model is passed through verbatim, temperature is a
  *  number, mode is the registry-normalized default ('all'), and all seven
  *  neutral permission keys are present across all three levels
- *  (allow / ask / deny). */
+ *  (allow / ask / deny). By default no override is set (modelOverride null,
+ *  effectiveModel equal to model). */
 function makeAgent(overrides: Partial<AgentRecord> = {}): AgentRecord {
   return {
     id: 'stage-reviewer',
     file: '/repo/src/agents/stage-reviewer.yaml',
     description: 'Adversarially verifies development artifacts before approval.',
     model: 'opencode-go/kimi-k3',
+    modelOverride: null,
+    effectiveModel: 'opencode-go/kimi-k3',
     temperature: 0.3,
     mode: 'all',
     permissions: {
@@ -169,6 +172,40 @@ test('v1 question maps into the tools map (true/false, ask omitted)', () => {
   const { frontmatter: askFm } = parseRendered(askRendered.content);
   const askTools = askFm.tools as Record<string, unknown>;
   assert.equal('question' in askTools, false);
+});
+
+// --- effective model (DEC-004) ----------------------------------------------
+
+test('v2 renderer writes the effective model into frontmatter when an override is set', () => {
+  const agent = makeAgent({
+    modelOverride: 'anthropic/claude-opus',
+    effectiveModel: 'anthropic/claude-opus',
+  });
+  const rendered = getRenderer('opencode').renderAgent(agent);
+  const { frontmatter } = parseRendered(rendered.content);
+
+  assert.equal(frontmatter.model, 'anthropic/claude-opus');
+});
+
+test('v1 renderer writes the effective model into frontmatter when an override is set', () => {
+  const agent = makeAgent({
+    modelOverride: 'gpt-5',
+    effectiveModel: 'gpt-5',
+  });
+  const rendered = getRenderer('opencode', 1).renderAgent(agent);
+  const { frontmatter } = parseRendered(rendered.content);
+
+  assert.equal(frontmatter.model, 'gpt-5');
+});
+
+test('without an override the rendered model equals the recommendation', () => {
+  for (const version of [1, 2]) {
+    const agent = makeAgent();
+    assert.equal(agent.effectiveModel, agent.model);
+    const rendered = getRenderer('opencode', version).renderAgent(agent);
+    const { frontmatter } = parseRendered(rendered.content);
+    assert.equal(frontmatter.model, 'opencode-go/kimi-k3', `v${version} recommendation`);
+  }
 });
 
 // --- mode -------------------------------------------------------------------

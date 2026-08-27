@@ -15,6 +15,8 @@
 | Knowledge extraction (delta aggregation) | src/scripts/lib/kinds/aggregator.ts | Docs Delta | sdlc knowledge-extraction | collects deltas from all delta-producing stages; warns DOCS_INDEX_MISSING |
 | Living-doc bootstrap | src/skills/knowledge-init/SKILL.md | Skill Folder, Docs Delta | agent skill (not a CLI command) | sole creator of docs/current; runs once |
 | Repo context compilation | generate_context.js | — | node generate_context.js | compiles source into llm_context.txt using .contextignore |
+| Agent audit (dev-only) | src/skills/agent-audit/SKILL.md | Agent Definition, Skill Folder | agent skill (not a CLI command) | dev-time catalog refresh from GET http://opencode.ai/zen/go/v1/models (sorted opencode/<id> enum, opencode-go/ prefix migration), LLM web-grounded model assignment, temperature/description/system_prompt realignment, permission auto-fix, roster dedupe/add/remove with stage.yaml rebinding |
+| Model override | src/schemas/agent.schema.yaml, src/scripts/lib/agent-registry.ts | Agent Definition, Platform Renderer | sdlc <stage-id> (delegation), node bin/deploy-to-agent.ts | recommendation preserved in the enum-checked model field; free-form model_override wins as effectiveModel (not enum-checked); both values surfaced in CLI data |
 
 ## Workflows
 

@@ -58,6 +58,28 @@ export function slugify(text: string): string {
   return kept || base.slice(0, 60);
 }
 
+export const CHANGE_SLUG_MAX_LENGTH = 60;
+
+// Explicit change names (TASK-001): when --change and --request are both given
+// and no change directory matches, the change is created under the exact
+// provided name. That name must already be a valid slug; this reports the
+// first violation, or null when the name is usable as-is.
+export function validateChangeSlug(name: string): string | null {
+  if (/[^a-z0-9-]/.test(name)) {
+    return `Change name '${name}' may only contain lowercase letters, digits, and hyphens.`;
+  }
+  if (!/^[a-z0-9]/.test(name)) {
+    return `Change name '${name}' must start with a lowercase letter or digit.`;
+  }
+  if (name.length > CHANGE_SLUG_MAX_LENGTH) {
+    return `Change name '${name}' is ${name.length} characters long; the maximum is ${CHANGE_SLUG_MAX_LENGTH}.`;
+  }
+  if (name.endsWith('-')) {
+    return `Change name '${name}' must not end with a hyphen.`;
+  }
+  return null;
+}
+
 export function uniqueSlug(baseSlug: string, existingSlugs: string[]): string {
   if (!existingSlugs.includes(baseSlug)) return baseSlug;
 

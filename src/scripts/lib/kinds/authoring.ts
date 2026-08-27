@@ -6,7 +6,7 @@ import { resolveRootOrError, ResolveRootError } from '../resolve-root.ts';
 import { writeYamlAtomic, readStdin, parseYamlString, readYaml } from '../yaml-io.ts';
 import { safeReadYaml, loadReviewReport } from '../context.ts';
 import { loadDocsIndex, headingExists } from '../docs-index.ts';
-import { today, slugify, uniqueSlug, nextIdsFromArrays } from '../ids.ts';
+import { today, slugify, uniqueSlug, nextIdsFromArrays, validateChangeSlug } from '../ids.ts';
 import { bumpVersion } from '../semver.ts';
 import { titleFromRequest, baseVersion, normalizeDeltaEntries } from '../stage-helpers.ts';
 import { loadStepDefinitions, evaluatePredicate } from '../steps-loader.ts';
@@ -106,8 +106,54 @@ function instantiateArtifact(
   return doc;
 }
 
-function createChangeDir(cwd: string, request: string, stage: StageRecord): string {
+/**
+ * Explicit-slug creation failure (TASK-001): --change plus --request with no
+ * matching change directory creates the change under the exact provided name.
+ * Carries the error code and the same candidates/available/searched details
+ * as ResolveRootError so the blocked envelope mirrors the existing
+ * AMBIGUOUS/available-changes machinery.
+ */
+export class ChangeSlugError extends Error {
+  code: string;
+  candidates: string[];
+  available: string[];
+  searched: string;
+
+  constructor(
+    code: string,
+    message: string,
+    details: { candidates?: string[]; available?: string[]; searched?: string } = {}
+  ) {
+    super(message);
+    this.name = 'ChangeSlugError';
+    this.code = code;
+    this.candidates = details.candidates || [];
+    this.available = details.available || [];
+    this.searched = details.searched || '';
+  }
+}
+
+export function createChangeDir(
+  cwd: string,
+  request: string,
+  stage: StageRecord,
+  explicitSlug?: string
+): string {
   const changesDir = path.join(cwd, 'docs', 'changes');
+
+  let slug: string | undefined;
+
+  if (explicitSlug !== undefined) {
+    // Explicit-slug creation (TASK-001): the change is created under the exact
+    // provided name. Validation runs before anything is written; a collision
+    // with an existing change directory is rejected naming the candidates.
+    const problem = validateChangeSlug(explicitSlug);
+    if (problem) {
+      throw new ChangeSlugError('INVALID_CHANGE_SLUG', problem, { searched: changesDir });
+    }
+    slug = explicitSlug;
+  }
+
   fs.mkdirSync(changesDir, { recursive: true });
 
   const existing = fs
@@ -115,8 +161,20 @@ function createChangeDir(cwd: string, request: string, stage: StageRecord): stri
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name);
 
-  const slugBase = slugify(request);
-  const slug = uniqueSlug(slugBase, existing);
+  if (slug !== undefined) {
+    if (existing.includes(slug)) {
+      const sorted = [...existing].sort();
+      const shown = sorted.slice(0, 10).join(', ');
+      const more = sorted.length > 10 ? ` (and ${sorted.length - 10} more)` : '';
+      throw new ChangeSlugError(
+        'CHANGE_DIR_EXISTS',
+        `Change '${slug}' already exists; refusing to create a duplicate. Available changes: ${shown}${more}`,
+        { candidates: [slug], available: sorted, searched: changesDir }
+      );
+    }
+  } else {
+    slug = uniqueSlug(slugify(request), existing);
+  }
 
   const root = path.join(changesDir, slug);
   fs.mkdirSync(root, { recursive: true });
@@ -583,7 +641,52 @@ export async function runAuthoringStage(
       try {
         changeRoot = resolveRootOrError(String(args.change), { cwd });
       } catch (err: unknown) {
-        if (err instanceof ResolveRootError) {
+        if (!(err instanceof ResolveRootError)) throw err;
+
+        // Explicit-slug creation (TASK-001): --change plus --request with no
+        // matching change directory creates the change under the exact
+        // provided name, after slug validation and the uniqueness check.
+        if (args.request && err.candidates.length === 0) {
+          try {
+            changeRoot = createChangeDir(
+              cwd,
+              String(args.request),
+              stage,
+              String(args.change)
+            );
+          } catch (createErr: unknown) {
+            if (!(createErr instanceof ChangeSlugError)) throw createErr;
+            writeJson(
+              {
+                workflow: stage.id,
+                step: 'needs_input',
+                state: 'blocked',
+                instructions: createErr.message,
+                data: {
+                  requested_change: String(args.change),
+                  candidates: createErr.candidates,
+                  available_changes: createErr.available || [],
+                  searched: createErr.searched || undefined,
+                },
+                errors: [
+                  {
+                    code: createErr.code,
+                    message: createErr.message,
+                    ...(createErr.available.length > 0
+                      ? {
+                          fix: 'Use one of data.available_changes as --change (the exact name or a unique part of it), or pick a different name.',
+                        }
+                      : {}),
+                  },
+                ],
+                warnings,
+              },
+              EXIT.usage
+            );
+            return;
+          }
+          // Creation succeeded: continue with the normal flow below.
+        } else {
           writeJson(
             {
               workflow: stage.id,
@@ -612,7 +715,6 @@ export async function runAuthoringStage(
           );
           return;
         }
-        throw err;
       }
     } else if (args.request) {
       changeRoot = createChangeDir(cwd, String(args.request), stage);

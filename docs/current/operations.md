@@ -22,6 +22,7 @@
 | node bin/deploy-to-agent.ts --dest <root> [--platform <id>] [--platform-version <n>] [--clean] [--skip-smoke] | deploy both skills + rendered agents to a destination agent root | bin/deploy-to-agent.ts |
 | sdlc requirements --change <name> --record-answers <file> | batch-record discovery answers from a YAML array of {lens, question, answer} entries in one call (stage must provide the recordAnswer hook) | src/scripts/lib/kinds/authoring.ts |
 | sdlc implementation --change <name> --task-id <id> --status done --note "<note>" | mark a task done; the transition is rejected at write time without a non-empty note (TASK_DONE_REQUIRES_NOTE) | src/scripts/lib/kinds/tasks.ts, src/policies/errors.yaml |
+| agent-audit skill (dev-only) | invoke src/skills/agent-audit/SKILL.md to refresh the model catalog enum from GET http://opencode.ai/zen/go/v1/models (non-2xx aborts naming URL + status with zero writes), reassign models/parameters with web grounding, auto-fix permissions, and manage the roster; must finish with npm run validate passing with zero findings | src/skills/agent-audit/SKILL.md |
 
 ## Environment
 

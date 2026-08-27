@@ -4,6 +4,7 @@ import { parseArgs, writeJson, EXIT } from '../lib/cli.ts';
 import { safeReadYaml } from '../lib/context.ts';
 import { requireChangeRoot } from '../lib/change-root.ts';
 import { loadStageRegistry, getStageById } from '../lib/stage-registry.ts';
+import { getAgentModelFields } from '../lib/agent-registry.ts';
 import { computePipelineOrder, evaluateGate } from '../lib/requires-graph.ts';
 import type { ParseArgsResult } from '../lib/types.ts';
 
@@ -72,16 +73,22 @@ export function runStatus(argv: string[]): void {
   // Pipeline order derives from the requires DAG with an alphabetical
   // tie-break; no hardcoded pipeline map exists anymore. Every per-stage entry
   // carries the stage's bound agent id (or null) so the primary agent can
-  // decide delegation (DEC-004).
+  // decide delegation (DEC-004), plus the recommended/effective model pair for
+  // bound agents so an override is visible without reading source files.
   const registry = loadStageRegistry(cwd);
   const order = computePipelineOrder(cwd);
 
-  const pipeline: Record<string, { status: string; agent: string | null }> = {};
+  const pipeline: Record<
+    string,
+    { status: string; agent: string | null; model?: string; effectiveModel?: string }
+  > = {};
   for (const id of order) {
     const stage = getStageById(cwd, id);
+    const agent = stage ? stage.agent : null;
     pipeline[id] = {
       status: readStageStatus(cwd, changeRoot, id),
-      agent: stage ? stage.agent : null,
+      agent,
+      ...getAgentModelFields(cwd, agent),
     };
   }
 

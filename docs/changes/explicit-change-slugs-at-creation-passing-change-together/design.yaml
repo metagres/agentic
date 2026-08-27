@@ -1,0 +1,58 @@
+metadata:
+  id: DES-001
+  title: "Design: explicit-change-slugs-at-creation-passing-change-together"
+  stage: design
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-26
+  updated: 2026-08-26
+  based_on_requirements: 0.1.0
+  delta_reviewed: false
+  step: complete
+context_summary: Creation currently slugifies the request opening whenever the directory is absent;
+  the --change flag only ever resolves existing directories. The reform lets an explicit --change
+  act as the creation name when combined with --request, validated by the script and judged by the
+  caller.
+components:
+  - id: CMP-001
+    name: Explicit Slug Creation
+    responsibility: At the change-creation site (createChangeDir path in kinds/authoring.ts), when
+      args.change and args.request are both present and no matching directory exists, validate the
+      provided name (charset ^[a-z0-9][a-z0-9-]*$, max 60 chars, no leading or trailing hyphen) and
+      uniqueness against existing change directories, then create under that exact name; violations
+      reject with the existing error machinery naming the violation and candidates. All other paths
+      unchanged.
+data_models: []
+apis:
+  - id: API-001
+    path: sdlc <stage> --change <slug> --request "..."
+    method: cli-flag
+    description: Creates the change under the explicit slug when the directory does not exist; resumes
+      when it does.
+flows: []
+decisions:
+  - id: DEC-001
+    title: Judgment at the call site, guardrails in the engine
+    context: Slug quality needs knowledge of the request essence, which the calling agent has;
+      uniqueness and charset need none.
+    decision: The LLM passes its judged slug via the existing --change flag on the creation invocation;
+      the script validates and falls back to mechanical slugify for bare --request. No rename
+      support.
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-001
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-001
+delta:
+  - phase: Design
+    change: Modify
+    reason: Document the explicit-slug creation semantics beside the mechanical fallback.
+    target_doc: docs/current/api-contract.md
+    target_anchor: Endpoints (CLI Commands)
+    date: 2026-08-26

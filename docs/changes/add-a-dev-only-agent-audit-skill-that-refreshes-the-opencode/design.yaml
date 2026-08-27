@@ -1,0 +1,433 @@
+metadata:
+  id: DES-001
+  title: "Design: add-a-dev-only-agent-audit-skill-that-refreshes-the-opencode"
+  stage: design
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-26
+  updated: 2026-08-26
+  based_on_requirements: 0.1.0
+  delta_reviewed: false
+  step: complete
+context_summary: The opencode-go model catalog is frozen as a hand-maintained enum while the live
+  catalog at http://opencode.ai/zen/go/v1/models has drifted, agent-to-stage assignments and
+  parameters can silently drift from stage purpose, and individuals cannot prefer a personal LLM
+  without destroying the team recommendation. This design adds a dev-only agent-audit skill under
+  src/skills/agent-audit/ that refreshes the enum from the live endpoint (migrating opencode-go/* to
+  opencode/*), reassigns each agent's model via LLM web-grounded judgment against stage purpose
+  without touching model_override, realigns temperature/description/system_prompt, auto-fixes
+  permissions against stage effective requirements, and manages roster dedupe/add/remove with
+  stage.yaml rebinding; plus an optional free-form model_override field that wins as effectiveModel
+  at deploy time while the model field stays the team recommendation, with deterministic validation
+  and CLI surfacing of both values.
+components:
+  - id: CMP-001
+    name: Agent Audit Skill (dev-only)
+    responsibility: "Dev-only skill under src/skills/agent-audit/ following the SKILL.md folder protocol
+      (mirroring src/skills/knowledge-init/). Invoked manually by the maintainer. Orchestrates the
+      full audit: fetches the live catalog, rewrites schema and agent files, drives LLM-grounded
+      per-agent model and parameter realignment, permission auto-fix, and roster dedupe/add/remove
+      with stage.yaml rebinding. Contains no hardcoded agent-specific paths. Excluded from the
+      deployed bundle by bin/deploy-to-agent.ts, which continues to deploy only agentic-sdlc and
+      knowledge-init. All runtime paths (validation, deployment, CLI) remain deterministic with zero
+      LLM calls; LLM judgment lives exclusively inside this skill."
+  - id: CMP-002
+    name: Model Catalog Refresh
+    responsibility: Fetches GET http://opencode.ai/zen/go/v1/models expecting {object:list, data:[{id,
+      owned_by}]}. On non-2xx fails immediately naming URL and HTTP status without touching any
+      file. On success builds qualified ids as opencode/<id> (owned_by as provider prefix), sorted
+      alphabetically, and rewrites the model enum in src/schemas/agent.schema.yaml to exactly those
+      entries. Migrates every existing opencode-go/<id> value in the schema enum and in
+      src/agents/*.yaml model fields to opencode/<id> on the first refresh. No unfetched id remains;
+      no opencode-go/ prefix survives under src/schemas/ or src/agents/ after the run.
+  - id: CMP-003
+    name: Agent Schema Extension (model_override)
+    responsibility: "Extends src/schemas/agent.schema.yaml with an optional model_override field: type
+      string, minLength 1 when present, not constrained by the model catalog enum. Validation
+      accepts arbitrary free-form values such as anthropic/claude-opus or gpt-5 while rejecting an
+      empty string naming file and value. The model field stays required and must be a member of the
+      freshly fetched enum; violations fail naming file and offending value. A new error code is
+      added to src/policies/errors.yaml for the empty-override case if no existing code covers it.
+      additionalProperties remains false."
+  - id: CMP-004
+    name: Agent Registry Extension
+    responsibility: "Extends src/scripts/lib/agent-registry.ts. AgentRecord gains modelOverride: string
+      | null and effectiveModel: string computed as modelOverride ?? model. loadAgentFile parses the
+      new optional model_override field, validates it against the schema, and populates the extended
+      record. Caching and directory resolution via resolveAgentsDir are unchanged. All callers that
+      load the registry now see the triple (model, modelOverride, effectiveModel)."
+  - id: CMP-005
+    name: Deployment Effective-Model Rendering
+    responsibility: Extends bin/deploy-to-agent.ts and the OpenCode renderer at
+      src/scripts/lib/deploy/platforms/opencode.ts. When rendering an agent to
+      .opencode/agents/<id>.md, the frontmatter model field is written from
+      AgentRecord.effectiveModel (model_override when present else model). The source YAML model
+      field is left unchanged as the team recommendation. Stale-file sweep and smoke verification
+      remain unchanged; the smoke check validates the rendered effective model rather than the
+      source model.
+  - id: CMP-006
+    name: CLI Agent Surfacing
+    responsibility: "Extends src/scripts/workflows/index.ts listWorkflows and
+      src/scripts/workflows/status.ts pipeline entries. Where agents appear in envelope data, each
+      surfaced entry now carries both the recommended model and the effective model so an override
+      is visible without reading source files. No new top-level envelope fields are introduced; the
+      change is inside the existing data object. Example: data.workflows[].agent stays the binding
+      id, and per-agent detail gains model and effectiveModel fields; status pipeline entries
+      similarly surface both values."
+  - id: CMP-007
+    name: Permission Auto-Fix
+    responsibility: "Reuses deterministic engine logic from src/scripts/lib/agent-permissions.ts:
+      computeEffectivePermissions (kind contract overridden by stage descriptor permissions) and
+      checkAgentCompatibility (floors must be allow, ceilings must be deny, multi-binding union of
+      floors and intersection of ceilings). For each stage-bound agent the skill compares declared
+      permissions against effective requirements and rewrites the agent file until the check passes
+      for every bound stage. No new permission contracts or vocabulary are introduced."
+  - id: CMP-008
+    name: Roster Management (dedupe / add / remove)
+    responsibility: "Manages the agent roster under src/agents/ and stage bindings in
+      src/stages/<stage>/stage.yaml. Dedupe: when two definitions are byte-identical or semantically
+      identical after the audit, keeps exactly one file and repoints every stage.yaml agent field
+      that referenced a deleted id to the survivor. Add: when a stage's purpose is not well served
+      by any existing agent, creates a new valid YAML under src/agents/ satisfying agent.schema.yaml
+      and binds it in the corresponding stage.yaml. Remove: when an agent is referenced by no stage
+      and judged redundant, deletes its YAML and any dangling references. All mutations preserve
+      schema validity."
+  - id: CMP-009
+    name: LLM-Driven Model and Parameter Alignment
+    responsibility: Instructs the LLM running the skill to consult trusted web sources on model
+      capabilities and benchmarks for each candidate model against each agent's stage purpose as
+      expressed by the bound stage's role and instructions. Selects a best-fit qualified id from the
+      freshly fetched list for the model field, never overwriting an existing model_override.
+      Separately evaluates temperature, description, and system_prompt against stage instructions,
+      rewriting only fields judged better aligned and leaving already-aligned fields unchanged.
+      Records which sources grounded each assignment in skill output for human review; the
+      reviewable git diff plus npm run validate is the acceptance control.
+data_models:
+  - id: DM-001
+    name: AgentDescriptor (src/agents/<agent-id>.yaml)
+    fields: "version (const 1), id (must equal filename stem), description (non-empty; personality and
+      discoverability), model (string enum: exactly the opencode/<id> qualifications fetched from
+      the live catalog), model_override (optional string, minLength 1 when present, free-form not
+      enum-checked), temperature (number 0.0 to 1.0 inclusive), mode (enum subagent|primary|all),
+      permissions (object over file_read, search, file_write, shell, subagent, web, question each
+      allow|ask|deny), system_prompt (non-empty string; purity marker list still enforced)."
+  - id: DM-002
+    name: AgentRecord (src/scripts/lib/agent-registry.ts)
+    fields: id (string), file (absolute path), description (string), model (string, team
+      recommendation), modelOverride (string | null), effectiveModel (string = modelOverride ??
+      model), temperature (number), mode (string), permissions (Record<string,string>), systemPrompt
+      (string).
+  - id: DM-003
+    name: ModelCatalogEntry (live endpoint)
+    fields: "Fetched from GET http://opencode.ai/zen/go/v1/models as {object: 'list', data: Array<{id:
+      string, owned_by: string, created?: number}>}. Bare id e.g. kimi-k3 paired with owned_by
+      opencode yields qualified stored form opencode/<id> (opencode/kimi-k3). The enum in
+      agent.schema.yaml is exactly the sorted set of these qualifications. Migration maps any stored
+      opencode-go/<id> to opencode/<id>."
+  - id: DM-004
+    name: RenderedAgent (destination .opencode/agents/<id>.md)
+    fields: "Platform-specific markdown: YAML frontmatter with description, mode, model (effectiveModel,
+      not source model), temperature, and permission (v2) or tools (v1) translated from neutral
+      vocabulary; body is systemPrompt verbatim. Renderer owns key mapping; deploy writes
+      effectiveModel into frontmatter while source YAML model stays the recommendation."
+  - id: DM-005
+    name: CLIAgentSurface (envelope data)
+    fields: "Inside the frozen envelope data field: workflows[] entries each carry agent (id | null)
+      plus model (recommended) and effectiveModel (override ?? model) where agent detail is
+      surfaced; status pipeline entries per stage carry the same pair. No new top-level envelope
+      fields. Consumers read both values without opening src/agents/*.yaml."
+apis:
+  - id: API-001
+    path: GET http://opencode.ai/zen/go/v1/models
+    method: GET
+    description: External live catalog endpoint returning {object:'list', data:[{id, owned_by}]}. The
+      audit skill fetches it first; non-2xx aborts the skill naming URL and HTTP status with zero
+      file writes. On 2xx the data array drives the enum rewrite and per-agent model selection.
+  - id: API-002
+    path: loadAgentFile / loadAgentRegistry (src/scripts/lib/agent-registry.ts)
+    method: internal
+    description: Extended to parse optional model_override, validate via agent.schema.yaml, and return
+      AgentRecord with modelOverride and effectiveModel. Throws naming file and value on schema
+      violations including empty model_override. Caches per resolved agents directory as before.
+  - id: API-003
+    path: computeEffectivePermissions (src/scripts/lib/agent-permissions.ts)
+    method: internal
+    description: "Pure deterministic function: kind contract for the stage kind overridden by stage
+      descriptor permissions map (allow|deny on neutral keys). Reused by the skill's permission
+      auto-fix loop to compute each bound stage's effective requirements."
+  - id: API-004
+    path: checkAgentCompatibility (src/scripts/lib/agent-permissions.ts)
+    method: internal
+    description: Deterministic cross-check verifying every stage-to-agent binding against effective
+      requirements, including multi-binding union of floors and intersection of ceilings. Returns
+      findings naming stage, agent, and conflicting key; the skill loops rewriting permissions until
+      findings are empty.
+  - id: API-005
+    path: renderOpenCodeAgent (src/scripts/lib/deploy/platforms/opencode.ts) via bin/deploy-to-agent.ts
+    method: internal
+    description: Renders AgentRecord into .opencode/agents/<id>.md. Extended to write effectiveModel
+      into frontmatter model field. The source YAML model field is not mutated by deployment. Smoke
+      verification checks rendered frontmatter parses and filename stem matches id.
+  - id: API-006
+    path: listWorkflows / status pipeline (src/scripts/workflows/index.ts,
+      src/scripts/workflows/status.ts)
+    method: cli-data
+    description: Surfaces agents in envelope data. Extended so each surfaced agent entry exposes both
+      recommended model and effectiveModel, making an override visible without reading source files.
+      No new top-level envelope fields.
+  - id: API-007
+    path: src/skills/agent-audit/SKILL.md
+    method: skill-instruction
+    description: "Dev-only skill instructions: fetch-first, fail naming URL/status on non-2xx, rewrite
+      enum and migrate prefix, web-grounded model assignment without touching model_override,
+      parameter realignment, permission auto-fix, roster dedupe/add/remove with stage.yaml
+      rebinding, and post-run npm run validate must pass. The only place where LLM judgment drives
+      configuration."
+flows:
+  - id: FLW-001
+    name: Catalog refresh (fetch, enum rewrite, prefix migration)
+    steps:
+      - Developer invokes the agent-audit skill under src/skills/agent-audit/.
+      - Skill fetches GET http://opencode.ai/zen/go/v1/models; on non-2xx fails naming URL and
+        status with zero file writes.
+      - On 2xx parses data[] as {id, owned_by}, builds sorted qualified ids opencode/<id>, rewrites
+        model enum in src/schemas/agent.schema.yaml to exactly that set.
+      - Migrates every existing opencode-go/<id> value in the schema enum and in src/agents/*.yaml
+        model fields to opencode/<id>; no opencode-go/ prefix survives.
+  - id: FLW-002
+    name: Per-agent audit (model assignment with web grounding, parameter realignment, permission
+      auto-fix)
+    steps:
+      - For each agent under src/agents/, LLM consults trusted web sources on candidate model
+        capabilities/benchmarks against the bound stage's purpose as expressed by stage
+        instructions.
+      - Assigns a best-fit qualified id from the freshly fetched list to the model field; never
+        modifies an existing model_override field.
+      - Evaluates temperature, description, and system_prompt against stage instructions; rewrites
+        only fields judged better aligned, leaving already-aligned fields unchanged.
+      - Compares agent permissions against each bound stage's effective requirements via
+        computeEffectivePermissions; rewrites permissions until checkAgentCompatibility passes for
+        every bound stage.
+      - Records grounding sources for each assignment in skill output for human review.
+  - id: FLW-003
+    name: Roster dedupe / add / remove with stage rebinding
+    steps:
+      - "Dedupe: when two definitions are identical after the audit, keeps exactly one YAML under
+        src/agents/, deletes the redundant file, and repoints every stage.yaml agent field that
+        referenced the deleted id to the survivor."
+      - "Add: when a stage's purpose is not well served by any existing agent, creates a new valid
+        YAML under src/agents/ and updates that stage.yaml to bind the new agent id."
+      - "Remove: when an agent is referenced by no stage and judged redundant, deletes its YAML and
+        removes dangling stage.yaml references."
+      - All mutations preserve agent.schema.yaml validity and stage meta-schema validity.
+  - id: FLW-004
+    name: Post-run validation gate
+    steps:
+      - Skill completes all rewrites, creations, deletions, and binding updates.
+      - Repository must satisfy npm run validate (schemas, policies, templates, typecheck, unit
+        tests) with zero findings.
+      - "Failures name file and value: model outside fresh enum, empty model_override, unresolved
+        stage agent references, permission incompatibility, or prompt purity marker violations. The
+        fix is another audit pass or manual correction before commit."
+  - id: FLW-005
+    name: Deployment and CLI surfacing with effective model
+    steps:
+      - loadAgentRegistry exposes model, modelOverride (or null), and effectiveModel (modelOverride
+        ?? model) for each descriptor.
+      - bin/deploy-to-agent.ts renders each agent via the OpenCode renderer writing effectiveModel
+        into frontmatter model; source YAML model remains the recommendation.
+      - listWorkflows and status workflows surface both recommended model and effectiveModel in
+        envelope data so an override is visible without reading source files.
+decisions:
+  - id: DEC-001
+    title: Dev-only skill under src/skills/agent-audit/ excluded from deploy
+    context: The audit's LLM judgment must not leak into runtime validation or deployment, and the
+      SKILL.md folder protocol is the established dev-only skill convention (cf.
+      src/skills/knowledge-init/). Deployment currently bundles exactly two skills.
+    decision: Place the audit as a SKILL.md folder skill under src/skills/agent-audit/ with no hardcoded
+      agent paths, following the same structure as src/skills/knowledge-init/.
+      bin/deploy-to-agent.ts remains unchanged except for rendering effectiveModel; it does not copy
+      or bundle the audit skill into .opencode/skills/. The skill is invoked manually and ends with
+      a reviewable git diff.
+    status: accepted
+  - id: DEC-002
+    title: Live-endpoint-fed enum with opencode/<id> qualification and opencode-go/ migration
+    context: The stored enum lists 23 opencode-go/<id> values while the live endpoint returns 30 bare
+      ids with owned_by opencode, so the catalog has already drifted and stale ids break validation.
+      Stakeholder fixes qualification as opencode/<id>.
+    decision: On every audit run, fetch GET http://opencode.ai/zen/go/v1/models and rewrite the model
+      enum in src/schemas/agent.schema.yaml to exactly the sorted opencode/<id> qualifications. The
+      first run migrates every stored opencode-go/<id> in the schema and in src/agents/*.yaml model
+      fields to opencode/<id>; afterwards no opencode-go/ prefix remains.
+    status: accepted
+  - id: DEC-003
+    title: Recommendation-preserving override semantics
+    context: Individuals need a personal LLM preference without destroying the team suggestion, and
+      refreshing the catalog must not overwrite personal choices. model_override must be free-form
+      so any provider id can be used.
+    decision: Add optional model_override as a non-empty free-form string not enum-checked; validation
+      rejects only the empty string. The model field stays the team recommendation and remains
+      enum-checked. The skill never overwrites an existing model_override; refreshing the catalog
+      updates only model.
+    status: accepted
+  - id: DEC-004
+    title: Effective model computed as model_override ?? model
+    context: Deployment must render a single model value while keeping the recommendation visible in
+      source. Registry and surface layers need a consistent precedence rule.
+    decision: AgentRecord exposes modelOverride (or null) and effectiveModel = modelOverride ?? model
+      via loadAgentFile/loadAgentRegistry. Deployment renders effectiveModel into frontmatter. CLI
+      data surfaces both model and effectiveModel. No additional branching points.
+    status: accepted
+  - id: DEC-005
+    title: Permission auto-fix reusing engine deterministic logic
+    context: Agent permissions can drift from what bound stages require; stage effective requirements
+      are already defined deterministically as kind contract overridden by stage permissions, and
+      checkAgentCompatibility already names offending stage, agent, and key.
+    decision: The skill reuses computeEffectivePermissions and checkAgentCompatibility in a loop,
+      rewriting agent permissions until the check passes for every bound stage. No new contracts,
+      vocabularies, or LLM judgment for permissions; the capped check catalog is untouched.
+    status: accepted
+  - id: DEC-006
+    title: LLM judgment confined to dev-time skill; runtime stays deterministic
+    context: Model selection and parameter realignment require judgment about capabilities and alignment
+      with stage purpose, but validation and deployment must stay reproducible and not call the
+      network or an LLM.
+    decision: LLM-driven decisions (web-grounded model assignment, temperature/description/system_prompt
+      realignment, roster add/remove judgments) occur only inside the dev-time audit skill.
+      Validation (enum membership, non-empty override, permission compatibility, purity markers) and
+      deployment (effective-model rendering) are purely deterministic with zero LLM or network
+      calls.
+    status: accepted
+  - id: DEC-007
+    title: Roster dedupe and add/remove with stage.yaml rebinding
+    context: Duplicate definitions waste bindings and a stage purpose may not be well served by any
+      existing agent; conversely redundant agents should be removed. Stage bindings in stage.yaml
+      are the pipeline topology and must stay consistent.
+    decision: Dedupe collapses identical definitions to one survivor with all stage.yaml references
+      repointed. Add creates a new valid agent YAML and binds it; remove deletes the YAML and its
+      bindings when no stage needs it. All operations validate against agent.schema.yaml and
+      stage.schema.yaml so unresolved-reference errors surface immediately.
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+      - CMP-002
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-002
+      - CMP-003
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-009
+      - CMP-003
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-009
+  - requirement_id: FR-005
+    component_ids:
+      - CMP-007
+  - requirement_id: FR-006
+    component_ids:
+      - CMP-008
+  - requirement_id: FR-007
+    component_ids:
+      - CMP-008
+  - requirement_id: FR-008
+    component_ids:
+      - CMP-001
+      - CMP-002
+      - CMP-007
+      - CMP-008
+      - CMP-009
+  - requirement_id: FR-009
+    component_ids:
+      - CMP-003
+  - requirement_id: FR-010
+    component_ids:
+      - CMP-003
+  - requirement_id: FR-011
+    component_ids:
+      - CMP-004
+  - requirement_id: FR-012
+    component_ids:
+      - CMP-005
+  - requirement_id: FR-013
+    component_ids:
+      - CMP-006
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-001
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-001
+      - CMP-003
+      - CMP-004
+      - CMP-005
+      - CMP-006
+      - CMP-007
+  - requirement_id: NFR-003
+    component_ids:
+      - CMP-003
+      - CMP-004
+      - CMP-005
+      - CMP-009
+delta:
+  - phase: Design
+    target_doc: docs/current/architecture.md
+    target_anchor: Folder Responsibilities
+    change: Modify
+    reason: Add src/skills/agent-audit/ as a development-only component and note the agent schema enum
+      is refreshed from the live opencode catalog (opencode/<id> qualifications migrated from
+      opencode-go/*) rather than hand-maintained.
+    date: 2026-08-26
+  - phase: Design
+    target_doc: docs/current/capabilities.md
+    target_anchor: Capabilities
+    change: Modify
+    reason: Add the agent-audit capability (live catalog refresh, LLM-driven best-fit model assignment
+      with web grounding, parameter realignment, permission auto-fix, roster dedupe/add/remove with
+      rebinding) and the model-override capability (recommendation preserved, override wins,
+      override not enum-checked).
+    date: 2026-08-26
+  - phase: Design
+    target_doc: docs/current/api-contract.md
+    target_anchor: Endpoints (CLI Commands)
+    change: Modify
+    reason: Document the agent descriptor model_override field (optional non-empty free-form),
+      AgentRecord effectiveModel computation (model_override ?? model), deployment rendering of
+      effectiveModel into frontmatter, and CLI surfacing of both recommended and effective model
+      values.
+    date: 2026-08-26
+  - phase: Design
+    target_doc: docs/current/glossary.md
+    change: Add
+    reason: Add the Agent Audit entity (dev-only skill under src/skills/agent-audit/, inputs/outputs,
+      failure modes) and the Model Override entity (model vs model_override vs effectiveModel) with
+      their fields and relationships.
+    date: 2026-08-26
+  - phase: Design
+    target_doc: docs/current/conventions.md
+    target_anchor: File Organization
+    change: Modify
+    reason: Document the dev-only skill convention for the agent audit under src/skills/ and the
+      model_override convention (recommendation preserved in model, override wins at deploy,
+      override not enum-checked, audit never overwrites existing override).
+    date: 2026-08-26
+  - phase: Design
+    target_doc: docs/current/operations.md
+    target_anchor: Commands
+    change: Modify
+    reason: Document invoking the agent-audit skill, its live endpoint dependency (GET
+      http://opencode.ai/zen/go/v1/models) with non-2xx abort semantics, and the post-run npm run
+      validate gate that must pass with zero findings.
+    date: 2026-08-26
+  - phase: Design
+    target_doc: docs/current/decisions.md
+    target_anchor: "Living: Cycle Decisions"
+    change: Modify
+    reason: "Record the cycle decisions DEC-001 through DEC-007: dev-only audit excluded from deploy,
+      live-endpoint-fed opencode/<id> enum migrated from opencode-go/, recommendation-preserving
+      override, effectiveModel precedence, permission auto-fix reusing engine logic, LLM judgment
+      confined to dev-time, and roster dedupe/add/remove with rebinding."
+    date: 2026-08-26

@@ -108,7 +108,11 @@ identity, description, model, temperature, an optional `mode` (`subagent`, `prim
 engine-owned meta-schema `src/schemas/agent.schema.yaml` (descriptor id must equal the
 filename stem); stages reference them through the optional `agent` field, and validation
 verifies every reference resolves with permissions compatible with the bound stage kind
-contract.
+contract. Each descriptor may also declare an optional free-form `model_override`
+(non-empty when present, deliberately not enum-checked): the registry exposes
+`effectiveModel = model_override ?? model`, deployment renders the effective model into the
+frontmatter while the source `model` keeps the team recommendation, and CLI data surfaces
+both values.
 
 ### The four kinds (DEC-006)
 
@@ -202,6 +206,7 @@ Do not memorize file paths or internal APIs. Discover them:
 | Error codes & messages | `src/policies/errors.yaml` (the only central policy) |
 | Skill generation source | `src/scripts/workflows/skill-manifest.ts` (single `skillManifest`; step definitions load from stage folders) |
 | Deployment logic | `bin/deploy-to-agent.ts` |
+| Agent audit skill (dev-only) | `src/skills/agent-audit/SKILL.md` |
 
 When in doubt, run `npm run validate` and read the failing output.
 
@@ -249,8 +254,9 @@ non-empty description).
 | Cross-file / lint checks | `npm run test:unit` + lint a real artifact with `bin/lint-artifact.ts` |
 | Workflows / CLI behavior | Run the affected workflow with `--help` and a test change |
 | Skills / deployment | `npm run deploy:smoke` and verify generated skills |
-| Agent definitions (`src/agents/`) | `npm run validate:policies` (agent meta-schema, prompt markers, reference resolution, permission compatibility) |
+| Agent definitions (`src/agents/`) | `npm run validate:policies` (agent meta-schema, model-field cross-checks, prompt markers, reference resolution, permission compatibility) |
 | Deploy platforms (`src/scripts/lib/deploy/platforms/`) | `npm run deploy:smoke` and verify the rendered agents |
+| Agent audit skill (`src/skills/agent-audit/`) | `npm run validate:templates`; confirm `npm run deploy:smoke` still ships exactly two skills (the audit is dev-only, never deployed) |
 
 If a new check type, error code, or ID prefix is added, update the corresponding catalog in
 `src/policies/` (or the stage folder) and add a test.
@@ -263,6 +269,7 @@ If a new check type, error code, or ID prefix is added, update the corresponding
 |---|---|
 | `generate_context.js` | Compiles repo source into `llm_context.txt` (gitignored) for use as LLM context. Uses `.contextignore` or falls back to `.gitignore`. |
 | `src/agents/` | Neutral agent definitions — one `<agent-id>.yaml` per agent (six shipped), discovered by directory scan, validated by `src/schemas/agent.schema.yaml`, and referenced optionally from `stage.yaml`. Details are in `codemap.md`. |
+| `src/skills/agent-audit/` | Development-only agent audit skill — refreshes the model catalog enum from the live opencode endpoint, reassigns agent models with web-grounded justification (never touching an existing `model_override`), realigns parameters and permissions with stage purpose, and dedupes/adds/removes agents with `stage.yaml` rebinding. Invoked manually by the maintainer; never deployed. Details are in `src/skills/agent-audit/SKILL.md`. |
 | `.opencode/` | Deployed agent runtime — created by `npm run deploy:smoke` / `bin/deploy-to-agent.ts --dest .opencode`. Gitignored (see `.gitignore`, `.contextignore`). Contains exactly two self-contained skills: `.opencode/skills/agentic-sdlc/` (SKILL.md + bundled `scripts/sdlc.js` + `stages/` + `schemas/`/`policies/`) and `.opencode/skills/knowledge-init/` (SKILL.md + `manifest.json`), plus `.opencode/agents/` (one rendered `<agent-id>.md` per source definition). **This is a build artifact, not source** — never edit it directly, never read it to understand "how the toolkit works," and never confuse it with this repository's own development code under `src/`, `bin/`, `test/`. |
 
 ---

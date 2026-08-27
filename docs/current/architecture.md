@@ -41,9 +41,9 @@ graph TD
 | src/scripts/workflows/ | Cross-cutting commands + single skillManifest | index.ts (resolveWorkflow, listWorkflows) | No | src/scripts/workflows/index.ts |
 | src/stages/ | Structural source of truth: 9 stage folders, declarative config | stage.yaml per folder (5 authoring/tasks, 4 review) | No | src/stages/ |
 | src/agents/ | Agent definitions: one YAML file per agent, discovered by scan, validated by the engine-owned agent meta-schema | <agent-id>.yaml per agent (6 shipped) | No | src/agents/, src/schemas/agent.schema.yaml |
-| src/skills/ | Version-controlled skill sources | src/skills/knowledge-init/SKILL.md | No | codemap.md, src/skills/ |
+| src/skills/ | Version-controlled skill sources: knowledge-init (deployed) + agent-audit (dev-only, excluded from the deployed bundle) | src/skills/knowledge-init/SKILL.md, src/skills/agent-audit/SKILL.md | No | codemap.md, src/skills/ |
 | src/policies/ | YAML asset layer: single central policy | src/policies/errors.yaml | No | src/policies/ |
-| src/schemas/ | YAML asset layer: meta-schemas | stage.schema.yaml, agent.schema.yaml, cli-envelope.schema.yaml, docs-delta.schema.yaml | No | src/schemas/ |
+| src/schemas/ | YAML asset layer: meta-schemas; the agent.schema.yaml model enum is live-endpoint-fed (sorted opencode/<id> qualifications from GET http://opencode.ai/zen/go/v1/models, migrated from opencode-go/*) rather than hand-maintained | stage.schema.yaml, agent.schema.yaml, cli-envelope.schema.yaml, docs-delta.schema.yaml | No | src/schemas/ |
 | bin/ | Developer CLI tooling: validation, lint, deployment | deploy-to-agent.ts, lint-artifact.ts, validate-{schemas,policies,templates}.ts | No | bin/ |
 | test/ | Unit + e2e suites | node --test test/unit, test/e2e | No | package.json (scripts) |
 | docs/current/ | Living docs, created only by knowledge-init, maintained by knowledge extraction | index.md + 9 documents | No | src/skills/knowledge-init/SKILL.md |

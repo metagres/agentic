@@ -1,0 +1,476 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: add-a-dev-only-agent-audit-skill-that-refreshes-the-opencode"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-26
+  updated: 2026-08-26
+  based_on_design: 0.1.0
+  based_on_requirements: 0.1.0
+  implementation_status: accepted
+  step: complete
+tasks:
+  - id: TASK-001
+    title: Extend agent meta-schema with optional model_override field
+    description: >
+      Add an optional model_override property to src/schemas/agent.schema.yaml: type string,
+      minLength 1, not added to required, and not constrained by the model catalog enum, while
+      additionalProperties stays false. The model field remains required and enum-checked, and the
+      enum itself is left exactly as-is (the opencode-go/* values stay until the first audit run
+      refreshes and migrates them). Schema validation must accept free-form values such as
+      anthropic/claude-opus or gpt-5 and reject an empty string.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-009
+      - FR-010
+    acceptance_ids:
+      - AC-012
+      - AC-015
+    design_refs:
+      - DEC-003
+    depends_on: []
+    files:
+      - path: src/schemas/agent.schema.yaml
+        operation: modify
+    implementation_note: Added optional model_override (string, minLength 1) to
+      src/schemas/agent.schema.yaml; not in required, not enum-constrained; model enum untouched;
+      validate:schemas green
+    started_at: 2026-08-26
+    files_changed:
+      - path: src/schemas/agent.schema.yaml
+        operation: modify
+    completed_at: 2026-08-26
+  - id: TASK-002
+    title: Expose modelOverride and effectiveModel in the agent registry
+    description: >
+      Extend src/scripts/lib/agent-registry.ts. AgentRecord gains modelOverride (string | null) and
+      effectiveModel (string, computed as modelOverride ?? model). loadAgentFile parses the optional
+      model_override field (schema validation already runs via validateWithSchema) and populates the
+      extended record; caching and resolveAgentsDir behavior are unchanged. Extend
+      test/unit/agent-registry.test.ts with fixture cases: a descriptor with model_override exposes
+      the triple (model, modelOverride, effectiveModel = override), and a descriptor without it
+      exposes modelOverride null and effectiveModel equal to model.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-011
+      - NFR-003
+    acceptance_ids:
+      - AC-016
+    design_refs:
+      - DEC-004
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/scripts/lib/agent-registry.ts
+        operation: modify
+      - path: test/unit/agent-registry.test.ts
+        operation: modify
+    implementation_note: AgentRecord gains modelOverride (string|null) and effectiveModel (=
+      modelOverride ?? model); loadAgentFile parses model_override; unit tests extended with
+      override/no-override/empty-override fixtures; test:unit 169 pass
+    started_at: 2026-08-26
+    files_changed:
+      - path: src/scripts/lib/agent-registry.ts
+        operation: modify
+      - path: test/unit/agent-registry.test.ts
+        operation: modify
+    completed_at: 2026-08-26
+  - id: TASK-003
+    title: Reject empty model_override in policy validation with a dedicated error code
+    description: >
+      Extend the per-agent-file cross-check loop in bin/validate-policies.ts to reject an empty
+      model_override value, naming the offending file and the empty value, and add a new error code
+      entry (message + fix) to src/policies/errors.yaml for this case alongside the existing AGENT_*
+      codes. The existing Ajv enum-membership failure for model already names the file and offending
+      value and stays unchanged. The new check must be deterministic and unit-testable (extract a
+      small pure helper if the top-level script cannot be exercised directly), with unit tests
+      covering: empty model_override fails naming file and value, a model outside the enum fails
+      naming file and value, and free-form non-empty overrides pass.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-010
+      - NFR-002
+    acceptance_ids:
+      - AC-013
+      - AC-014
+      - AC-021
+    design_refs:
+      - DEC-003
+      - DEC-006
+    depends_on:
+      - TASK-001
+    files:
+      - path: bin/validate-policies.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+      - path: test/unit/validate-policies-agents.test.ts
+        operation: create
+    implementation_note: Extracted pure checkAgentModelFields helper
+      (src/scripts/lib/agent-model-fields.ts); wired into bin/validate-policies.ts per-agent loop
+      reading the catalog enum from agent.schema.yaml; added AGENT_MODEL_OVERRIDE_EMPTY +
+      AGENT_MODEL_OUTSIDE_CATALOG to errors.yaml; new test/unit/validate-policies-agents.test.ts
+      covers empty override, outside-enum model, free-form pass; validate:policies + test:unit green
+    started_at: 2026-08-26
+    files_changed:
+      - path: bin/validate-policies.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+      - path: test/unit/validate-policies-agents.test.ts
+        operation: create
+      - path: src/scripts/lib/agent-model-fields.ts
+        operation: create
+    completed_at: 2026-08-26
+  - id: TASK-004
+    title: Render effectiveModel in deployment output
+    description: >
+      Extend the OpenCode renderer (src/scripts/lib/deploy/platforms/opencode.ts) so
+      renderOpenCodeAgent writes AgentRecord.effectiveModel into the frontmatter model field in both
+      v1 and v2 variants, and update bin/deploy-to-agent.ts smoke verification to validate the
+      rendered effective model rather than the source model. The source YAML model field is never
+      mutated by deployment and remains the team recommendation. Extend test/e2e/deploy.test.ts with
+      coverage for an agent carrying model_override (rendered frontmatter model equals the override)
+      and an agent without it (rendered model equals the recommendation, source YAML unchanged), and
+      refresh test/unit/deploy-platforms.test.ts fixtures for the extended AgentRecord shape.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-012
+      - NFR-002
+      - NFR-003
+    acceptance_ids:
+      - AC-017
+      - AC-018
+      - AC-021
+    design_refs:
+      - DEC-004
+      - DEC-006
+    depends_on:
+      - TASK-002
+    files:
+      - path: src/scripts/lib/deploy/platforms/opencode.ts
+        operation: modify
+      - path: bin/deploy-to-agent.ts
+        operation: modify
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+      - path: test/unit/deploy-platforms.test.ts
+        operation: modify
+    implementation_note: renderOpenCodeAgent writes agent.effectiveModel into frontmatter model for
+      v1+v2; deploy smoke verification now asserts rendered model equals effectiveModel; e2e deploy
+      test extended with source-vs-rendered effective-model loop check and a dedicated
+      override/no-override fixture test; deploy-platforms unit fixtures refreshed with
+      modelOverride/effectiveModel; deploy:smoke passed
+    started_at: 2026-08-26
+    files_changed:
+      - path: src/scripts/lib/deploy/platforms/opencode.ts
+        operation: modify
+      - path: bin/deploy-to-agent.ts
+        operation: modify
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+      - path: test/unit/deploy-platforms.test.ts
+        operation: modify
+    completed_at: 2026-08-26
+  - id: TASK-005
+    title: Surface recommended and effective model in CLI data
+    description: >
+      Extend src/scripts/workflows/index.ts (listWorkflows) and src/scripts/workflows/status.ts
+      (pipeline entries) so every surfaced agent entry in envelope data carries both the recommended
+      model and the effectiveModel (modelOverride ?? model), making an override visible without
+      reading source files. data.workflows[].agent stays the binding id, no new top-level envelope
+      fields are introduced, and the change lives entirely inside the existing data object. Update
+      test/unit/list-workflows.test.ts to assert both values appear for bound agents and that
+      cross-cutting workflows keep agent null without model fields.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-013
+    acceptance_ids:
+      - AC-019
+    design_refs:
+      - DEC-004
+    depends_on:
+      - TASK-002
+    files:
+      - path: src/scripts/workflows/index.ts
+        operation: modify
+      - path: src/scripts/workflows/status.ts
+        operation: modify
+      - path: test/unit/list-workflows.test.ts
+        operation: modify
+    implementation_note: listWorkflows stage entries and status pipeline entries now spread
+      getAgentModelFields (new registry helper returning {model, effectiveModel} for bound agents,
+      {} otherwise); agent field unchanged as binding id; no new top-level envelope fields;
+      list-workflows tests extended (bound pair surfacing, unbound/cross-cutting absence, fixture
+      override resolution) plus status pipeline assertions; test:unit 178 pass; manual
+      --list-workflows and status runs verified
+    started_at: 2026-08-26
+    files_changed:
+      - path: src/scripts/workflows/index.ts
+        operation: modify
+      - path: src/scripts/workflows/status.ts
+        operation: modify
+      - path: test/unit/list-workflows.test.ts
+        operation: modify
+      - path: src/scripts/lib/agent-registry.ts
+        operation: modify
+    completed_at: 2026-08-26
+  - id: TASK-006
+    title: Author the dev-only agent-audit skill
+    description: >
+      Create src/skills/agent-audit/SKILL.md following the SKILL.md folder protocol (mirror
+      src/skills/knowledge-init/; frontmatter name equals the folder name with a non-empty
+      description, enforced by bin/validate-templates.ts). The skill instructs the executing LLM to:
+      (1) fetch GET http://opencode.ai/zen/go/v1/models first and, on any non-2xx response, fail
+      naming the URL and HTTP status without rewriting any file; (2) rewrite the model enum in
+      src/schemas/agent.schema.yaml to exactly the sorted opencode/<id> qualifications built from
+      the fetched entries, migrating every surviving opencode-go/<id> value in the schema enum and
+      in src/agents/*.yaml model fields so no opencode-go/ prefix remains; (3) per agent, assign a
+      best-fit model from the fetched list by consulting trusted web benchmarks against the bound
+      stage's purpose, never modifying an existing model_override; (4) realign temperature,
+      description, and system_prompt with the bound stage's instructions, rewriting only fields
+      judged better aligned; (5) auto-fix agent permissions by comparing them against each bound
+      stage's effective requirements using the same logic as computeEffectivePermissions and
+      checkAgentCompatibility from src/scripts/lib/agent-permissions.ts, looping until every binding
+      passes; (6) deduplicate identical agent definitions to one survivor, add agents where a stage
+      purpose is unserved, remove agents no stage needs, and update every affected stage.yaml
+      binding accordingly; (7) finish only when npm run validate passes with zero findings,
+      recording which web sources grounded each assignment. The skill contains no hardcoded
+      agent-specific paths and is excluded from the deployed bundle (bin/deploy-to-agent.ts deploys
+      only agentic-sdlc and knowledge-init).
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-001
+      - FR-002
+      - FR-003
+      - FR-004
+      - FR-005
+      - FR-006
+      - FR-007
+      - FR-008
+      - NFR-001
+      - NFR-002
+      - NFR-003
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-006
+      - AC-007
+      - AC-008
+      - AC-009
+      - AC-010
+      - AC-011
+      - AC-020
+      - AC-021
+    design_refs:
+      - DEC-001
+      - DEC-002
+      - DEC-003
+      - DEC-005
+      - DEC-006
+      - DEC-007
+    depends_on:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+      - TASK-005
+    files:
+      - path: src/skills/agent-audit/SKILL.md
+        operation: create
+    implementation_note: "Created src/skills/agent-audit/SKILL.md following the folder protocol:
+      fetch-first with non-2xx abort naming URL+status, enum rewrite to sorted opencode/<id> with
+      opencode-go/ migration, web-grounded model assignment with grounding report never touching
+      model_override, temperature/description/system_prompt realignment, permission auto-fix per
+      computeEffectivePermissions/checkAgentCompatibility semantics, roster dedupe/add/remove with
+      stage.yaml rebinding, npm run validate gate, scope limits (dev-only, .opencode untouched).
+      validate:templates green; deploy e2e re-run confirms bundle still ships exactly two skills"
+    started_at: 2026-08-26
+    files_changed:
+      - path: src/skills/agent-audit/SKILL.md
+        operation: create
+    completed_at: 2026-08-26
+  - id: TASK-007
+    title: Update repository documentation (AGENTS.md, codemap.md)
+    description: >
+      Update AGENTS.md section 9 rows if needed (the new empty-model_override check and error code
+      live in bin/validate-policies.ts / src/policies/errors.yaml; agent definitions gain the
+      model_override field) and update codemap.md to describe src/skills/agent-audit/ as a
+      development-only component and the model_override / effectiveModel flow through registry,
+      deployment, and CLI data. Documentation-only changes are exempt from npm run validate per
+      AGENTS.md section 1 but ship with the final full-gate run.
+    type: documentation
+    status: done
+    complexity: low
+    covers:
+      - NFR-001
+    acceptance_ids:
+      - AC-020
+    design_refs:
+      - DEC-001
+    depends_on:
+      - TASK-006
+    files:
+      - path: AGENTS.md
+        operation: modify
+      - path: codemap.md
+        operation: modify
+    implementation_note: "AGENTS.md: agent-layer paragraph documents model_override/effectiveModel flow;
+      section 6 gains the audit-skill pointer row; section 9 rows updated for model-field
+      cross-checks and the dev-only audit skill; section 10 utilities row added for
+      src/skills/agent-audit/. codemap.md: src/skills/ row describes agent-audit as dev-only
+      never-deployed; src/agents/ row describes the model_override/effectiveModel flow through
+      registry, deployment, and CLI data. Invariants list untouched"
+    started_at: 2026-08-26
+    files_changed:
+      - path: AGENTS.md
+        operation: modify
+      - path: codemap.md
+        operation: modify
+    completed_at: 2026-08-26
+milestones:
+  - id: MS-001
+    title: model_override supported end-to-end in runtime paths
+    tasks:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+      - TASK-005
+    criteria: >
+      npm run validate passes; the registry exposes model, modelOverride, and effectiveModel;
+      deployment renders effectiveModel into frontmatter while the source YAML keeps the
+      recommendation; CLI data surfaces both values; empty model_override fails policy validation
+      naming file and value.
+  - id: MS-002
+    title: agent-audit skill available and excluded from the deployed bundle
+    tasks:
+      - TASK-006
+    criteria: >
+      src/skills/agent-audit/SKILL.md exists, passes validate-templates, carries no hardcoded
+      agent-specific paths, and npm run deploy:smoke still bundles exactly agentic-sdlc and
+      knowledge-init.
+  - id: MS-003
+    title: Documentation current and full gate green
+    tasks:
+      - TASK-007
+    criteria: >
+      AGENTS.md and codemap.md reflect the new field, check, error code, and dev-only skill; npm run
+      check:all passes (unit + e2e + deploy smoke).
+risks:
+  - id: RISK-001
+    description: >
+      The opencode/<id> qualification is fixed by stakeholder instruction; if the opencode runtime
+      resolves provider qualifications differently, rendered agents pass validation but fail at
+      runtime.
+    severity: medium
+    mitigation: >
+      npm run deploy:smoke and the first real run give early signal; the renderer prefix mapping in
+      src/scripts/lib/deploy/platforms/opencode.ts is the fix point.
+  - id: RISK-002
+    description: >
+      The live catalog can change between fetch and merge, so the committed enum may be stale on
+      arrival and validation fails on removed ids.
+    severity: medium
+    mitigation: >
+      Re-run the agent-audit skill to refresh; validation names the stale file and value, which is
+      the designed failure path.
+  - id: RISK-003
+    description: >
+      Web benchmark coverage varies per model, especially for newly listed models, so LLM-grounded
+      assignments may be suboptimal.
+    severity: low
+    mitigation: >
+      The skill records grounding sources in its output; the reviewable git diff, the review stages,
+      and npm run validate are the acceptance controls.
+  - id: RISK-004
+    description: >
+      Roster dedupe/add/remove rewrites stage.yaml bindings, touching pipeline topology
+      configuration.
+    severity: low
+    mitigation: >
+      Unresolved-reference and permission-compatibility failures surface immediately via npm run
+      validate naming stage, agent, and key; the fix is another audit pass or a manual correction.
+delta:
+  - phase: Planning
+    target_doc: docs/current/architecture.md
+    target_anchor: Folder Responsibilities
+    change: Modify
+    reason: >
+      Plan TASK-006 adds src/skills/agent-audit/ as a development-only component excluded from the
+      deployed bundle, and the agent schema enum becomes live-endpoint-fed (opencode/<id>
+      qualifications migrated from opencode-go/*) rather than hand-maintained.
+    date: 2026-08-26
+  - phase: Planning
+    target_doc: docs/current/capabilities.md
+    target_anchor: Capabilities
+    change: Modify
+    reason: >
+      Plan TASK-006 delivers the agent-audit capability (catalog refresh, web-grounded model
+      assignment, parameter realignment, permission auto-fix, roster dedupe/add/remove) and TASK-001
+      through TASK-005 deliver the model-override capability (recommendation preserved, override
+      wins at deploy, override not enum-checked).
+    date: 2026-08-26
+  - phase: Planning
+    target_doc: docs/current/api-contract.md
+    target_anchor: Endpoints (CLI Commands)
+    change: Modify
+    reason: >
+      Plan TASK-001 through TASK-005 define the agent descriptor model_override field, the
+      AgentRecord triple with effectiveModel (model_override ?? model), deployment rendering of
+      effectiveModel, and the recommended/effective model pair surfaced in CLI envelope data.
+    date: 2026-08-26
+  - phase: Planning
+    target_doc: docs/current/glossary.md
+    change: Add
+    reason: >
+      Plan tasks realize the Agent Audit entity (dev-only skill under src/skills/agent-audit/,
+      inputs, outputs, failure modes) and the Model Override entity (model vs model_override vs
+      effectiveModel).
+    date: 2026-08-26
+  - phase: Planning
+    target_doc: docs/current/conventions.md
+    target_anchor: File Organization
+    change: Modify
+    reason: >
+      Plan TASK-006 establishes the dev-only skill convention for the agent audit under src/skills/,
+      and TASK-001 establishes the model_override convention (recommendation preserved in model,
+      override wins at deploy, override not enum-checked, audit never overwrites an existing
+      override).
+    date: 2026-08-26
+  - phase: Planning
+    target_doc: docs/current/operations.md
+    target_anchor: Commands
+    change: Modify
+    reason: >
+      Plan TASK-006 documents invoking the agent-audit skill, its dependency on GET
+      http://opencode.ai/zen/go/v1/models with non-2xx abort semantics, and the post-run npm run
+      validate gate that must pass with zero findings.
+    date: 2026-08-26
+  - phase: Planning
+    target_doc: docs/current/decisions.md
+    target_anchor: "Living: Cycle Decisions"
+    change: Modify
+    reason: >
+      Plan tasks TASK-001 through TASK-007 realize cycle decisions DEC-001 through DEC-007: dev-only
+      audit excluded from deploy, live-endpoint-fed opencode/<id> enum migrated from opencode-go/,
+      recommendation-preserving override, effectiveModel precedence, permission auto-fix reusing
+      engine logic, LLM judgment confined to dev-time, and roster dedupe/add/remove with stage.yaml
+      rebinding.
+    date: 2026-08-26

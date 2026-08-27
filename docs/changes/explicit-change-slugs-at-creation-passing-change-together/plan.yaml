@@ -1,0 +1,61 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: explicit-change-slugs-at-creation-passing-change-together"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-26
+  updated: 2026-08-26
+  based_on_design: 0.1.0
+  based_on_requirements: 0.1.0
+  implementation_status: accepted
+  step: complete
+tasks:
+  - id: TASK-001
+    title: Create changes under an explicit validated slug
+    description: >
+      In the change-creation path (createChangeDir / slugify call site in
+      src/scripts/lib/kinds/authoring.ts and src/scripts/lib/ids.ts): when args.change AND
+      args.request are present and resolveRootOrError finds no matching directory, use args.change
+      as the directory name after validating: pattern ^[a-z0-9][a-z0-9-]*$, max length 60, no
+      trailing hyphen, unique among existing change directories (reject naming the violation;
+      collisions list candidates via the existing error machinery). Bare --request keeps mechanical
+      slugify; existing-directory --change keeps resume semantics. Unit tests: explicit-slug happy
+      path, invalid charset/length/edge-hyphen rejections, collision rejection listing candidates,
+      fallback unchanged, resume unchanged.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-001
+      - FR-002
+      - NFR-001
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-003
+    design_refs:
+      - DEC-001
+    depends_on: []
+    files:
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: test/unit/explicit-slug-creation.test.ts
+        operation: create
+    started_at: 2026-08-26
+    completed_at: 2026-08-26
+    implementation_note: validateChangeSlug beside slugify guards createChangeDir; --change + --request
+      creates under the exact validated unique slug; INVALID_CHANGE_SLUG and CHANGE_DIR_EXISTS codes
+      added; 9 tests green; 166 unit tests pass.
+    files_changed:
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: src/scripts/lib/ids.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+      - path: test/unit/explicit-slug-creation.test.ts
+        operation: create
+milestones: []
+risks: []
+delta: []

@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 import { getStageById, getStageDescriptions } from '../lib/stage-registry.ts';
+import { getAgentModelFields } from '../lib/agent-registry.ts';
 import { runStage } from '../lib/kinds/index.ts';
 import { runStatus } from './status.ts';
 import { runFeedback } from './feedback.ts';
@@ -71,8 +72,24 @@ export function resolveWorkflow(command: string | undefined): WorkflowEntry | nu
   };
 }
 
-export function listWorkflows(): { id: string; description: string; agent: string | null }[] {
-  const stages = getStageDescriptions(process.cwd());
+/**
+ * Workflow summaries for envelope data (DEC-004): a bound agent entry carries
+ * the recommended model and the effectiveModel (model_override ?? model) so an
+ * override is visible without reading source files. Cross-cutting entries keep
+ * agent null and carry no model fields.
+ */
+export function listWorkflows(): {
+  id: string;
+  description: string;
+  agent: string | null;
+  model?: string;
+  effectiveModel?: string;
+}[] {
+  const cwd = process.cwd();
+  const stages = getStageDescriptions(cwd).map((stage) => ({
+    ...stage,
+    ...getAgentModelFields(cwd, stage.agent),
+  }));
   const crossCutting = Object.values(CROSS_CUTTING).map((workflow) => ({
     id: workflow.id,
     description: workflow.description,

@@ -1,0 +1,444 @@
+metadata:
+  id: REQ-001
+  title: Add a dev-only agent-audit skill that refreshes the opencode model catalog fr...
+  stage: requirements
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-26
+  updated: 2026-08-26
+  request_summary: Add a dev-only agent-audit skill that refreshes the opencode model catalog from
+    http://opencode.ai/zen/go/v1/models into the agent schema enum with opencode/<id> qualification,
+    reassigns each agent's LLM by consulting trusted web benchmarks against the agent's stage
+    purpose, revisits temperature/description/system_prompt alignment with stage instructions,
+    auto-fixes permission mismatches against stage effective requirements, adds/removes/deduplicates
+    agents updating stage.yaml bindings accordingly, and never overwrites an existing
+    model_override; plus add an optional free-form model_override field to agent definitions that
+    takes precedence over the recommended model at deploy time without being validated against the
+    catalog.
+  clarity: clear
+  assumptions_reviewed: true
+  delta_reviewed: false
+  discovery_reviewed: true
+  scenarios_reviewed: false
+  step: complete
+problem_statement: The opencode-go model catalog was frozen as a hand-maintained enum in
+  src/schemas/agent.schema.yaml at authoring time, but the live catalog at
+  http://opencode.ai/zen/go/v1/models has already drifted (23 stored ids versus 30 live ids today),
+  so every upstream lineup change is a manual schema-edit event and stale ids break validation.
+  Model-to-agent assignments were hand-picked once with no mechanism to re-evaluate them as new
+  models appear, and agent parameters (temperature, description, system_prompt, permissions) can
+  silently drift from what the bound stages' instructions actually require. Separately, individuals
+  cannot use a personally preferred LLM for an agent without destroying the team recommendation,
+  because the single model field carries both the suggestion and the effective value.
+discovery_log:
+  - id: DL-001
+    question: Who consumes the agent-audit skill and who decides which LLM fits an agent?
+    answer: The repository maintainer invokes the dev-only skill during development; an LLM (the
+      developer's coding agent) performs the fit judgment by consulting trusted web sources on model
+      capabilities and benchmarks against each agent's stage purpose; humans remain the acceptance
+      authority through review stages while npm run validate gates mechanical correctness after the
+      run.
+    lens: stakeholder
+    resolved: true
+  - id: DL-002
+    question: What does the skill fetch and which files does it rewrite?
+    answer: The skill fetches GET http://opencode.ai/zen/go/v1/models returning a JSON list of model
+      entries each carrying id and owned_by; it rewrites the model enum in
+      src/schemas/agent.schema.yaml, rewrites the model fields in src/agents/*.yaml, may create or
+      delete agent YAML files, and updates stage.yaml agent bindings when the roster changes;
+      deployment continues to render agents unchanged.
+    lens: interface
+    resolved: true
+  - id: DL-003
+    question: How are fetched model ids qualified and what happens to the existing opencode-go prefix?
+    answer: The endpoint returns bare ids such as kimi-k3 each with owned_by opencode; stored strings
+      are exactly opencode/<id> using owned_by as the provider prefix, so opencode/kimi-k3; the
+      first refresh migrates every existing opencode-go/<id> value in the schema enum and agent
+      files to opencode/<id>; model_override stays a free-form string with no catalog constraint.
+    lens: data
+    resolved: true
+  - id: DL-004
+    question: What are the failure modes and required behaviors of the audit and the override?
+    answer: A non-2xx fetch fails naming the URL and HTTP status without rewriting anything; after a run
+      npm run validate must pass, failing naming file and value for any model outside the fresh enum
+      or an empty model_override; the skill never overwrites an existing model_override; two
+      identical agent definitions collapse to one survivor with stage.yaml bindings repointed;
+      deploy renders model_override over model when present.
+    lens: failure
+    resolved: true
+  - id: DL-005
+    question: Which constraints govern the audit skill and the override field?
+    answer: The audit lives as a dev-only skill under src/skills/ and is the one place where LLM
+      judgment drives configuration; runtime validation stays deterministic; permission auto-fix
+      must satisfy the engine kind contracts overridden by stage permissions using the same logic as
+      checkAgentCompatibility; the recommendation stays visible in the model field while
+      model_override if present wins at deploy time without enum checking; the capped check catalog,
+      frozen CLI envelope, and stage-folder invariants are untouched.
+    lens: constraint
+    resolved: true
+assumptions:
+  - type: verified
+    text: The endpoint http://opencode.ai/zen/go/v1/models returns {"object":"list","data":[{id,
+      owned_by, created}]} with bare model ids such as kimi-k3 and owned_by opencode; a live fetch
+      on 2026-08-26 returned 30 entries.
+    source: Live GET http://opencode.ai/zen/go/v1/models, fetched 2026-08-26.
+  - type: verified
+    text: The current agent schema enum stores 23 fully qualified opencode-go/<id> values while the live
+      catalog lists 30 different bare ids, so the stored catalog has already drifted and the
+      migration path opencode-go/* to opencode/* is exercised by the very first refresh.
+    source: src/schemas/agent.schema.yaml model enum versus live endpoint response, compared 2026-08-26.
+  - type: verified
+    text: The engine already computes stage effective permissions deterministically as the kind contract
+      overridden by stage permissions, and checkAgentCompatibility verifies agent permissions
+      against them naming stage, agent, and key.
+    source: src/scripts/lib/agent-permissions.ts (computeEffectivePermissions, checkAgentCompatibility).
+  - type: unverified
+    text: Trusted web sources documenting model capabilities and benchmarks exist and stay reachable for
+      every model in the live catalog at audit time.
+    source: Benchmark coverage varies by model; newly listed models may lack established benchmark pages.
+    risk: The LLM cannot ground a capability judgment for an undocumented model.
+    impact: Assignment for that model falls back to vendor documentation or the model id's own signals;
+      quality varies.
+    severity: low
+  - type: unverified
+    text: The opencode runtime resolves models qualified as <owned_by>/<id>, so opencode/kimi-k3 is a
+      valid rendered model value.
+    source: User instruction fixes the qualification as opencode/<id>; runtime behavior beyond the
+      documented config id form is assumed consistent.
+    risk: If the runtime expects a different provider spelling, rendered agents fail at runtime despite
+      passing validation.
+    impact: Deploy smoke and first real run would surface the mismatch; renderer prefix mapping is the
+      fix point.
+    severity: medium
+  - type: unverified
+    text: An LLM can judge alignment between an agent definition and its stage instructions well enough
+      that human review of the diff remains a sufficient acceptance control.
+    source: The skill is dev-invoked; every run ends in a reviewable git diff plus npm run validate.
+    risk: Suboptimal or subjective rewrites pass mechanical validation.
+    impact: Quality is guarded by the review stages, not by automation.
+    severity: low
+functional_requirements:
+  - id: FR-001
+    description: When the developer invokes the agent-audit skill, the system shall first fetch GET
+      http://opencode.ai/zen/go/v1/models, and when the response is not HTTP 2xx the skill shall
+      fail naming the URL and the received status without rewriting any file.
+    ac_ids:
+      - AC-001
+      - AC-002
+  - id: FR-002
+    description: When the fetch succeeds, the system shall rewrite the model enum in
+      src/schemas/agent.schema.yaml to exactly one entry opencode/<owned_by>/<id resolved as
+      opencode/<id>> per fetched entry sorted alphabetically, and shall migrate every existing
+      opencode-go/<id> value in the schema enum and in src/agents/*.yaml model fields to
+      opencode/<id>.
+    ac_ids:
+      - AC-003
+      - AC-004
+  - id: FR-003
+    description: When the audit evaluates an agent's model, the system shall assign a best-fit qualified
+      id from the freshly fetched list by consulting trusted internet sources on each candidate
+      model's capabilities and benchmarks against the agent's stage purpose as expressed by the
+      bound stage's role, and shall never modify an existing model_override field.
+    ac_ids:
+      - AC-005
+      - AC-006
+  - id: FR-004
+    description: When the audit evaluates an agent's temperature, description, and system_prompt, the
+      system shall rewrite any of these fields that are better aligned with the stage's purpose as
+      described in the stage instructions, leaving already-aligned fields unchanged.
+    ac_ids:
+      - AC-007
+  - id: FR-005
+    description: When the audit evaluates an agent bound to a stage, the system shall compare the
+      agent's declared permissions against the stage's effective permission requirements computed as
+      the engine kind contract overridden by the stage descriptor permissions, and shall auto-fix
+      the agent's permissions until the comparison passes.
+    ac_ids:
+      - AC-008
+  - id: FR-006
+    description: When the audit finds agent definitions that duplicate each other, the system shall keep
+      exactly one surviving definition, delete the redundant YAML files under src/agents/, and
+      update every stage.yaml binding that referenced a deleted agent to reference the survivor.
+    ac_ids:
+      - AC-009
+  - id: FR-007
+    description: When the audit determines that a stage's purpose is not well served by any existing
+      agent, the system shall create a new agent YAML under src/agents/ satisfying the agent schema
+      and update the corresponding stage.yaml to bind the new agent, and symmetrically shall delete
+      an agent and its bindings when no stage needs it.
+    ac_ids:
+      - AC-010
+  - id: FR-008
+    description: When the audit run completes, the system shall leave the repository in a state where
+      npm run validate passes with zero findings.
+    ac_ids:
+      - AC-011
+  - id: FR-009
+    description: When an agent definition declares model_override, the system shall accept an optional
+      non-empty free-form string that is not constrained by the model catalog enum.
+    ac_ids:
+      - AC-012
+      - AC-015
+  - id: FR-010
+    description: When validation evaluates an agent definition, the system shall require model to be a
+      member of the current catalog enum and shall reject an empty model_override value, each
+      failure naming the offending file and value.
+    ac_ids:
+      - AC-013
+      - AC-014
+  - id: FR-011
+    description: When the agent registry loads a descriptor, the system shall expose the recommended
+      model, the model override or null, and the effective model computed as model_override when
+      present else model.
+    ac_ids:
+      - AC-016
+  - id: FR-012
+    description: When deployment renders an agent, the system shall write the effective model into the
+      rendered frontmatter model field while the source YAML model field remains the team
+      recommendation.
+    ac_ids:
+      - AC-017
+      - AC-018
+  - id: FR-013
+    description: When CLI data surfaces agents, the system shall expose both the recommended model and
+      the effective model so an override is visible without reading the source files.
+    ac_ids:
+      - AC-019
+non_functional_requirements:
+  - id: NFR-001
+    description: The audit shall live as a development-only skill under src/skills/ following the
+      SKILL.md folder protocol, containing no hardcoded agent-specific paths and remaining outside
+      the deployed SDLC bundle.
+    ac_ids:
+      - AC-020
+  - id: NFR-002
+    description: Runtime validation and deployment shall stay deterministic with zero LLM judgment;
+      LLM-driven decisions are confined to the dev-time audit skill.
+    ac_ids:
+      - AC-021
+  - id: NFR-003
+    description: The team recommendation shall remain visible in the model field even when an override
+      is active, so refreshing the catalog never destroys personal preferences and overrides never
+      hide the suggestion.
+    ac_ids:
+      - AC-006
+      - AC-018
+acceptance_criteria:
+  - id: AC-001
+    statement: Given the developer invokes the agent-audit skill and the models endpoint responds HTTP
+      200 with a JSON entry list, when the skill runs, then the fetched entries drive the enum
+      rewrite and the skill proceeds to the per-agent audit.
+    category: happy
+    parent_id: FR-001
+  - id: AC-002
+    statement: Given the models endpoint responds HTTP 500, when the skill runs, then the skill fails
+      naming the URL http://opencode.ai/zen/go/v1/models and the status 500, and
+      src/schemas/agent.schema.yaml and every file under src/agents/ are byte-identical to before
+      the run.
+    category: negative
+    parent_id: FR-001
+  - id: AC-003
+    statement: Given the fetched list contains entries kimi-k3 and grok-4.5 both owned_by opencode, when
+      the enum rewrite runs, then the schema model enum contains exactly opencode/grok-4.5 and
+      opencode/kimi-k3 for those entries in alphabetical order alongside the other fetched
+      qualifications and no unfetched id remains.
+    category: happy
+    parent_id: FR-002
+  - id: AC-004
+    statement: Given repository files still storing opencode-go/kimi-k3 in the schema enum and an agent
+      model field, when the first refresh runs against a live list containing kimi-k3, then both
+      stored values read opencode/kimi-k3 afterward and no opencode-go/ prefix survives anywhere
+      under src/schemas/ or src/agents/.
+    category: boundary
+    parent_id: FR-002
+  - id: AC-005
+    statement: Given the implementation-engineer agent bound to the implementation stage and a fetched
+      list of thirty models, when the audit assigns its model, then the written value is a qualified
+      id from the fetched list whose selection the skill justifies from consulted web sources on
+      code-generation capability against the stage's purpose.
+    category: happy
+    parent_id: FR-003
+  - id: AC-006
+    statement: Given an agent definition carrying model_override opencode/grok-4.5, when the audit runs,
+      then the model_override value is byte-identical after the run while the model field may change
+      freely.
+    category: edge
+    parent_id: FR-003
+  - id: AC-007
+    statement: Given an agent whose system_prompt no longer reflects the purpose stated in its bound
+      stage's instructions, when the audit runs, then the rewritten prompt, description, and
+      temperature align with those instructions and any field the audit judges already aligned is
+      left unchanged.
+    category: happy
+    parent_id: FR-004
+  - id: AC-008
+    statement: Given an agent bound to a review stage declaring file_write allow while the review kind
+      contract ceilings file_write to deny, when the audit runs, then the agent's file_write is
+      rewritten to deny and the same comparison passes for every bound stage of every agent.
+    category: happy
+    parent_id: FR-005
+  - id: AC-009
+    statement: Given two agent definitions whose contents are identical after the audit, when the
+      deduplication runs, then exactly one of the two YAML files remains under src/agents/ and every
+      stage.yaml that referenced the deleted id references the survivor.
+    category: happy
+    parent_id: FR-006
+  - id: AC-010
+    statement: Given a stage whose instructions describe a purpose no existing agent serves, when the
+      audit runs, then a new valid agent YAML exists under src/agents/ and that stage.yaml
+      references the new agent id, and given an agent referenced by no stage and judged redundant,
+      then its YAML file and any dangling references are removed.
+    category: boundary
+    parent_id: FR-007
+  - id: AC-011
+    statement: Given the audit completed all rewrites, creations, deletions, and binding updates, when
+      npm run validate runs, then it exits 0 with zero findings across schemas, policies, templates,
+      typecheck, and unit tests.
+    category: happy
+    parent_id: FR-008
+  - id: AC-012
+    statement: Given an agent definition adding model_override my-provider/my-model, when npm run
+      validate runs, then schema validation accepts the file because model_override is an optional
+      unconstrained string.
+    category: happy
+    parent_id: FR-009
+  - id: AC-013
+    statement: Given an agent definition whose model is opencode/model-that-was-removed and the current
+      enum lacks it, when npm run validate runs, then validation fails naming the file and the
+      offending model value.
+    category: negative
+    parent_id: FR-010
+  - id: AC-014
+    statement: Given an agent definition with model_override set to an empty string, when npm run
+      validate runs, then validation fails naming the file and the empty value.
+    category: negative
+    parent_id: FR-010
+  - id: AC-015
+    statement: Given model_override values such as anthropic/claude-opus or gpt-5 that appear in no
+      catalog enum, when npm run validate runs, then validation passes because model_override is
+      deliberately not enum-checked.
+    category: edge
+    parent_id: FR-009
+  - id: AC-016
+    statement: Given a descriptor with model opencode/kimi-k3 and model_override opencode/grok-4.5, when
+      the agent registry loads it, then the record exposes model opencode/kimi-k3, modelOverride
+      opencode/grok-4.5, and effectiveModel opencode/grok-4.5, and given a descriptor without
+      model_override the record exposes modelOverride null and effectiveModel equal to model.
+    category: happy
+    parent_id: FR-011
+  - id: AC-017
+    statement: Given an agent definition with both model and model_override present, when deployment
+      renders the agent, then the rendered frontmatter model equals the model_override value.
+    category: happy
+    parent_id: FR-012
+  - id: AC-018
+    statement: Given an agent definition with only model present, when deployment renders the agent,
+      then the rendered frontmatter model equals the model recommendation and the source YAML still
+      carries the team recommendation unchanged.
+    category: edge
+    parent_id: FR-012
+  - id: AC-019
+    statement: Given the six-agent roster with one agent overriding its model, when the CLI emits
+      workflow or status data exposing agents, then each surfaced agent entry carries both the
+      recommended model and the effective model so the override is visible in the envelope data.
+    category: happy
+    parent_id: FR-013
+  - id: AC-020
+    statement: Given the repository tree after the change, when the audit skill location is inspected,
+      then it lives under src/skills/ as a SKILL.md folder protocol skill with no hardcoded
+      agent-specific paths and produces no file inside the deployed .opencode bundle.
+    category: happy
+    parent_id: NFR-001
+  - id: AC-021
+    statement: Given validation and deployment code after the change, when any audit-derived decision is
+      evaluated at runtime, then only deterministic checks run and no code path invokes an LLM or
+      fetches the models endpoint outside the dev-time skill.
+    category: boundary
+    parent_id: NFR-002
+out_of_scope:
+  - Runtime LLM judgment anywhere in validation, deployment, or the CLI; the audit's judgments are
+    baked into files at dev time and everything after is deterministic (NFR-002).
+  - Changing the engine kind permission contracts, the capped check catalog, the frozen CLI envelope
+    shape, or the stage-folder layout; the audit operates within existing invariants.
+  - Binding agents to the knowledge-init skill; agent binding targets stages only.
+  - Scheduling the audit in CI or running it automatically; it is invoked manually by the maintainer
+    when the catalog or stage instructions change.
+failure_paths:
+  - "The models endpoint is unreachable or returns non-2xx: the skill aborts naming URL and status;
+    no file is touched and the previous catalog stays authoritative."
+  - "Web sources disagree or lack coverage for a model: the skill records which sources grounded
+    each assignment in its output; the human reviews the diff and reruns or corrects before commit."
+  - "A stored model id disappears from the live list: the first refresh migrates assignments onto
+    surviving ids; until the refresh runs, validation fails naming the file and stale value."
+  - "An audit roster change breaks permission compatibility: npm run validate fails naming stage,
+    agent, and key; the fix is another audit pass or a manual permission correction."
+  - "A rewritten system_prompt trips the purity marker check: validation fails naming file and
+    marker; the prompt is reworded and the audit rerun."
+risks_and_dependencies:
+  - risk: The live catalog changes between fetch and merge, so the committed enum can be stale on
+      arrival.
+    impact: Validation fails on removed ids until the next refresh.
+    severity: medium
+  - risk: The opencode/<owned_by-id> qualification is fixed by stakeholder instruction; if the opencode
+      runtime qualifies differently, rendered agents fail at runtime while validation passes.
+    impact: Renderer prefix mapping becomes the fix point; deploy smoke gives early signal.
+    severity: medium
+  - risk: LLM benchmark consultation quality varies per model, especially for newly listed models
+      without established benchmarks.
+    impact: Some assignments may be suboptimal; the reviewable diff and review stages are the control.
+    severity: low
+  - risk: Deduplication and roster changes rewrite stage.yaml bindings, touching pipeline topology
+      configuration.
+    impact: Errors surface as unresolved-reference validation failures naming the stage and id.
+    severity: low
+delta:
+  - target_doc: docs/current/conventions.md
+    target_anchor: File Organization
+    change: Modify
+    reason: Document the dev-only skill convention for the agent audit under src/skills/ and the
+      model_override field convention (recommendation preserved, override wins, override not
+      enum-checked).
+    phase: Requirements
+    date: 2026-08-26
+  - target_doc: docs/current/capabilities.md
+    target_anchor: Capabilities
+    change: Modify
+    reason: Add the agent-audit capability (catalog refresh, LLM-driven model assignment, parameter
+      realignment, permission auto-fix, roster add/remove/dedupe) and the model-override capability.
+    phase: Requirements
+    date: 2026-08-26
+  - target_doc: docs/current/architecture.md
+    target_anchor: Folder Responsibilities
+    change: Modify
+    reason: Add src/skills/agent-audit/ as a development-only component and note the agent schema enum
+      is refreshed from the live opencode catalog rather than hand-maintained.
+    phase: Requirements
+    date: 2026-08-26
+  - target_doc: docs/current/glossary.md
+    change: Add
+    reason: Add the Agent Audit entity (dev-only skill, inputs and outputs) and the Model Override
+      entity (model versus model_override versus effective model).
+    phase: Requirements
+    date: 2026-08-26
+  - target_doc: docs/current/api-contract.md
+    target_anchor: Endpoints (CLI Commands)
+    change: Modify
+    reason: Document the agent schema model_override field, the AgentRecord effectiveModel computation,
+      and the surfaced model/effective-model pair in CLI data.
+    phase: Requirements
+    date: 2026-08-26
+  - target_doc: docs/current/operations.md
+    target_anchor: Commands
+    change: Modify
+    reason: Document invoking the agent-audit skill, its endpoint dependency, and the post-run npm run
+      validate gate.
+    phase: Requirements
+    date: 2026-08-26
+  - target_doc: docs/current/decisions.md
+    target_anchor: "Living: Cycle Decisions"
+    change: Modify
+    reason: "Record the cycle decisions: dev-time LLM-driven audit as the single LLM-judgment exception,
+      recommendation-preserving override semantics, opencode/<id> catalog qualification migrated
+      from opencode-go/, and the live-endpoint-fed schema enum."
+    phase: Requirements
+    date: 2026-08-26

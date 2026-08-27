@@ -15,6 +15,10 @@ export interface AgentRecord {
   file: string;
   description: string;
   model: string;
+  /** Optional free-form personal override (model_override); null when absent. */
+  modelOverride: string | null;
+  /** The value that wins at deploy/surface time: modelOverride ?? model (DEC-004). */
+  effectiveModel: string;
   temperature: number;
   mode: string;
   permissions: Record<string, string>;
@@ -53,11 +57,19 @@ function loadAgentFile(file: string, cwd: string): AgentRecord {
     );
   }
 
+  const model = String(descriptor.model || '');
+  const modelOverride =
+    typeof descriptor.model_override === 'string' && descriptor.model_override.length > 0
+      ? descriptor.model_override
+      : null;
+
   return {
     id,
     file,
     description: String(descriptor.description || ''),
-    model: String(descriptor.model || ''),
+    model,
+    modelOverride,
+    effectiveModel: modelOverride ?? model,
     temperature: Number(descriptor.temperature ?? 0),
     mode: typeof descriptor.mode === 'string' ? descriptor.mode : 'all',
     permissions: (descriptor.permissions as Record<string, string>) || {},
@@ -109,4 +121,21 @@ export function getAgentById(
 ): AgentRecord | null {
   const registry = loadAgentRegistry(cwd, agentsDir);
   return registry.find((agent) => agent.id === agentId) || null;
+}
+
+/**
+ * CLI surfacing helper (DEC-004): the recommended/effective model pair for a
+ * bound agent id, for envelope data entries. Returns an empty object when no
+ * agent is bound or the binding does not resolve, so unbound entries carry no
+ * model fields at all.
+ */
+export function getAgentModelFields(
+  cwd: string,
+  agentId: string | null,
+  agentsDir?: string
+): { model?: string; effectiveModel?: string } {
+  if (!agentId) return {};
+  const agent = getAgentById(cwd, agentId, agentsDir);
+  if (!agent) return {};
+  return { model: agent.model, effectiveModel: agent.effectiveModel };
 }

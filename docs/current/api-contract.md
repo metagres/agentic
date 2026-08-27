@@ -15,6 +15,8 @@ CLI toolkit: no HTTP endpoints. The contract surface is the `sdlc` command line 
 | CLI | node bin/lint-artifact.ts <stage> <artifact> | none | stage id, artifact path | validateArtifact findings | bin/lint-artifact.ts | No |
 | CLI | node bin/validate-{schemas,policies,templates}.ts | none | none | validation report; templates bin adds skills array | bin/validate-schemas.ts, bin/validate-policies.ts, bin/validate-templates.ts | No |
 
+- Authoring change creation: `--change` together with `--request` with no matching change directory creates the change under the exact provided slug, which must match `^[a-z0-9][a-z0-9-]*$` (max 60 chars, no trailing hyphen) and be unique among existing changes (errors `INVALID_CHANGE_SLUG` / `CHANGE_DIR_EXISTS`). Bare `--request` keeps the mechanical word-boundary fallback (slugify plus numeric suffix); an existing `--change` directory keeps resume semantics. Evidence: src/scripts/lib/ids.ts (validateChangeSlug), src/scripts/lib/kinds/authoring.ts (createChangeDir), src/policies/errors.yaml.
+
 ## Envelope
 
 | Field | Type | Notes | Evidence |
@@ -30,12 +32,14 @@ CLI toolkit: no HTTP endpoints. The contract surface is the `sdlc` command line 
 - Envelope top-level fields are frozen: no new fields may be added. Evidence: src/schemas/cli-envelope.schema.yaml (additionalProperties: false), AGENTS.md (invariant 8).
 - `data.workflows[]` entries (from `--list-workflows` / `--help`) and per-stage entries in `data.pipeline` (from `status`) each carry an `agent` field: the bound agent id or null. Cross-cutting commands (status, feedback, doctor) are always null. The envelope top-level shape is unchanged.
 - `data.step_help` (current step's title, markdown, commands, exit_criteria) is omitted from authoring envelopes unless the invocation passes `--help-step`; the seven top-level fields are unchanged. Evidence: src/scripts/lib/kinds/authoring.ts.
+- Agent descriptors accept an optional `model_override`: a non-empty free-form string, deliberately not constrained by the model catalog enum. `effectiveModel = model_override ?? model` is computed in the registry (AgentRecord.effectiveModel) and written into rendered deploy frontmatter, while the source `model` field stays the enum-checked team recommendation. Evidence: src/schemas/agent.schema.yaml, src/scripts/lib/agent-registry.ts, src/scripts/lib/deploy/platforms/opencode.ts.
+- `data.workflows[]` and `data.pipeline` stage entries additionally surface `model` (recommended) and `effectiveModel` (model_override ?? model) for bound agents, alongside the unchanged `agent` binding id; unbound/cross-cutting entries omit both. Evidence: src/scripts/workflows/index.ts, src/scripts/workflows/status.ts.
 
 ## Internal APIs
 
 | Function | Purpose | Source File |
 |----------|---------|-------------|
-| loadAgentRegistry(cwd) | scans src/agents/ for YAML, validates each against agent.schema.yaml, returns the cached AgentRecords; throws naming the offending file | src/scripts/lib/agent-registry.ts |
+| loadAgentRegistry(cwd) | scans src/agents/ for YAML, validates each against agent.schema.yaml, returns the cached AgentRecords exposing model, modelOverride (string \| null), and effectiveModel (model_override ?? model); throws naming the offending file | src/scripts/lib/agent-registry.ts |
 | checkAgentCompatibility(stages, agents) | verifies every stage-to-agent binding (floors allow, ceilings deny, multi-binding union of floors / intersection of ceilings); deterministic | src/scripts/lib/agent-permissions.ts |
 | getRenderer(platform, version?) | resolves platform + version to a renderer; latest is the default; throws PLATFORM_UNKNOWN listing supported platforms/versions | src/scripts/lib/deploy/platforms/index.ts |
 | renderAgent(renderer, agent) | renders one neutral agent definition into the platform's native format (target-relative path + full content) | src/scripts/lib/deploy/platforms/ |
@@ -46,5 +50,5 @@ CLI toolkit: no HTTP endpoints. The contract surface is the `sdlc` command line 
 |-------------|-------------------|-------|
 | src/schemas/cli-envelope.schema.yaml | all sdlc CLI envelopes | No |
 | src/schemas/stage.schema.yaml | stage.yaml descriptors (startup validation) | No |
-| src/schemas/agent.schema.yaml | agent.yaml definitions (startup validation) | No |
+| src/schemas/agent.schema.yaml | agent.yaml definitions (startup validation; model enum-checked, model_override free-form) | No |
 | src/schemas/docs-delta.schema.yaml | docs-delta.yaml artifact written by knowledge-extraction | No |
