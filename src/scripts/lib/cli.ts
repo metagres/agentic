@@ -1,4 +1,6 @@
 import type { WarningItem } from './types.ts';
+import { getStageById } from './stage-registry.ts';
+import { delegationDirective } from './delegation.ts';
 
 export const EXIT = {
   ok: 0,
@@ -40,7 +42,7 @@ export function parseArgs(argv: string[]): Record<string, string | boolean | str
   return args;
 }
 
-function normalizeEnvelope(payload: Record<string, unknown> = {}): { workflow: string; step: string; state: string; instructions: string; data: Record<string, unknown>; errors: unknown[]; warnings: unknown[] } {
+export function normalizeEnvelope(payload: Record<string, unknown> = {}, stagesDir?: string): { workflow: string; step: string; state: string; instructions: string; data: Record<string, unknown>; errors: unknown[]; warnings: unknown[] } {
   const data: Record<string, unknown> = {
     ...(payload.data && typeof payload.data === 'object' ? payload.data as Record<string, unknown> : {}),
   };
@@ -91,6 +93,30 @@ function normalizeEnvelope(payload: Record<string, unknown> = {}): { workflow: s
     }
   }
 
+  // CMP-002 (DEC-001, DEC-005): resolve the workflow id to a stage record and
+  // prepend its binding-derived delegation directive ahead of the existing
+  // instructions as a distinct paragraph. Cross-cutting and unknown ids
+  // resolve to no stage record and stay byte-identical (FR-002); registry
+  // resolution failures stay quiet so every envelope keeps emitting exactly
+  // as before.
+  const workflowId = (payload.workflow ?? payload.stage) as string | undefined;
+
+  if (workflowId) {
+    let directive: string | null = null;
+    try {
+      const stage = getStageById(process.cwd(), workflowId, stagesDir);
+      if (stage?.agent) {
+        directive = delegationDirective(stage);
+      }
+    } catch {
+      directive = null;
+    }
+
+    if (directive) {
+      instructions = instructions ? `${directive}\n\n${instructions}` : directive;
+    }
+  }
+
   return {
     workflow: (payload.workflow ?? payload.stage ?? 'cli') as string,
     step: (payload.step ?? 'step') as string,
@@ -102,8 +128,12 @@ function normalizeEnvelope(payload: Record<string, unknown> = {}): { workflow: s
   };
 }
 
-export function writeJson(payload: Record<string, unknown>, code: number = EXIT.ok): void {
-  const envelope = normalizeEnvelope(payload);
+export function writeJson(
+  payload: Record<string, unknown>,
+  code: number = EXIT.ok,
+  stagesDir?: string
+): void {
+  const envelope = normalizeEnvelope(payload, stagesDir);
 
   process.stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
   process.exit(code);

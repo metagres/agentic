@@ -1,0 +1,285 @@
+metadata:
+  id: DES-001
+  title: "Design: agent-delegation-loop"
+  stage: design
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-27
+  updated: 2026-08-27
+  based_on_requirements: 0.1.0
+  delta_reviewed: false
+  step: complete
+context_summary: "The agent layer ships six deployed agents and declarative per-stage bindings
+  (StageRecord.agent), but no runtime consumer acts on the binding, so the orchestrating agent
+  executes every stage itself and author and gatekeeper are never separated. This change closes the
+  loop on two mutually reinforcing surfaces without touching the frozen envelope shape. First, every
+  emitted stage envelope gains a delegation directive inside the existing instructions field,
+  composed at the single envelope funnel from the stage's declarative agent binding: it names the
+  bound agent, instructs delegation unless the caller already is that agent or that agent is
+  unavailable in the runtime, and for review kinds directs the round to the bound reviewer agent
+  rather than the authoring agent. Stages with a null binding (status, feedback, doctor) emit no
+  directive because their ids do not resolve to stage records. Second, the generated SKILL.md
+  workflow section states the delegation rule as a firm requirement, and the deploy smoke asserts
+  its presence alongside the existing two-skill layout checks. Directive text is always composed
+  from StageRecord.agent at emit time, never hardcoded, so bindings and directives cannot drift
+  apart."
+components:
+  - id: CMP-001
+    name: Delegation directive composer
+    responsibility: Pure module src/scripts/lib/delegation.ts exporting delegationDirective(stage) that
+      deterministically composes the directive string from StageRecord fields only (id, kind,
+      agent). Returns null when agent is null. Emits the conditional self clause ("if you are
+      already <agent-id>, proceed yourself"), the unavailability clause ("if <agent-id> is not
+      present or not invocable in your runtime, proceed running the stage yourself"), and for
+      kind=review the reviewer-directed phrasing naming the bound reviewer agent as the performer of
+      the review round. Contains no hardcoded agent ids or paths (NFR-002).
+  - id: CMP-002
+    name: Envelope instruction composition point
+    responsibility: Wires the composer into the single envelope funnel normalizeEnvelope/writeJson in
+      src/scripts/lib/cli.ts. Resolves payload.workflow (falling back to payload.stage) via
+      getStageById; when a stage record resolves and its binding is non-null, prepends the composed
+      directive to instructions as a distinct paragraph before step guidance; otherwise leaves
+      instructions untouched. Emits exactly the seven frozen top-level fields; adds no new envelope
+      field.
+  - id: CMP-003
+    name: Kind interpreters (consumers, unchanged)
+    responsibility: The four kind interpreters (authoring, review, tasks, aggregator under
+      src/scripts/lib/kinds/) continue building step-specific instructions and payloads exactly as
+      today; writeJson remains their terminal emission. Explicit non-goal boundary - no per-kind
+      directive code exists, so no interpreter can drift from the binding (DL-003). Future kinds
+      inherit directives automatically by passing through the funnel.
+  - id: CMP-004
+    name: SKILL.md workflow-section rule
+    responsibility: Strengthens workflow item 4 of SKILL_TEMPLATE/renderSkill in bin/deploy-to-agent.ts
+      into a firm delegation rule stating that a stage bound to an agent is run via that agent,
+      including the conditional self clause and unavailability fallback, plus the convention
+      sentence that review stages are performed by their bound reviewer agent and never by the
+      authoring agent. skill-manifest.ts stays metadata-only (id, title, description); body text is
+      render-time content owned by the deploy bin.
+  - id: CMP-005
+    name: Deploy smoke delegation-rule assertion
+    responsibility: Extends the agentic-sdlc smoke block in bin/deploy-to-agent.ts so that after
+      rendering SKILL.md it fails deployment when the generated file lacks the stable marker phrase
+      of the delegation rule ("is run via that agent"), reported alongside the existing two-skill
+      layout checks (deployed CLI --list-workflows run, knowledge-init frontmatter checks, per-agent
+      frontmatter/model checks). No new report fields beyond the existing skills/smoke arrays.
+  - id: CMP-006
+    name: Delegation unit test suite
+    responsibility: "test/unit/delegation.test.ts covering the pure composer and funnel behavior using
+      fixture stage directories passed to loadStageRegistry(cwd, stagesDir): fixture stages bound to
+      arbitrary ids (e.g. fixture-alpha) produce directives naming those ids (AC-010); null-binding
+      and cross-cutting ids emit no directive (AC-003); envelopes keep exactly seven top-level
+      fields (AC-008); review-kind phrasing names the reviewer and contains no
+      author-performs-review instruction (AC-004, AC-005)."
+data_models:
+  - id: DM-001
+    name: Envelope (frozen shape, restated)
+    description: Existing seven-field CLI response - workflow, step, state, instructions, data, errors,
+      warnings (normalizeEnvelope). Unchanged by this design; the directive lives only inside
+      instructions. No current_agent field or any other identity hint is added (NFR-001, AC-009).
+  - id: DM-002
+    name: StageRecord binding fields
+    description: Existing registry entry fields consumed by composition - id (stage id), kind
+      ('authoring'|'review'|'tasks'|'aggregator'), agent (string|null parsed from stage.yaml
+      'agent'). All nine pipeline stages carry non-null bindings (four review stages bind
+      stage-reviewer); CROSS_CUTTING status/feedback/doctor entries carry agent null and are not
+      stage records at all.
+  - id: DM-003
+    name: DelegationDirective (composed value)
+    description: Ephemeral string composed at emit time, never stored. Parts - stage_id and agent_id
+      interpolated from StageRecord; self_clause ("if you are already <agent-id>, proceed running
+      the stage yourself"); availability_clause ("if <agent-id> is not present or not invocable in
+      your runtime, proceed running the stage yourself"); review_variant for kind=review adding that
+      the review round must be performed by <agent-id>, not by the agent that authored the artifact.
+      Deterministic - identical inputs produce identical text.
+  - id: DM-004
+    name: Skill manifest vs skill body
+    description: skillManifest (src/scripts/workflows/skill-manifest.ts) remains metadata only (id,
+      title, description rendered into SKILL.md frontmatter). The workflow-section rule text lives
+      in SKILL_TEMPLATE inside bin/deploy-to-agent.ts, which already owns all rendered body content;
+      the smoke assertion keys on a stable marker phrase in that body.
+apis:
+  - id: API-001
+    path: scripts/sdlc.js <stage-id> --change <change-name>
+    method: CLI
+    description: Stage command envelopes (all four kinds) may now carry a delegation directive prepended
+      to instructions when the stage binding is non-null. No flags change; data payload unchanged;
+      seven top-level fields unchanged.
+  - id: API-002
+    path: scripts/sdlc.js status|feedback|doctor
+    method: CLI
+    description: Cross-cutting command envelopes are byte-identical to today - their workflow ids do not
+      resolve to stage records, so no directive is composed (FR-002, AC-003).
+  - id: API-003
+    path: bin/deploy-to-agent.ts --dest <root> [--skip-smoke]
+    method: script
+    description: Renders SKILL.md whose workflow section states the firm delegation rule (CMP-004) and
+      runs the extended smoke that fails when the rule marker is absent from the generated SKILL.md
+      (CMP-005). Report JSON shape unchanged.
+flows:
+  - id: F-001
+    name: Bound-stage envelope emission
+    steps:
+      - Calling agent invokes sdlc <stage-id> --change <name>; the kind interpreter builds its
+        normal payload with step instructions.
+      - Interpreter calls writeJson; normalizeEnvelope resolves payload.workflow via
+        getStageById(process.cwd(), id).
+      - Stage record resolves with agent non-null -> CMP-001 composes the directive from StageRecord
+        (DM-003).
+      - CMP-002 prepends the directive paragraph to instructions; envelope is emitted with exactly
+        seven top-level fields.
+      - Review stages additionally carry the reviewer-directed phrasing (kind=review variant).
+  - id: F-002
+    name: Null-binding / cross-cutting emission
+    steps:
+      - Calling agent invokes status, feedback, or doctor.
+      - normalizeEnvelope resolves the workflow id; no stage record exists for these ids
+        (CROSS_CUTTING entries are not stages).
+      - No directive is composed; instructions pass through untouched.
+  - id: F-003
+    name: Delegated execution round-trip
+    steps:
+      - "Primary agent reads the directive: if it already is <agent-id>, it proceeds itself
+        (AC-002); otherwise it delegates the stage to <agent-id> via the platform task tool."
+      - If <agent-id> is unavailable in the runtime, the primary proceeds running the stage itself
+        (AC-011).
+      - Delegated subagent runs the stage's CLI commands, completes its step machine, and returns
+        control.
+      - Failure mid-delegation falls back to existing recovery - retry the stage command or revert
+        via sdlc feedback (requirements failure path 3; no new mechanism).
+  - id: F-004
+    name: Deploy render and smoke
+    steps:
+      - deploy-to-agent bundles the CLI, copies stages/schemas/policies, and writes SKILL.md from
+        SKILL_TEMPLATE including the firm delegation rule (CMP-004).
+      - Smoke runs the deployed CLI (--list-workflows), then asserts the generated SKILL.md contains
+        the delegation-rule marker phrase (CMP-005, AC-007).
+      - Existing two-skill layout checks and per-agent frontmatter/model checks continue to gate the
+        run; any failure aborts deployment.
+decisions:
+  - id: DEC-001
+    title: Compose the directive at the single envelope funnel, not per kind
+    context: DL-003 demands the directive be composed from the declarative binding and never drift from
+      it. Two seams exist - each kind interpreter call site (dozens of writeJson invocations across
+      authoring/review/tasks/aggregator) or the one funnel every envelope passes through (writeJson
+      -> normalizeEnvelope, 22 callers, which already reads payload.workflow/stage).
+    decision: Compose in normalizeEnvelope via getStageById on the resolved workflow id, prepending
+      CMP-001 output when a bound stage resolves. cli.ts gains an import of stage-registry (no
+      import cycle - stage-registry depends only on yaml-io/schema/paths/types). Cross-cutting
+      commands and unknown ids resolve to nothing and stay quiet, giving FR-002 for free. Future
+      kinds inherit the behavior with zero code.
+    status: accepted
+  - id: DEC-002
+    title: Conditional self-identity phrasing, no runtime identity signal
+    context: All six agents are mode all, so a bound stage may be read by the bound agent itself;
+      OpenCode exposes no dependable current-agent signal to a running agent (requirements
+      assumption, DL-004).
+    decision: The directive phrases identity conditionally ("if you are already <agent-id>, proceed
+      yourself") and the model judges its own identity from context. No current_agent data field, no
+      env-var plumbing, no new envelope field (NFR-001, AC-009). Revisit only if a standardized
+      identity signal appears.
+    status: accepted
+  - id: DEC-003
+    title: Unavailability fallback stays caller-judged
+    context: The toolkit process cannot probe the consuming platform's agent roster - agents exist in
+      the runtime, not in the CLI (DL-006).
+    decision: The directive carries an explicit availability clause instructing the caller to proceed
+      running the stage itself when the named agent is not present or not invocable. The CLI
+      computes nothing about availability; judgment stays with the calling agent, which has the
+      runtime view.
+    status: accepted
+  - id: DEC-004
+    title: Review separation is convention-level only
+    context: The CLI has no caller-identity signal, so any mechanical guard against an authoring agent
+      running its own review would be theater (DL-005).
+    decision: Review-kind directives name the bound reviewer agent and state the round must be performed
+      by it, not by the authoring agent; SKILL.md repeats the convention. The limitation is recorded
+      here and in the requirements failure paths; detection remains human audit of review rounds.
+    status: accepted
+  - id: DEC-005
+    title: Directive placement - prepend before step guidance
+    context: Instructions already carry step-specific guidance; the directive must be seen before the
+      agent starts executing steps itself.
+    decision: Prepend the directive as a distinct paragraph separated by a blank line ahead of existing
+      instructions. It never replaces or rewrites step guidance, keeping every existing instruction
+      string intact below it.
+    status: accepted
+  - id: DEC-006
+    title: SKILL.md rule text lives in SKILL_TEMPLATE, manifest stays metadata
+    context: AGENTS.md names skill-manifest.ts as the generation source, but the manifest carries only
+      id/title/description while the deploy bin owns the rendered body (SKILL_TEMPLATE).
+    decision: Strengthen workflow item 4 of SKILL_TEMPLATE in bin/deploy-to-agent.ts into the firm rule;
+      leave skill-manifest.ts metadata-only. The smoke asserts a stable marker phrase ("is run via
+      that agent") so wording tweaks cannot silently break AC-007 coverage.
+    status: accepted
+  - id: DEC-007
+    title: Testability seam via fixture stage directories
+    context: AC-010 requires fixture stages bound to arbitrary agent ids to prove composition is
+      binding-driven; normalizeEnvelope resolves stages from process.cwd() like the rest of the
+      engine.
+    decision: Unit tests exercise the pure composer directly and drive the funnel against fixture
+      directories through loadStageRegistry(cwd, stagesDir), which already accepts an explicit
+      stagesDir - no chdir gymnastics, no production test hooks.
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+      - CMP-002
+      - CMP-006
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-001
+      - CMP-002
+      - CMP-006
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-001
+      - CMP-004
+      - CMP-006
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-004
+      - CMP-005
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-002
+      - CMP-006
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-001
+      - CMP-006
+delta:
+  - phase: Design
+    target_doc: docs/current/architecture.md
+    entity_id: CMP-001
+    change: Add
+    reason: New delegation-directive composer module composing per-stage directives from
+      StageRecord.agent at emit time, wired into the single envelope funnel (CMP-002) so all kinds
+      emit binding-derived directives and cross-cutting commands stay silent.
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/api-contract.md
+    target_anchor: Envelope
+    entity_id: DM-003
+    change: Modify
+    reason: Document that the instructions field of a bound stage's envelope carries a prepended
+      delegation directive (self clause, unavailability clause, reviewer-directed phrasing for
+      review kinds), composed from the declarative binding; null-binding commands emit none;
+      top-level shape stays the frozen seven fields.
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/conventions.md
+    entity_id: DEC-004
+    change: Add
+    reason: Working conventions - run a stage bound to an agent via that agent, delegating unless you
+      already are the agent or it is unavailable; review rounds are performed by the bound reviewer
+      agent (stage-reviewer), never by the authoring agent; enforced at convention level only.
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/capabilities.md
+    entity_id: CMP-005
+    change: Modify
+    reason: Generated SKILL.md workflow section states the firm delegation rule and the deploy smoke
+      asserts its presence alongside the two-skill layout checks (CMP-004, CMP-005).
+    date: 2026-08-27

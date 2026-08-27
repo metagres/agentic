@@ -6,6 +6,7 @@ description: >-
   Invoke when an architecture is accepted and the work must be sequenced into a
   concrete, executable plan.
 model: opencode-go/glm-5.2
+model_override: kilo/z-ai/glm-5.3-flash
 temperature: 0.1
 permissions:
   file_read: allow

@@ -5,6 +5,7 @@ description: >-
   documentation current, precise, and non-duplicative. Invoke when a lifecycle phase
   completes and its findings must be captured into the living documentation set.
 model: opencode-go/deepseek-v4-flash
+model_override: kilo/z-ai/glm-5.3-flash
 temperature: 0.2
 permissions:
   file_read: allow

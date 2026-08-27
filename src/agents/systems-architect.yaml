@@ -6,6 +6,7 @@ description: >-
   Invoke when a validated requirements set needs a concrete, implementable architecture
   and component decomposition.
 model: opencode-go/glm-5.3
+model_override: kilo/z-ai/glm-5.3-flash
 temperature: 0.2
 permissions:
   file_read: allow

@@ -24,13 +24,14 @@ CLI toolkit: no HTTP endpoints. The contract surface is the `sdlc` command line 
 | workflow | string | command or stage id | src/schemas/cli-envelope.schema.yaml |
 | step | string | internal step name | src/schemas/cli-envelope.schema.yaml |
 | state | ok \| in_progress \| blocked \| complete | CLI response state | src/schemas/cli-envelope.schema.yaml |
-| instructions | string | agent-facing next action | src/schemas/cli-envelope.schema.yaml |
+| instructions | string | agent-facing next action; bound stages prepend a delegation directive paragraph (see below) | src/schemas/cli-envelope.schema.yaml, src/scripts/lib/delegation.ts |
 | data | object | command-specific payload | src/schemas/cli-envelope.schema.yaml |
 | errors | array | {code, message, fix?} from errors.yaml | src/policies/errors.yaml |
 | warnings | array | advisory findings | src/policies/errors.yaml |
 
 - Envelope top-level fields are frozen: no new fields may be added. Evidence: src/schemas/cli-envelope.schema.yaml (additionalProperties: false), AGENTS.md (invariant 8).
 - `data.workflows[]` entries (from `--list-workflows` / `--help`) and per-stage entries in `data.pipeline` (from `status`) each carry an `agent` field: the bound agent id or null. Cross-cutting commands (status, feedback, doctor) are always null. The envelope top-level shape is unchanged.
+- Bound-stage envelopes prepend a delegation directive to `instructions`: composed at the single envelope funnel (`normalizeEnvelope` resolving the workflow id via `getStageById`) from the declarative `StageRecord.agent` binding — it names the bound agent and instructs delegating the stage to that agent unless the caller already is that agent or that agent is unavailable in the runtime; review-kind stages phrase it so the round is performed by the named reviewer agent, not the authoring agent. Null-binding/cross-cutting commands resolve to no stage record and emit no directive (byte-identical output); the seven top-level fields are unchanged. Evidence: src/scripts/lib/delegation.ts, src/scripts/lib/cli.ts (normalizeEnvelope).
 - `data.step_help` (current step's title, markdown, commands, exit_criteria) is omitted from authoring envelopes unless the invocation passes `--help-step`; the seven top-level fields are unchanged. Evidence: src/scripts/lib/kinds/authoring.ts.
 - Agent descriptors accept an optional `model_override`: a non-empty free-form string, deliberately not constrained by the model catalog enum. `effectiveModel = model_override ?? model` is computed in the registry (AgentRecord.effectiveModel) and written into rendered deploy frontmatter, while the source `model` field stays the enum-checked team recommendation. Evidence: src/schemas/agent.schema.yaml, src/scripts/lib/agent-registry.ts, src/scripts/lib/deploy/platforms/opencode.ts.
 - `data.workflows[]` and `data.pipeline` stage entries additionally surface `model` (recommended) and `effectiveModel` (model_override ?? model) for bound agents, alongside the unchanged `agent` binding id; unbound/cross-cutting entries omit both. Evidence: src/scripts/workflows/index.ts, src/scripts/workflows/status.ts.

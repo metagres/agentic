@@ -1,0 +1,28 @@
+metadata:
+  artifact: plan.yaml
+  target: implementation
+  latest_round: 1
+  created: 2026-08-27
+  updated: 2026-08-27
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-08-27T11:45:10.197Z
+    artifact_version: 0.1.0
+    implementation_status: accepted
+    decision: accepted
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    warnings: []
+    notes: |-
+      Reviewer: stage-reviewer (adversarial verification round, 2026-08-27).
+      Verified against accepted requirements/design/plan:
+      - FR-001/FR-002/FR-003/NFR-001/NFR-002 verified in source: src/scripts/lib/delegation.ts is a pure composer over Pick<StageRecord,'id'|'kind'|'agent'>; self clause and unavailability clause match DM-003 wording verbatim; review variant names the bound reviewer as performer ("not by the agent that authored the artifact"); no hardcoded agent ids (only interpolated binding values). normalizeEnvelope (src/scripts/lib/cli.ts) resolves payload.workflow ?? payload.stage via getStageById(cwd, id, stagesDir), prepends only for resolved non-null bindings as a distinct paragraph, cross-cutting ids stay byte-identical, seven-field top-level shape intact. Live envelopes (--help/--dry-run/--accept) carried the composed review-kind directive naming stage-reviewer.
+      - AC-001..005, AC-008..011 covered by test/unit/delegation.test.ts (18 tests, count matches plan note); fixture-alpha/fixture-beta compose through the funnel via injected stagesDir (DEC-007); determinism pinned.
+      - AC-006/AC-007 verified: DELEGATION_RULE_MARKER const in bin/deploy-to-agent.ts gates the smoke via existing fail() (no new report fields); SKILL_TEMPLATE item 4 is the firm rule incl. self clause, unavailability fallback, reviewer convention; test/e2e/deploy.test.ts asserts the marker.
+      - npm run validate re-run by reviewer: exit 0, 196/196 unit tests pass.
+      CROSS-CHANGE DEFECT (not blocking this acceptance): test/e2e/deploy.test.ts "deploy bundle smoke test" fails asserting model starts with opencode-go/ in implementation-engineer.md. Independently reproduced and isolated by the reviewer: full worktree reproduces the failure; git stash of ONLY the six unstaged src/agents/*.yaml diffs (model_override: kilo/z-ai/glm-5.3-flash roster edits belonging to the other workstream, present in no task of this plan) with every file of this change still in place yields 4/4 e2e pass with the marker gate active. Combined with the implementer's HEAD-worktree experiment (HEAD alone 4/4; HEAD + only agents diffs fails), the roster edits are proven both necessary and sufficient cause. Root cause: stale opencode-go/ prefix assertion colliding with effectiveModel overrides shipped engine-side in commit 056ae0b. To be fixed by the workstream owning src/agents/*.yaml; this change's deploy.test.ts diff only ADDS the delegation marker assertion and does not touch the model assertion.
+      Non-blocking observations: (1) fixture temp dirs in delegation.test.ts are never cleaned up (mkdtemp without rmSync); (2) normalizeEnvelope wraps registry resolution in try/catch so registry failures degrade to no-directive rather than an error - broader than the letter of CMP-002 but consistent with advisory-directive semantics and pinned emission behavior.

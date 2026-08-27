@@ -11,6 +11,7 @@
 | Neutral agent definitions: one YAML file per agent under src/agents/<id>.yaml (id = filename stem), validated by the engine-owned agent meta-schema; discovered by scan, no central enumeration; invocation mode defaults to all — agents opt down to subagent or primary explicitly | src/agents/ | src/schemas/agent.schema.yaml, src/scripts/lib/agent-registry.ts |
 | Prompt purity: agent system prompts carry role/personality only — never CLI flags, script paths, or envelope directive phrases; enforced by a mechanical marker check | src/agents/ | src/scripts/lib/agent-prompt-marker.ts, bin/validate-policies.ts |
 | Kind permission contracts: engine-owned per-kind permission profiles beside the interpreters; stage.yaml may override individual keys; changed only with the interpreters | src/scripts/lib/agent-permissions.ts | src/scripts/lib/agent-permissions.ts, src/schemas/stage.schema.yaml |
+| Review separation of duties: review rounds are performed by the bound reviewer agent (stage-reviewer), never by the authoring agent; enforced at convention level only — the CLI has no caller-identity signal, so any mechanical guard would be theater and detection is human audit of review rounds | all four review stages | src/scripts/lib/delegation.ts (review-kind directive), bin/deploy-to-agent.ts (SKILL.md rule) |
 
 ## Naming
 

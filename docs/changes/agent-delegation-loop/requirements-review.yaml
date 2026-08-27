@@ -1,0 +1,28 @@
+metadata:
+  artifact: requirements.yaml
+  target: requirements
+  latest_round: 2
+  created: 2026-08-27
+  updated: 2026-08-27
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-08-27T10:48:14.428Z
+    artifact_version: 0.1.0
+    decision: review
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    warnings: []
+  - round: 2
+    reviewed_at: 2026-08-27T10:48:22.436Z
+    artifact_version: 0.1.0
+    decision: accepted
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    warnings: []

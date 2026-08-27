@@ -5,6 +5,7 @@ description: >-
   plan incrementally and verifying each step against its completion criterion. Invoke
   when a task in the accepted plan is ready to be implemented.
 model: opencode-go/kimi-k2.7-code
+model_override: kilo/z-ai/glm-5.3-flash
 temperature: 0.2
 permissions:
   file_read: allow

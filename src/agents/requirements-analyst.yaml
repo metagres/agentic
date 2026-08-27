@@ -6,6 +6,7 @@ description: >-
   when a feature request, bug report, or vague idea must become a precise,
   unambiguous requirements artifact.
 model: opencode-go/kimi-k3
+model_override: kilo/z-ai/glm-5.3-flash
 temperature: 0.3
 permissions:
   file_read: allow

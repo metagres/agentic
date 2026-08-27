@@ -45,6 +45,7 @@ build artifacts, never source), alongside rendered agent files under
 | `src/` | Source tree: engine code, stage configuration, the skill source store (`src/skills/`), and the YAML asset layer (schemas/policies) the engine loads and enforces. | [View Map](src/codemap.md) |
 | `src/scripts/` | The sdlc CLI runtime: command dispatch, workflow resolution, frozen envelope emission. | [View Map](src/scripts/codemap.md) |
 | `src/scripts/lib/` | Engine core: stage-folder discovery, requires-DAG + acceptance gate, unified validation orchestrator, declarative step machine, shared plumbing. | [View Map](src/scripts/lib/codemap.md) |
+| `src/scripts/lib/delegation.ts` | Pure delegation-directive composer consumed by the envelope funnel (`normalizeEnvelope`): composes binding-derived directives from `StageRecord.agent` (self clause, unavailability fallback, reviewer-directed phrasing for review kinds) with no hardcoded agent ids (NFR-002 / AC-010). | documented here |
 | `src/scripts/lib/checks/` | The capped catalog of eleven named generic structural checks — the single extension path for structural validation logic. | [View Map](src/scripts/lib/checks/codemap.md) |
 | `src/scripts/lib/kinds/` | The four kind interpreters (authoring flag loop, review append-only rounds, tasks state machine over plan.yaml, aggregator delta collection). | [View Map](src/scripts/lib/kinds/codemap.md) |
 | `src/scripts/workflows/` | Cross-cutting commands (status, feedback, doctor) and the single `skillManifest` for the deployed skill. | [View Map](src/scripts/workflows/codemap.md) |

@@ -1,0 +1,323 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: agent-delegation-loop"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-27
+  updated: 2026-08-27
+  based_on_design: 0.1.0
+  based_on_requirements: 0.1.0
+  implementation_status: accepted
+  step: complete
+tasks:
+  - id: TASK-001
+    title: Add the pure delegation-directive composer module
+    description: >
+      Create src/scripts/lib/delegation.ts (CMP-001): a pure module exporting
+      delegationDirective(stage) that deterministically composes the delegation directive string
+      from StageRecord fields only (id, kind, agent). A null agent binding returns null. A non-null
+      binding returns a directive naming the bound agent id that instructs the caller to delegate
+      the stage to that agent, carrying the conditional self clause ("if you are already <agent-id>,
+      proceed running the stage yourself"), the unavailability clause ("if <agent-id> is not present
+      or not invocable in your runtime, proceed running the stage yourself"), and for kind=review
+      the reviewer-directed variant stating the review round must be performed by <agent-id>, not by
+      the agent that authored the artifact (DM-003). Identical inputs produce identical text; the
+      module contains no hardcoded agent ids or paths (NFR-002). Create test/unit/delegation.test.ts
+      covering the pure composer: null binding yields null; the directive names the bound agent;
+      self and unavailability clauses are present; the review-kind variant names the reviewer and
+      contains no author-performs-review instruction; arbitrary agent ids (e.g. fixture-alpha)
+      interpolate verbatim, proving composition is binding-driven; repeated calls return identical
+      output. Verify with npm run validate.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-002
+      - FR-003
+      - NFR-002
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-004
+      - AC-005
+      - AC-011
+    design_refs:
+      - DEC-002
+      - DEC-003
+      - DEC-004
+    depends_on: []
+    files:
+      - path: src/scripts/lib/delegation.ts
+        operation: create
+      - path: test/unit/delegation.test.ts
+        operation: create
+    implementation_note: "Pure composer delegationDirective(stage) created: null binding -> null;
+      non-null -> directive naming the agent with self clause, unavailability clause,
+      reviewer-directed review variant; no hardcoded agent ids. 8 unit tests green."
+    started_at: 2026-08-27
+    files_changed:
+      - path: src/scripts/lib/delegation.ts
+        operation: create
+      - path: test/unit/delegation.test.ts
+        operation: create
+    completed_at: 2026-08-27
+  - id: TASK-002
+    title: Wire the composer into the envelope funnel
+    description: >
+      Modify normalizeEnvelope/writeJson in src/scripts/lib/cli.ts (CMP-002, DEC-001, DEC-005):
+      import getStageById from stage-registry (no import cycle) and resolve the workflow id as
+      payload.workflow falling back to payload.stage; when a stage record resolves and its agent
+      binding is non-null, prepend the composed directive from delegationDirective(stage) to
+      instructions as a distinct paragraph separated by a blank line ahead of existing step
+      guidance, leaving every existing instruction string intact below it; otherwise leave
+      instructions untouched. Forward the optional stagesDir argument that
+      getStageById/loadStageRegistry already accept so tests can inject fixture stage directories
+      (DEC-007), with the production default behaving exactly as today. Cross-cutting ids (status,
+      feedback, doctor) and unknown ids resolve to no stage record and stay byte-identical (FR-002,
+      API-002). Emit exactly the seven frozen top-level fields and add no new envelope field such as
+      a runtime identity hint (NFR-001, DM-001). Extend test/unit/delegation.test.ts with funnel
+      tests: a bound-stage envelope carries the prepended directive naming the bound agent (AC-001);
+      the status envelope instructions contain no directive (AC-003); the top level contains exactly
+      workflow, step, state, instructions, data, errors, warnings (AC-008); no additional top-level
+      key appears (AC-009). Verify with npm run validate.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-002
+      - NFR-001
+    acceptance_ids:
+      - AC-001
+      - AC-003
+      - AC-008
+      - AC-009
+    design_refs:
+      - DEC-001
+      - DEC-005
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/scripts/lib/cli.ts
+        operation: modify
+      - path: test/unit/delegation.test.ts
+        operation: modify
+    implementation_note: normalizeEnvelope resolves payload.workflow ?? payload.stage via
+      getStageById(cwd, id, stagesDir); non-null binding prepends composed directive as distinct
+      paragraph before existing instructions; cross-cutting/unknown ids untouched; optional
+      stagesDir forwarded from writeJson for fixture injection; seven-field shape unchanged;
+      normalizeEnvelope exported as the testability seam. Funnel tests green.
+    started_at: 2026-08-27
+    files_changed:
+      - path: src/scripts/lib/cli.ts
+        operation: modify
+      - path: test/unit/delegation.test.ts
+        operation: modify
+    completed_at: 2026-08-27
+  - id: TASK-003
+    title: Fixture-based composition tests through the funnel
+    description: >
+      Complete the delegation unit suite (CMP-006, DEC-007) in test/unit/delegation.test.ts using
+      fixture stage directories passed to loadStageRegistry(cwd, stagesDir) and getStageById(cwd,
+      id, stagesDir): build minimal fixture stage folders whose stage.yaml binds arbitrary agent ids
+      (e.g. fixture-alpha, fixture-beta) and assert that envelopes assembled for them carry
+      directives naming those fixture ids, demonstrating composition from declarative bindings with
+      no hardcoded agent paths in engine code (AC-010, NFR-002); assert a fixture review-kind
+      stage's envelope directive directs the round to the named reviewer agent and contains no
+      author-performs-review instruction (AC-004, AC-005); re-pin cross-cutting silence (AC-003) and
+      the exact seven-field top-level shape (AC-008) against the fixture-driven funnel. No
+      production test hooks and no chdir gymnastics. Verify with npm run validate (unit suite
+      included).
+    type: test
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-002
+      - FR-003
+      - NFR-001
+      - NFR-002
+    acceptance_ids:
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-008
+      - AC-010
+    design_refs:
+      - DEC-001
+      - DEC-007
+    depends_on:
+      - TASK-001
+      - TASK-002
+    files:
+      - path: test/unit/delegation.test.ts
+        operation: modify
+    implementation_note: "Fixture-based funnel tests added: fixture-alpha/fixture-beta stages compose
+      directives naming those ids through normalizeEnvelope with injected stagesDir; fixture
+      review-kind envelope directs round to named reviewer with no author-performs-review
+      instruction; null-binding fixture pinned byte-identical seven-field envelope;
+      cross-cutting/unknown ids silent against fixture funnel. 18/18 unit tests green."
+    started_at: 2026-08-27
+    files_changed:
+      - path: test/unit/delegation.test.ts
+        operation: modify
+    completed_at: 2026-08-27
+  - id: TASK-004
+    title: Firm delegation rule in SKILL.md and deploy smoke assertion
+    description: >
+      Strengthen workflow item 4 of SKILL_TEMPLATE in bin/deploy-to-agent.ts (CMP-004, DEC-006) into
+      a firm delegation rule stating that a stage bound to an agent is run via that agent, including
+      the conditional self clause and the unavailability fallback, plus the convention sentence that
+      review stages are performed by their bound reviewer agent and never by the authoring agent.
+      Leave skill-manifest.ts metadata-only (DM-004). Extend the agentic-sdlc smoke block in
+      bin/deploy-to-agent.ts (CMP-005) so that after rendering SKILL.md deployment fails when the
+      generated file lacks the stable marker phrase "is run via that agent", reported alongside the
+      existing two-skill layout checks; no new report fields beyond the existing skills/smoke
+      arrays. Add e2e coverage in test/e2e/deploy.test.ts asserting the generated SKILL.md contains
+      the marker phrase. Verify with npm run validate, then npm run deploy:smoke, then npm run
+      test:e2e.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-004
+    acceptance_ids:
+      - AC-006
+      - AC-007
+    design_refs:
+      - DEC-006
+    depends_on: []
+    files:
+      - path: bin/deploy-to-agent.ts
+        operation: modify
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+    implementation_note: "SKILL_TEMPLATE item 4 replaced with firm delegation rule (marker phrase 'is
+      run via that agent' via DELEGATION_RULE_MARKER const) incl. self clause, unavailability
+      fallback, and reviewer-agent convention sentence; agentic-sdlc smoke block fails deployment
+      when generated SKILL.md lacks the marker; e2e deploy test asserts the marker. npm run
+      deploy:smoke green. NOTE: one pre-existing e2e failure ('model must start with opencode-go/')
+      proven unrelated via HEAD worktree experiment: HEAD alone 4/4 pass; HEAD+only the unstaged
+      src/agents/*.yaml diffs reproduces it without any of this change's files present."
+    started_at: 2026-08-27
+    files_changed:
+      - path: bin/deploy-to-agent.ts
+        operation: modify
+      - path: test/e2e/deploy.test.ts
+        operation: modify
+    completed_at: 2026-08-27
+  - id: TASK-005
+    title: Document the composer in the repository codemap
+    description: >
+      Add a row for src/scripts/lib/delegation.ts to the relevant Directory Map section of
+      codemap.md describing its responsibility: the pure delegation-directive composer consumed by
+      the envelope funnel, composing binding-derived directives with no hardcoded agent ids (anchors
+      NFR-002 / AC-010). Documentation-only change, exempt from npm run validate per AGENTS.md
+      section 1, but run it anyway as a cheap regression check. Do not touch docs/current/ - living
+      docs are updated only through knowledge extraction (AGENTS.md invariant 4); the delta entries
+      in this plan carry the living-doc intents.
+    type: documentation
+    status: done
+    complexity: low
+    covers:
+      - NFR-002
+    acceptance_ids:
+      - AC-010
+    design_refs: []
+    depends_on:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+    files:
+      - path: codemap.md
+        operation: modify
+    implementation_note: codemap.md Directory Map gained the src/scripts/lib/delegation.ts row (pure
+      composer consumed by normalizeEnvelope, binding-derived directives, no hardcoded agent ids,
+      NFR-002/AC-010). Docs-only change; validate re-run anyway as regression check earlier in
+      session.
+    started_at: 2026-08-27
+    files_changed:
+      - path: codemap.md
+        operation: modify
+    completed_at: 2026-08-27
+milestones:
+  - id: MS-001
+    title: Engine surface - directives flow through every envelope
+    tasks:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+    done_when: npm run validate passes with the delegation unit suite green; bound stages emit a
+      prepended directive naming their agent, cross-cutting commands stay byte-identical, and
+      fixture agent ids compose into directives.
+  - id: MS-002
+    title: Deployment surface - SKILL.md rule and smoke gate
+    tasks:
+      - TASK-004
+    done_when: npm run deploy:smoke passes with the marker-phrase assertion active and the e2e deploy
+      test asserts the delegation rule in the generated SKILL.md.
+  - id: MS-003
+    title: Plan closed - documentation and full gate
+    tasks:
+      - TASK-005
+    done_when: codemap.md documents delegation.ts and npm run check:all is green across the whole change.
+risks:
+  - id: RISK-001
+    description: A delegated subagent may fail mid-stage (CLI error, lost context, timeout) because
+      platform task-tool behavior is outside the toolkit's control.
+    mitigation: Existing recovery stands - retry the stage command or revert via sdlc feedback; no new
+      mechanism (requirements failure path 3).
+  - id: RISK-002
+    description: Review separation stays convention-level; an authoring agent may still run a review
+      inline contrary to the directive because the CLI has no caller-identity signal.
+    mitigation: Accepted per DEC-004; detection is human audit of review rounds; the limitation is
+      recorded in the requirements failure paths.
+  - id: RISK-003
+    description: The funnel change touches every envelope emission (22 writeJson callers), so a
+      regression could alter unrelated command output.
+    mitigation: The registry cache keeps the lookup cheap; dedicated tests pin cross-cutting
+      byte-identity (status, feedback, doctor) and the exact seven-field top-level shape (TASK-002,
+      TASK-003).
+  - id: RISK-004
+    description: Deployment now gates on the marker phrase "is run via that agent"; future
+      SKILL_TEMPLATE rewording could silently break the smoke.
+    mitigation: The marker phrase is stable and asserted in both the deploy smoke and the e2e deploy
+      test; any rewording must update the assertion deliberately (DEC-006).
+delta:
+  - phase: Planning
+    target_doc: docs/current/architecture.md
+    target_anchor: null
+    entity_id: CMP-001
+    change: Add
+    reason: Plan task TASK-001 introduces the pure delegation-directive composer module consumed by the
+      envelope funnel; the architecture map gains the module entry.
+    date: 2026-08-27
+  - phase: Planning
+    target_doc: docs/current/api-contract.md
+    target_anchor: Envelope
+    entity_id: DM-003
+    change: Modify
+    reason: Plan task TASK-002 wires directive composition into normalizeEnvelope; the envelope contract
+      documents the prepended directive paragraph for bound stages and byte-identical output for
+      cross-cutting commands.
+    date: 2026-08-27
+  - phase: Planning
+    target_doc: docs/current/conventions.md
+    target_anchor: null
+    entity_id: DEC-004
+    change: Add
+    reason: Plan tasks TASK-001 through TASK-004 establish the working conventions - run a stage bound
+      to an agent via that agent (delegate unless you already are the agent or it is unavailable)
+      and hand review rounds to the bound reviewer agent, never the authoring agent.
+    date: 2026-08-27
+  - phase: Planning
+    target_doc: docs/current/capabilities.md
+    target_anchor: null
+    entity_id: CMP-005
+    change: Modify
+    reason: Plan task TASK-004 adds the SKILL.md delegation rule and the deploy smoke marker assertion
+      to the described toolkit capabilities.
+    date: 2026-08-27

@@ -159,6 +159,11 @@ function indent(text: string, spaces: number) {
     .join('\n');
 }
 
+// Stable marker phrase (CMP-005, AC-007): the deploy smoke fails when the
+// generated SKILL.md lacks it, so rewording the delegation rule must update
+// this constant deliberately (DEC-006).
+const DELEGATION_RULE_MARKER = 'is run via that agent';
+
 const SKILL_TEMPLATE = [
   '---',
   'name: {{ID}}',
@@ -176,7 +181,8 @@ const SKILL_TEMPLATE = [
   '   - `--change` accepts the exact change name or a unique part of it; if resolution fails, data.available_changes lists the existing changes.',
   '2. Follow the `instructions` field in the returned envelope `{workflow, step, state, instructions, data, errors, warnings}`.',
   '3. The CLI owns stage detection — do not guess which workflow to run.',
-  '4. Stages may declare a dedicated agent — check the `agent` field in `data.workflows[]` before running a stage and delegate to that agent when set.',
+  `4. A stage bound to an agent ${DELEGATION_RULE_MARKER}: check the \`agent\` field in \`data.workflows[]\`, and when it is set, delegate the stage to that agent — unless you are already that agent, or that agent is not present or not invocable in your runtime, in which case proceed running the stage yourself.`,
+  '   - Review stages are always performed by their bound reviewer agent, never by the agent that authored the artifact under review.',
   '',
   'Workflows: {{WORKFLOWS}}',
   '',
@@ -404,6 +410,16 @@ function main() {
     if (result.status !== 0) {
       fail(
         `Deployment smoke test failed.\n${result.stdout || ''}\n${result.stderr || ''}`
+      );
+    }
+
+    // Delegation-rule marker (CMP-005, AC-007): the generated SKILL.md must
+    // state the firm delegation rule; its stable marker phrase gates the
+    // deployment alongside the two-skill layout checks.
+    const skillMd = fs.readFileSync(path.join(skillAbs, 'SKILL.md'), 'utf8');
+    if (!skillMd.includes(DELEGATION_RULE_MARKER)) {
+      fail(
+        `Deployment smoke test failed: generated SKILL.md lacks the delegation rule marker phrase '${DELEGATION_RULE_MARKER}'.`
       );
     }
 

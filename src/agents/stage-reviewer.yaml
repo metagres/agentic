@@ -5,6 +5,7 @@ description: >-
   unsubstantiated claims, missing requirements, and broken traceability before approval.
   Invoke when an artifact is submitted for review and must earn approval on merit.
 model: opencode-go/gpt-5.6-luna
+model_override: kilo/z-ai/glm-5.3-flash
 temperature: 0.1
 permissions:
   file_read: allow

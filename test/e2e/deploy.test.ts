@@ -89,6 +89,14 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
     'missing deployed manifest'
   );
 
+  // Delegation rule (FR-004, AC-007): the generated SKILL.md states the firm
+  // delegation rule; the stable marker phrase mirrors the deploy smoke gate.
+  const skillMdContent = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8');
+  assert.ok(
+    skillMdContent.includes('is run via that agent'),
+    'generated SKILL.md must contain the delegation-rule marker phrase'
+  );
+
   const expectedSchemas = [
     'stage.schema.yaml',
     'docs-delta.schema.yaml',
@@ -202,7 +210,8 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
 
   // Agents are rendered into dest/agents/ (TASK-010): exactly one .md per
   // source agent, each with parseable frontmatter, the resolved agent mode,
-  // an opencode-go model, and the stage-reviewer file present exactly once.
+  // the effective model (override ?? recommendation), and the stage-reviewer
+  // file present exactly once.
   const agentsDir = path.join(dest, 'agents');
   assert.ok(fs.existsSync(agentsDir), 'missing deployed agents directory');
   const renderedAgentFiles = fs
@@ -229,10 +238,10 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
     // No roster agent pins a mode, so the registry normalizes every record
     // to 'all' and the renderer emits it verbatim.
     assert.equal(frontmatter.mode, 'all', file);
+    assert.equal(typeof frontmatter.model, 'string', `missing model in ${file}`);
     assert.ok(
-      typeof frontmatter.model === 'string' &&
-        frontmatter.model.startsWith('opencode-go/'),
-      `model must start with opencode-go/ in ${file}`
+      (frontmatter.model as string).length > 0,
+      `model must be a non-empty string in ${file}`
     );
 
     // Effective-model rendering (DEC-004): the rendered frontmatter model must

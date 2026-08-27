@@ -1,0 +1,274 @@
+metadata:
+  id: REQ-001
+  title: "Close the agent delegation loop: stage envelopes direct the primary agent to ..."
+  stage: requirements
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-27
+  updated: 2026-08-27
+  request_summary: "Close the agent delegation loop: stage envelopes direct the primary agent to
+    delegate bound stages to their agents, review stages are performed by the stage-reviewer agent,
+    and rendered agents reference models the target runtime resolves."
+  clarity: clear
+  assumptions_reviewed: false
+  delta_reviewed: false
+  discovery_reviewed: false
+  scenarios_reviewed: false
+  step: complete
+problem_statement: "The agent layer ships six deployed agents and per-stage bindings, but no runtime
+  consumer acts on the binding: in every dogfooding cycle the orchestrating agent read
+  data.workflows[].agent and then executed every stage itself. All four review stages were executed
+  and accepted by the same agent that authored the artifact, so the stage-reviewer agent never ran a
+  review and author and gatekeeper were never separated. Binding infrastructure without a consumer
+  accrues maintenance debt: permission contracts chase interpreter changes and the roster is
+  redeployed for behavior nobody exercises."
+discovery_log:
+  - id: DL-001
+    question: "Q4: where must model-id normalization happen so rendered agents reference
+      runtime-resolvable models?"
+    answer: "Already resolved outside this change: every roster entry in src/agents/*.yaml carries a
+      resolvable model_override (kilo/z-ai/glm-5.3-flash), and the opencode renderer emits
+      effectiveModel (= model_override ?? model) verbatim, so rendered frontmatter always references
+      a resolvable model today. Renderer-side normalization (Option A) is not required; residual
+      risk is only a future roster entry without an override."
+    lens: data
+    resolved: true
+  - id: DL-002
+    question: Given Q4 is resolved via model_overrides, does FR-B (rendered agents reference resolvable
+      models) stay in scope?
+    answer: "Dropped by the maintainer: no deploy-time guard for override-less roster entries. FR-B
+      leaves the requirement set; the residual risk (a future roster entry without an override
+      renders the unresolvable catalog id) is accepted and will be noted as out of scope."
+    lens: stakeholder
+    resolved: true
+  - id: DL-003
+    question: "Q1: where should the delegation directive live so the primary agent actually delegates
+      bound stages?"
+    answer: "Confirmed the idea-doc recommendation, two mutually reinforcing surfaces: (1) the envelope
+      instructions field carries a per-stage delegation directive naming the bound agent, emitted
+      only when the stage binding is non-null so unbound stages stay quiet; (2) the generated
+      SKILL.md strengthens its existing pointer sentence into a firm delegation rule. No new
+      envelope fields; the directive is composed from the declarative binding and cannot drift from
+      it."
+    lens: interface
+    resolved: true
+  - id: DL-004
+    question: "Q2: how should the directive handle 'I am already the bound agent' (all six agents are
+      mode:all)?"
+    answer: "Conditional phrasing, per the idea-doc fallback: the directive is worded 'if you are not
+      <agent-id>, delegate this stage to it; otherwise proceed' — the model judges its own identity
+      from context. No runtime identity hint (no current_agent envelope field, no env-var plumbing)
+      in this change; revisit only if Q2 proves painful in practice or a standardized identity
+      signal appears."
+    lens: failure
+    resolved: true
+  - id: DL-005
+    question: "Q3: convention or mechanism for separation of duties between authoring and review agents?"
+    answer: "Convention only, per the idea-doc conclusion: review-stage envelopes always name their
+      bound reviewer agent (stage-reviewer) in the delegation directive, and SKILL.md states the
+      authoring agent must hand review rounds to the reviewer agent. No mechanical guard is
+      attempted - the CLI has no caller-identity signal, so any guard would be theater. The
+      limitation is recorded honestly and revisited only if a runtime identity signal becomes
+      available."
+    lens: constraint
+    resolved: true
+  - id: DL-006
+    question: What must the calling agent do when a stage binds an agent that is not present or not
+      invocable in its runtime?
+    answer: "The delegation directive gains an explicit unavailability clause: delegate to the named
+      agent; if that agent is unavailable in the runtime, proceed running the stage yourself. This
+      encodes the maintainer's presence condition (delegate only when the agent exists) without new
+      mechanics; mid-delegation failures stay covered by the existing retry and feedback-revert
+      failure path."
+    lens: failure
+    resolved: true
+assumptions:
+  - type: verified
+    text: Stage descriptors declare an optional agent binding and the CLI surfaces it as
+      data.workflows[].agent, null for cross-cutting commands.
+    source: src/stages/*/stage.yaml; src/scripts/workflows/index.ts (listWorkflows, CROSS_CUTTING)
+  - type: verified
+    text: All nine pipeline stages are bound to an agent; status, feedback, and doctor are cross-cutting
+      and carry a null binding.
+    source: grep 'agent:' src/stages/*/stage.yaml (nine bindings); src/scripts/workflows/index.ts
+  - type: verified
+    text: The opencode renderer writes effectiveModel (model_override ?? model) verbatim into rendered
+      agent frontmatter.
+    source: src/scripts/lib/deploy/platforms/opencode.ts (renderOpenCodeAgent)
+  - type: verified
+    text: Every roster entry carries model_override kilo/z-ai/glm-5.3-flash, so rendered models resolve
+      at runtime today.
+    source: src/agents/*.yaml (model_override lines)
+  - type: verified
+    text: Every authoring-side agent (requirements-analyst, systems-architect, task-planner,
+      implementation-engineer, knowledge-curator) declares subagent allow and shell allow, so each
+      can delegate via the platform task tool and invoke the sdlc CLI; knowledge-curator also holds
+      file_write allow covering docs/current writes.
+    source: src/agents/*.yaml permissions blocks
+  - type: unverified
+    text: OpenCode exposes no reliable self-identity signal to a running agent, so delegation directives
+      must be phrased conditionally and identity is judged from context.
+    question: Could a runtime environment variable or platform API provide a dependable current-agent id?
+    impact: Directive wording only; a future identity signal would allow mechanical self-delegation
+      prevention.
+    severity: medium
+  - type: unverified
+    text: A delegated subagent reliably completes its stage round-trip (invokes the sdlc CLI, finishes
+      its step machine, returns control) under the platform task tool.
+    question: Does a delegated stage survive long-running CLI interactions inside a subagent session?
+    impact: If false, delegated stages stall and need retry or feedback-based revert.
+    severity: high
+functional_requirements:
+  - id: FR-001
+    description: When the system emits a stage envelope for a stage whose agent binding is non-null, the
+      system shall include in the instructions field a delegation directive that names the bound
+      agent id and instructs the calling agent to delegate the stage to that agent unless the
+      calling agent already is that agent or that agent is unavailable in the runtime, in which case
+      the directive instructs the caller to proceed running the stage itself.
+    ac_ids:
+      - AC-001
+      - AC-002
+      - AC-011
+  - id: FR-002
+    description: When the system emits a stage envelope for a stage whose agent binding is null, the
+      system shall omit any delegation directive from the instructions field.
+    ac_ids:
+      - AC-003
+  - id: FR-003
+    description: When the system emits an envelope for a review stage, the system shall phrase the
+      delegation directive so the review round is performed by the bound reviewer agent rather than
+      by the authoring agent, as convention-level enforcement with a documented limitation.
+    ac_ids:
+      - AC-004
+      - AC-005
+  - id: FR-004
+    description: When deployment generates SKILL.md for the agentic-sdlc skill, the system shall state
+      the delegation rule, that a stage bound to an agent is run via that agent, as part of the
+      workflow section.
+    ac_ids:
+      - AC-006
+      - AC-007
+non_functional_requirements:
+  - id: NFR-001
+    description: When any stage command returns an envelope, the system shall keep the top-level shape
+      exactly workflow, step, state, instructions, data, errors, warnings, composing directives only
+      inside existing fields.
+    ac_ids:
+      - AC-008
+      - AC-009
+  - id: NFR-002
+    description: When directive text is composed for an envelope, the system shall derive it from the
+      stage record's declarative agent binding with no hardcoded agent ids or paths in engine code.
+    ac_ids:
+      - AC-010
+acceptance_criteria:
+  - id: AC-001
+    statement: Given a change whose requirements stage is bound to requirements-analyst, When the
+      requirements envelope is emitted, Then the instructions field contains a directive naming
+      requirements-analyst that instructs delegating the stage to it unless the caller already is
+      that agent.
+    category: happy
+    parent_id: FR-001
+  - id: AC-002
+    statement: Given a stage bound to an agent while the calling session already drives that same agent,
+      When the envelope is read, Then the directive's conditional clause instructs the caller to
+      proceed without delegating to itself.
+    category: edge
+    parent_id: FR-001
+  - id: AC-003
+    statement: Given the cross-cutting status command, which carries a null binding, When its envelope
+      is emitted, Then the instructions field contains no delegation directive.
+    category: negative
+    parent_id: FR-002
+  - id: AC-004
+    statement: Given a review stage bound to a reviewer agent, When its envelope is emitted, Then the
+      directive directs that the review be performed by the named reviewer agent rather than by the
+      authoring agent.
+    category: happy
+    parent_id: FR-003
+  - id: AC-005
+    statement: Given a review-stage envelope, When its instructions are composed, Then they contain no
+      directive instructing the authoring agent to perform the review itself.
+    category: negative
+    parent_id: FR-003
+  - id: AC-006
+    statement: Given the toolkit is deployed to the opencode target, When SKILL.md is generated, Then
+      its workflow section contains the rule that a stage bound to an agent is run via that agent.
+    category: happy
+    parent_id: FR-004
+  - id: AC-007
+    statement: Given a deploy smoke run over the generated skills, When it completes, Then the smoke
+      assertions cover the presence of the delegation rule in the generated SKILL.md alongside the
+      existing two-skill layout checks.
+    category: boundary
+    parent_id: FR-004
+  - id: AC-008
+    statement: Given any stage command invocation with a bound or null binding, When the envelope is
+      returned, Then the top level contains exactly the seven fields workflow, step, state,
+      instructions, data, errors, and warnings.
+    category: boundary
+    parent_id: NFR-001
+  - id: AC-009
+    statement: Given the delegation feature, When an envelope is assembled, Then no new top-level
+      envelope field, such as a runtime identity hint, is introduced.
+    category: negative
+    parent_id: NFR-001
+  - id: AC-010
+    statement: Given fixture stages bound to arbitrary agent ids in unit tests, When envelopes are
+      assembled, Then the directives name those fixture ids, demonstrating composition from
+      declarative bindings with no hardcoded agent paths in engine code.
+    category: negative
+    parent_id: NFR-002
+  - id: AC-011
+    statement: Given a stage bound to an agent that is not present or not invocable in the calling
+      runtime, When the envelope is read, Then the directive's unavailability clause instructs the
+      caller to proceed running the stage itself instead of delegating.
+    category: edge
+    parent_id: FR-001
+out_of_scope:
+  - Renderer-side model-id normalization (idea-doc Q4 Option A) and any deploy-time guard asserting
+    rendered models resolve; Q4 is resolved via per-agent model_override values (DL-001, DL-002).
+  - A runtime agent-identity signal (a current_agent envelope data field or environment-variable
+    plumbing); conditional directive phrasing stands in (DL-004).
+  - Mechanical enforcement of review separation; convention-level enforcement only (DL-005).
+  - New agent roster entries, changes to the binding field name or storage, or changes to kind
+    permission contracts.
+  - Changes to the frozen seven-field envelope top-level shape (restated as NFR-001).
+failure_paths:
+  - Rendered agent frontmatter references an unresolvable model id when a roster entry lacks
+    model_override; invocation fails with a model-not-found error. Accepted residual risk after
+    dropping FR-B (DL-002); mitigated operationally by the dev-only agent audit skill reassigning
+    models.
+  - An authoring agent disregards the review-separation convention and accepts its own artifact; no
+    mechanical guard exists because the CLI has no caller-identity signal (R1, DL-005). Detection is
+    limited to human audit of review rounds.
+  - A delegated subagent fails to complete its stage (CLI error, lost context, timeout); recovery is
+    retrying the stage command or using sdlc feedback to revert the stage to draft (R2).
+risks_and_dependencies:
+  - Without a runtime identity signal, review separation stays convention-level; an authoring agent
+    may still run a review stage inline contrary to the directive (A6, maps to failure path 2).
+  - Delegation depends on platform task-tool behavior outside the toolkit's control; a delegated
+    subagent that fails mid-stage leaves the round incomplete until retried or reverted via feedback
+    (A7, maps to failure path 3).
+  - A future roster entry without model_override would render an unresolvable catalog model id;
+    accepted residual risk recorded in DL-002 (maps to failure path 1).
+delta:
+  - phase: Requirements
+    target_doc: docs/current/capabilities.md
+    change: Add
+    reason: New capability - stage envelopes carry a per-stage delegation directive naming the bound
+      agent, and the generated SKILL.md states the delegation rule.
+    date: 2026-08-27
+  - phase: Requirements
+    target_doc: docs/current/api-contract.md
+    target_anchor: Envelope
+    change: Modify
+    reason: The envelope instructions field may now include a delegation directive prefix for stages
+      with a non-null agent binding; unbound stages emit no directive.
+    date: 2026-08-27
+  - phase: Requirements
+    target_doc: docs/current/conventions.md
+    change: Add
+    reason: New working convention - review rounds are handed to the bound reviewer agent
+      (stage-reviewer), never performed by the authoring agent; enforced at convention level only.
+    date: 2026-08-27
