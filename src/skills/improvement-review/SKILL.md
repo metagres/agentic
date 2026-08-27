@@ -1,24 +1,25 @@
 ---
 name: improvement-review
-description: Development-only re-run of the six-step SDLC improvement review against live dogfooding evidence. Instruments sessions, measures artifacts and envelope sizes with bundled deterministic helpers, mines caller-supplied transcripts, classifies gates, inventories unused surface, converts evidenced findings into docs/ideas proposals in the nine-section format with a governance test, and refreshes the playbook's goals list, findings register (with a What-worked fairness subsection), and dated measurement baselines. Invoked manually by the maintainer; never deployed.
+description: "Development-only re-run of the six-step SDLC improvement review against live dogfooding evidence. Instruments sessions, measures artifacts and envelope sizes with bundled deterministic helpers, mines caller-supplied transcripts, classifies gates, inventories unused surface, and converts evidenced findings into docs/ideas proposals in the nine-section format with a governance test. Pure advisor — reads the SDLC goals canon (docs/current/capabilities.md) and the baselines (docs/current/operations.md) read-only and writes only docs/ideas proposals. Invoked manually by the maintainer; never deployed."
 inputs:
-  - docs/ideas/sdlc-improvement-review-playbook.md (method, SDLC goals list, findings register, current baselines)
+  - docs/current/capabilities.md ("## SDLC Goals" canon) — read-only
+  - docs/current/operations.md ("## Baselines") — read-only
   - docs/changes/<slug>/ artifacts for every change in scope
   - src/ engine source (src/scripts/, bin/, src/stages/) for consumer checks
   - AGENTS.md and docs/current/ for grounding and governance screening
   - Session transcripts explicitly supplied by the maintainer (optional; never discovered)
 outputs:
-  - Refreshed playbook sections: SDLC goals list, Findings register with What-worked subsection, Current baselines
-  - docs/ideas/<slug>.md proposals in the nine-section format, each carrying a governance-test result
+  - docs/ideas/<slug>.md proposals in the nine-section format, each carrying a governance-test result and a Status header field carrying the disposition with a date
   - Measurement records from the four bundled helpers with command and date recorded beside every number
 ---
 
 # Improvement Review (Dev-Only)
 
-Manual re-run of the review-and-proposal exercise that produced the process-economy reform,
-operationalized from `docs/ideas/sdlc-improvement-review-playbook.md`. This skill is
-**development-only**: it is never bundled or deployed, and it changes no engine code — every
-outcome lands as playbook state, `docs/ideas/` proposals, or human-reviewable git diff.
+Manual re-run of the six-step review-and-proposal exercise that produced the process-economy
+reform. This skill is **development-only**: it is never bundled or deployed, and it changes no
+engine code. It is a **pure advisor**: it reads the goals canon and baselines in `docs/current/`
+read-only and its only write surface is `docs/ideas/` — every outcome lands as a
+`docs/ideas/` proposal, a measurement record, or human-reviewable git diff.
 
 ## 0. Principles
 
@@ -29,41 +30,41 @@ outcome lands as playbook state, `docs/ideas/` proposals, or human-reviewable gi
   judgment inside the engine is rejected or reshaped here, before kickoff.
 - **Fairness**: record what worked alongside what did not. A complaint-only review loses
   credibility and produces worse proposals.
-- **Loud abort**: a missing playbook or missing anchor stops the review naming the file — never
-  review without baselines.
-- **Reviewable state**: review state lives in the playbook (goals list, register, baselines),
-  which is git-diff reviewable. The skill folder accumulates no run state.
+- **Loud abort**: a missing canon file or missing anchor stops the review naming the file —
+  never review without goals or baselines.
+- **Canon is read-only**: goals and baselines live in `docs/current/` and are consumed
+  read-only; the canon mutates only through changes via knowledge extraction. The skill's only
+  write surface is `docs/ideas/`.
 
 ## 1. Preconditions (abort loudly on failure)
 
-1. Locate `docs/ideas/sdlc-improvement-review-playbook.md` relative to the repository root.
-   If the file is missing, **stop**: report `missing playbook: docs/ideas/sdlc-improvement-review-playbook.md`
-   and run nothing.
-2. Verify the playbook carries the three state anchors this review reads and writes:
-   `## Findings register`, `## SDLC goals list`, and `## Current baselines`. If any anchor is
-   missing, **stop**: name the file and the missing anchor (for example
-   `missing anchor '## Current baselines' in docs/ideas/sdlc-improvement-review-playbook.md`)
+1. Locate `docs/current/capabilities.md` relative to the repository root and verify it carries
+   the `## SDLC Goals` anchor. If the file or the anchor is missing, **stop**: name the file and
+   the missing anchor (for example `missing anchor '## SDLC Goals' in
+   docs/current/capabilities.md`) and run nothing.
+2. Locate `docs/current/operations.md` relative to the repository root and verify it carries the
+   `## Baselines` anchor. If the file or the anchor is missing, **stop**: name the file and the
+   missing anchor (for example `missing anchor '## Baselines' in docs/current/operations.md`)
    and run nothing.
 3. **Thin-signal check**: count the substantive changes driven through the toolkit since the
-   date of the last findings-register update. If fewer than two, warn that the signal is thin
-   and proceed **only after explicit confirmation from the maintainer**; record the warning and
-   the confirmation in the register entry produced by this review.
+   last review date (the newest review date recorded in the `docs/ideas/` proposals' Origin
+   fields). If fewer than two, warn that the signal is thin and proceed **only after explicit
+   confirmation from the maintainer**; record the warning and the confirmation in every proposal
+   the run produces (Origin field note) — proposals are the run's only durable output.
 
-## 2. Goals gate (load or propose the SDLC goals list)
+## 2. Goals gate (read-only load)
 
-Before any finding is evaluated:
+Before any finding is evaluated, load the goals canon from the `## SDLC Goals` section of
+`docs/current/capabilities.md` and evaluate findings against it. The canon is never written at
+run time; the runtime propose-and-store path is deleted.
 
-- **List present**: load the stored goals list from the playbook's `## SDLC goals list` section
-  and evaluate findings against it.
-- **List absent** (the section carries no entries): compose a proposed list and store it, dated,
-  in that section before any finding is evaluated. Ground every entry in at least one of:
-  AGENTS.md invariants, `docs/current/` capabilities and conventions, agentic-SDLC best practice
-  (structured phases with documented continuity so each request carries enough information to
-  continue), and dogfooding experience. Entries follow the record format documented in the
-  playbook section (id `G-NN`, testable goal statement, grounding sources, status, created date,
-  amendments).
-- **Amendments** to an existing entry require a dated justification appended to its amendments
-  list. Silent rewrites are prohibited.
+- A goal judged **missing** or **amendment-worthy** becomes a `docs/ideas/` proposal in the
+  nine-section skeleton (section 9) whose Goal section states the proposed entry in canon format
+  (id `G-NN`, testable goal statement, grounding sources, status, created date, amendments).
+  The landing change carries the `capabilities.md` delta; the canon mutates only through
+  changes via knowledge extraction.
+- **Amendments** to an existing entry require a dated justification; silent rewrites are
+  prohibited. The amendment travels inside the proposal, never as a canon write.
 
 ## 3. Step 1 — Instrumentation (five categories)
 
@@ -79,17 +80,20 @@ allowed to pass silently:
 5. Delegation outcomes, each recorded with its three sub-fields: the delegation type used, model
    resolution success/failure, and whether the delegated agent's output needed rework.
 
-Cycles without notes are marked **reconstructed-or-missing** in the register entry. Where
+Cycles without notes are marked **reconstructed-or-missing** in the proposal carrying the
+affected finding; with zero proposals the mark is reported in the run's output only. Where
 transcript files exist for those cycles, fall back to transcript mining (section 5) to
 reconstruct what can be reconstructed; mark the rest missing.
 
 ## 4. Step 2 — Measurements (four bundled helpers)
 
 Run the helpers from the repository root and record the **command and the date beside every
-number** they produce. Compare each number against the newest same-kind baseline row where one
-exists. On the first run (no quantitative baseline rows yet), record every helper output as an
-**initial-baseline** row — command, date, no delta claim (see section 11). The qualitative prose
-baselines in the playbook are authoritative and are never regenerated.
+number** they produce. Compare each fresh number against the **newest same-kind quantitative
+row** in the `## Baselines` section of `docs/current/operations.md`. Every proposal's Evidence
+section cites the **baseline value, the fresh value, and the delta** for every compared metric.
+A metric with **no recorded baseline row** is labeled an **initial-baseline candidate** in the
+proposal, for the landing change's knowledge extraction to record. The qualitative prose
+baselines in `operations.md` are the authoritative qualitative record and are never regenerated.
 
 ```sh
 # Artifact volume per change under docs/changes/ (default <= 40 lines; --verbose for per-file)
@@ -104,10 +108,11 @@ node src/skills/improvement-review/scripts/validate_duration.ts [--verbose]
 
 Helpers are plain ESM TypeScript executed directly by node with node builtins only — no build
 step, no new dependencies. They fail with a named cause and non-zero exit on unreadable input;
-zeros are never printed as data. The timing anchor maps as follows: the playbook prose baseline
-"`npm run validate`: ~2 s" corresponds to `duration_ms` ≈ 2000 ms — the first initial-baseline
-row for validate-duration records kind timing, unit ms, and this prose-to-ms correspondence in
-its comparability note. Timing rows compare orders of magnitude and regressions, never bytes.
+zeros are never printed as data. The timing anchor maps as follows: the qualitative prose
+baseline "`npm run validate`: ~2 s" in `operations.md` corresponds to `duration_ms` ≈ 2000 ms —
+the first initial-baseline row for validate-duration records kind timing, unit ms, and this
+prose-to-ms correspondence in its comparability note. Timing rows compare orders of magnitude
+and regressions, never bytes.
 
 ## 5. Transcript mining (event grammar and degradation)
 
@@ -164,15 +169,18 @@ scope is excluded or refuted, with the consumer named.
 Apply the policy to every candidate finding:
 
 - **Evidenced**: carries type (count/grep/timing/observation), value, command, and source.
-  Enters the register and may enter a proposal body as fact.
-- **Unverified hypothesis**: labeled as such in the register, with `missing_evidence` naming
-  what would confirm it. It never enters a proposal body as established fact.
+  Enters the run's findings adjudication and may enter a proposal body as fact.
+- **Unverified hypothesis**: labeled as such, with `missing_evidence` naming what would confirm
+  it. It never enters a proposal body as established fact.
 - **Unsupported and unlabelable**: dropped, with the reason noted.
 
 ## 9. Step 5 — Proposals (nine-section skeleton)
 
-Convert accepted findings into `docs/ideas/<slug>.md` documents grounded solely on the playbook
-Step 6 inline enumeration and the `p12-fast-track-lane.md` exemplar. Each proposal has:
+Convert accepted findings into `docs/ideas/<slug>.md` documents grounded on the
+`p12-fast-track-lane.md` exemplar (`docs/ideas/p12-fast-track-lane.md`) and the frozen DM-005
+proposal-skeleton record in `docs/changes/sdlc-improvement-review-skill/design.yaml` — that
+frozen record preserves the original Step 6 enumeration, so no method content is lost. Each
+proposal has:
 
 Header table: origin review date plus finding ids · status `proposed` · suggested change slug ·
 depends on · kind · **cost tier** — exactly one of `quick win`, `structural`, `strategic`. When
@@ -211,46 +219,45 @@ kickoff command, and record the test result in the document:
 - A proposal touching the frozen CLI envelope flags a **decision governance event**.
 - Both flags appear in the Governance-test-result block, ahead of Kickoff.
 
-## 11. Step 6 — Register and baselines refresh
+## 11. Proposal adjudication and fairness (replaces the register refresh)
 
-Refresh the playbook in place:
-
-- **Fixed rows**: run a dated regression-check against real data and record the result on the
-  row. A regressed row **reopens**, carrying the regression evidence plus a sibling-hunt note
-  for newly added surface where the fixed pattern may have reappeared.
-- **Open rows**: add a dated progress note.
-- **Works rows**: `Works` is the single canonical token for positive confirmations. Every Works
-  row carries its dated confirmation as a mandatory `confirmed-working` history entry — positives
-  undergo the same dated regression-check discipline as fixes.
-- **What-worked fairness subsection**: maintain inside the Findings register with entries of
-  mechanism, evidence (measurement, count, or sourced observation), and date. At least one dated
-  evidenced entry per completed review; a review with zero fairness entries is **incomplete**
-  and must not finalize its register update.
-- **Baselines**: append dated measurement rows (id `M-NN`, metric, kind count/bytes/timing,
-  value, unit, command, date). First-run rows are marked initial-baseline and claim no delta;
-  later runs delta against the newest row of the same metric kind. Whenever a measurement recipe
-  changes shape, the new row's comparability note states which prior rows remain comparable.
-- **Referential-integrity sweep**: verify every register pointer to a proposal file resolves to
-  an existing `docs/ideas/` document. Flag dangling pointers in the round history and correct or
-  mark them missing through the register mechanics — never through engine changes.
+- **Proposal-Status adjudication**: every substantiated finding becomes or updates a
+  `docs/ideas/<slug>.md` proposal whose Status header field carries the disposition with a
+  date, using exactly this vocabulary:
+  - `Proposed`
+  - `Landed in <change-slug> <YYYY-MM-DD>`
+  - `Dropped <YYYY-MM-DD> — <reason>`
+  - `Superseded by <slug> <YYYY-MM-DD>`
+- **Fairness-in-proposals**: a run that produces proposals must cite at least one
+  confirmed-working mechanism with dated evidence inside a proposal — a "What worked" note in
+  that proposal's Evidence section. A run with zero substantiated findings writes nothing and
+  the duty is vacuous.
+- **Write-time referential integrity**: every proposal's References must resolve at write time;
+  dangling pointers are fixed before writing — never via engine changes.
+- **Unverified hypotheses** stay labeled with `missing_evidence` naming what would confirm them
+  and never enter a proposal body as established fact (carried over from section 8 unchanged).
 
 ## 12. Failure paths (summary)
 
 | Failure | Behavior |
 |---------|----------|
-| Playbook file missing | Abort naming `docs/ideas/sdlc-improvement-review-playbook.md`; run nothing. |
-| Playbook anchor missing | Abort naming the file and the anchor; run nothing. |
+| capabilities.md or its `## SDLC Goals` anchor missing | Abort naming the file and the anchor; run nothing. |
+| operations.md or its `## Baselines` anchor missing | Abort naming the file and the anchor; run nothing. |
 | Helper input unreadable | Helper exits non-zero naming the path; zeros are never printed as data. |
 | Zero parseable events in a supplied transcript | Explicit zero-extraction report naming the file, non-zero exit; session-derived numbers treated as missing for that file. |
 | Empty docs/changes dataset | Helpers exit zero reporting an explicit empty result. |
-| Measurement recipe shape change | New baseline rows record which prior comparisons remain valid. |
+| Measurement recipe shape change | The run marks the delta incomparable in its proposal and proposes a baseline refresh row for the landing change's knowledge extraction. |
 
 ## 13. Scope limits
 
+- Write **only** inside `docs/ideas/` — no file outside `docs/ideas/` is created or modified by
+  a run; canon updates travel only inside proposals.
+- Do **not** edit idea files hosted inside completed change folders (`docs/changes/<slug>/`) —
+  they are frozen change artifacts; reference them read-only.
 - Do **not** touch anything under `.opencode/` — it is a build artifact.
 - Do **not** change engine code: `src/scripts/`, `bin/`, `src/stages/`, `src/schemas/`, the
   capped check catalog, or the frozen CLI envelope. Findings that would require such changes
   become proposals, not edits.
 - Do **not** hardcode agent-specific paths or transcript locations anywhere.
 - Do **not** schedule or automate this review; the maintainer invokes it manually when enough
-  signal has accumulated (see the playbook's "When to run").
+  signal has accumulated (section 1 thin-signal check).

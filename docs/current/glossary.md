@@ -180,27 +180,47 @@
 | Validation | model must be a member of the enum; empty model_override fails naming file and value; free-form non-empty overrides pass | src/scripts/lib/agent-model-fields.ts, src/policies/errors.yaml |
 | Surfacing | CLI data exposes both model (recommended) and effectiveModel for bound agents | src/scripts/workflows/index.ts, src/scripts/workflows/status.ts |
 
-## Entity: Improvement Review (src/skills/improvement-review + playbook)
+## Entity: Improvement Review (src/skills/improvement-review)
 
 | Field | Type | Nullable | Source |
 |-------|------|----------|--------|
 | location | src/skills/improvement-review/SKILL.md (dev-only, SKILL.md folder protocol) | No | src/skills/improvement-review/SKILL.md |
 | helpers | four deterministic TypeScript scripts under scripts/ (measure_artifacts, envelope_sizes, mine_transcript, validate_duration) | No | src/skills/improvement-review/scripts/ |
-| playbook | docs/ideas/sdlc-improvement-review-playbook.md — method plus run state (goals list, findings register, baselines) | No | docs/ideas/sdlc-improvement-review-playbook.md |
-| SDLC goals list | ordered G-NN entries (testable goal statement, grounding sources, status active/amended/retired, created date, amendments) stored in the playbook | Yes (empty state until the first run proposes the dated list) | docs/ideas/sdlc-improvement-review-playbook.md (## SDLC goals list) |
-| What-worked fairness subsection | register subsection with entries of mechanism, evidence (measurement, count, or sourced observation), and date | No | src/skills/improvement-review/SKILL.md |
-| measurement baselines | dated M-NN rows; kind count \| bytes \| timing; unit, command, date, comparability note | Yes (first run records initial-baseline rows) | docs/ideas/sdlc-improvement-review-playbook.md |
+| playbook | dissolved 2026-08-27 after register resolution — the skill is a pure advisor; the method record is the frozen sdlc-improvement-review-skill change artifacts | — | docs/changes/sdlc-improvement-review-skill/ |
+| SDLC goals canon | ordered G-NN entries (testable goal statement, grounding sources, status active/amended/retired, created date, amendments); eight active entries | No | docs/current/capabilities.md (## SDLC Goals) |
+| What-worked fairness | fairness lives inside proposals: a run producing proposals cites at least one confirmed-working mechanism with dated evidence in a proposal Evidence note; vacuous at zero proposals | No | src/skills/improvement-review/SKILL.md |
+| measurement baselines | dated M-NN rows; kind count \| bytes \| timing; unit, command, date, comparability note; two-tier section with authoritative qualitative prose baselines | No | docs/current/operations.md (## Baselines) |
 | transcript event grammar | generic line-oriented grammar: invocation events (counted per command token), wasted-round candidates (repeated identical consecutive command lines), delegation events (type=, model=, rework= sub-fields; missing sub-fields reported unrecorded) | No | src/skills/improvement-review/scripts/mine_transcript.ts, src/skills/improvement-review/SKILL.md |
 
 | Business Rules | Rule | Location |
 |----------------|------|----------|
 | Evidence-or-label | every claim carries a measurement, count, grep, or sourced observation — or is explicitly labeled an unverified hypothesis naming the missing evidence; nothing in between | src/skills/improvement-review/SKILL.md |
-| Goals gate | the stored goals list is loaded (or a dated one proposed and stored) before any finding is evaluated; amendments require a dated justification — silent rewrites prohibited | src/skills/improvement-review/SKILL.md |
-| Baseline bootstrapping | first run records initial-baseline rows claiming no delta; later runs delta against the newest row of the same metric kind; timing rows compare orders of magnitude and regressions, never bytes | src/skills/improvement-review/SKILL.md |
-| Fairness minimum | at least one dated evidenced fairness entry per completed review; zero entries leave the register update incomplete | src/skills/improvement-review/SKILL.md |
-| Thin-signal check | fewer than two substantive changes since the last register update warns of thin signal and proceeds only after explicit maintainer confirmation — a manual precondition of the invoked run, never an automated trigger | src/skills/improvement-review/SKILL.md |
+| Goals gate | the goals canon is loaded read-only from capabilities.md before any finding is evaluated; a missing or amendment-worthy goal becomes a docs/ideas proposal stating the proposed entry in canon format; amendments require a dated justification — silent rewrites prohibited | src/skills/improvement-review/SKILL.md |
+| Baseline comparison | runs compare read-only against the newest same-kind quantitative row in operations.md and carry deltas inside their proposals; a metric with no recorded row is labeled an initial-baseline candidate; timing rows compare orders of magnitude and regressions, never bytes | src/skills/improvement-review/SKILL.md |
+| Fairness minimum | a run producing proposals cites at least one confirmed-working mechanism with dated evidence inside a proposal; a zero-finding run writes nothing and the duty is vacuous | src/skills/improvement-review/SKILL.md |
+| Write surface | pure advisor — writes only inside docs/ideas/; canon updates travel only inside proposals and land through the landing change's knowledge extraction | src/skills/improvement-review/SKILL.md |
+| Thin-signal check | fewer than two substantive changes since the last review date warns of thin signal and proceeds only after explicit maintainer confirmation — a manual precondition of the invoked run, never an automated trigger | src/skills/improvement-review/SKILL.md |
 | Zero extraction | a supplied transcript with zero parseable events yields an explicit zero-extraction report and non-zero exit; session-derived numbers are treated as missing, never zero | src/skills/improvement-review/scripts/mine_transcript.ts |
 | Invocation | manual, by the maintainer; never scheduled or automated; never deployed | src/skills/improvement-review/SKILL.md, bin/deploy-to-agent.ts |
+
+## Entity: Idea Document (docs/ideas/<slug>.md)
+
+| Field | Type | Nullable | Source |
+|-------|------|----------|--------|
+| Origin | string (session, review, or finding the proposal came from) | No | docs/ideas/p12-fast-track-lane.md |
+| Status | disposition with a date: Proposed \| Landed in <change-slug> <YYYY-MM-DD> \| Dropped <YYYY-MM-DD> — <reason> \| Superseded by <slug> <YYYY-MM-DD> | No | docs/ideas/*.md header tables |
+| Suggested change slug | string (kebab-case change slug) | Yes | docs/ideas/p12-fast-track-lane.md |
+| Depends on | string (other proposals or "nothing hard") | Yes | docs/ideas/p12-fast-track-lane.md |
+| Kind | string (process/engine feature, docs, tooling) | No | docs/ideas/*.md header tables |
+| Cost tier | string (implementation cost estimate) | Yes | docs/ideas/*.md header tables |
+| Body | nine-section proposal skeleton with governance test | No | src/skills/improvement-review/SKILL.md |
+
+| Business Rules | Rule | Location |
+|----------------|------|----------|
+| Queue contract | docs/ideas holds only open proposals; mutable canon lives only in docs/current and changes only via changes | docs/current/conventions.md (File Organization) |
+| Landing signature | a landed idea's Status reads exactly "Landed in <change-slug> <YYYY-MM-DD>" (regex ^Landed in \S+ \d{4}-\d{2}-\d{2}$); the signature must never appear on a file still residing in docs/ideas | docs/current/conventions.md (File Organization) |
+| Landing move duty | the implementing change's plan carries a documentation task that sets the Status and moves the file unmodified into docs/changes/<change-slug>/ during its implementation stage; implementation-review verifies the landing | docs/current/conventions.md (File Organization) |
+| Hosted-file freeze | once the change completes, the hosted idea file is a frozen change artifact; later work references it read-only and never modifies it | docs/current/conventions.md (File Organization) |
 
 ## Naming Cross-Check
 

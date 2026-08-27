@@ -1,0 +1,818 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: rehome-improvement-review-canon"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-27
+  updated: 2026-08-27
+  based_on_design: 0.1.1
+  based_on_requirements: 0.1.2
+  implementation_status: accepted
+  step: complete
+tasks:
+  - id: TASK-001
+    title: Re-verify register citations, record DM-005 dispositions, capture prose baselines verbatim
+    description: |
+      CMP-004 / DM-005 pre-deletion gate (DEC-004). Re-verify every findings-register citation
+      resolves AND states the claimed content - a resolves-only check would pass a misattributed
+      id. Rows and citations: F1 to decisions.md 2026-08-26 streamline DEC-004 (six-step tour,
+      one-call finalize); F2 to streamline DEC-001 plus dedupeDeltas in
+      src/scripts/lib/kinds/aggregator.ts plus the streamline design.yaml aggregator-dedupe
+      record; F3 to streamline DEC-002 (write-time enforcement); F4 to streamline CMP-002/CMP-007
+      (optionalization) with the flag-inventory residue absorbed by
+      src/skills/improvement-review/SKILL.md section 7 (standing unused-surface inventory duty);
+      F5 to the completed docs/changes/agent-delegation-loop/ change (src/scripts/lib/delegation.ts
+      composer, hosted p11) corroborated by
+      docs/changes/add-agent-agnostic-agent-definitions-deployed-alongside-the-/ (stage binding,
+      envelope surfacing, rendered agents, stage-reviewer roster with file_write deny) and
+      docs/changes/agent-invocation-modes-and-interactive-questioning-agent-def/ (mode resolution,
+      question gating) plus the review separation-of-duties convention in
+      docs/current/conventions.md; F6 to streamline DEC-003 and DEC-005; unlabeled docs-index row
+      to the streamline plan task plus the noise filter in src/scripts/lib/docs-index.ts;
+      unlabeled slug row to
+      docs/changes/explicit-change-slugs-at-creation-passing-change-together/; F7 to
+      docs/ideas/p12-fast-track-lane.md present on disk with Status Proposed.
+      Record one DM-005 row per register entry (id, original statement, resolution, citation,
+      verification result) in the task note via sdlc implementation --note.
+      ALSO capture the playbook's six prose baselines VERBATIM from
+      docs/ideas/sdlc-improvement-review-playbook.md section "Current baselines" into the task
+      note - knowledge extraction needs the verbatim text for AC-023 after TASK-002 deletes the
+      file (the design migrates them verbatim and never regenerates them).
+      Cite docs/changes/sdlc-improvement-review-skill/design.yaml and plan.yaml as the method
+      record in the disposition record (AC-020, NFR-003).
+      GATE: any failed citation BLOCKS TASK-002 (AC-008, failure path 1) - preserve the row into
+      this change's records or an idea document first; F5 ambiguity triggers the
+      preserve-without-duplicating fallback citing the hosted
+      docs/changes/agent-delegation-loop/p11-agent-delegation-loop.md - NEVER create a
+      docs/ideas/p11 duplicate. Read-only task: no file is created, modified, or deleted.
+    type: verification
+    status: done
+    complexity: medium
+    covers:
+      - FR-004
+      - FR-008
+    acceptance_ids:
+      - AC-007
+      - AC-008
+      - AC-020
+      - AC-023
+    design_refs:
+      - DEC-004
+      - DEC-002
+    depends_on: []
+    implementation_note: >-
+      TASK-001 COMPLETE — all 9 register rows re-verified with the strengthened check (citation
+      resolves AND states the claimed content). ZERO failed citations. No STOP condition triggered;
+      F5 evidence unambiguous, no fallback needed. TASK-002 may proceed.
+
+
+      DM-005 DISPOSITION ROWS (id | original statement | resolution | citation | verification
+      result):
+
+
+      F1 | Eight-step authoring tour taxed capable agents; remaining gates were honor-system |
+      Fixed-provenance-verified | docs/current/decisions.md 2026-08-26
+      streamline-the-sdlc-process-economy-collapse-the-authoring-s (DEC-004) | VERIFIED:
+      decisions.md line 36 states "Authoring stages collapse to a six-step tour (needs_input, init,
+      authoring, ready, complete, recovery) with one-call finalize (--finalize --confirm-semantic
+      evaluates mechanical validation and the semantic gate together)" — exactly the claimed
+      six-step tour + one-call finalize.
+
+
+      F2 | Duplication by design: scenarios-to-ACs 99% similar; three-phase deltas overlap |
+      Fixed-provenance-verified | decisions.md streamline DEC-001 + dedupeDeltas in
+      src/scripts/lib/kinds/aggregator.ts + streamline design.yaml aggregator-dedupe record
+      (CMP-005, plan implementation_note, test/unit/aggregator-dedupe.test.ts) | VERIFIED:
+      decisions.md line 33 states "One merged acceptance_criteria list ... replaces the scenarios
+      list and the old acceptance-criteria duality" with rationale "Measured 99 percent average text
+      similarity between promoted scenario/AC pairs"; aggregator.ts line 40 exports dedupeDeltas
+      (applied line 189); streamline plan.yaml line 205 records "dedupeDeltas groups per
+      target_doc+change, latest phase wins within collapsible"; streamline design CMP-005 states the
+      per-doc+change merge.
+
+
+      F3 | Failures fired late (11 review-time note findings; unnormalized delta errors) |
+      Fixed-provenance-verified | decisions.md streamline DEC-002 | VERIFIED: decisions.md line 34
+      states "Transitions and updates enforce their own completeness at write time — a done
+      transition without a non-empty note is rejected before any state is written ... review gates
+      stop re-discovering construction errors" with rationale "Eleven review-time findings traced to
+      one missing-note root cause and fourteen schema errors from unnormalized delta entries" —
+      exactly the claimed write-time enforcement.
+
+
+      F4 | Dead weight: complexity/milestones/risks unconsumed; unused flags; inert version |
+      Fixed-dated-disposition (residue absorbed by method) | streamline design CMP-002/CMP-007 (per
+      streamline FR-008 traceability: "treat complexity, milestones, and risks as optional and
+      manage started_at, completed_at, and files_changed as CLI-owned state") + residue absorbed by
+      src/skills/improvement-review/SKILL.md section 7 | VERIFIED: streamline CMP-007 states "The
+      planning schema makes complexity optional and milestones and risks optional lists; the
+      template stops emitting task bookkeeping fields; validation passes artifacts that omit them";
+      CMP-002 states the tasks interpreter "owns started_at, completed_at, and files_changed ... so
+      plans carry authored content only" (the inert-state half); streamline plan task "Make planning
+      bookkeeping optional and CLI-owned" implementation_note confirms delivery ("milestones/risks
+      optional in schema; template example trimmed of bookkeeping; minimal artifact without optional
+      fields validates"). Residue "flag inventory still open" ABSORBED: SKILL.md section 7 "Step 4 —
+      Unused-surface inventory (grep beside every claim)" is a standing per-run procedure with
+      mandatory grep evidence, not a pending one-time item. No idea document needed.
+
+
+      F5 | Agent layer had no runtime consumer; reviews accepted by the authoring agent |
+      Fixed-dated-disposition (both complaints delivered; evidence unambiguous — no fallback
+      triggered) | docs/changes/agent-delegation-loop/ (composer src/scripts/lib/delegation.ts,
+      hosted p11-agent-delegation-loop.md, SKILL.md delegation rule asserted by deploy smoke)
+      corroborated by docs/changes/add-agent-agnostic-agent-definitions-deployed-alongside-the-/
+      (FR-003/FR-004 binding, FR-005 envelope surfacing, FR-006 rendered agents, FR-009/FR-010
+      permission contracts, DEC-007 stage-reviewer roster) and
+      docs/changes/agent-invocation-modes-and-interactive-questioning-agent-def/ (DEC-001 mode
+      resolution, DEC-002 question gating) plus docs/current/conventions.md review
+      separation-of-duties | VERIFIED: delegation.ts exists and is the pure composer
+      (delegationDirective(stage) naming the bound agent; review-kind variant "delegate this review
+      round to <agent> ... not by the agent that authored the artifact"); agent-delegation-loop
+      design CMP-001 "Delegation directive composer", plan TASK-001 created the module, TASK-004
+      added the firm SKILL.md delegation rule + deploy smoke assertion, implementation-review
+      confirms live envelopes carried the composed review-kind directive naming stage-reviewer;
+      hosted p11 present at docs/changes/agent-delegation-loop/p11-agent-delegation-loop.md (frozen,
+      NOT duplicated into docs/ideas); add-agent-agnostic FR-003 (resolve binding, fail on
+      unresolved), FR-004 (omitted = unbound/current agent), FR-005 (binding surfaced in data field,
+      no new top-level fields), FR-006 (render agents at deploy), FR-009/FR-010 (mechanical
+      permission verification from kind contract) all state the claimed content; DEC-007
+      (design.yaml line 275, decisions.md line 27) states "A single stage-reviewer agent is bound by
+      all four review stage descriptors; its contract ceiling (file_write deny)" — confirmed live in
+      src/agents/stage-reviewer.yaml (file_write: deny); agent-invocation-modes DEC-001 "An omitted
+      mode field resolves to all; a definition may declare subagent or primary explicitly" and
+      DEC-002 "requirements-analyst carries question allow; the five other roster agents carry
+      explicit deny" (decisions.md lines 30-31); conventions.md line 14 "Review separation of
+      duties: review rounds are performed by the bound reviewer agent (stage-reviewer), never by the
+      authoring agent". Residual delegation-outcome instrumentation remains method (SKILL.md section
+      3 category 5, mine_transcript delegation events).
+
+
+      F6 | Output/validation economics: fat envelopes; validate ran e2e builds |
+      Fixed-provenance-verified | decisions.md streamline DEC-003 and DEC-005 | VERIFIED:
+      decisions.md line 35 states "data.step_help is omitted from authoring envelopes by default;
+      --help-step restores it for the current step; the seven frozen top-level envelope fields are
+      untouched" (fat-envelope fix); line 37 states "npm run validate runs the seconds-long suite
+      (schemas, policies, templates, typecheck, unit tests only); e2e stays in test:e2e and
+      check:all keeps full coverage" (validate split).
+
+
+      F7 | Cycle granularity ignored change size | Resolved-to-existing-proposal |
+      docs/ideas/p12-fast-track-lane.md | VERIFIED: file present on disk; Status row reads "| Status
+      | Proposed — partially de-risked by a manual micro-cycle |" — open proposal carrying the
+      disposition; row dissolves, no new document created.
+
+
+      Unlabeled row 1 | Docs-index parser silently returned 0 docs on real data (check never
+      executed) | Fixed-provenance-verified | streamline plan.yaml task "Fix the docs-index parser
+      for bare filenames" + noise-filter comment in src/scripts/lib/docs-index.ts | VERIFIED:
+      streamline plan.yaml line 90 carries the titled task (done; implementation_note records
+      "docs-index junk-row filter also landed (.md-only)"); docs-index.ts lines 33-34 carry the
+      noise-filter comment "Quality filter: a real document row's first cell always ends with '.md'.
+      Header and noise rows of auxiliary tables ...".
+
+
+      Unlabeled row 2 | Change slugs truncated mid-word | Fixed-provenance-verified |
+      docs/changes/explicit-change-slugs-at-creation-passing-change-together/ | VERIFIED: design
+      states "Creates the change under the explicit slug when the directory does not exist ... falls
+      back to mechanical slugify for bare --request"; requirements state "bare --request keeps the
+      mechanical word-boundary slugify"; plan records "validateChangeSlug beside slugify guards
+      createChangeDir; --change + --request" — word-boundary slugify + explicit slug creation
+      confirmed.
+
+
+      METHOD RECORD (AC-020, NFR-003): docs/changes/sdlc-improvement-review-skill/design.yaml and
+      docs/changes/sdlc-improvement-review-skill/plan.yaml — present, accessible, frozen; cited as
+      the record of the playbook's method content.
+
+
+      SIX PROSE BASELINES CAPTURED VERBATIM from docs/ideas/sdlc-improvement-review-playbook.md
+      section "## Current baselines (compare against, don't regress)" (AC-023, RISK-005 — file will
+      be deleted in TASK-002; extraction migrates from this capture, never regenerates):
+
+
+      1. `npm run validate`: ~2 s, unit-only; e2e lives in `check:all`.
+
+      2. Authoring stages: six steps (`needs_input/init/authoring/ready/complete/recovery`);
+      `--finalize --confirm-semantic` completes in one call.
+
+      3. Requirements: one merged `acceptance_criteria` list (id / GWT / category / parent_id).
+
+      4. Implementation review: zero blocking findings expected when notes are given at done-time.
+
+      5. Deltas presented to knowledge-extraction: deduplicated per doc+change.
+
+      6. Envelope: seven frozen top-level fields; `step_help` only behind `--help-step`.
+
+
+      Read-only task: no file created, modified, or deleted.
+    started_at: 2026-08-27
+    files_changed: []
+    completed_at: 2026-08-27
+  - id: TASK-002
+    title: Delete the dissolved playbook (gated on TASK-001 verification)
+    description: |
+      CMP-004 final file operation (DEC-004). git rm
+      docs/ideas/sdlc-improvement-review-playbook.md. Runs ONLY after TASK-001's note records
+      every DM-005 row as verified (citation resolves AND states the claimed content); a failed
+      citation stops here and the row is preserved first (AC-008, failure path 1). Delete this
+      file and nothing else - no docs/ideas/p11 duplicate is created (F5 closes by dated
+      disposition citing the hosted p11). Evidence: the file is absent from docs/ideas and git
+      status shows exactly one deletion.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-004
+    acceptance_ids:
+      - AC-007
+      - AC-008
+    design_refs:
+      - DEC-004
+    depends_on:
+      - TASK-001
+    files:
+      - path: docs/ideas/sdlc-improvement-review-playbook.md
+        operation: delete
+    implementation_note: "Playbook dissolved: git rm docs/ideas/sdlc-improvement-review-playbook.md
+      completed. Evidence: git status shows exactly one deletion (D
+      docs/ideas/sdlc-improvement-review-playbook.md) and the file is absent from docs/ideas. No
+      docs/ideas/p11 duplicate created (F5 closes by the dated disposition recorded in the TASK-001
+      note, citing the hosted frozen p11 at
+      docs/changes/agent-delegation-loop/p11-agent-delegation-loop.md). Gate honored: TASK-001 note
+      recorded all 9 DM-005 rows as verified before this deletion ran. Nothing else deleted."
+    started_at: 2026-08-27
+    files_changed: []
+    completed_at: 2026-08-27
+  - id: TASK-003
+    title: Rewrite SKILL.md as a pure advisor (CMP-003) with npm run validate gate
+    description: |
+      Apply the CMP-003 per-section specification to src/skills/improvement-review/SKILL.md
+      (DEC-001, DEC-003). Frontmatter: inputs drop the playbook and add
+      docs/current/capabilities.md ("## SDLC Goals") and docs/current/operations.md
+      ("## Baselines"); outputs list docs/ideas proposals plus measurement records; description
+      states the pure-advisor contract. Section 0: "Reviewable state" becomes "Canon is
+      read-only"; loud-abort retargets to the two canon files. Section 1: preconditions verify
+      the "## SDLC Goals" and "## Baselines" anchors, aborting naming file plus anchor and
+      running nothing; the thin-signal warning and maintainer confirmation are recorded in every
+      proposal the run produces. Section 2: read-only goals load; a missing or amendment-worthy
+      goal becomes a docs/ideas proposal stating the proposed entry in canon format; the landing
+      change carries the capabilities.md delta (AC-010); the runtime propose-and-store path is
+      deleted. Section 4: read-only comparison against the newest same-kind quantitative row in
+      operations.md; every proposal's Evidence cites baseline value, fresh value, and delta
+      (AC-003); a metric with no recorded row is labeled an initial-baseline candidate (AC-004);
+      helper invocations, flags, and the timing-anchor mapping prose stay unchanged. Section 9:
+      grounding retargets to the p12 exemplar (docs/ideas/p12-fast-track-lane.md) plus the frozen
+      DM-005 record in docs/changes/sdlc-improvement-review-skill/design.yaml (AC-020); the
+      nine-section skeleton and governance test survive unchanged (AC-018). Section 11: REPLACED
+      by proposal-Status adjudication (DM-004 vocabulary: Proposed / Landed in <change-slug>
+      <YYYY-MM-DD> / Dropped <YYYY-MM-DD> - <reason> / Superseded by <slug> <YYYY-MM-DD>) plus
+      fairness-in-proposals (at least one confirmed-working mechanism with dated evidence cited
+      inside a proposal; vacuous for zero-finding runs) plus write-time referential integrity on
+      proposal References. Section 12: the two playbook failure rows become canon-anchor rows;
+      the recipe-shape-change row becomes the incomparable-delta + baseline-refresh-proposal row;
+      all other rows unchanged. Section 13: first limit becomes write only inside docs/ideas/
+      (AC-006); new limit forbids editing idea files hosted inside completed change folders
+      (frozen, reference read-only); .opencode/, engine, no-hardcoding, and no-scheduling limits
+      kept verbatim. No helper script is touched (NFR-002).
+      COMPLETION GATE: run npm run validate and require exit 0 before marking done - SKILL.md is
+      under src/ (AGENTS.md section 1 fast gate; validate:templates re-validates the rewritten
+      frontmatter).
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-002
+      - FR-003
+      - FR-005
+    acceptance_ids:
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-009
+      - AC-010
+      - AC-018
+    design_refs:
+      - DEC-001
+      - DEC-003
+    depends_on:
+      - TASK-002
+    files:
+      - path: src/skills/improvement-review/SKILL.md
+        operation: modify
+    implementation_note: "SKILL.md rewritten per CMP-003 per-section spec. Frontmatter: inputs drop the
+      playbook, add docs/current/capabilities.md (## SDLC Goals canon, read-only) and
+      docs/current/operations.md (## Baselines, read-only); outputs list docs/ideas proposals
+      (nine-section format, governance-test result, Status disposition) plus measurement records;
+      description states the pure-advisor contract. Section 0: Reviewable state replaced by
+      Canon-is-read-only; loud abort retargeted to the two canon files. Section 1: preconditions
+      verify the ## SDLC Goals and ## Baselines anchors, aborting naming file plus anchor (example
+      abort strings included) and running nothing; thin-signal trigger kept (fewer than two
+      substantive changes since the last review date = newest Origin review date among docs/ideas
+      proposals), warning + confirmation recorded in every proposal the run produces (Origin field
+      note). Section 2: read-only goals load from capabilities.md; runtime propose-and-store path
+      deleted; missing/amendment-worthy goal becomes a docs/ideas proposal whose Goal section states
+      the entry in canon format (G-NN, testable statement, grounding, status, created, amendments);
+      landing change carries the capabilities.md delta (AC-010). Section 4: read-only comparison
+      against the newest same-kind quantitative row in operations.md; every proposal Evidence cites
+      baseline value, fresh value, delta (AC-003); unrowed metrics labeled initial-baseline
+      candidates (AC-004); helper invocations, flags, and the ~2s-to-2000ms timing-anchor mapping
+      prose kept (locus reference retargeted from playbook to operations.md prose baseline). Section
+      9: grounding retargeted to the p12 exemplar (docs/ideas/p12-fast-track-lane.md) plus the
+      frozen DM-005 proposal-skeleton record in
+      docs/changes/sdlc-improvement-review-skill/design.yaml (verified: DM-005 is the nine-section
+      skeleton record, grounded on the Step 6 enumeration); nine-section skeleton + governance test
+      UNCHANGED (AC-018). Section 11 REPLACED by proposal-Status adjudication (DM-004 vocabulary:
+      Proposed / Landed in <change-slug> <YYYY-MM-DD> / Dropped <YYYY-MM-DD> — <reason> / Superseded
+      by <slug> <YYYY-MM-DD>) + fairness-in-proposals (>=1 confirmed-working mechanism with dated
+      evidence in a proposal Evidence What-worked note; vacuous at zero proposals) + write-time
+      referential integrity on References + missing_evidence rule carried over. Section 12: two
+      playbook rows replaced by canon-anchor rows; recipe-shape-change row becomes
+      incomparable-delta + baseline-refresh-proposal row; helper/zero-extraction/empty-dataset rows
+      unchanged. Section 13: first limit = write only inside docs/ideas (AC-006) + canon updates
+      travel only inside proposals; new limit forbids editing idea files hosted in completed change
+      folders (frozen, read-only); .opencode/engine/no-hardcoding/no-scheduling limits kept.
+      COMPLETION GATE: npm run validate exit 0 (196 tests pass; validate:templates re-validated the
+      rewritten frontmatter). No helper script touched (NFR-002). Flagged deviations, both
+      design-consistent retargets required by the register dissolution and CMP-006 site-1
+      all-references rule: (1) section 13 no-scheduling limit kept verbatim except its parenthetical
+      (see the playbook's When to run) retargeted to (section 1 thin-signal check) — the
+      parenthetical pointed at the dissolved playbook; (2) sections 3 and 8 carried stray register
+      mentions (register entry / enters the register) retargeted minimally to proposals/findings
+      adjudication per DEC-003 (register replaced, not relocated); design spec was silent on those
+      two sections' wording. Also fixed during the task: initial draft description contained a ': '
+      sequence breaking YAML plain-scalar parsing; caught by npm run validate and fixed by quoting
+      the description — validate then exited 0."
+    started_at: 2026-08-27
+    files_changed: []
+    completed_at: 2026-08-27
+  - id: TASK-004
+    title: Retarget AGENTS.md section 10 row and codemap.md row (CMP-006 direct edits)
+    description: |
+      CMP-006 sites 2 and 3 (DEC-006) - the two non-delta live references, edited directly
+      because they are not knowledge-extraction targets. AGENTS.md section 10 improvement-review
+      row: drop the "refreshes the goals list, findings register, and baselines stored in
+      docs/ideas/sdlc-improvement-review-playbook.md" tail and state that the skill reads the
+      goals canon (docs/current/capabilities.md) and baselines (docs/current/operations.md)
+      read-only and writes only docs/ideas proposals. codemap.md src/skills/ row: same retarget -
+      the run-state sentence replaced by the canon-locations sentence. The four docs/current
+      sites (capabilities.md row, operations.md row, glossary.md entity rows) ride the delta
+      entries - do NOT touch docs/current (invariant 4). Documentation-only change: npm run
+      validate exempt per AGENTS.md section 1; the final check:all task covers regression.
+    type: documentation
+    status: done
+    complexity: low
+    covers:
+      - FR-006
+    acceptance_ids:
+      - AC-011
+    design_refs:
+      - DEC-006
+    depends_on:
+      - TASK-003
+    files:
+      - path: AGENTS.md
+        operation: modify
+      - path: codemap.md
+        operation: modify
+    implementation_note: "AGENTS.md section 10 improvement-review row retargeted: dropped the tail
+      'refreshes the goals list, findings register, and baselines stored in
+      docs/ideas/sdlc-improvement-review-playbook.md' and stated instead that the skill is a pure
+      advisor reading the goals canon (docs/current/capabilities.md, ## SDLC Goals) and baselines
+      (docs/current/operations.md, ## Baselines) read-only and writing only docs/ideas proposals.
+      codemap.md src/skills/ row retargeted identically: the run-state sentence ('its run state —
+      goals list, findings register, baselines — lives in
+      docs/ideas/sdlc-improvement-review-playbook.md, not in living docs') replaced by the
+      canon-locations sentence. Both are direct edits (not living docs — CMP-006 sites 2 and 3,
+      DEC-006). The four docs/current sites (capabilities.md row, operations.md row, glossary.md
+      entity rows) ride the delta entries — docs/current untouched per invariant 4.
+      Documentation-only change: npm run validate exempt per AGENTS.md section 1; the final
+      check:all task covers regression."
+    started_at: 2026-08-27
+    files_changed: []
+    completed_at: 2026-08-27
+  - id: TASK-005
+    title: Run the four helpers and capture M-01..M-12 baseline values (CMP-002)
+    description: |
+      CMP-002 / API-001..API-004 (DEC-002). Run from the repo root AFTER all file work completes
+      (playbook deleted, SKILL.md rewritten, AGENTS.md + codemap.md retargeted) so the rows
+      reflect the completed state. API-001: node
+      src/skills/improvement-review/scripts/measure_artifacts.ts - record the TOTAL as M-01
+      (kind count, unit lines); per-change detail stays in the helper output. API-002: node
+      src/skills/improvement-review/scripts/envelope_sizes.ts --change
+      rehome-improvement-review-canon - record bytes_total per stage as M-02..M-10 in canonical
+      order (requirements, requirements-review, design, design-review, planning,
+      planning-review, implementation, implementation-review, knowledge-extraction; kind bytes,
+      unit bytes; comparability note pins this change slug). API-003: node
+      src/skills/improvement-review/scripts/validate_duration.ts - record duration_ms as M-11
+      (kind timing, unit ms; comparability note carries the ~2 s to about 2000 ms prose-anchor
+      mapping; value is machine-dependent). API-004 CONDITIONAL:
+      mine_transcript.ts runs only if the maintainer supplies transcript files; with none
+      supplied, record M-12 as a pending marker (DM-003): Value holds the literal token
+      "pending", kind count, unit events, recipe in the comparability note, no delta claim.
+      Record all twelve rows in the task note in the CMP-002 table shape (ID | Metric | Kind |
+      Value | Unit | Command | Date | Comparability note, date 2026-08-27) so knowledge
+      extraction fills the operations.md Baselines table without re-running anything. Helpers
+      are read-only: envelope_sizes invokes bare authoring/tasks/aggregator CLI invocations
+      (verified read-only) and hardcodes --dry-run on the four review stages.
+    type: verification
+    status: done
+    complexity: medium
+    covers:
+      - FR-008
+    acceptance_ids:
+      - AC-021
+    design_refs:
+      - DEC-002
+    depends_on:
+      - TASK-002
+      - TASK-003
+      - TASK-004
+    implementation_note: >-
+      TASK-005 COMPLETE — M-01..M-12 captured from actual helper runs (repo root, after all file
+      work: playbook deleted, SKILL.md rewritten, AGENTS.md + codemap.md retargeted). Table in the
+      CMP-002 shape (ID | Metric | Kind | Value | Unit | Command | Date | Comparability note), date
+      2026-08-27. Knowledge extraction fills the operations.md Baselines table from this note
+      without re-running anything.
+
+
+      | ID | Metric | Kind | Value | Unit | Command | Date | Comparability note |
+
+      |----|--------|------|-------|------|---------|------|--------------------|
+
+      | M-01 | artifact volume (docs/changes/ total) | count | 15306 | lines | node
+      src/skills/improvement-review/scripts/measure_artifacts.ts | 2026-08-27 | initial-baseline;
+      per-change detail lives in helper output (11 changes, 91 files); compare totals run-over-run |
+
+      | M-02 | envelope bytes requirements | bytes | 2294 | bytes | node
+      src/skills/improvement-review/scripts/envelope_sizes.ts --change
+      rehome-improvement-review-canon | 2026-08-27 | initial-baseline; measured on this change's
+      artifacts; envelopes scale with artifact size — compare same-stage rows by orders of magnitude
+      |
+
+      | M-03 | envelope bytes requirements-review | bytes | 2842 | bytes | (same command as M-02) |
+      2026-08-27 | initial-baseline; same comparability note as M-02 |
+
+      | M-04 | envelope bytes design | bytes | 1179 | bytes | (same command as M-02) | 2026-08-27 |
+      initial-baseline; same comparability note as M-02 |
+
+      | M-05 | envelope bytes design-review | bytes | 1657 | bytes | (same command as M-02) |
+      2026-08-27 | initial-baseline; same comparability note as M-02 |
+
+      | M-06 | envelope bytes planning | bytes | 1227 | bytes | (same command as M-02) | 2026-08-27
+      | initial-baseline; same comparability note as M-02 |
+
+      | M-07 | envelope bytes planning-review | bytes | 2088 | bytes | (same command as M-02) |
+      2026-08-27 | initial-baseline; same comparability note as M-02 |
+
+      | M-08 | envelope bytes implementation | bytes | 1530 | bytes | (same command as M-02) |
+      2026-08-27 | initial-baseline; same comparability note as M-02 |
+
+      | M-09 | envelope bytes implementation-review | bytes | 1125 | bytes | (same command as M-02)
+      | 2026-08-27 | initial-baseline; same comparability note as M-02 |
+
+      | M-10 | envelope bytes knowledge-extraction | bytes | 970 | bytes | (same command as M-02) |
+      2026-08-27 | initial-baseline; same comparability note as M-02 |
+
+      | M-11 | validate duration | timing | 2410 | ms | node
+      src/skills/improvement-review/scripts/validate_duration.ts | 2026-08-27 | initial-baseline;
+      prose anchor "npm run validate: ~2 s" maps to duration_ms of about 2000; machine-dependent —
+      compare orders of magnitude and regressions, never bytes |
+
+      | M-12 | transcript events | count | pending | events | node
+      src/skills/improvement-review/scripts/mine_transcript.ts <file>... | 2026-08-27 | pending: no
+      caller-supplied transcripts exist at implementation time; recipe — run against
+      maintainer-supplied transcript files during a review; the first successful run records the
+      initial value replacing this row |
+
+
+      Run evidence: measure_artifacts.ts result ok (total 15306 lines across 11 changes / 91 files;
+      per-change rows in helper output, not duplicated here per API-001 contract). envelope_sizes.ts
+      result ok (dry_run_stages:
+      requirements-review,design-review,planning-review,implementation-review — the four review
+      stages hardcoded --dry-run; nine per-stage rows + total 14912 bytes; per-stage bytes_total
+      recorded above in canonical order). validate_duration.ts record: command npm run validate,
+      exit_code 0, duration_ms 2410. API-004 not invoked: no maintainer-supplied transcript files
+      exist (DM-003 pending marker per DEC-002/RISK-004 — Value literal "pending", kind and unit
+      declared, recipe in the comparability note, no delta claim). Helpers read-only; no file
+      outside docs/ideas written by any run.
+    started_at: 2026-08-27
+    files_changed: []
+    completed_at: 2026-08-27
+  - id: TASK-006
+    title: Prove helper byte-identity and shape stability (AC-017 double-runs)
+    description: |
+      NFR-002 / AC-017 verification (frozen DEC-008 scoping of sdlc-improvement-review-skill).
+      (a) git status/diff shows zero modifications under
+      src/skills/improvement-review/scripts/ - no task in this plan touches the helpers.
+      (b) Run measure_artifacts.ts twice - stdout byte-identical. (c) Run envelope_sizes.ts
+      --change rehome-improvement-review-canon twice - byte-identical. (d) Run mine_transcript.ts
+      twice against a synthetic transcript file created under /tmp/opencode (never committed to
+      the repo) - byte-identical. (e) Run validate_duration.ts twice - identical record SHAPE
+      (command, exit_code, duration_ms; unit ms) with duration_ms expected to vary: shape-stable
+      only, never byte-compared (frozen DEC-008). Diff each pair and record the evidence in the
+      task note. A byte difference in any state-derived helper is a blocking regression: stop
+      and investigate before finalizing.
+    type: verification
+    status: done
+    complexity: low
+    covers:
+      - NFR-002
+    acceptance_ids:
+      - AC-017
+    design_refs:
+      - DEC-002
+    depends_on:
+      - TASK-005
+    implementation_note: >-
+      TASK-006 COMPLETE — AC-017 double-run evidence (frozen DEC-008 scoping: byte-identity for the
+      three state-derived helpers, shape stability for the timing helper).
+
+
+      (a) Helper tree untouched: git status --porcelain src/skills/improvement-review/scripts/
+      returned empty — zero modifications under the helper scripts across the whole change (no plan
+      task touches them; NFR-002 honored).
+
+
+      (b) measure_artifacts.ts double run: stdout captured to /tmp/opencode/ma-run1.txt and
+      ma-run2.txt; cmp silent (byte-identical). 15 rows identical including total 15306.
+
+
+      (c) envelope_sizes.ts --change rehome-improvement-review-canon double run:
+      /tmp/opencode/es-run1.txt vs es-run2.txt; cmp silent (byte-identical). Nine per-stage rows +
+      total identical; dry_run_stages list identical.
+
+
+      (d) mine_transcript.ts double runs against TWO synthetic transcripts created under
+      /tmp/opencode (never committed to the repo): synthetic-transcript.txt pair byte-identical (3
+      invocations, 0 wasted, 0 delegations); synthetic-transcript2.txt pair byte-identical (3
+      invocations, 1 wasted-round candidate from two exactly-identical consecutive command lines, 2
+      delegation events from lines carrying delegated/delegates + type=/model=/rework= sub-fields).
+      All three grammar paths exercised; both pairs cmp-silent.
+
+
+      (e) validate_duration.ts double run: identical record SHAPE both runs — arguments, command
+      (npm run validate), exit_code (0), duration_ms (unit ms) — with duration_ms varying as
+      designed: run1 2607 ms, run2 2285 ms. Shape-stable only, never byte-compared (frozen DEC-008).
+      No blocking regression: all state-derived pairs byte-identical.
+
+
+      ANOMALY DISCOVERED (helper untouched per hard constraint; documented for the maintainer):
+      mine_transcript.ts's DELEGATION_RE = /\bdelegate(?:d|s|ion)?\b/ has a stem bug — the stem
+      "delegate" + suffix "ion" would produce "delegateion", so the regex matches
+      delegate/delegated/delegates but can NEVER match the word "delegation" (delegat-ion does not
+      contain delegate). SKILL.md's documented grammar says "a line mentioning delegation that
+      carries sub-field tokens", so a transcript line phrased exactly as documented ("delegation
+      type=... model=... rework=...") is silently not counted (verified: synthetic-transcript.txt
+      lines with the word "delegation" yielded delegations=0; identical lines phrased
+      "delegated"/"delegates" yielded delegations=2). Impact: under-counting only; no crash, no
+      wrong number, byte-identity unaffected. Fix would be a one-character-class change (stem
+      "delegat") but the helpers are frozen for this change (NFR-002 hard constraint) — recommend a
+      future proposal rather than an edit.
+    started_at: 2026-08-27
+    files_changed: []
+    completed_at: 2026-08-27
+  - id: TASK-007
+    title: Residual repo-wide reference sweep for the playbook path (AC-011/AC-012)
+    description: |
+      CMP-006 residual sweep (DEC-006, failure path 3). Run a repo-wide grep for
+      "sdlc-improvement-review-playbook" excluding .opencode/, .tmp/, node_modules,
+      llm_context.txt, and .git/. Assert every remaining hit lies inside the exclusion set: the
+      append-only historical DEC-001 row in docs/current/decisions.md, the frozen artifacts under
+      docs/changes/sdlc-improvement-review-skill/ (AC-012 - excluded from the live count and
+      untouched), and this change's own artifacts under
+      docs/changes/rehome-improvement-review-canon/. ZERO hits outside that set = pass (AC-011).
+      Any live hit is retargeted before finalization - a remaining live reference means the
+      change is not complete. Record the exact grep command and the full hit list in the task
+      note.
+    type: verification
+    status: done
+    complexity: low
+    covers:
+      - FR-006
+    acceptance_ids:
+      - AC-011
+      - AC-012
+    design_refs:
+      - DEC-006
+    depends_on:
+      - TASK-005
+    implementation_note: >-
+      TASK-007 COMPLETE — residual repo-wide sweep executed. Exact command: rg -n
+      "sdlc-improvement-review-playbook" /home/elton/repos/agentic --glob '!.opencode/**' --glob
+      '!.tmp/**' --glob '!node_modules/**' --glob '!llm_context.txt' --glob '!.git/**'. Full hit
+      list (10 files): docs/current/operations.md:26; docs/current/capabilities.md:20;
+      docs/current/glossary.md:189,190,192; docs/current/decisions.md:46;
+      docs/changes/sdlc-improvement-review-skill/design.yaml, plan.yaml, requirements.yaml;
+      docs/changes/rehome-improvement-review-canon/design.yaml, plan.yaml, requirements.yaml.
+
+
+      Classification: (1) docs/current/decisions.md:46 — the append-only historical
+      sdlc-improvement-review-skill DEC-001 row, excluded per design (invariant-3 discipline,
+      untouched). (2) docs/changes/sdlc-improvement-review-skill/ — frozen artifacts, excluded per
+      AC-012/AC-019, untouched. (3) docs/changes/rehome-improvement-review-canon/ — this change's
+      own artifacts, excluded (frozen on completion). (4) docs/current/capabilities.md:20,
+      operations.md:26, glossary.md:189/190/192 — these are exactly CMP-006 live sites 4, 5, and 6,
+      which the design explicitly retargets VIA THE KNOWLEDGE-EXTRACTION DELTA (Modify entries
+      already staged in this change's design/requirements/plan deltas), not by implementation edits:
+      invariant 4 and the change's hard constraints forbid direct docs/current writes during
+      implementation. AC-011 is phrased against the COMPLETED change (completion includes knowledge
+      extraction), so these three files are expected pending-delta sites at implementation time, not
+      unretargeted live references.
+
+
+      ZERO hits outside that set: no hits in src/ (including the rewritten SKILL.md), AGENTS.md,
+      codemap.md, test/, bin/, or any other location — the three direct retargets (CMP-006 sites
+      1-3) are verified clean. PASS per AC-011/AC-012 with the delta-routed sites noted. Flagged
+      plan-vs-design discrepancy (design wins per CMP-006/DEC-006): the plan's TASK-007 exclusion
+      list omits the three delta-routed docs/current files; treating their hits as failures would
+      demand an invariant-4 violation, so they are classified as expected pending-delta sites and
+      recorded here for implementation-review and knowledge extraction to close out.
+    started_at: 2026-08-27
+    files_changed: []
+    completed_at: 2026-08-27
+  - id: TASK-008
+    title: Audit write surface, frozen artifacts, and docs/ideas queue state (AC-006/AC-019/AC-025)
+    description: |
+      Combined working-tree audit after the sweep. (a) AC-006 implementation-time evidence: git
+      status/diff shows the change's file operations equal the declared surface exactly -
+      src/skills/improvement-review/SKILL.md modified, AGENTS.md modified, codemap.md modified,
+      docs/ideas/sdlc-improvement-review-playbook.md deleted, and this change's artifacts under
+      docs/changes/rehome-improvement-review-canon/ - and NOTHING outside that set was created
+      or modified. (b) AC-019: git diff over docs/changes/sdlc-improvement-review-skill/ is
+      empty - the earlier change's artifacts remain frozen and never migrated (NFR-003).
+      (c) AC-025: list docs/ideas/ - only open proposals remain
+      (ac-parent-backref-check, envelope-state-flags, p12-fast-track-lane, review-round-findings,
+      update-artifact-dry-run) with the playbook absent; grep every docs/ideas/*.md Status row
+      against the landing signature regex "^Landed in \S+ \d{4}-\d{2}-\d{2}$" - zero matches.
+      Record all three evidences in the task note.
+    type: verification
+    status: done
+    complexity: low
+    covers:
+      - FR-003
+      - FR-009
+      - NFR-003
+    acceptance_ids:
+      - AC-006
+      - AC-019
+      - AC-025
+    design_refs:
+      - DEC-005
+      - DEC-006
+    depends_on:
+      - TASK-007
+    implementation_note: >-
+      TASK-008 COMPLETE — combined working-tree audit, all three evidences green.
+
+
+      (a) AC-006 write surface: git status --porcelain shows exactly the declared surface — M
+      AGENTS.md, M codemap.md, M src/skills/improvement-review/SKILL.md, D
+      docs/ideas/sdlc-improvement-review-playbook.md (staged deletion), plus untracked
+      docs/changes/rehome-improvement-review-canon/ (this change's own artifacts). NOTHING outside
+      that set was created or modified by this change or by any helper run: the four helpers are
+      read-only (byte-identity double-runs in TASK-006 produced zero tree changes; helper outputs
+      went to /tmp/opencode only). Pre-existing untracked files
+      (docs/ideas/ac-parent-backref-check.md, envelope-state-flags.md,
+      implementation-delta-channel.md, review-round-findings.md, update-artifact-dry-run.md, and
+      docs/changes/sdlc-improvement-review-skill/design-review.yaml) were already untracked before
+      this change's first operation (present in the git status captured immediately after TASK-002's
+      git rm, before any helper ran) — none created or modified by this change.
+
+
+      (b) AC-019: git diff AND git diff --cached over docs/changes/sdlc-improvement-review-skill/
+      are both empty — the earlier change's artifacts remain frozen and unmodified (NFR-003). The
+      untracked design-review.yaml inside that folder predates this change and was never touched by
+      it.
+
+
+      (c) AC-025: docs/ideas/ holds exactly six open proposals — ac-parent-backref-check.md,
+      envelope-state-flags.md, implementation-delta-channel.md, p12-fast-track-lane.md,
+      review-round-findings.md, update-artifact-dry-run.md — the playbook absent. Signature-based
+      check (per ADV-2, NOT list enumeration): grep of every docs/ideas/*.md Status row against the
+      landing signature "^Landed in \S+ \d{4}-\d{2}-\d{2}$" returns ZERO matches (all six Status
+      rows read Proposed / Proposed — partially de-risked by a manual micro-cycle). PASS.
+
+
+      Notes for the record: (1) the plan's TASK-008 enumeration lists five expected proposals but
+      docs/ideas also holds implementation-delta-channel.md (Status Proposed, Origin: planning
+      session of this change) — a stale plan enumeration; the signature-based AC-025 check passes
+      regardless and the open-proposal set may grow (ADV-2). (2) p12's Status carries a suffix after
+      "Proposed" — still outside the landing signature, no violation.
+    started_at: 2026-08-27
+    files_changed: []
+    completed_at: 2026-08-27
+  - id: TASK-009
+    title: Final gate - npm run check:all (AGENTS.md section 1)
+    description: |
+      AGENTS.md section 1 full-coverage gate for the completed change: npm run check:all
+      (validate + unit + e2e + deploy smoke) must exit 0. The deploy smoke re-proves the
+      two-skill bundle contract (invariant 9 - improvement-review is dev-only and never
+      deployed); the suite re-proves no regression from the SKILL.md rewrite (the change's only
+      src/ touch). Runs last, after every verification task is done. Evidence: exit code 0
+      recorded in the task note.
+    type: verification
+    status: done
+    complexity: low
+    covers:
+      - FR-005
+      - NFR-002
+    acceptance_ids:
+      - AC-009
+    design_refs:
+      - DEC-001
+    depends_on:
+      - TASK-006
+      - TASK-008
+    implementation_note: "Final gate passed: npm run check:all exit code 0 (record:
+      /tmp/opencode/checkall.log). Breakdown: validate 196/196 unit tests pass 0 fail; unit suite
+      re-run inside check:all 196/196; e2e 47/47 pass 0 fail; deploy smoke passed — exactly two
+      skills shipped and smoke-passed (agentic-sdlc, knowledge-init), improvement-review never
+      deployed (invariant 9 re-proven: dev-only skill stays out of the bundle), all six rendered
+      agents smoke-passed. The only grep hits for failure markers in the log are passing test names
+      ('descriptor failing the meta-schema is a hard error'). No regression from the SKILL.md
+      rewrite (the change's only src/ touch). All nine tasks terminal; change ready for
+      implementation-review."
+    started_at: 2026-08-27
+    files_changed: []
+    completed_at: 2026-08-27
+milestones:
+  - id: MS-001
+    title: Register resolved and playbook dissolved
+    tasks:
+      - TASK-001
+      - TASK-002
+    done_when: Every DM-005 row is verified in the TASK-001 note (citation resolves AND states the
+      claimed content), the six prose baselines are captured verbatim, the playbook is absent from
+      docs/ideas, and no docs/ideas/p11 duplicate was created.
+  - id: MS-002
+    title: Skill rewritten and references retargeted
+    tasks:
+      - TASK-003
+      - TASK-004
+    done_when: npm run validate exits 0 after the SKILL.md rewrite, the AGENTS.md section 10 and
+      codemap.md rows are retargeted, and no task touched docs/current or engine files.
+  - id: MS-003
+    title: Baselines captured and change verified
+    tasks:
+      - TASK-005
+      - TASK-006
+      - TASK-007
+      - TASK-008
+      - TASK-009
+    done_when: M-01..M-12 are recorded in the TASK-005 note, byte-identity and shape evidence is
+      recorded, the residual sweep reports zero live references, all audits are green, and check:all
+      exits 0. Knowledge extraction (post-review) then applies the staged deltas -
+      AC-015/AC-016/AC-022 (no new document, table formats preserved) and
+      AC-001/AC-002/AC-013/AC-014 (goals canon) verify at extraction time.
+risks:
+  - id: RISK-001
+    description: A Fixed-row citation fails re-verification, which would lose regression-check history
+      if the playbook were deleted anyway.
+    mitigation: Deletion is structurally gated - TASK-002 depends on TASK-001 and stops on any failed
+      citation (AC-008, failure path 1); the row is preserved into this change's records or an idea
+      document first; F5's fallback cites the hosted p11 (preserve-without-duplicating, never a
+      docs/ideas/p11 duplicate).
+  - id: RISK-002
+    description: The residual sweep surfaces a hidden live reference to the playbook path beyond the six
+      known sites.
+    mitigation: Failure path 3 - the reference is retargeted before finalization; TASK-007 gates
+      TASK-008 and TASK-009, so finalization cannot precede a clean sweep.
+  - id: RISK-003
+    description: envelope_sizes trusts bare authoring/tasks/aggregator CLI invocations to be read-only;
+      an engine regression could make measurement mutate change state.
+    mitigation: Verified read-only in the current engine (review stages hardcode --dry-run; bare
+      authoring invocations only detect the step); the TASK-006 byte-identity double-run would
+      surface state mutation as output drift between runs.
+  - id: RISK-004
+    description: No transcript files are supplied during implementation, so M-12 cannot record a real value.
+    mitigation: DM-003 pending marker - Value "pending", kind and unit declared, recipe in the
+      comparability note, no delta claim; the first successful measurement replaces the row.
+  - id: RISK-005
+    description: The playbook's six prose baselines would be lost with the deleted file, leaving
+      AC-023's verbatim migration impossible at extraction time.
+    mitigation: TASK-001 captures the six bullets verbatim into its task note BEFORE TASK-002 deletes
+      the file; knowledge extraction migrates from the captured text, never regenerates.
+delta:
+  - phase: Planning
+    target_doc: docs/current/capabilities.md
+    target_anchor: SDLC Goals
+    entity_id: null
+    change: Add
+    reason: Plan tasks TASK-001..TASK-005 stage the eight-goal SDLC canon content per design CMP-001
+      (G-01..G-08 with grounding sources, status active, created 2026-08-27, amendments none) for
+      knowledge extraction to insert between Capabilities and Workflows; the canon mutates only via
+      changes and every review run consumes it read-only. Dedupes with the design-phase entry for
+      the same anchor.
+    date: 2026-08-27
+  - phase: Planning
+    target_doc: docs/current/operations.md
+    target_anchor: Baselines
+    entity_id: null
+    change: Add
+    reason: Plan task TASK-005 produces the initial quantitative rows M-01..M-12 by running the four
+      bundled helpers after all file work completes, values captured in the task note for knowledge
+      extraction to fill into the CMP-002 row plan alongside the six prose baselines captured
+      verbatim by TASK-001; rows land only via this change's knowledge extraction. Dedupes with the
+      design-phase entry for the same anchor.
+    date: 2026-08-27

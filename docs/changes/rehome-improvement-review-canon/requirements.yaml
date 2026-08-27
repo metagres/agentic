@@ -1,0 +1,473 @@
+metadata:
+  id: REQ-001
+  title: "Rehome improvement-review canon: goals and baselines into docs/current, findings into the
+    ideas queue, playbook dissolved"
+  stage: requirements
+  status: accepted
+  version: 0.1.2
+  created: 2026-08-27
+  updated: 2026-08-27
+  request_summary: "Dissolve the improvement-review playbook: move the SDLC goals list into
+    docs/current/capabilities.md and the measurement baselines into docs/current (operations.md),
+    treat findings as docs/ideas proposals whose own Status field carries disposition (the findings
+    register dissolves), retarget SKILL.md's precondition gate and shrink the skill's run-time write
+    surface to docs/ideas only so the skill becomes a pure advisor with all docs/current mutation
+    flowing through knowledge extraction per invariant 4, remove the playbook from docs/ideas, and
+    author the initial dated goals list through this change's own pipeline."
+  clarity: clear
+  assumptions_reviewed: true
+  delta_reviewed: false
+  discovery_reviewed: true
+  scenarios_reviewed: true
+  step: complete
+problem_statement: The improvement-review playbook hosts mutable canon (goals list, findings
+  register, baselines) inside docs/ideas, a directory whose contract is a proposal queue where
+  everything awaits consideration via a change. Every review run rewrites canon inside the queue,
+  blurring what is proposal and what is law, and the skill holds run-time write power over its own
+  evaluation standards. The method sections are now duplicated by SKILL.md, which executes them,
+  while the introducing change's artifacts preserve their rationale. Canon belongs in the governed
+  living docs; findings belong in the queue they already feed.
+discovery_log:
+  - id: DL-001
+    question: What is wrong with the goals living in docs/ideas/sdlc-improvement-review-playbook.md?
+    answer: "docs/ideas is a proposal queue by contract: everything there awaits consideration via a
+      change. The playbook hosts mutable canon (goals, register, baselines) that every review run
+      loads and rewrites, which violates the queue semantics. The playbook dissolves; docs/ideas
+      keeps only proposal documents."
+    lens: stakeholder
+    resolved: true
+  - id: DL-002
+    question: Where does each displaced artifact land?
+    answer: "Goals become a section in docs/current/capabilities.md (the why behind the capabilities;
+      avoids a tenth docs/current document so the index contract stays at nine rows). Baselines
+      become a section in docs/current/operations.md (operational measurements beside Commands).
+      Findings dissolve into docs/ideas proposal documents whose own Status header field carries
+      disposition. The fairness pass stays method-only in SKILL.md: every run cites at least one
+      confirmed-working mechanism with evidence folded into its proposals; no store."
+    lens: interface
+    resolved: true
+  - id: DL-003
+    question: Who may mutate goals and baselines after the move, and through which path?
+    answer: "The skill's run-time write surface shrinks to docs/ideas proposals only - it becomes a pure
+      advisor. Goals and baselines in docs/current are mutated only through changes: a run compares
+      fresh measurements against the last recorded baseline and carries evidence inside its
+      proposals; when a proposal lands as a change, that change's knowledge extraction refreshes the
+      affected rows. The initial goals list (currently an empty scaffold) is authored by this change
+      through its own pipeline and stored via its knowledge extraction - no runtime bootstrap ever
+      exists."
+    lens: data
+    resolved: true
+  - id: DL-004
+    question: What happens to the playbook's existing state when the file is removed?
+    answer: "No orphaned state: before removal, every register row carrying open residue (F4 partially
+      fixed, F5 and F7 open) resolves to either a docs/ideas document or an explicit dated
+      disposition in this change's artifacts (F5's p11 target does not exist - create it or drop the
+      row with reason); Fixed rows' provenance is verified present in decisions.md and completed
+      change artifacts before deletion. SKILL.md's precondition gate retargets from the playbook
+      anchor to the goals canon in capabilities.md and keeps loud-abort: missing canon means name
+      the file and stop."
+    lens: failure
+    resolved: true
+  - id: DL-005
+    question: Do any AGENTS.md invariants or repo contracts need changing?
+    answer: "No. Invariant 4 (living docs via knowledge extraction only) holds because the skill never
+      writes docs/current; invariant 5 untouched; the docs/current index contract stays at nine
+      documents; frozen envelope, capped catalog, and engine code untouched; the four measurement
+      helpers are unchanged. Reference retargets: AGENTS.md section 10 row, codemap row,
+      capabilities.md improvement-review row phrasing, operations.md improvement-review row
+      phrasing."
+    lens: constraint
+    resolved: true
+  - id: DL-006
+    question: What does done look like?
+    answer: After this change docs/ideas contains only proposal documents; goals and baselines are
+      queryable canon in docs/current consumed read-only by every review run; a future review run
+      needs zero playbook interaction; the nine-section proposal format and governance test survive
+      unchanged grounded on the p12 exemplar.
+    lens: outcome
+    resolved: true
+assumptions:
+  - type: verified
+    text: The playbook's method content is preserved by the change that introduced the skill and is
+      executed by SKILL.md, so dissolving the playbook loses no operational method.
+    source: docs/changes/sdlc-improvement-review-skill/design.yaml; src/skills/improvement-review/SKILL.md
+  - type: verified
+    text: capabilities.md and operations.md have established table formats the new sections can join
+      without adding a tenth docs/current document.
+    source: docs/current/capabilities.md; docs/current/operations.md
+  - type: verified
+    text: The goals scaffold in the playbook is empty (zero G-NN entries, zero dates, zero numbers), so
+      no goals content migrates - only the section is removed.
+    source: docs/ideas/sdlc-improvement-review-playbook.md
+  - type: unverified
+    text: Every Fixed register row's provenance survives in decisions.md and the completed change
+      artifacts of the reform and the skill introduction.
+    question: Can all six Fixed/unlabeled rows be traced to durable records before the playbook is deleted?
+    impact: A gap would lose the regression-check history that future reviews compare against.
+    severity: medium
+  - type: unverified
+    text: F5's substance (agent delegation loop) may be partially delivered by subsequent agent-layer
+      changes; the create-p11-or-drop disposition needs evidence at implementation time.
+    question: Does F5 remain open, and if so what residue must p11 capture?
+    impact: Determines whether an idea document is created or the row is closed with evidence.
+    severity: low
+  - type: verified
+    text: The known live-reference sites for the playbook path are SKILL.md, AGENTS.md section 10,
+      codemap.md, capabilities.md, operations.md, and glossary.md (entity rows pointing at the
+      playbook); decisions.md carries only an append-only historical record excluded from the live
+      set.
+    source: repo-wide grep 2026-08-27; docs/current/glossary.md; docs/current/decisions.md
+  - type: unverified
+    text: No live references to the playbook path exist beyond the six enumerated sites.
+    question: Does a repo-wide grep at implementation time surface additional live references?
+    impact: A missed live reference would direct future agents to a deleted file.
+    severity: medium
+  - type: unverified
+    text: Change folders tolerate non-toolkit files (a hosted idea .md beside the stage artifacts)
+      without breaking validation or tooling.
+    question: Does any validation or workflow enumerate change-folder contents strictly?
+    impact: The move step could fail or pollute a validation gate.
+    severity: low
+functional_requirements:
+  - id: FR-001
+    description: When the relocation completes, the SDLC goals list shall live as a dated section in
+      docs/current/capabilities.md containing the eight confirmed goals (G-01 through G-08) with
+      grounding sources, stored through this change's knowledge extraction and never written by the
+      skill at run time.
+    ac_ids:
+      - AC-001
+      - AC-002
+  - id: FR-002
+    description: When a review run measures the toolkit, the skill shall compare fresh measurements
+      against the baseline section in docs/current/operations.md read-only, carrying evidence and
+      deltas inside its proposal documents instead of writing any canon.
+    ac_ids:
+      - AC-003
+      - AC-004
+  - id: FR-003
+    description: When a review run produces findings, each substantiated finding shall become or update
+      a docs/ideas proposal document whose Status header field carries the disposition, and the
+      skill shall write nothing outside docs/ideas.
+    ac_ids:
+      - AC-005
+      - AC-006
+  - id: FR-004
+    description: When the playbook file is removed from docs/ideas, every register row carrying open
+      residue (Open or Partially fixed) shall first resolve to a docs/ideas document or an explicit
+      dated disposition recorded in this change's artifacts, and every fully Fixed row's provenance
+      shall be verified present in decisions.md or completed change artifacts.
+    ac_ids:
+      - AC-007
+      - AC-008
+  - id: FR-005
+    description: "When the playbook is dissolved, SKILL.md shall become a pure advisor: its precondition
+      gate shall retarget to the goals canon in capabilities.md and the baselines in operations.md
+      with loud-abort preserved, and its run-time canon-write duties (goals lifecycle writes,
+      register refresh, baseline row appends) shall be replaced by read-only consumption with
+      updates traveling only inside proposal documents."
+    ac_ids:
+      - AC-009
+      - AC-010
+  - id: FR-006
+    description: "When the playbook is removed, every live reference to it shall be retargeted or
+      removed: AGENTS.md section 10 row, codemap.md row, capabilities.md improvement-review row,
+      operations.md improvement-review row, and any further reference a repo-wide grep sweep
+      surfaces."
+    ac_ids:
+      - AC-011
+      - AC-012
+  - id: FR-007
+    description: When the initial goals canon is authored, each goal shall carry grounding sources drawn
+      from AGENTS.md, docs/current/, agentic-SDLC best practice, or dogfooding observation, and the
+      set shall include the automation-maximization goal (scriptable work belongs in scripts;
+      judgment-only work belongs to the agent) with the AI coding agent named as the primary
+      consumer of the SDLC.
+    ac_ids:
+      - AC-013
+      - AC-014
+  - id: FR-008
+    description: When the baselines section is created in operations.md, the playbook's prose baselines
+      shall migrate as the authoritative qualitative record, and initial quantitative rows (command,
+      date, value, kind) shall be produced by actually running the bundled helpers during this
+      change's implementation, with pending markers and recipes for any metric a helper cannot
+      measure.
+    ac_ids:
+      - AC-021
+      - AC-023
+  - id: FR-009
+    description: When a change implements one or more idea documents from docs/ideas, the completing
+      change shall, during its own implementation stage before the change completes, update each
+      implemented idea's Status header field to record the implementing change slug and landing
+      date, and move the idea file unmodified into its own change folder, leaving docs/ideas
+      containing only open proposals.
+    ac_ids:
+      - AC-024
+      - AC-025
+      - AC-026
+non_functional_requirements:
+  - id: NFR-001
+    description: When docs/current changes, every write shall flow through this change's knowledge
+      extraction via delta entries, the index contract shall stay at nine documents, and established
+      table formats shall be preserved.
+    ac_ids:
+      - AC-015
+      - AC-016
+      - AC-022
+  - id: NFR-002
+    description: When the skill is amended by this change, the four helper scripts shall keep their
+      measurement behavior and CLI surface unchanged - byte-identity scoped to the three
+      state-derived helpers and shape stability to the timing helper per the frozen DEC-008 scoping
+      of sdlc-improvement-review-skill - and the nine-section proposal skeleton with its governance
+      test shall survive unchanged.
+    ac_ids:
+      - AC-017
+      - AC-018
+  - id: NFR-003
+    description: When the relocation lands, the completed change sdlc-improvement-review-skill's
+      artifacts shall remain frozen (never migrated), and the method provenance they carry shall be
+      cited in this change's records as the record of the playbook's method content.
+    ac_ids:
+      - AC-019
+      - AC-020
+acceptance_criteria:
+  - id: AC-001
+    statement: Given this change completes, when capabilities.md is read, then the goals section lists
+      eight dated G-NN entries with grounding sources and status active.
+    category: happy
+    parent_id: FR-001
+  - id: AC-002
+    statement: Given the docs/current index, when inspected after completion, then it still lists
+      exactly nine documents with the unchanged column contract.
+    category: boundary
+    parent_id: FR-001
+  - id: AC-003
+    statement: Given recorded baselines in operations.md, when a review run measures the toolkit, then
+      each proposal's evidence section cites the baseline value, the fresh value, and the delta for
+      every compared metric.
+    category: happy
+    parent_id: FR-002
+  - id: AC-004
+    statement: Given a metric with no recorded baseline row, when a run measures it, then the proposal
+      labels the number as an initial-baseline candidate for the landing change's knowledge
+      extraction to record.
+    category: edge
+    parent_id: FR-002
+  - id: AC-005
+    statement: Given a substantiated finding, when the run processes it, then its idea document's Status
+      header field reflects the disposition with a date.
+    category: happy
+    parent_id: FR-003
+  - id: AC-006
+    statement: Given a completed review run, when the working tree is inspected afterward, then no file
+      outside docs/ideas was created or modified by the skill.
+    category: negative
+    parent_id: FR-003
+  - id: AC-007
+    statement: Given the register's rows carrying open residue (F4 partially fixed, F5 and F7 open),
+      when the playbook is removed, then F7 resolves to the existing p12 document, and F4 and F5
+      each resolve to a created idea document or a dated disposition recorded in this change's
+      artifacts.
+    category: happy
+    parent_id: FR-004
+  - id: AC-008
+    statement: Given a Fixed row whose provenance cannot be located in decisions.md or change artifacts,
+      when removal is attempted, then the removal stops and the row is first preserved into an idea
+      document or this change's records.
+    category: negative
+    parent_id: FR-004
+  - id: AC-009
+    statement: Given SKILL.md after the change, when read, then the precondition gate names
+      capabilities.md and operations.md, aborts loudly when either canon is missing, and no section
+      instructs writing goals, register, or baselines.
+    category: happy
+    parent_id: FR-005
+  - id: AC-010
+    statement: Given a future goal amendment need identified by a run, when the run ends, then the
+      amendment travels as a proposal whose landing change carries the delta entry for
+      capabilities.md.
+    category: edge
+    parent_id: FR-005
+  - id: AC-011
+    statement: Given the completed change, when a repo-wide grep for the playbook path runs, then zero
+      live references remain outside append-only historical records and the frozen artifacts of
+      completed changes.
+    category: happy
+    parent_id: FR-006
+  - id: AC-012
+    statement: Given the frozen artifacts of the completed change sdlc-improvement-review-skill, when
+      the reference sweep runs, then those artifacts are left untouched and excluded from the
+      live-reference count.
+    category: boundary
+    parent_id: FR-006
+  - id: AC-013
+    statement: Given the goals section in capabilities.md, when read, then every entry names at least
+      one grounding source and the automation-maximization entry states the scripts-first and
+      judgment-to-agent split with the AI coding agent as primary consumer.
+    category: happy
+    parent_id: FR-007
+  - id: AC-014
+    statement: Given a goal whose grounding is a best-practice principle rather than a repo artifact,
+      when stored, then the grounding names the principle explicitly instead of an unverifiable
+      reference.
+    category: edge
+    parent_id: FR-007
+  - id: AC-015
+    statement: Given the completed change, when docs-delta.yaml is read, then it carries the
+      capabilities.md and operations.md entries and knowledge extraction applied them to the living
+      docs.
+    category: happy
+    parent_id: NFR-001
+  - id: AC-016
+    statement: Given this change's knowledge extraction, when it applies the living-doc deltas, then it
+      adds no new document to docs/current and the index keeps exactly its nine rows.
+    category: boundary
+    parent_id: NFR-001
+  - id: AC-022
+    statement: Given capabilities.md and operations.md after extraction, when read, then every
+      pre-existing table keeps its column contract and the change only added sections or rows.
+    category: happy
+    parent_id: NFR-001
+  - id: AC-017
+    statement: Given the three state-derived helpers (measure_artifacts, envelope_sizes,
+      mine_transcript), when each is run before and after the change against identical repository
+      state, then outputs are byte-identical apart from explicitly passed arguments, and
+      validate_duration keeps its fixed record shape and units per the frozen DEC-008 scoping.
+    category: happy
+    parent_id: NFR-002
+  - id: AC-018
+    statement: Given a proposal document produced after the change, when checked against the proposal
+      skeleton, then all nine sections including the governance test are present.
+    category: edge
+    parent_id: NFR-002
+  - id: AC-019
+    statement: Given both changes' roots under docs/changes/, when the earlier change's artifacts are
+      inspected after this change completes, then no file under
+      docs/changes/sdlc-improvement-review-skill/ was modified.
+    category: happy
+    parent_id: NFR-003
+  - id: AC-020
+    statement: Given the dissolved playbook's method content, when provenance is needed, then the
+      introducing change's design.yaml and plan.yaml remain accessible and are cited in this
+      change's records as the method record.
+    category: boundary
+    parent_id: NFR-003
+  - id: AC-021
+    statement: Given the helper outputs captured during this change's implementation, when knowledge
+      extraction applies the baselines delta, then operations.md's baseline section contains initial
+      quantitative rows with command, date, value, and kind for every measurable metric, or pending
+      markers with recipes where a helper cannot measure.
+    category: boundary
+    parent_id: FR-008
+  - id: AC-023
+    statement: Given the playbook's prose baselines, when knowledge extraction applies the baselines
+      delta, then operations.md's baseline section contains them as the authoritative qualitative
+      record.
+    category: happy
+    parent_id: FR-008
+  - id: AC-024
+    statement: Given a change implementing an idea document, when the change completes, then the idea
+      file resides in that change's folder with its Status header recording the change slug and
+      landing date and its content otherwise unmodified.
+    category: happy
+    parent_id: FR-009
+  - id: AC-025
+    statement: Given the completed change, when docs/ideas is listed, then it contains only open
+      proposals and no file whose Status records a landing.
+    category: negative
+    parent_id: FR-009
+  - id: AC-026
+    statement: Given an idea file already hosted by a completed change, when later work relates to it,
+      then the later change references it read-only and does not modify the hosted file.
+    category: boundary
+    parent_id: FR-009
+out_of_scope:
+  - Changing any AGENTS.md invariant; none is needed because the skill never writes docs/current and
+    invariant 4 already governs the new mutation path.
+  - Adding a tenth docs/current document or altering the index contract; goals and baselines join
+    existing documents.
+  - Changing the four helper scripts' measurement behavior or CLI surface; they stay
+    measurement-only.
+  - Automating goal amendments; they ride changes through the normal pipeline.
+  - Developing the substance of the p11 idea document; this change only preserves or disposes the F5
+    row, and any delegation-loop work is a future change.
+  - Engine, stage, check-catalog, or envelope changes.
+failure_paths:
+  - If a Fixed row's provenance cannot be located, removal stops until the row is preserved into an
+    idea document or this change's records.
+  - If capabilities.md or operations.md lack a viable anchor for the new sections at
+    knowledge-extraction time, extraction fails loudly naming the document instead of inventing
+    structure.
+  - If the repo-wide grep finds a live playbook reference after implementation, the change is not
+    complete; the reference is retargeted before finalization.
+  - If a helper cannot measure a metric at implementation time, the baselines section records the
+    recipe with a pending marker instead of an invented number.
+  - If F5's evidence is ambiguous, the row defaults to creating the p11 document (preservation over
+    deletion).
+  - If validation rejects a hosted idea file inside a change folder, the design relocates the
+    convention (for example a landed subfolder or a registry section) and records the decision
+    before implementation proceeds.
+risks_and_dependencies:
+  - Fixed-row provenance gaps would lose regression-check history; the verify-before-delete
+    requirement and failure path 1 mitigate. (failure path 1)
+  - F5's disposition is ambiguous until implementation-time evidence is gathered; the default is
+    preservation via the p11 document. (failure path 5)
+  - Hidden live references to the playbook would strand future agents; the repo-wide grep sweep and
+    failure path 3 mitigate. (failure path 3)
+  - Change-folder tolerance for hosted idea files is unproven; implementation verifies with the full
+    gate before relying on it. (failure path 6)
+  - '"Dependency: this change supersedes DEC-001 of sdlc-improvement-review-skill with a new dated
+    decision; the frozen artifacts of the completed change stay untouched."'
+  - '"Dependency: the eight-goal canon content was confirmed by the maintainer on 2026-08-27; future
+    amendments ride changes through the normal pipeline."'
+delta:
+  - phase: Requirements
+    target_doc: docs/current/capabilities.md
+    change: Add
+    reason: New SDLC goals section carrying the eight dated goals as canon - the why behind the
+      capabilities - grounded in AGENTS.md, docs/current, best practice, and dogfooding.
+    date: 2026-08-27
+  - phase: Requirements
+    target_doc: docs/current/capabilities.md
+    change: Modify
+    reason: Improvement-review row phrasing flips from playbook-hosted run state to pure advisor reading
+      canon from capabilities.md and operations.md.
+    date: 2026-08-27
+  - phase: Requirements
+    target_doc: docs/current/operations.md
+    change: Add
+    reason: "New Baselines section: prose baselines migrated from the playbook plus initial quantitative
+      rows produced by running the bundled helpers."
+    date: 2026-08-27
+  - phase: Requirements
+    target_doc: docs/current/operations.md
+    change: Modify
+    reason: Improvement-review command row phrasing flips from refreshing playbook state to writing only
+      docs/ideas proposals and reading canon.
+    date: 2026-08-27
+  - phase: Requirements
+    target_doc: docs/current/conventions.md
+    change: Add
+    reason: "docs/ideas queue contract: the directory holds only proposal documents whose Status field
+      carries disposition; mutable canon lives only in docs/current and changes only via changes; an
+      idea implemented by a change moves into that change's folder at completion with its Status
+      recording the landing, keeping docs/ideas a queue of open proposals only."
+    date: 2026-08-27
+  - phase: Requirements
+    target_doc: docs/current/glossary.md
+    change: Add
+    reason: "Terms for the rehomed model: goals canon, baseline kinds, proposal queue contract, idea
+      lifecycle, pure-advisor skill."
+    date: 2026-08-27
+  - phase: Requirements
+    target_doc: docs/current/glossary.md
+    change: Modify
+    reason: "Retarget the Improvement Review entity rows: SDLC goals list now stored in
+      docs/current/capabilities.md, measurement baselines in docs/current/operations.md, playbook
+      field dissolved to a historical note."
+    date: 2026-08-27
+  - phase: Requirements
+    target_doc: docs/current/decisions.md
+    change: Add
+    reason: "Decision superseding DEC-001 of sdlc-improvement-review-skill: canon lives in living docs
+      and mutates only via changes; the skill is a pure advisor; the playbook dissolves."
+    date: 2026-08-27

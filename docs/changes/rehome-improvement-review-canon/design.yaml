@@ -1,0 +1,914 @@
+metadata:
+  id: DES-001
+  title: "Design: rehome-improvement-review-canon"
+  stage: design
+  status: accepted
+  version: 0.1.1
+  created: 2026-08-27
+  updated: 2026-08-27
+  based_on_requirements: 0.1.2
+  delta_reviewed: false
+  step: complete
+context_summary: "This design dissolves docs/ideas/sdlc-improvement-review-playbook.md by rehoming
+  its canon into the governed living docs and shrinking the improvement-review skill to a pure
+  advisor. The SDLC goals list becomes a dated eight-entry section in docs/current/capabilities.md
+  (CMP-001, DM-001); the baselines become a two-tier section in docs/current/operations.md whose
+  prose migrates verbatim and whose initial quantitative rows are produced by actually running the
+  four bundled helpers during implementation (CMP-002, DM-002, DM-003, API-001 through API-004).
+  SKILL.md is rewritten so its precondition gate aborts loudly on missing canon, its goals gate
+  loads read-only, its propose-path reroutes through docs/ideas proposals, and its register refresh
+  is replaced by proposal-Status adjudication with fairness-in-proposals (CMP-003). The findings
+  register resolves before deletion: F7 to the existing p12, F4 and F5 by dated dispositions
+  recorded here, and every Fixed row's provenance verified against decisions.md and completed change
+  artifacts (CMP-004, DEC-004). The idea lifecycle is fixed as a convention: a Status landing
+  signature, an implementation-stage move duty verified at implementation-review, and frozen hosted
+  files (CMP-005, DM-004, DEC-005). A reference sweep retargets the six live sites and a residual
+  grep verifies zero live references at implementation (CMP-006, DEC-006); a new decision supersedes
+  the frozen DEC-001 of sdlc-improvement-review-skill. No engine, stage, catalog, envelope, or
+  helper-script changes."
+components:
+  - id: CMP-001
+    name: SDLC goals canon section in capabilities.md
+    responsibility: >-
+      Owns the goals canon as a new H2 section "## SDLC Goals" in docs/current/capabilities.md,
+
+      inserted between the "## Capabilities" section and "## Workflows" (the goals are the why
+
+      behind the capabilities listed above them; no tenth docs/current document is created).
+
+      Section preamble states the mutation contract: every improvement-review run loads this
+
+      section read-only before evaluating any finding; the canon mutates only through changes —
+
+      amendments and retirements travel as docs/ideas proposals and land through the landing
+
+      change's knowledge extraction; silent rewrites are prohibited. Entry format is one table
+
+      row per goal with columns ID | Goal | Grounding | Status | Created | Amendments (DM-001);
+
+      the Amendments cell holds "none" on creation and later appends "YYYY-MM-DD: justification"
+
+      entries separated by "<br>". The eight confirmed entries (status active, created
+
+      2026-08-27, amendments none), drafted so implementation and knowledge extraction only
+
+      apply them:
+
+
+      | ID | Goal | Grounding | Status | Created | Amendments |
+
+      |----|------|-----------|--------|---------|------------|
+
+      | G-01 | Given any stage interrupted mid-tour, an agent resuming solely from the change
+      artifacts under docs/changes/<slug>/ can continue without re-asking any settled question. |
+      AGENTS.md section 5 (stage folders are the structural source of truth);
+      docs/current/architecture.md; best-practice principle: structured phases with documented
+      continuity so each request carries enough information to continue. | active | 2026-08-27 |
+      none |
+
+      | G-02 | Every stage's happy path completes in a bounded number of CLI calls with zero
+      zero-change round-trips, and envelope payloads carry no field that no consumer reads. |
+      Dogfooding: the process-economy reform
+      (docs/changes/streamline-the-sdlc-process-economy-collapse-the-authoring-s/) measured 99
+      percent scenario/AC text similarity and 11 late findings; decisions.md 2026-08-26 streamline
+      rows; best-practice principle: tokens and rounds are the currency. | active | 2026-08-27 |
+      none |
+
+      | G-03 | No engine, CLI, or validation path invokes a model or makes a discretionary decision;
+      every engine outcome is reproducible from its inputs alone. | AGENTS.md section 2 (frozen
+      envelope, capped catalog); docs/current/conventions.md (deterministic validation, declarative
+      checks); best-practice principle: judgment at the call site, guardrails in the engine, never
+      an LLM inside the engine. | active | 2026-08-27 | none |
+
+      | G-04 | Every construction error that can be rejected at write time is rejected at write time
+      — no error class survives to review that the engine could have caught earlier. | Dogfooding:
+      11 review-time findings traced to one missing-note root cause; decisions.md 2026-08-26
+      streamline DEC-002 (write-time enforcement); best-practice principle: fail fast at the write
+      boundary. | active | 2026-08-27 | none |
+
+      | G-05 | Every declared flag, schema field, check, workflow, and template section has a named
+      live consumer, and unused surface is inventoried with grep evidence and removed or refuted. |
+      Dogfooding: reform finding F4 (complexity/milestones/risks unconsumed, unused flags, inert
+      version); src/skills/improvement-review/SKILL.md section 7 (standing unused-surface
+      inventory); best-practice principle: the consumer test — "the review might someday" is not a
+      consumer. | active | 2026-08-27 | none |
+
+      | G-06 | Adding a stage, agent, or deployment platform requires only new folders or renderer
+      files — zero engine TypeScript changes — and no definition hardcodes an agent-specific path. |
+      AGENTS.md section 2 invariants 7 and 10; test/e2e/new-stage-folder.test.ts (new stage folders
+      need no engine change);
+      docs/changes/add-agent-agnostic-agent-definitions-deployed-alongside-the-/ (agent layer
+      delivered by folder scan plus renderers). | active | 2026-08-27 | none |
+
+      | G-07 | Every review round is appended by the bound reviewer agent, never deleted or
+      rewritten, and no author reviews their own artifact. | AGENTS.md section 2 invariant 3
+      (append-only history); docs/current/conventions.md (review separation of duties);
+      docs/changes/add-agent-agnostic-agent-definitions-deployed-alongside-the-/design.yaml DEC-007
+      (stage-reviewer bound to all four review stages, file_write deny ceiling). | active |
+      2026-08-27 | none |
+
+      | G-08 | Scriptable work lives in scripts and judgment-only work goes to the agent: every
+      mechanically checkable rule is enforced by a deterministic script, and the AI coding agent is
+      the primary consumer whose time the SDLC optimizes. | Maintainer confirmation 2026-08-27;
+      dogfooding: judgment did a script's job catching the AC parent back-reference
+      (docs/ideas/ac-parent-backref-check.md); AGENTS.md section 1 (the fast gate is the one rule);
+      best-practice principle: scripts-first, judgment-to-agent split. | active | 2026-08-27 | none
+      |
+
+
+      Every grounding names at least one repo artifact or an explicitly named best-practice
+
+      principle (AC-013, AC-014). Landed only via this change's knowledge-extraction delta;
+
+      the skill never writes this section at run time.
+    files: docs/current/capabilities.md
+  - id: CMP-002
+    name: Baselines section in operations.md
+    responsibility: >-
+      Owns the baselines as a new H2 section "## Baselines" in docs/current/operations.md,
+
+      inserted after "## Commands" and before "## Environment" (operational measurements beside
+
+      the commands that produce them). Two tiers, preserving the frozen two-tier semantics
+
+      (sdlc-improvement-review-skill DEC-002): a "### Qualitative baselines (authoritative)"
+
+      subsection holding the playbook's six prose baselines migrated VERBATIM (AC-023) as a
+
+      bulleted list, never regenerated; and a "### Quantitative baselines" table with columns
+
+      ID | Metric | Kind | Value | Unit | Command | Date | Comparability note (DM-002), whose
+
+      initial rows are produced during THIS change's implementation by actually running the
+
+      helpers (API-001 through API-004) after all file work completes and before knowledge
+
+      extraction, so the rows reflect the completed state. Section preamble states: rows are
+
+      appended only through a change's knowledge extraction; review runs compare read-only and
+
+      carry deltas inside their proposals; timing rows compare orders of magnitude and
+
+      regressions, never bytes (frozen DEC-008). Row plan (values filled from actual helper
+
+      output at implementation):
+
+
+      | ID | Metric | Kind | Value | Unit | Command | Date | Comparability note |
+
+      |----|--------|------|-------|------|---------|------|--------------------|
+
+      | M-01 | artifact volume (docs/changes/ total) | count | <total-lines> | lines | node
+      src/skills/improvement-review/scripts/measure_artifacts.ts | 2026-08-27 | initial-baseline;
+      per-change detail lives in helper output; compare totals run-over-run |
+
+      | M-02 | envelope bytes requirements | bytes | <bytes> | bytes | node
+      src/skills/improvement-review/scripts/envelope_sizes.ts --change
+      rehome-improvement-review-canon | 2026-08-27 | initial-baseline; measured on this change's
+      artifacts; envelopes scale with artifact size — compare same-stage rows by orders of magnitude
+      |
+
+      | M-03 | envelope bytes requirements-review | bytes | <bytes> | bytes | (same command as M-02)
+      | 2026-08-27 | initial-baseline; same comparability note as M-02 |
+
+      | M-04 | envelope bytes design | bytes | <bytes> | bytes | (same command as M-02) | 2026-08-27
+      | initial-baseline; same comparability note as M-02 |
+
+      | M-05 | envelope bytes design-review | bytes | <bytes> | bytes | (same command as M-02) |
+      2026-08-27 | initial-baseline; same comparability note as M-02 |
+
+      | M-06 | envelope bytes planning | bytes | <bytes> | bytes | (same command as M-02) |
+      2026-08-27 | initial-baseline; same comparability note as M-02 |
+
+      | M-07 | envelope bytes planning-review | bytes | <bytes> | bytes | (same command as M-02) |
+      2026-08-27 | initial-baseline; same comparability note as M-02 |
+
+      | M-08 | envelope bytes implementation | bytes | <bytes> | bytes | (same command as M-02) |
+      2026-08-27 | initial-baseline; same comparability note as M-02 |
+
+      | M-09 | envelope bytes implementation-review | bytes | <bytes> | bytes | (same command as
+      M-02) | 2026-08-27 | initial-baseline; same comparability note as M-02 |
+
+      | M-10 | envelope bytes knowledge-extraction | bytes | <bytes> | bytes | (same command as
+      M-02) | 2026-08-27 | initial-baseline; same comparability note as M-02 |
+
+      | M-11 | validate duration | timing | <duration_ms> | ms | node
+      src/skills/improvement-review/scripts/validate_duration.ts | 2026-08-27 | initial-baseline;
+      prose anchor "npm run validate: ~2 s" maps to duration_ms of about 2000; machine-dependent —
+      compare orders of magnitude and regressions, never bytes |
+
+      | M-12 | transcript events | count | pending | events | node
+      src/skills/improvement-review/scripts/mine_transcript.ts <file>... | 2026-08-27 | pending: no
+      caller-supplied transcripts exist at implementation time; recipe — run against
+      maintainer-supplied transcript files during a review; the first successful run records the
+      initial value replacing this row |
+
+
+      Pending-marker format (DM-003, AC-021): the Value cell holds the literal token "pending",
+
+      the kind and unit are still declared, and the comparability note carries the recipe that
+
+      would produce the value; a pending row claims no delta and is replaced (not appended to)
+
+      by the first successful measurement. If the maintainer supplies transcript files during
+
+      implementation, M-12 records the real count instead. All rows land via the
+
+      knowledge-extraction delta; the helper scripts themselves are invoked read-only and stay
+
+      byte-identical (NFR-002).
+    files: docs/current/operations.md
+  - id: CMP-003
+    name: SKILL.md pure-advisor rewrite
+    responsibility: |-
+      Owns the rewrite of src/skills/improvement-review/SKILL.md from playbook-coupled runner to
+      pure advisor whose only write surface is docs/ideas (FR-003, FR-005, AC-006, AC-009).
+      Per-section specification:
+
+      - Frontmatter: inputs drop the playbook line and add docs/current/capabilities.md
+        ("## SDLC Goals" canon) and docs/current/operations.md ("## Baselines"); outputs drop
+        "refreshed playbook sections" and list docs/ideas proposals plus measurement records;
+        description rewritten to state the pure-advisor contract (reads canon, writes only
+        docs/ideas).
+      - Section 0 Principles: the "Reviewable state" principle becomes "Canon is read-only" —
+        goals and baselines live in docs/current, consumed read-only; the skill's only write
+        surface is docs/ideas. "Loud abort" retargets to the two canon files.
+      - Section 1 Preconditions: (1) locate docs/current/capabilities.md and verify the
+        "## SDLC Goals" anchor — missing file or anchor aborts naming file plus anchor, e.g.
+        "missing anchor '## SDLC Goals' in docs/current/capabilities.md", and runs nothing;
+        (2) locate docs/current/operations.md and verify the "## Baselines" anchor — same abort
+        behavior; (3) thin-signal check keeps its trigger (fewer than two substantive changes
+        since the last review date warns and proceeds only after explicit maintainer
+        confirmation) but the warning and confirmation are recorded in every proposal the run
+        produces (Origin field note), because proposals are the run's only durable output.
+      - Section 2 Goals gate becomes a read-only load: load the canon from capabilities.md and
+        evaluate findings against it; the runtime propose-and-store path is deleted. A goal
+        judged missing or amendment-worthy becomes a docs/ideas proposal (nine-section
+        skeleton) whose Goal section states the proposed entry in canon format (G-NN, testable
+        statement, grounding sources, status, created date, amendments); the landing change
+        carries the capabilities.md delta (AC-010).
+      - Section 4 Measurements becomes read-only comparison: compare each fresh number against
+        the newest same-kind quantitative row in operations.md; every proposal's Evidence
+        section cites baseline value, fresh value, and delta for every compared metric (AC-003).
+        A metric with no recorded baseline row is labeled an "initial-baseline candidate" in the
+        proposal for the landing change's knowledge extraction to record (AC-004). The prose
+        baselines are the authoritative qualitative record and are never regenerated. Helper
+        invocations, flags, and the timing-anchor mapping prose stay unchanged; no script is
+        touched (NFR-002).
+      - Section 9 grounding retarget: the nine-section skeleton plus governance test survive
+        unchanged (NFR-002) but their stated grounding becomes the p12 exemplar
+        (docs/ideas/p12-fast-track-lane.md) plus the frozen DM-005 record in
+        docs/changes/sdlc-improvement-review-skill/design.yaml (AC-020) — the playbook's Step 6
+        enumeration is preserved by that frozen record, so no method content is lost.
+      - Section 11 (register and baselines refresh) is REPLACED by proposal-Status adjudication
+        and fairness-in-proposals: (a) every substantiated finding becomes or updates a
+        docs/ideas proposal whose Status header field carries the disposition with a date, using
+        the vocabulary Proposed, "Landed in <change-slug> <YYYY-MM-DD>", "Dropped <YYYY-MM-DD> —
+        <reason>", "Superseded by <slug> <YYYY-MM-DD>" (DM-004); (b) fairness-in-proposals — a
+        run that produces proposals must cite at least one confirmed-working mechanism with
+        dated evidence inside a proposal (a "What worked" note in that proposal's Evidence
+        section); a run with zero substantiated findings writes nothing and the duty is vacuous;
+        (c) referential integrity — every proposal's References must resolve at write time;
+        dangling pointers are fixed before writing, never via engine changes; (d) unverified
+        hypotheses stay labeled with missing_evidence and never enter proposal bodies as fact
+        (carried over from section 8 unchanged).
+      - Section 12 failure paths table: the two playbook rows are replaced by canon rows —
+        "capabilities.md or its '## SDLC Goals' anchor missing: abort naming file and anchor;
+        run nothing" and "operations.md or its '## Baselines' anchor missing: abort naming file
+        and anchor; run nothing"; the recipe-shape-change row becomes: a run measuring with a
+        changed recipe marks the delta incomparable in its proposal and proposes a baseline
+        refresh row for the landing change's extraction; all other rows (helper input
+        unreadable, zero-extraction transcript, empty dataset) unchanged.
+      - Section 13 scope limits: the first limit becomes "write only inside docs/ideas/ — no
+        file outside docs/ideas is created or modified by a run (AC-006); canon updates travel
+        only inside proposals"; a new limit forbids editing idea files hosted inside completed
+        change folders (they are frozen; reference them read-only); the .opencode/, engine,
+        no-hardcoding, and no-scheduling limits are kept verbatim.
+    files: src/skills/improvement-review/SKILL.md
+  - id: CMP-004
+    name: Register resolution record and playbook deletion
+    responsibility: >-
+      Owns resolving every findings-register row BEFORE
+      docs/ideas/sdlc-improvement-review-playbook.md
+
+      is deleted (FR-004, AC-007, AC-008). The dispositions below are recorded in this design
+
+      (a change artifact) with citations verified on 2026-08-27; implementation re-verifies each
+
+      citation resolves and records the verification results in the plan task notes before the
+
+      deletion task runs. If any Fixed-row citation fails verification, deletion stops until the
+
+      row is preserved into an idea document or this change's records (AC-008, failure path 1).
+
+
+      - F1 (eight-step tour taxed capable agents; honor-system gates) — Fixed, provenance
+        verified: decisions.md 2026-08-26 streamline-the-sdlc-process-economy DEC-004 (six-step
+        tour, one-call finalize).
+      - F2 (scenarios-to-ACs 99 percent similar; three-phase deltas overlap) — Fixed, provenance
+        verified: decisions.md streamline DEC-001 (merged acceptance_criteria list) plus
+        dedupeDeltas in src/scripts/lib/kinds/aggregator.ts and the streamline design.yaml
+        (aggregator dedupe per doc+change).
+      - F3 (failures fired late; 11 review-time findings) — Fixed, provenance verified:
+        decisions.md streamline DEC-002 (write-time completeness enforcement).
+      - F4 (dead weight: complexity/milestones/risks unconsumed; unused flags; inert version) —
+        Fixed by dated disposition: the optionalization is provenance-verified (streamline
+        CMP-002/CMP-007 — planning bookkeeping optional, template stops emitting
+        task bookkeeping); the residue "flag inventory still open" is ABSORBED by the
+        improvement-review skill's standing Step-4 unused-surface inventory duty (SKILL.md
+        section 7): the inventory is a per-run procedure with mandatory grep evidence, not a
+        pending one-time item, so the residue dissolves into method rather than awaiting a fix.
+        No idea document needed.
+      - F5 (agent layer had no runtime consumer; reviews accepted by the authoring agent) —
+        Fixed by dated disposition: both complaints are delivered. "No runtime consumer" is
+        resolved most directly by the completed docs/changes/agent-delegation-loop/ change
+        (delegation directive composer src/scripts/lib/delegation.ts composing
+        delegate-directives into every bound-stage envelope from the declarative binding,
+        review kinds directed to the bound reviewer, SKILL.md delegation rule asserted by
+        deploy smoke) — the change that actually closed the loop, hosted from the original p11
+        proposal — and corroborated by
+        docs/changes/add-agent-agnostic-agent-definitions-deployed-alongside-the-/ (stage.yaml
+        agent binding FR-003/FR-004, binding surfaced in envelopes FR-005, agents rendered at
+        deploy FR-006, permission contracts FR-009/FR-010) and
+        docs/changes/agent-invocation-modes-and-interactive-questioning-agent-def/ (mode
+        resolution DEC-001, question gating DEC-002). "Reviews accepted by the authoring agent"
+        resolved by the stage-reviewer roster bound to all four review stages with a file_write
+        deny ceiling (add-agent-agnostic DEC-007, NFR-002) and the review separation-of-duties
+        convention (docs/current/conventions.md). Residual delegation-outcome instrumentation
+        (type/model/rework) remains a standing duty of the review skill's instrumentation
+        category 5 and mine_transcript's delegation events — method, not a missing feature.
+        FALLBACK (failure path 5), preserve-without-duplicating: if implementation verification
+        finds any F5 citation unresolvable or the evidence ambiguous, record the row's
+        preservation as a dated disposition in this change's resolution record (DM-005),
+        citing the existing hosted p11 at
+        docs/changes/agent-delegation-loop/p11-agent-delegation-loop.md (frozen per AC-026);
+        NEVER create a duplicate docs/ideas/p11 file — the delegation-loop substance is
+        delivered by the completed agent-delegation-loop change.
+      - F6 (fat envelopes; validate ran e2e builds) — Fixed, provenance verified: decisions.md
+        streamline DEC-003 (step_help opt-in) and DEC-005 (validate split).
+      - F7 (cycle granularity ignored change size) — resolves to the existing proposal
+        docs/ideas/p12-fast-track-lane.md (verified present on disk, Status Proposed); the row
+        dissolves and p12 remains the open proposal carrying the disposition.
+      - Unlabeled row 1 (docs-index parser silently returned 0 documents) — Fixed, provenance
+        verified: streamline plan.yaml task "Fix the docs-index parser for bare filenames" plus
+        the noise-filter comment in src/scripts/lib/docs-index.ts.
+      - Unlabeled row 2 (change slugs truncated mid-word) — Fixed, provenance verified:
+        docs/changes/explicit-change-slugs-at-creation-passing-change-together/ (word-boundary
+        slugify plus explicit slug creation).
+
+      After all rows resolve, the playbook file is deleted (git rm) as the final file operation
+
+      of the register-resolution task, before the helper measurement runs so the baselines
+
+      reflect the completed state. The method content the playbook carried is preserved by the
+
+      frozen artifacts of docs/changes/sdlc-improvement-review-skill/ (design.yaml, plan.yaml),
+
+      cited in this change's records as the method record (NFR-003, AC-020); those artifacts are
+
+      never modified (AC-019).
+    files: docs/ideas/sdlc-improvement-review-playbook.md, docs/changes/rehome-improvement-review-canon/
+  - id: CMP-005
+    name: Idea lifecycle convention
+    responsibility: |-
+      Owns the docs/ideas lifecycle convention (FR-009) landed in docs/current/conventions.md
+      (File Organization row) and docs/current/glossary.md (new "Entity: Idea Document" block,
+      DM-004). Convention content:
+
+      - Queue contract: docs/ideas holds only open proposal documents; mutable canon lives only
+        in docs/current and changes only via changes.
+      - Status landing signature: when a change implements one or more idea documents, the
+        implementing change sets each implemented idea's Status header field to exactly
+        "Landed in <change-slug> <YYYY-MM-DD>" (machine-checkable regex
+        "^Landed in \\S+ \\d{4}-\\d{2}-\\d{2}$") and moves the file UNMODIFIED apart from the
+        Status row into its own folder docs/changes/<change-slug>/ during its implementation
+        stage, before the change completes — leaving docs/ideas containing only open proposals
+        (AC-024, AC-025).
+      - Move duty placement: the duty lives as an implementation-stage task pattern in the
+        implementing change — its plan.yaml carries a documentation-type task titled
+        "Land idea <slug>" whose description states the Status update and the move; the engine
+        does not enforce this (no catalog or envelope changes), the convention plus review do.
+      - Verification pinned to implementation-review (per the requirements-review advisory):
+        the review round verifies (a) every idea the change implements is hosted in the change
+        folder with the landing Status, (b) docs/ideas contains no file whose Status matches the
+        landing signature — checked mechanically by grepping the Status row of every
+        docs/ideas/*.md against the signature regex, which must return zero files, and (c) the
+        hosted file's diff shows only the Status row change plus the path move. Review-time
+        state distinguishes stage-timing violations: an idea still sitting in docs/ideas at
+        review time means the implementation-stage landing task was skipped or run late, and the
+        round blocks until the duty is completed.
+      - Hosted-file freeze: once the change completes, the hosted idea file is a frozen change
+        artifact like every other file in docs/changes/<slug>/; later work references it
+        read-only and never modifies it (AC-026).
+    files: docs/current/conventions.md, docs/current/glossary.md
+  - id: CMP-006
+    name: Reference sweep and decision supersession
+    responsibility: |-
+      Owns retargeting every live reference to the playbook path (FR-006) and the superseding
+      decision entry. The six known live sites and their retargets:
+
+      1. src/skills/improvement-review/SKILL.md — all in-file references (frontmatter inputs,
+         preamble, section 1 preconditions, section 12 failure table) replaced by the CMP-003
+         rewrite.
+      2. AGENTS.md section 10 improvement-review row — rewrite the row tail: drop "refreshes the
+         goals list, findings register, and baselines stored in
+         docs/ideas/sdlc-improvement-review-playbook.md" and state instead that the skill reads
+         the goals canon (docs/current/capabilities.md) and baselines (docs/current/operations.md)
+         read-only and writes only docs/ideas proposals.
+      3. codemap.md src/skills/ row — same retarget as AGENTS.md (run state sentence replaced by
+         the canon-locations sentence).
+      4. docs/current/capabilities.md improvement-review row — retargeted via the
+         knowledge-extraction delta (Modify): pure advisor reading canon from capabilities.md and
+         operations.md, writing only docs/ideas proposals.
+      5. docs/current/operations.md improvement-review command row — retargeted via delta
+         (Modify): reads baselines read-only, writes only docs/ideas proposals, no playbook
+         interaction.
+      6. docs/current/glossary.md Improvement Review entity rows (playbook, SDLC goals list,
+         measurement baselines rows) — retargeted via delta (Modify): goals canon stored in
+         docs/current/capabilities.md, baselines in docs/current/operations.md, playbook field
+         dissolved to a historical note.
+
+      Exclusions from the live set: docs/current/decisions.md's historical 2026-08-27
+      sdlc-improvement-review-skill DEC-001 row (append-only history, untouched per invariant 3
+      discipline for decision records); the frozen artifacts under
+      docs/changes/sdlc-improvement-review-skill/ (never migrated, AC-012, AC-019); this
+      change's own artifacts (they become frozen completed-change artifacts on completion).
+      Residual sweep is an implementation verification step: run a repo-wide grep for
+      "sdlc-improvement-review-playbook" excluding .opencode/, .tmp/, node_modules,
+      llm_context.txt; every hit outside the exclusion set, the decisions.md history row, and
+      the frozen change artifacts is retargeted before finalization — a remaining live reference
+      means the change is not complete (failure path 3). The superseding decision entry
+      (DEC-001 here) lands in docs/current/decisions.md via the knowledge-extraction delta,
+      recording that canon lives in the living docs and mutates only via changes, the skill is a
+      pure advisor, the playbook is dissolved after register resolution, and the idea lifecycle
+      convention governs docs/ideas — explicitly superseding DEC-001 of
+      sdlc-improvement-review-skill whose frozen record stays untouched.
+    files: AGENTS.md, codemap.md, docs/current/capabilities.md, docs/current/operations.md,
+      docs/current/glossary.md, docs/current/decisions.md
+data_models:
+  - id: DM-001
+    name: Goals canon entry (capabilities.md table row)
+    definition: |-
+      Adapted from the frozen DM-001 of sdlc-improvement-review-skill (formats preserved, home
+      relocated). Fields: id G-NN (stable two-digit sequence, never reused); goal statement (one
+      testable sentence a review can answer with evidence); grounding sources (at least one of —
+      AGENTS.md section, docs/current file, named best-practice principle, dogfooding
+      observation with its artifact); status active | amended | retired; created date;
+      amendments (list of date + justification pairs, "none" on creation, appended as
+      "YYYY-MM-DD: justification" separated by "<br>" in the table cell). Stored as the
+      "## SDLC Goals" table in docs/current/capabilities.md. Mutated only through changes via
+      knowledge extraction; every review run consumes it read-only.
+  - id: DM-002
+    name: Quantitative baseline row (operations.md table row)
+    definition: |-
+      Adapted from the frozen DM-003 (fields preserved). Fields: id M-NN; metric name; kind
+      count | bytes | timing; value; unit (lines for count-of-lines, bytes, ms, events);
+      command (the exact helper invocation producing it); date; comparability note stating
+      which prior rows remain comparable and pinning what was measured (for envelope rows, the
+      change slug measured). First-run rows are marked initial-baseline in the comparability
+      note and claim no delta. Timing-kind rows compare orders of magnitude and regressions,
+      never bytes (frozen DEC-008). Later runs delta against the newest row of the same metric
+      kind; new rows are appended only through a change's knowledge extraction.
+  - id: DM-003
+    name: Pending baseline marker
+    definition: |-
+      The row shape for a metric no helper can measure at implementation time (AC-021): Value
+      cell holds the literal token "pending"; kind and unit are still declared; the
+      comparability note carries the recipe that would produce the value (invocation plus input
+      requirements); the row claims no delta. The first successful measurement REPLACES the
+      pending row (same id, real value, updated note) rather than appending a sibling, so the
+      table never carries two rows for one metric.
+  - id: DM-004
+    name: Idea document Status field and landing signature
+    definition: |-
+      The Status row of a docs/ideas proposal's header table carries the disposition with a
+      date. Vocabulary: "Proposed"; "Landed in <change-slug> <YYYY-MM-DD>" (the landing
+      signature, machine-checkable regex "^Landed in \\S+ \\d{4}-\\d{2}-\\d{2}$");
+      "Dropped <YYYY-MM-DD> — <reason>"; "Superseded by <slug> <YYYY-MM-DD>". A Status matching
+      the landing signature must never appear on a file still residing in docs/ideas (AC-025) —
+      the file has been moved into the landing change's folder. The signature and vocabulary
+      ship together in the conventions.md File Organization row and the glossary Idea Document
+      entity, so AC-025's implementation-review check and the convention are one text.
+  - id: DM-005
+    name: Register resolution record row
+    definition: |-
+      The per-row resolution record for the dissolved findings register, recorded in this
+      change's artifacts (CMP-004 and DEC-004). Fields: register row id (F1 through F7 or
+      "unlabeled"); original finding statement; resolution (Fixed-provenance-verified |
+      Fixed-dated-disposition | Resolved-to-existing-proposal | Created-idea-document);
+      citation (the decisions.md row, change-artifact path, idea-document path, or skill section
+      absorbing the residue); verification (the implementation-time check confirming the
+      citation resolves AND states the claimed content — a resolves-only check would pass a
+      misattributed id, recorded in plan task notes). A row with an unresolvable citation
+      blocks playbook deletion until preserved into an idea document or this change's records
+      (AC-008).
+apis:
+  - id: API-001
+    path: node src/skills/improvement-review/scripts/measure_artifacts.ts
+    method: cli
+    contract: |-
+      Baseline production invocation (run from repo root after all file work completes,
+      including playbook deletion). Emits DM-004-style rows of line counts per change under
+      docs/changes/ plus a total. The baseline records the TOTAL as M-01 (kind count, unit
+      lines); per-change detail stays in the helper output and is not duplicated into the
+      baseline table. Read-only; byte-identical for identical repository state.
+  - id: API-002
+    path: node src/skills/improvement-review/scripts/envelope_sizes.ts --change
+      rehome-improvement-review-canon
+    method: cli
+    contract: |-
+      Baseline production invocation. Emits per-stage rows (stage, observed step, bytes_total,
+      bytes_per_field) for the nine stages, invoking the sdlc CLI per stage with mandatory
+      --dry-run on the four review-stage invocations. The baseline records bytes_total per
+      stage as M-02 through M-10 (kind bytes, unit bytes); the comparability note pins the
+      measured change slug. Read-only; byte-identical for identical repository state.
+  - id: API-003
+    path: node src/skills/improvement-review/scripts/validate_duration.ts
+    method: cli
+    contract: |-
+      Baseline production invocation. Emits the shape-stable record command, exit_code,
+      duration_ms. The baseline records duration_ms as M-11 (kind timing, unit ms) with the
+      prose-anchor mapping (~2 s to about 2000 ms) in the comparability note. Shape-stable
+      only; the value varies with machine and load (frozen DEC-008).
+  - id: API-004
+    path: node src/skills/improvement-review/scripts/mine_transcript.ts <file>...
+    method: cli
+    contract: |-
+      Baseline production invocation, CONDITIONAL: run only if the maintainer supplies
+      transcript files during implementation; the helper accepts only explicitly supplied
+      files and never discovers stores. With no files supplied, no invocation happens and M-12
+      is recorded as a pending marker (DM-003) with the recipe in its comparability note. With
+      files supplied, the extracted event counts ground M-12 (kind count, unit events) with the
+      source filenames recorded in the comparability note.
+flows:
+  - id: FLOW-001
+    name: implementation-stage sequence (this change)
+    steps:
+      - "Register resolution (CMP-004): re-verify every citation in the DEC-004 disposition table
+        resolves AND states the claimed content; record verification results in plan task notes; if
+        an F5 citation fails, record the preserve-without-duplicating fallback disposition (DM-005)
+        citing the hosted p11 — never create a docs/ideas/p11 duplicate; delete the playbook file
+        last within this task."
+      - "SKILL.md rewrite (CMP-003): apply the per-section specification; no helper script is
+        touched."
+      - "Reference sweep (CMP-006): retarget AGENTS.md section 10 row and codemap.md row (the two
+        non-delta sites); the four docs/current sites ride the delta entries."
+      - Author the goals section content (CMP-001) and the baselines section content (CMP-002) as
+        delta entries, with M-01 through M-11 values filled from actually running API-001, API-002,
+        API-003 (and API-004 only if transcripts are supplied) AFTER the playbook deletion so the
+        measurements reflect the completed state.
+      - "Residual grep sweep (CMP-006): repo-wide grep for the playbook path minus exclusions;
+        retarget any newly surfaced live reference before finalization."
+      - Finalize implementation; implementation-review verifies the sweep result and the
+        all-tasks-terminal gate; knowledge-extraction applies the deltas to the living docs.
+  - id: FLOW-002
+    name: future review run (post-change, pure advisor)
+    steps:
+      - "Preconditions: verify docs/current/capabilities.md carries \"## SDLC Goals\" and
+        docs/current/operations.md carries \"## Baselines\"; abort naming file plus anchor on any
+        miss; thin-signal check warns and proceeds only after explicit confirmation, recorded in the
+        run's proposals."
+      - "Goals gate: load the canon read-only; evaluate findings against it; a missing or
+        amendment-worthy goal becomes a proposal, never a canon write."
+      - "Measurements: run the four helpers read-only; compare against the newest same-kind baseline
+        rows; cite baseline value, fresh value, and delta in each proposal's Evidence; label unrowed
+        metrics as initial-baseline candidates."
+      - "Adjudication and proposals: every substantiated finding becomes or updates a proposal whose
+        Status carries the disposition with a date; at least one proposal cites a confirmed-working
+        mechanism with dated evidence; governance test precedes kickoff."
+      - "End state: zero files created or modified outside docs/ideas (AC-006); zero playbook
+        interaction."
+  - id: FLOW-003
+    name: idea lifecycle (proposal to landed)
+    steps:
+      - A review run (or the maintainer) writes a proposal to docs/ideas/<slug>.md with Status
+        Proposed in the nine-section skeleton.
+      - A change is kicked off from the proposal's explicit-slug command; the change's plan.yaml
+        carries the "Land idea <slug>" documentation task per the CMP-005 convention.
+      - During implementation, the task sets Status to "Landed in <change-slug> <YYYY-MM-DD>" and
+        moves the file unmodified into docs/changes/<change-slug>/.
+      - Implementation-review verifies the landing (hosted file, signature Status, docs/ideas clean
+        of landed signatures, diff limited to the Status row plus the move).
+      - After completion the hosted file is frozen; later work references it read-only.
+  - id: FLOW-004
+    name: failure paths (design behaviors for the requirements' failure paths)
+    steps:
+      - Fixed-row provenance gap at implementation — deletion stops until the row is preserved into
+        an idea document or this change's records (CMP-004, AC-008).
+      - Missing canon anchor at review time — the run aborts naming the file and the anchor (CMP-003
+        section 1); knowledge extraction likewise fails loudly naming the document if a delta's
+        anchor is absent rather than inventing structure.
+      - Live playbook reference found by the residual grep — the change is not complete; the
+        reference is retargeted before finalization (CMP-006).
+      - Helper cannot measure a metric — the baselines section records the recipe with a pending
+        marker instead of an invented number (CMP-002, DM-003).
+      - F5 evidence ambiguous at implementation — record the row's preservation as a dated
+        disposition in this change's resolution record (DM-005), citing the existing hosted p11 at
+        docs/changes/agent-delegation-loop/p11-agent-delegation-loop.md; never create a duplicate
+        docs/ideas/p11 file (CMP-004 preserve-without-duplicating fallback).
+      - Validation rejects a hosted idea file inside a change folder — relocate the convention
+        (landed subfolder or registry section) and record the decision before implementation
+        proceeds; implementation verifies tolerance with the full gate before relying on it (the
+        ac-parent-backref-check, review-round-findings, and update-artifact-dry-run proposals
+        already live in docs/ideas and change folders have hosted non-toolkit files without
+        validation issues, but the verification task confirms it explicitly).
+decisions:
+  - id: DEC-001
+    title: Canon lives in the living docs and mutates only via changes; the skill is a pure advisor; the
+      playbook dissolves (supersedes sdlc-improvement-review-skill DEC-001)
+    context: |-
+      The frozen DEC-001 of sdlc-improvement-review-skill (2026-08-27) stored the SDLC goals
+      list inside docs/ideas/sdlc-improvement-review-playbook.md beside the register and
+      baselines, on the grounds that docs/current writes are reserved to knowledge extraction
+      and the skill folder must not accumulate run state. Dogfooding showed the deeper defect:
+      docs/ideas is a proposal queue by contract, and hosting mutable canon inside the queue
+      blurs what is proposal and what is law, while the skill holds run-time write power over
+      its own evaluation standards. Invariant 4 reserves docs/current writes to knowledge
+      extraction — which is not a blocker but the correct path: canon lands through a change's
+      delta entries, and the skill's write surface shrinks to the queue.
+    decision: |-
+      Goals become the "## SDLC Goals" section of docs/current/capabilities.md (CMP-001, DM-001)
+      and baselines become the "## Baselines" section of docs/current/operations.md (CMP-002,
+      DM-002); both mutate only through changes via knowledge extraction, and every review run
+      consumes them read-only. The improvement-review skill becomes a pure advisor whose only
+      write surface is docs/ideas (CMP-003): findings become proposals whose Status carries
+      disposition, goal amendments travel as proposals, and fairness lives inside proposals.
+      The playbook dissolves after register resolution (CMP-004). This supersedes DEC-001 of
+      sdlc-improvement-review-skill; its frozen artifacts stay untouched and remain the cited
+      method record. Rejected alternatives — a tenth docs/current document (breaks the index
+      contract for content that is the why behind existing documents); keeping canon in
+      docs/ideas (queue-semantics violation, the defect being fixed); a runtime bootstrap for
+      goals or baselines (no runtime bootstrap ever exists — the initial content is authored by
+      this change through its own pipeline).
+    status: accepted
+  - id: DEC-002
+    title: Initial quantitative baselines are produced by this change's implementation running the
+      helpers; unmeasurable metrics get pending markers
+    context: |-
+      FR-008 requires initial quantitative rows produced by actually running the bundled
+      helpers during this change's implementation, with pending markers and recipes for any
+      metric a helper cannot measure. The helpers are read-only and byte-identical (frozen
+      DEC-008 scoping), so running them writes nothing — the rows land via the
+      knowledge-extraction delta like every other docs/current change.
+    decision: |-
+      Implementation runs API-001 (artifact volume total, M-01), API-002 (nine per-stage
+      envelope byte rows, M-02 through M-10, measured on this change's slug), and API-003
+      (validate duration, M-11) from the repo root AFTER all file work completes including the
+      playbook deletion, so rows reflect the completed state. API-004 (transcript events, M-12)
+      runs only if the maintainer supplies transcript files; otherwise M-12 is a pending marker
+      (DM-003): Value "pending", kind and unit declared, recipe in the comparability note, no
+      delta claim, replaced rather than appended by the first successful measurement. The prose
+      baselines migrate verbatim as the authoritative qualitative record (AC-023); the frozen
+      two-tier semantics and the ~2 s-to-ms prose anchor mapping carry over unchanged. Rejected
+      alternatives — inventing historical numbers (prohibited by the frozen DEC-002 rationale);
+      letting the first review run bootstrap rows (a runtime bootstrap would exist after all,
+      and the skill must not write docs/current).
+    status: accepted
+  - id: DEC-003
+    title: The propose-path reroutes through proposals and fairness lives inside proposals; the register
+      refresh is replaced, not relocated
+    context: |-
+      FR-005 replaces the skill's run-time canon-write duties with read-only consumption. The
+      frozen design's goals gate (CMP-007) proposed-and-stored a missing goals list, and the
+      register refresh (CMP-008) maintained the What-worked fairness subsection in place. With
+      the register dissolved and canon read-only, both write paths need new homes that keep
+      their value without canon writes.
+    decision: |-
+      The goals gate becomes a read-only load (CMP-003 section 2): a run that judges a goal
+      missing or amendment-worthy writes a docs/ideas proposal stating the proposed entry in
+      canon format; the landing change carries the capabilities.md delta (AC-010). The
+      What-worked fairness rule moves inside proposals: a run that produces proposals must cite
+      at least one confirmed-working mechanism with dated evidence inside a proposal (a "What
+      worked" note in its Evidence section); a run with zero substantiated findings writes
+      nothing and the duty is vacuous. Proposal Status adjudication (DM-004 vocabulary) replaces
+      the register's disposition column, and the referential-integrity sweep becomes a
+      write-time duty on each proposal's References. The thin-signal warning and confirmation
+      are recorded in the run's proposals, its only durable output. Rejected alternatives —
+      keeping a fairness store outside proposals (any store outside docs/ideas violates the
+      write-surface shrink; a fairness file inside docs/ideas would itself be canon-in-queue,
+      the defect being fixed); dropping the fairness rule entirely (complaint-only reviews lose
+      credibility — the frozen DEC-006 rationale stands).
+    status: accepted
+  - id: DEC-004
+    title: Register resolution — F4 and F5 close by dated disposition, F7 resolves to p12, all Fixed
+      rows' provenance verified before deletion
+    context: |-
+      FR-004 requires every register row carrying open residue to resolve before the playbook
+      is removed, and every Fixed row's provenance to be verified present in decisions.md or
+      completed change artifacts. Evidence gathered during design (2026-08-27): p12 exists on
+      disk; the completed agent-delegation-loop change plus the agent-layer changes delivered
+      F5's substance; the flag-inventory residue of F4 is absorbed by the skill's standing
+      Step-4 duty; all other rows' citations resolve.
+    decision: |-
+      F7 resolves to the existing docs/ideas/p12-fast-track-lane.md (verified present, Status
+      Proposed). F5 closes Fixed by dated disposition: both complaints delivered most directly
+      by the completed docs/changes/agent-delegation-loop/ change (delegation directive
+      composer src/scripts/lib/delegation.ts; the change hosted from the original p11 proposal
+      and the one that actually closed the loop), corroborated by
+      add-agent-agnostic-agent-definitions-deployed-alongside-the- (stage binding, envelope
+      surfacing, rendered agents, stage-reviewer roster with file_write deny) and
+      agent-invocation-modes-and-interactive-questioning-agent-def (mode resolution, question
+      gating), with the review separation-of-duties convention; fallback per failure path 5,
+      preserve-without-duplicating — if implementation verification finds any F5 citation
+      unresolvable or the evidence ambiguous, record the row's preservation as a dated
+      disposition in this change's resolution record (DM-005), citing the existing hosted p11
+      at docs/changes/agent-delegation-loop/p11-agent-delegation-loop.md (frozen per AC-026);
+      never create a duplicate docs/ideas/p11 file. F4 closes Fixed by dated disposition: the
+      optionalization is provenance-verified (streamline CMP-002/CMP-007) and the residue
+      "flag inventory still open" is absorbed by the standing Step-4 unused-surface inventory
+      duty (SKILL.md section 7) — a per-run procedure with mandatory grep evidence, not a
+      pending one-time item. F1, F2, F3, F6 and the two unlabeled rows close with verified
+      citations: F1 to streamline DEC-004; F2 to streamline DEC-001 plus dedupeDeltas in
+      src/scripts/lib/kinds/aggregator.ts; F3 to streamline DEC-002; F6 to streamline DEC-003
+      and DEC-005; the docs-index row to the streamline plan task plus the noise filter in
+      src/scripts/lib/docs-index.ts; the slug row to
+      docs/changes/explicit-change-slugs-at-creation-passing-change-together/. Implementation
+      re-verifies every citation resolves AND states the claimed content, recording results in
+      plan task notes before deletion; an unresolvable citation stops deletion until the row is
+      preserved (AC-008). Rejected alternatives — creating a docs/ideas/p11 duplicate
+      unconditionally (the file already exists hosted and frozen at
+      docs/changes/agent-delegation-loop/p11-agent-delegation-loop.md; a duplicate would land a
+      stale proposal whose substance is delivered, polluting the queue); deleting the playbook
+      without resolution (loses regression-check history, violates FR-004).
+    status: accepted
+  - id: DEC-005
+    title: Idea landing signature, move duty placement, and hosted-file freeze
+    context: |-
+      FR-009 requires the completing change to update each implemented idea's Status with the
+      change slug and landing date and move the file into its own change folder during its
+      implementation stage, with AC-025's machine check and the convention shipping together,
+      and AC-026 freezing hosted files. The requirements-review advisory pinned verification to
+      implementation-review so review-time state distinguishes stage-timing violations.
+    decision: |-
+      The Status landing signature is exactly "Landed in <change-slug> <YYYY-MM-DD>"
+      (machine-checkable regex "^Landed in \\S+ \\d{4}-\\d{2}-\\d{2}$"), defined once in the
+      conventions.md File Organization row and the glossary Idea Document entity so the
+      convention and the AC-025 check are one text (DM-004). The move duty lives as an
+      implementation-stage task pattern in the implementing change: its plan.yaml carries a
+      documentation-type task "Land idea <slug>" that sets the Status and moves the file
+      unmodified (apart from the Status row) into docs/changes/<change-slug>/ before the change
+      completes; the engine does not enforce this — no catalog or envelope changes — the
+      convention plus review do. Implementation-review verifies the landing: hosted file with
+      signature Status, docs/ideas containing zero files whose Status matches the signature
+      (the mechanical grep check), and a diff limited to the Status row plus the path move; an
+      idea still in docs/ideas at review time evidences a skipped or late implementation task
+      and blocks the round. After completion the hosted file is a frozen change artifact;
+      later work references it read-only (AC-026). Rejected alternatives — a knowledge-extraction
+      or aggregator-enforced move (engine change, prohibited); verification at
+      knowledge-extraction time (too late to distinguish a skipped implementation task from an
+      extraction-order artifact); a registry section tracking landed ideas (a second canon
+      store duplicating what the Status field already carries).
+    status: accepted
+  - id: DEC-006
+    title: Reference sweep scope — six live sites retargeted, history and frozen artifacts excluded,
+      residual grep as an implementation verification step
+    context: |-
+      FR-006 requires every live reference to the playbook path retargeted or removed, with
+      AC-011 counting zero live references outside append-only historical records and frozen
+      completed-change artifacts, and AC-012 excluding the frozen sdlc-improvement-review-skill
+      artifacts from the count. A repo-wide grep on 2026-08-27 confirmed exactly the six live
+      sites plus the excluded records.
+    decision: |-
+      The six live sites are retargeted as specified in CMP-006: SKILL.md (by the CMP-003
+      rewrite), AGENTS.md section 10 row and codemap.md row (direct edits, they are not
+      knowledge-extraction targets), and the capabilities.md, operations.md, glossary.md rows
+      (via the knowledge-extraction deltas). Excluded from the live set and left untouched:
+      the historical decisions.md DEC-001 row (append-only), the frozen artifacts under
+      docs/changes/sdlc-improvement-review-skill/, and this change's own artifacts (frozen on
+      completion). The residual sweep is an implementation verification step — a repo-wide grep
+      for "sdlc-improvement-review-playbook" excluding .opencode/, .tmp/, node_modules, and
+      llm_context.txt; any hit outside the exclusion set, the history row, and the frozen
+      artifacts is retargeted before finalization, and a remaining live reference means the
+      change is not complete (failure path 3). Rejected alternatives — migrating the frozen
+      change's artifacts to the new paths (violates NFR-003/AC-019); rewriting the decisions.md
+      history row (violates append-only discipline for decision records).
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-002
+      - CMP-003
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-003
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-004
+  - requirement_id: FR-005
+    component_ids:
+      - CMP-003
+  - requirement_id: FR-006
+    component_ids:
+      - CMP-006
+  - requirement_id: FR-007
+    component_ids:
+      - CMP-001
+  - requirement_id: FR-008
+    component_ids:
+      - CMP-002
+  - requirement_id: FR-009
+    component_ids:
+      - CMP-005
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-001
+      - CMP-002
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-002
+      - CMP-003
+  - requirement_id: NFR-003
+    component_ids:
+      - CMP-004
+      - CMP-006
+delta:
+  - phase: Design
+    target_doc: docs/current/capabilities.md
+    target_anchor: SDLC Goals
+    entity_id: null
+    change: Add
+    reason: New "## SDLC Goals" section between Capabilities and Workflows carrying the eight dated G-NN
+      entries as canon (G-01 structured continuity, G-02 process economy, G-03 determinism, G-04
+      early failure, G-05 no dead surface, G-06 agent-agnostic extensibility, G-07 review integrity,
+      G-08 automation maximization with the scripts-first / judgment-to-agent split and the AI
+      coding agent as primary consumer), each with grounding sources, status active, created
+      2026-08-27, amendments none; the section preamble states the read-only-consumption and
+      mutate-only-via-changes contract.
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/capabilities.md
+    target_anchor: Capabilities
+    entity_id: null
+    change: Modify
+    reason: Improvement-review row retargeted from playbook-hosted run state to pure advisor — reads the
+      goals canon (capabilities.md) and baselines (operations.md) read-only, writes only docs/ideas
+      proposals, no playbook interaction.
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/operations.md
+    target_anchor: Baselines
+    entity_id: null
+    change: Add
+    reason: New "## Baselines" section after Commands — qualitative prose baselines migrated verbatim as
+      the authoritative record plus the initial quantitative table (M-01 through M-12) produced by
+      running the four bundled helpers during implementation, with the pending-marker row for
+      transcript events and the two-tier read-only-comparison contract in the preamble.
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/operations.md
+    target_anchor: Commands
+    entity_id: null
+    change: Modify
+    reason: Improvement-review command row retargeted — the skill reads baselines and goals canon
+      read-only, writes only docs/ideas proposals, and no longer refreshes any playbook state;
+      first-run bootstrap language removed (no runtime bootstrap exists).
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/conventions.md
+    target_anchor: File Organization
+    entity_id: null
+    change: Add
+    reason: "New File Organization row — the docs/ideas queue contract and idea lifecycle: docs/ideas
+      holds only open proposals whose Status header carries disposition (Proposed / Landed in <slug>
+      <date> / Dropped / Superseded); mutable canon lives only in docs/current and changes only via
+      changes; an idea implemented by a change is landed during that change's implementation stage
+      by a documentation task that sets Status to \"Landed in <change-slug> <YYYY-MM-DD>\" and moves
+      the file unmodified into the change folder, with implementation-review verifying docs/ideas
+      holds no landed signatures and hosted files frozen with the completed change."
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/glossary.md
+    target_anchor: "Entity: Improvement Review (src/skills/improvement-review + playbook)"
+    entity_id: null
+    change: Modify
+    reason: Improvement Review entity rows retargeted — playbook field dissolved to a historical note;
+      SDLC goals list row now points at docs/current/capabilities.md ("## SDLC Goals", eight active
+      entries); measurement baselines row now points at docs/current/operations.md ("## Baselines",
+      two-tier); goals-gate and baseline bootstrapping business rules rewritten to read-only
+      consumption; pure-advisor write surface stated.
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/glossary.md
+    target_anchor: "Entity: Improvement Review (src/skills/improvement-review + playbook)"
+    entity_id: null
+    change: Add
+    reason: 'New "Entity: Idea Document (docs/ideas/<slug>.md)" block — header-table fields (Origin,
+      Status, Suggested change slug, Depends on, Kind, Cost tier), the nine-section skeleton, the
+      Status vocabulary with the landing signature regex, and the lifecycle business rules
+      (queue-only, landing move duty, hosted-file freeze).'
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/decisions.md
+    target_anchor: "Living: Cycle Decisions"
+    entity_id: null
+    change: Add
+    reason: Decision superseding DEC-001 of sdlc-improvement-review-skill — canon (goals, baselines)
+      lives in the governed living docs (capabilities.md, operations.md) and mutates only via
+      changes through knowledge extraction; the improvement-review skill is a pure advisor whose
+      only write surface is docs/ideas; the playbook dissolves after register resolution; the idea
+      lifecycle convention governs docs/ideas. The frozen DEC-001 record stays untouched
+      (append-only history).
+    date: 2026-08-27

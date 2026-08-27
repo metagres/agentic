@@ -1,0 +1,48 @@
+metadata:
+  artifact: design.yaml
+  target: design
+  latest_round: 4
+  created: 2026-08-27
+  updated: 2026-08-27
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-08-27T12:55:23.435Z
+    artifact_version: 0.1.0
+    decision: review
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    warnings: []
+  - round: 2
+    reviewed_at: 2026-08-27T13:03:53.996Z
+    artifact_version: 0.1.0
+    decision: rejected
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    warnings: []
+  - round: 3
+    reviewed_at: 2026-08-27T13:12:31.555Z
+    artifact_version: 0.2.0
+    decision: review
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    warnings: []
+  - round: 4
+    reviewed_at: 2026-08-27T13:14:19.727Z
+    artifact_version: 0.2.0
+    decision: accepted
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    warnings: []
