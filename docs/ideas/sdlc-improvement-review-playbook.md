@@ -144,6 +144,28 @@ sdlc requirements --change <judged-slug> --request "…"
 When re-running the review: check each "Fixed" row for regression, each "Open" row for
 progress, and hunt siblings of each fixed pattern in newly added surface.
 
+## SDLC goals list
+
+Stored record of what the SDLC is currently optimizing for. Loaded at review start, before any
+finding is evaluated; later amendments require a dated justification — silent rewrites are
+prohibited. This section lives beside the findings register and baselines it is consumed with.
+
+Record format — one ordered entry per goal:
+
+- **id**: `G-NN` (stable two-digit sequence).
+- **goal statement**: one testable sentence a review can answer with evidence ("does the current
+  toolkit satisfy this?").
+- **grounding sources**: at least one of — AGENTS.md section, `docs/current/` file,
+  best-practice principle, dogfooding observation.
+- **status**: `active` / `amended` / `retired`.
+- **created date**: when the entry was first stored.
+- **amendments**: list of date + justification pairs (empty on creation).
+
+**Empty state:** no entries exist yet. The first review run proposes the initial dated goals
+list — grounded in AGENTS.md invariants, `docs/current/` capabilities and conventions,
+agentic-SDLC best practice, and dogfooding experience — and stores it in this section before any
+finding is evaluated.
+
 ## Current baselines (compare against, don't regress)
 
 - `npm run validate`: ~2 s, unit-only; e2e lives in `check:all`.

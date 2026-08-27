@@ -1,0 +1,436 @@
+metadata:
+  id: DES-001
+  title: "Design: dev-only improvement-review skill operationalizing the six-step playbook"
+  stage: design
+  status: accepted
+  version: 0.2.0
+  created: 2026-08-27
+  updated: 2026-08-27
+  based_on_requirements: 0.1.0
+  delta_reviewed: false
+  step: complete
+context_summary: "The design turns the six-step improvement-review playbook into a dev-only skill
+  bundle at src/skills/improvement-review/ that is never deployed. A SKILL.md method driver
+  sequences the six steps, enforces the evidence-or-label policy, and fails loudly when the playbook
+  or its anchors go missing. Four dependency-free TypeScript helper scripts produce comparable
+  measurements: artifact volume, envelope byte sizes per stage, transcript mining over
+  caller-supplied files, and fast-gate duration. Review state lives in the playbook itself: a stored
+  SDLC goals list, the findings register with a fairness subsection, and dated measurement baselines
+  that bootstrap on first run. Accepted findings become docs/ideas proposals in the nine-section
+  P12-grounded format, screened by a governance test against AGENTS.md invariants and the
+  determinism stance. Deployment and engine stay untouched: the deployed bundle keeps exactly two
+  skills, and no engine, catalog, or envelope code changes in this change."
+components:
+  - id: CMP-001
+    name: improvement-review skill bundle
+    responsibility: Owns the dev-only packaging contract. Folder src/skills/improvement-review/ carrying
+      SKILL.md (frontmatter name equals folder name, non-empty description, inputs/outputs blocks
+      following the agent-audit pattern) plus a scripts/ subfolder. Never deployed - verified that
+      bin/deploy-to-agent.ts ships exactly agentic-sdlc and knowledge-init by explicit id and copies
+      knowledge-init by file only, so this folder is structurally invisible to deployment.
+    files: src/skills/improvement-review/SKILL.md, src/skills/improvement-review/scripts/
+  - id: CMP-002
+    name: SKILL.md method driver
+    responsibility: Owns the executable form of the six-step playbook method and all judgment policies.
+      Precondition gate locating docs/ideas/sdlc-improvement-review-playbook.md (missing or
+      anchor-less abort naming the file) and the thin-signal check (fewer than two substantive
+      changes since the last register date warns and proceeds only after explicit confirmation,
+      recorded in the register entry). Step 1 instrumentation guidance with the five categories
+      (invocation counts per stage, zero-change round-trips, late findings, trimmed output,
+      delegation outcomes recorded with their three sub-fields - delegation type used, model
+      resolution success/failure, and whether the delegated agent's output needed rework), each
+      holding a recorded value or an explicit none-observed marker, and the reconstructed-or-missing
+      marking with fallback to transcript mining. Step 3 gate classification procedure
+      (mechanical+early, mechanical+late, honor-system, dead) requiring proof of execution against
+      real data before any non-dead classification. Step 4 unused-surface inventory procedure
+      recording exact grep commands and match counts beside removal claims and excluding or refuting
+      candidates with live consumers in src/, deployed skills, or other repos (the full FR-006
+      consumer scope). Enforcement point of the evidence-or-label policy (drop or label unverified
+      hypotheses with the missing evidence named). Sequences helper-script invocations and their
+      recording duties.
+    traces: FR-001, FR-002, FR-005, FR-006, FR-008
+  - id: CMP-003
+    name: measure_artifacts helper
+    responsibility: Owns deterministic artifact-volume measurement. Counts lines per file under
+      docs/changes/ (per change and totals), sorted, fixed field order per DM-004. Flags --change
+      slug filter and --verbose detail; default output stays within 40 lines by aggregating per
+      change. Unreadable path exits non-zero naming the path; empty dataset exits zero reporting an
+      explicit empty result instead of erroring.
+    files: src/skills/improvement-review/scripts/measure_artifacts.ts
+  - id: CMP-004
+    name: envelope_sizes helper
+    responsibility: Owns deterministic envelope byte-size measurement per stage. Discovers stage ids by
+      directory scan of src/stages/ and measures one envelope per real stage id by invoking node
+      src/scripts/sdlc.ts <stage-id> --change <slug>, iterating exactly the nine stage ids
+      requirements, requirements-review, design, design-review, planning, planning-review,
+      implementation, implementation-review, knowledge-extraction. Mutation safety is mandatory per
+      invocation class - the four review-stage invocations (requirements-review, design-review,
+      planning-review, implementation-review) MUST pass --dry-run because a bare review invocation
+      appends a round to the review file (verified in src/scripts/lib/kinds/review.ts - round
+      recording is gated on not-dry-run and writeYamlAtomic fires only when recording), while bare
+      authoring, tasks, and aggregator invocations were verified read-only (authoring saveArtifact
+      fires only when the artifact is missing or a mutation flag is present; tasks writes only when
+      mutation flags are present; aggregator collects without writing). Measures JSON serialization
+      bytes total plus per frozen top-level field, recording the observed step. Requires --change;
+      --verbose adds per-field detail; default table of nine stages fits 40 lines. Identical
+      repository state yields byte-identical output.
+    files: src/skills/improvement-review/scripts/envelope_sizes.ts
+  - id: CMP-005
+    name: mine_transcript helper
+    responsibility: Owns post-hoc session-evidence extraction from explicitly supplied transcript files.
+      Extracts invocation counts per stage, wasted-round candidates (repeated identical consecutive
+      command lines), and delegation events per the generic event grammar in DEC-005; prints the
+      source filename beside every number. Zero parseable events produce an explicit zero-extraction
+      report naming the file and a non-zero exit. Never discovers transcript stores and contains no
+      hardcoded runtime locations.
+    files: src/skills/improvement-review/scripts/mine_transcript.ts
+  - id: CMP-006
+    name: validate_duration helper
+    responsibility: Owns fast-gate duration measurement. Runs npm run validate once and emits a
+      fixed-shape record of command, exit_code, duration_ms. Shape-stable across runs; the duration
+      value is inherently machine-dependent, which DEC-008 scopes out of the byte-identity contract.
+      Non-zero validate exit propagates with the named cause.
+    files: src/skills/improvement-review/scripts/validate_duration.ts
+  - id: CMP-007
+    name: goals-list lifecycle
+    responsibility: Owns FR-010. At review start loads the stored SDLC goals list from the playbook
+      section defined in DEC-001; when absent composes a proposed list grounded in AGENTS.md
+      invariants, docs/current/ capabilities and conventions, agentic-SDLC best practice (structured
+      phases with documented continuity so each request carries enough information to continue), and
+      dogfooding experience, storing it dated before any finding is evaluated. Later amendments
+      require dated justification; silent rewrites are prohibited.
+    traces: FR-010
+  - id: CMP-008
+    name: register-and-baselines refresh
+    responsibility: Owns FR-009 mechanics as in-place playbook edits. Refreshes the Findings register -
+      every Fixed row gets a dated regression-check result, a regressed row reopens with regression
+      evidence plus a sibling-hunt note for newly added surface, every Open row gets a dated
+      progress note. Maintains the What-worked fairness subsection per DEC-006 with at least one
+      dated evidenced entry per completed review. Refreshes the baselines section with dated DM-003
+      rows, bootstrapping initial quantitative rows on first run per DEC-002 and recording
+      comparability notes whenever a recipe changes shape. Performs a referential-integrity sweep of
+      register pointers to proposal files, flagging dangling ones such as the F5 pointer to the
+      nonexistent p11-agent-delegation-loop.md.
+    traces: FR-009, FR-008
+  - id: CMP-009
+    name: proposal writer
+    responsibility: Owns FR-007. Converts accepted findings into docs/ideas/slug.md documents following
+      the DM-005 skeleton grounded solely on the playbook Step 6 inline enumeration and
+      p12-fast-track-lane.md (DEC-007). Tags exactly one cost tier (quick win, structural,
+      strategic); multi-tier resolutions state the highest required tier and why lower-tier partial
+      resolutions were rejected. Ends with a runnable kickoff command in the explicit-slug form.
+    traces: FR-007
+  - id: CMP-010
+    name: governance test
+    responsibility: Owns FR-011. Screens every proposal against AGENTS.md invariants and the determinism
+      stance before its kickoff command. A proposal placing judgment inside the engine is rejected
+      or reshaped to route judgment to the calling agent, with the test result recorded in the
+      document. Touches to the capped check catalog flag a design-review governance event; touches
+      to the frozen envelope flag a decision governance event; both flags appear before kickoff.
+    traces: FR-011
+data_models:
+  - id: DM-001
+    name: SDLC goals list record
+    definition: Stored under a dedicated SDLC-goals-list section of the playbook (DEC-001). Ordered
+      entries with id G-NN, testable goal statement, grounding sources (AGENTS.md section,
+      docs/current file, best-practice principle, dogfooding observation), status
+      active/amended/retired, created date, amendments list of date plus justification pairs. Loaded
+      at review start; never placed under docs/current/.
+  - id: DM-002
+    name: register finding row
+    definition: Fields - id F-NN, statement, lenses (subset of the five analysis lenses), evidence (type
+      count/grep/timing/observation, value, command, source), disposition Fixed/Open/Partially
+      fixed/Works/Refuted/Unverified hypothesis with Works as the single canonical token for
+      positive confirmations (its dated confirmation is carried by a mandatory confirmed-working
+      history entry, never baked into the token), history entries of date, event
+      (regression-check/progress-note/reopen/confirmed-working), detail. Unverified-hypothesis rows
+      additionally carry missing_evidence naming what would confirm them; they never enter proposal
+      bodies as established fact.
+  - id: DM-003
+    name: measurement baseline row
+    definition: Fields - id M-NN, metric name, kind count/bytes/timing, value, unit, command, date,
+      comparability note stating which prior rows remain comparable. First-run rows are marked
+      initial-baseline and claim no delta. Timing-kind rows compare orders of magnitude and
+      regressions, not bytes (DEC-008). Qualitative prose baselines stay untouched prose.
+  - id: DM-004
+    name: measurement record (helper output contract)
+    definition: Fields - script, arguments echoed, rows of label, value, unit, optional source - with
+      fixed field order and stable units across reviews so direct delta comparison works without
+      transformation. Default output at most 40 lines; full detail behind --verbose.
+  - id: DM-005
+    name: proposal document skeleton
+    definition: Header table (Origin review date plus finding ids, Status proposed, Suggested change
+      slug, Depends on, Kind, Cost tier) followed by exactly nine H2 sections in order - Problem,
+      Evidence, Goal, Non-goals, Design space & open questions, Requirement seeds, Implementation
+      sketch, References, Kickoff (new session) - plus a Governance-test-result block placed between
+      References and Kickoff so governance flags precede the kickoff command.
+apis:
+  - id: API-001
+    path: node src/skills/improvement-review/scripts/measure_artifacts.ts [--change <slug>] [--verbose]
+    method: cli
+    contract: Emits DM-004 rows of line counts per artifact; exit zero on empty datasets, non-zero
+      naming unreadable paths.
+  - id: API-002
+    path: node src/skills/improvement-review/scripts/envelope_sizes.ts --change <slug> [--verbose]
+    method: cli
+    contract: Emits DM-004 rows of stage, step, bytes_total, bytes_per_field. Internally invokes node
+      src/scripts/sdlc.ts <stage-id> --change <slug> for each of the nine real stage ids
+      (requirements, requirements-review, design, design-review, planning, planning-review,
+      implementation, implementation-review, knowledge-extraction), passing --dry-run on the four
+      review-stage invocations (requirements-review, design-review, planning-review,
+      implementation-review) because bare review invocations append a round to the review file; bare
+      authoring/tasks/aggregator invocations are verified read-only. Fails naming a stage folder
+      that cannot be scanned.
+  - id: API-003
+    path: node src/skills/improvement-review/scripts/mine_transcript.ts <file>... [--verbose]
+    method: cli
+    contract: Emits DM-004 rows with source filename per number; zero parseable events yield an explicit
+      zero-extraction report and non-zero exit.
+  - id: API-004
+    path: node src/skills/improvement-review/scripts/validate_duration.ts [--verbose]
+    method: cli
+    contract: Emits command, exit_code, duration_ms; propagates validate failure non-zero with named cause.
+flows:
+  - id: FLOW-001
+    name: review run end-to-end
+    steps:
+      - Preconditions (CMP-002) - locate the playbook (abort naming the file if missing); count
+        substantive changes since the last register date, warn on thin signal and proceed only after
+        explicit confirmation, recording the warning in the register entry.
+      - Goals gate (CMP-007) - load the stored goals list or propose and store a dated one before
+        any finding is evaluated.
+      - Step 1 instrumentation (CMP-002) - read per-cycle notes; every category holds a value or a
+        none-observed marker; cycles without notes are marked reconstructed-or-missing and fall back
+        to transcript mining where files exist.
+      - Step 2 measurements (CMP-003, CMP-004, CMP-006) - run helpers, record command and date
+        beside each number, compare against DM-003 rows where present.
+      - Transcript mining (CMP-005) - when files are supplied, extract with source filename per
+        number; zero-extraction files mark session-derived numbers as missing.
+      - Step 3 classification (CMP-002) - classify every declared check and gate; proof of execution
+        on real data before any non-dead classification.
+      - Step 4 inventory (CMP-002) - grep commands and match counts beside removal claims; live
+        consumers exclude or refute candidates.
+      - Findings adjudication (CMP-002, CMP-008) - evidence-or-label policy applied to every
+        candidate finding.
+      - Step 5 proposals (CMP-009, CMP-010) - write nine-section proposals, assign one cost tier,
+        run the governance test, place flags before kickoff.
+      - Step 6 refresh (CMP-008) - Fixed regression checks, Open progress notes, fairness
+        subsection, dated baseline rows, referential-integrity sweep.
+  - id: FLOW-002
+    name: first-run bootstrap
+    steps:
+      - Goals list absent - propose grounded in AGENTS.md, docs/current/, best practice, dogfooding;
+        store dated in the playbook section before evaluating findings.
+      - Quantitative baselines absent - run all four helpers once and record initial-baseline DM-003
+        rows with command and date, claiming no delta; qualitative prose baselines remain untouched.
+      - From the second run onward - deltas compute directly because units and field order are
+        pinned by DM-004.
+  - id: FLOW-003
+    name: failure paths
+    steps:
+      - Playbook moved or anchors changed - abort loudly naming the missing file; never review
+        without baselines.
+      - Helper input unreadable - named cause and non-zero exit; zeros are never printed as data.
+      - Zero parseable events in a supplied transcript - explicit zero-extraction report naming the
+        file, non-zero exit, session-derived numbers treated as missing for that file.
+      - Empty docs/changes dataset - helpers exit zero reporting empty datasets.
+      - Recipe shape change - new baseline rows record which prior comparisons remain valid.
+decisions:
+  - id: DEC-001
+    title: Goals-list storage lives in the playbook, not docs/current/ or the skill folder
+    context: FR-010 requires proposing, storing, and loading a dated SDLC goals list but names no
+      location. AGENTS.md invariant 4 reserves docs/current/ writes to knowledge extraction, and the
+      skill folder is version-controlled source that must not accumulate mutable run state.
+    decision: Store the goals list as a dedicated section of
+      docs/ideas/sdlc-improvement-review-playbook.md beside the findings register and baselines it
+      is consumed with. One method document already refreshed in place by this skill, git-diff
+      reviewable, not living-doc governed (docs/ideas confirmed free-form during requirements
+      review), and it inherits the playbook failure path of loud abort on move. Rejected
+      alternatives - docs/current/ violates invariant 4; the skill folder conflates source with run
+      state; a separate docs/ideas file scatters review state across two homes.
+    status: accepted
+  - id: DEC-002
+    title: Two-tier baselines with first-run bootstrapping
+    context: AC-027 and AC-007 both assume 2026-08 baselines hold numeric measurements they do not; the
+      playbook baselines section is qualitative prose plus a few inline figures, so direct delta
+      comparison has no numeric foundation yet. The prose figure npm run validate at about 2 seconds
+      is the only duration anchor and it names no unit compatible with tooling output.
+    decision: Split baseline semantics into tiers. Qualitative prose baselines remain authoritative and
+      are never regenerated. Quantitative baselines are DM-003 rows created by the rule
+      recorded-by-a-prior-run-where-present-otherwise-record-initial-baselines - on first run every
+      measurement helper executes once and its output lands as initial-baseline rows carrying
+      command, date, and no delta claim; later runs delta against the newest row of the same metric
+      kind. This bootstraps both AC-027 (same units and field order for direct delta comparison) and
+      AC-007 (measurement outputs in the same units and shapes as the recorded baselines). Unit
+      mapping for the timing anchor - the playbook prose baseline npm run validate at about 2 s maps
+      onto API-004's duration_ms as approximately 2000 ms, so the first initial-baseline row for
+      metric validate-duration records kind timing, unit ms, and the prose-to-ms correspondence in
+      its comparability note. AC-027 and AC-007 become true from the second run onward without
+      inventing historical numbers.
+    status: accepted
+  - id: DEC-003
+    title: Helper scripts bundled under src/skills/improvement-review/scripts/
+    context: UA1 assumed validation tolerates files beside SKILL.md in a dev-only skill folder; no
+      dev-only skill bundled scripts before. Verified against source - bin/validate-templates.ts
+      scans src/skills folders checking only SKILL.md frontmatter (name equals folder, non-empty
+      description) with no sibling-file restriction, and bin/deploy-to-agent.ts deploys exactly two
+      skills by explicit id, copying knowledge-init by file only and never scanning src/skills
+      folders.
+    decision: Place the four helpers at src/skills/improvement-review/scripts/. tsconfig includes
+      src/**/*.ts so the fast gate typechecks them. The requirements failure-path fallback (relocate
+      to bin/ or src/scripts/) is retired - verification eliminated the risk.
+    status: accepted
+  - id: DEC-004
+    title: Helper runtime is plain TypeScript executed directly by node
+    context: Repo convention runs TypeScript without a build step (package.json scripts invoke node
+      bin/*.ts; engines node >=20; installed node v25 strips types natively).
+    decision: Helpers are ESM TypeScript using node builtins only (fs, path, child_process, perf_hooks),
+      zero new npm dependencies, invoked as node src/skills/improvement-review/scripts/name.ts. No
+      bundling, no compile step; determinism and dependency-freedom follow from builtins plus the
+      existing typecheck gate.
+    status: accepted
+  - id: DEC-005
+    title: Transcript mining takes caller-supplied files and degrades structurally
+    context: DL-003 wants post-hoc transcript mining; UA2 notes transcript locations vary by runtime and
+      machine; invariant 7 forbids hardcoded agent-specific paths.
+    decision: mine_transcript.ts accepts only explicitly supplied file paths and never discovers
+      transcript stores. Extraction targets a generic line-oriented event grammar documented in
+      SKILL.md - sdlc CLI invocation lines counted per stage, repeated identical consecutive command
+      lines as wasted-round candidates, delegation events capturing the three FR-002 sub-fields
+      (delegation type used, model resolution success/failure, whether the delegated output needed
+      rework) - with the source filename printed beside every number. Zero parseable events produce
+      the explicit zero-extraction report and non-zero exit. Absent transcripts degrade the review
+      to instrumentation notes only with cycles marked reconstructed-or-missing; degradation is a
+      designed mode, not an error path.
+    status: accepted
+  - id: DEC-006
+    title: Fairness pass is a What-worked register subsection with a minimum-entry rule
+    context: FR-009 requires recording what worked alongside complaints; the playbook warns that
+      complaint-only reviews lose credibility but defines no format.
+    decision: Maintain a What-worked subsection inside the Findings register section during every
+      refresh, with entries of mechanism, evidence (measurement, count, or sourced observation), and
+      date. A review with zero fairness entries is incomplete and must not finalize its register
+      update. The disposition vocabulary gains the single canonical token Works alongside Fixed and
+      Open; every Works row carries its dated confirmation as a mandatory confirmed-working history
+      entry (DM-002), so positives undergo the same dated regression-check discipline as fixes
+      without a second vocabulary name.
+    status: accepted
+  - id: DEC-007
+    title: Proposal template grounded on the inline enumeration and P12 only
+    context: Advisory 4 - the playbook F5 row references p11-agent-delegation-loop.md, which does not
+      exist on disk (docs/ideas holds only the playbook and p12-fast-track-lane.md), so P11 cannot
+      ground the template.
+    decision: The DM-005 skeleton is grounded solely on the playbook Step 6 inline enumeration plus
+      p12-fast-track-lane.md as the concrete exemplar; no P11 reference appears anywhere in the
+      skill. Register refresh gains a referential-integrity sweep over pointers to proposal files -
+      dangling pointers such as F5's are flagged in the round history and corrected or marked
+      missing through the skill's own register mechanics, never through engine changes.
+    status: accepted
+  - id: DEC-008
+    title: Byte-identity scope excludes the timing metric
+    context: AC-025 demands byte-identical output for identical repository state across helper runs,
+      while FR-004 mandates a bundled helper covering validate duration, whose value depends on
+      machine and load rather than repository state alone. Taken literally together the two are
+      unsatisfiable for a timing metric.
+    decision: Scope byte-identity to state-derived helpers (measure_artifacts, envelope_sizes,
+      mine_transcript). validate_duration.ts guarantees shape stability - fixed field order, fixed
+      units - while duration_ms varies; DM-003 rows of kind timing carry comparison semantics of
+      orders of magnitude and regression detection, not byte equality. Recorded so review reads
+      AC-025 as scoped, not violated.
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+      - CMP-002
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-002
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-002
+      - CMP-005
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-003
+      - CMP-004
+      - CMP-006
+  - requirement_id: FR-005
+    component_ids:
+      - CMP-002
+  - requirement_id: FR-006
+    component_ids:
+      - CMP-002
+  - requirement_id: FR-007
+    component_ids:
+      - CMP-009
+  - requirement_id: FR-008
+    component_ids:
+      - CMP-002
+      - CMP-008
+  - requirement_id: FR-009
+    component_ids:
+      - CMP-008
+  - requirement_id: FR-010
+    component_ids:
+      - CMP-007
+  - requirement_id: FR-011
+    component_ids:
+      - CMP-010
+      - CMP-009
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-001
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-003
+      - CMP-004
+      - CMP-005
+      - CMP-006
+  - requirement_id: NFR-003
+    component_ids:
+      - CMP-003
+      - CMP-004
+      - CMP-005
+      - CMP-006
+  - requirement_id: NFR-004
+    component_ids:
+      - CMP-003
+      - CMP-004
+      - CMP-005
+      - CMP-006
+delta:
+  - phase: Design
+    target_doc: docs/current/architecture.md
+    change: Add
+    reason: New dev-only component - the improvement-review skill bundle with four bundled helper
+      scripts under src/skills/improvement-review/scripts/, the first dev-only skill to bundle
+      scripts; deployment surface unchanged (still exactly two skills).
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/glossary.md
+    change: Add
+    reason: New terms introduced by the design - SDLC goals list, fairness pass (What-worked
+      subsection), evidence-or-label policy, measurement baseline kinds (count, bytes, timing), and
+      the generic transcript event grammar.
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/decisions.md
+    change: Add
+    reason: Design decisions worth canonizing - goals-list storage in the playbook (DEC-001), two-tier
+      baseline bootstrapping (DEC-002), helper placement verification (DEC-003), and the
+      byte-identity scope exclusion for timing metrics (DEC-008).
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/conventions.md
+    change: Add
+    reason: Runtime convention for dev-only skill helpers - plain TypeScript ESM executed directly via
+      node with node builtins only, typechecked by the existing fast-gate include set, no new npm
+      dependencies.
+    date: 2026-08-27
+  - phase: Design
+    target_doc: docs/current/operations.md
+    change: Add
+    reason: Concrete operator commands for the improvement review - the four helper script invocations
+      with their flags, failure exits, and the first-run bootstrap sequence for goals and baselines.
+    date: 2026-08-27

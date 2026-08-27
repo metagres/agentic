@@ -180,6 +180,28 @@
 | Validation | model must be a member of the enum; empty model_override fails naming file and value; free-form non-empty overrides pass | src/scripts/lib/agent-model-fields.ts, src/policies/errors.yaml |
 | Surfacing | CLI data exposes both model (recommended) and effectiveModel for bound agents | src/scripts/workflows/index.ts, src/scripts/workflows/status.ts |
 
+## Entity: Improvement Review (src/skills/improvement-review + playbook)
+
+| Field | Type | Nullable | Source |
+|-------|------|----------|--------|
+| location | src/skills/improvement-review/SKILL.md (dev-only, SKILL.md folder protocol) | No | src/skills/improvement-review/SKILL.md |
+| helpers | four deterministic TypeScript scripts under scripts/ (measure_artifacts, envelope_sizes, mine_transcript, validate_duration) | No | src/skills/improvement-review/scripts/ |
+| playbook | docs/ideas/sdlc-improvement-review-playbook.md — method plus run state (goals list, findings register, baselines) | No | docs/ideas/sdlc-improvement-review-playbook.md |
+| SDLC goals list | ordered G-NN entries (testable goal statement, grounding sources, status active/amended/retired, created date, amendments) stored in the playbook | Yes (empty state until the first run proposes the dated list) | docs/ideas/sdlc-improvement-review-playbook.md (## SDLC goals list) |
+| What-worked fairness subsection | register subsection with entries of mechanism, evidence (measurement, count, or sourced observation), and date | No | src/skills/improvement-review/SKILL.md |
+| measurement baselines | dated M-NN rows; kind count \| bytes \| timing; unit, command, date, comparability note | Yes (first run records initial-baseline rows) | docs/ideas/sdlc-improvement-review-playbook.md |
+| transcript event grammar | generic line-oriented grammar: invocation events (counted per command token), wasted-round candidates (repeated identical consecutive command lines), delegation events (type=, model=, rework= sub-fields; missing sub-fields reported unrecorded) | No | src/skills/improvement-review/scripts/mine_transcript.ts, src/skills/improvement-review/SKILL.md |
+
+| Business Rules | Rule | Location |
+|----------------|------|----------|
+| Evidence-or-label | every claim carries a measurement, count, grep, or sourced observation — or is explicitly labeled an unverified hypothesis naming the missing evidence; nothing in between | src/skills/improvement-review/SKILL.md |
+| Goals gate | the stored goals list is loaded (or a dated one proposed and stored) before any finding is evaluated; amendments require a dated justification — silent rewrites prohibited | src/skills/improvement-review/SKILL.md |
+| Baseline bootstrapping | first run records initial-baseline rows claiming no delta; later runs delta against the newest row of the same metric kind; timing rows compare orders of magnitude and regressions, never bytes | src/skills/improvement-review/SKILL.md |
+| Fairness minimum | at least one dated evidenced fairness entry per completed review; zero entries leave the register update incomplete | src/skills/improvement-review/SKILL.md |
+| Thin-signal check | fewer than two substantive changes since the last register update warns of thin signal and proceeds only after explicit maintainer confirmation — a manual precondition of the invoked run, never an automated trigger | src/skills/improvement-review/SKILL.md |
+| Zero extraction | a supplied transcript with zero parseable events yields an explicit zero-extraction report and non-zero exit; session-derived numbers are treated as missing, never zero | src/skills/improvement-review/scripts/mine_transcript.ts |
+| Invocation | manual, by the maintainer; never scheduled or automated; never deployed | src/skills/improvement-review/SKILL.md, bin/deploy-to-agent.ts |
+
 ## Naming Cross-Check
 
 | Backend Term | Frontend Term | Same Concept? | Action |

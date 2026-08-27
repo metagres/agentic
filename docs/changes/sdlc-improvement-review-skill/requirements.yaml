@@ -1,0 +1,437 @@
+metadata:
+  id: REQ-001
+  title: "Dev-only improvement-review skill: repeatable evidence-gated review producing implementable
+    proposals"
+  stage: requirements
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-27
+  updated: 2026-08-27
+  request_summary: "Turn the SDLC improvement review playbook
+    (docs/ideas/sdlc-improvement-review-playbook.md) into a skill that is run during development: it
+    executes the review-and-proposal exercise against live agentic sessions (instrumentation,
+    artifact measurement, check-verification, unused-surface inventory) and converts findings into
+    implementable proposals that can touch any aspect of the SDLC project, tested against the SDLC
+    goals and best practices in agentic SDLC."
+  clarity: clear
+  assumptions_reviewed: true
+  delta_reviewed: false
+  discovery_reviewed: true
+  scenarios_reviewed: true
+  step: complete
+problem_statement: The improvement-review method exists only as prose in
+  docs/ideas/sdlc-improvement-review-playbook.md, so each review runs ad hoc from memory and
+  produces numbers that cannot be compared across runs. Findings rot because the docs/ideas handoff
+  is manual and unenforced, fixed patterns regress unnoticed between reviews, and there is no goals
+  canon to test proposals against. Session evidence is captured inconsistently or reconstructed
+  after the fact, weakening the primary input the method depends on. A repeatable, evidence-gated
+  instrument is missing.
+discovery_log:
+  - id: DL-001
+    question: Should the improvement-review skill be development-only or deployed in the bundle?
+    answer: "Dev-only like agent-audit: lives in src/skills/, never deployed, invoked manually by the
+      maintainer of this repo."
+    lens: stakeholder
+    resolved: true
+  - id: DL-002
+    question: What is the concrete output when the skill produces implementable actions?
+    answer: Proposals written as docs/ideas/<slug>.md documents in the P11/P12 format (problem,
+      evidence, goal, non-goals, design space with open questions, requirement seeds, implementation
+      sketch, references, kickoff command). Implementation happens later via normal changes; the
+      skill does not auto-enroll changes.
+    lens: interface
+    resolved: true
+  - id: DL-003
+    question: Where does the primary session evidence come from when the skill runs?
+    answer: Both live instrumentation notes captured during sessions (playbook Step 1) and post-hoc
+      mining of transcript files when they exist; the skill carries recipes for both paths.
+    lens: data
+    resolved: true
+  - id: DL-004
+    question: What happens when a friction point cannot be substantiated with evidence?
+    answer: "Evidence-or-label policy: a candidate finding without reproducible evidence (counts, grep
+      results, timings) is either dropped or explicitly marked unverified hypothesis; it is never
+      presented as a finding."
+    lens: failure
+    resolved: true
+  - id: DL-005
+    question: Should the skill be prose-only or bundle helper scripts?
+    answer: SKILL.md plus small bundled helper scripts under src/skills/<name>/scripts/ for repeatable
+      measurements (envelope byte-size, artifact volume) so numbers stay comparable across reviews;
+      agent-audit is prose-only so this establishes a new dev-only pattern.
+    lens: constraint
+    resolved: true
+  - id: DL-006
+    question: What is the authoritative definition of the SDLC goals that proposals are tested against?
+    answer: No explicit goals document exists in the repo. Hard constraints come from AGENTS.md
+      invariants plus the playbook's five analysis lenses; because no goals canon exists, the skill
+      shall propose and maintain an explicit goals list grounded in AGENTS.md, docs/current/,
+      agentic-SDLC best practices (AI coding agents take change requests through well-defined phases
+      in a structured, documented way so each new request has enough information to continue), and
+      this project's own dogfooding experience.
+    lens: outcome
+    resolved: true
+assumptions:
+  - type: verified
+    text: The playbook defines the six-step method, five analysis lenses, findings register, and
+      baselines that this skill operationalizes.
+    source: docs/ideas/sdlc-improvement-review-playbook.md
+  - type: verified
+    text: "The dev-only skill pattern exists and is validated: frontmatter name equals folder name,
+      description non-empty, never deployed."
+    source: src/skills/agent-audit/SKILL.md
+  - type: verified
+    text: Deployment ships exactly two skills (agentic-sdlc, knowledge-init) and does not ship arbitrary
+      folders under src/skills/.
+    source: AGENTS.md sections 2.9 and 10; bin/deploy-to-agent.ts
+  - type: unverified
+    text: Existing validation tolerates helper scripts bundled under src/skills/<name>/scripts/ (no
+      dev-only skill currently bundles scripts).
+    question: Do validate:templates and deploy smoke accept extra files beside SKILL.md in a dev-only
+      skill folder?
+    impact: Determines whether helpers live in the skill folder or must move to bin/ or src/scripts/.
+    severity: medium
+  - type: unverified
+    text: Mineable session transcripts exist for past cycles at runtime-dependent locations;
+      availability varies by machine and runtime version.
+    question: Which transcript stores are stable enough for the mining recipes to target?
+    impact: Post-hoc mining may degrade to instrumentation-notes-only for some cycles.
+    severity: medium
+  - type: unverified
+    text: Maintainer judgment remains the trigger for running a review; no automation of the when-to-run
+      decision is required now.
+    question: Will a stale-register reminder inside the skill suffice to keep reviews happening?
+    impact: Reviews could be skipped indefinitely without any enforcement.
+    severity: low
+functional_requirements:
+  - id: FR-001
+    description: When the maintainer invokes the improvement-review skill, the skill shall execute the
+      six-step playbook method in order (instrument sessions, measure artifacts, verify checks
+      execute, inventory unused surface, convert findings into proposals, feed proposals back
+      through the toolkit) against current repository state and available session evidence.
+    ac_ids:
+      - AC-001
+      - AC-002
+  - id: FR-002
+    description: When a development cycle is reviewed, the skill shall provide live-instrumentation
+      guidance that records per cycle the CLI invocation counts per stage, round-trips that produced
+      no state change, findings that surfaced later than write-time detection allowed, output blocks
+      trimmed or skipped for size, and delegation outcomes including type, model resolution, and
+      rework.
+    ac_ids:
+      - AC-003
+      - AC-004
+  - id: FR-003
+    description: When transcript files are supplied to a review, the skill shall extract the same
+      measurement categories from them through documented recipes, recording the source file beside
+      each extracted number.
+    ac_ids:
+      - AC-005
+      - AC-006
+  - id: FR-004
+    description: When artifacts and envelopes are measured, the skill shall produce comparable numbers
+      through bundled deterministic helper scripts covering artifact volume per change, envelope
+      byte-size per stage and step, and validate duration, recording command and date beside each
+      number.
+    ac_ids:
+      - AC-007
+      - AC-008
+  - id: FR-005
+    description: When gates and checks are verified, the skill shall classify every declared check and
+      gate as mechanical+early, mechanical+late, honor-system, or dead, requiring proof of execution
+      against real data before any non-dead classification.
+    ac_ids:
+      - AC-009
+      - AC-010
+  - id: FR-006
+    description: When unused surface is inventoried, the skill shall verify consumer absence by grep
+      over src/ and by checking external consumers (deployed skills, other repos) before listing any
+      flag, schema field, workflow, or template section as a removal candidate.
+    ac_ids:
+      - AC-011
+      - AC-012
+  - id: FR-007
+    description: When a finding converts into a proposal, the skill shall write docs/ideas/<slug>.md in
+      the P11/P12 format containing problem, evidence, goal, non-goals, design space with open
+      questions, requirement seeds, implementation sketch, references, and a kickoff command, tagged
+      with one cost tier (quick win, structural, or strategic).
+    ac_ids:
+      - AC-013
+      - AC-014
+  - id: FR-008
+    description: When a candidate finding lacks reproducible evidence, the skill shall either drop it or
+      record it labeled as unverified hypothesis together with the evidence that would confirm it;
+      unlabeled unsupported claims shall not enter the register or any proposal.
+    ac_ids:
+      - AC-015
+      - AC-016
+  - id: FR-009
+    description: When a review completes, the skill shall record what worked alongside complaints and
+      refresh the playbook findings register (Fixed rows checked for regression, Open rows checked
+      for progress) and the baselines section with dated values.
+    ac_ids:
+      - AC-017
+      - AC-018
+  - id: FR-010
+    description: When a review starts without an existing goals list, the skill shall propose an
+      explicit SDLC goals list grounded in AGENTS.md, docs/current/, agentic-SDLC best practice
+      (structured phases with documented continuity so each new request carries enough information
+      to continue), and this project's dogfooding experience, then maintain that list dated for
+      reuse in later runs.
+    ac_ids:
+      - AC-019
+      - AC-020
+  - id: FR-011
+    description: When a proposal is written, the skill shall test it against AGENTS.md invariants and
+      the determinism stance, marking any proposal that would place judgment inside the engine,
+      alter the frozen envelope, or touch the capped check catalog as requiring the corresponding
+      governance event before kickoff.
+    ac_ids:
+      - AC-021
+      - AC-022
+non_functional_requirements:
+  - id: NFR-001
+    description: "When the repository builds or deploys, the improvement-review skill shall remain
+      development-only: it lives under src/skills/ with frontmatter whose name equals its folder
+      name and never appears in the deployed bundle, which continues to contain exactly agentic-sdlc
+      and knowledge-init."
+    ac_ids:
+      - AC-023
+      - AC-024
+  - id: NFR-002
+    description: When helper scripts run, they shall be deterministic and dependency-free within repo
+      runtime conventions, producing byte-identical output for identical repository state and
+      failing with a named cause and non-zero exit on unreadable input instead of emitting empty
+      numbers.
+    ac_ids:
+      - AC-025
+      - AC-026
+  - id: NFR-003
+    description: When measurements are reported across reviews, units and output shapes shall remain
+      stable so deltas against prior baselines stay meaningful; a breaking recipe change shall be
+      recorded in the playbook baselines section stating which comparisons remain valid.
+    ac_ids:
+      - AC-027
+      - AC-028
+  - id: NFR-004
+    description: When helper scripts emit default output, they shall print compact summaries of at most
+      40 lines with full detail behind a verbose flag, keeping the review's own token cost inside
+      the economy the method demands.
+    ac_ids:
+      - AC-029
+acceptance_criteria:
+  - id: AC-001
+    statement: Given the skill invoked in this repository, when the maintainer follows it start to
+      finish, then all six steps execute in order and each leaves its stated trace (instrumentation
+      summary, measurement table, gate classification table, inventory list, proposal documents,
+      refreshed register).
+    category: happy
+    parent_id: FR-001
+  - id: AC-002
+    statement: Given fewer than two substantive changes completed since the last review, when the skill
+      starts, then it warns that signal is thin and proceeds only after explicit confirmation,
+      recording the warning in the register entry.
+    category: edge
+    parent_id: FR-001
+  - id: AC-003
+    statement: Given a cycle instrumented per the guidance, when the review reads the notes, then every
+      category (invocation counts, zero-change round-trips, late findings, trimmed output,
+      delegation outcomes) holds a recorded value or an explicit none-observed marker.
+    category: happy
+    parent_id: FR-002
+  - id: AC-004
+    statement: Given a cycle with no captured notes, when the review reaches the instrumentation
+      outputs, then the cycle is marked reconstructed-or-missing and the review falls back to
+      transcript mining where files exist.
+    category: edge
+    parent_id: FR-002
+  - id: AC-005
+    statement: Given a transcript file path, when the mining recipe runs, then invocation counts,
+      wasted-round counts, and delegation events are extracted and printed with the source filename
+      beside each number.
+    category: happy
+    parent_id: FR-003
+  - id: AC-006
+    statement: Given a supplied file containing zero parseable session events, when the mining recipe
+      runs, then it prints an explicit zero-extraction report naming the file and exits non-zero
+      rather than silently producing empty numbers.
+    category: negative
+    parent_id: FR-003
+  - id: AC-007
+    statement: Given the current repository state, when the measurement scripts run, then they emit
+      per-artifact line counts, per-envelope byte sizes per stage and step, and validate duration in
+      the same units and shapes as the 2026-08 baselines.
+    category: happy
+    parent_id: FR-004
+  - id: AC-008
+    statement: Given a repository with zero changes under docs/changes/, when the measurement scripts
+      run, then they exit zero reporting empty datasets instead of erroring.
+    category: boundary
+    parent_id: FR-004
+  - id: AC-009
+    statement: Given the declared checks across stage folders, when verification completes, then every
+      declared check appears in the classification table with proof-of-execution evidence attached
+      or dead status recorded.
+    category: happy
+    parent_id: FR-005
+  - id: AC-010
+    statement: Given a check whose execution cannot be demonstrated on real data, when classified, then
+      the table marks it dead with the failed demonstration described, never assumed working.
+    category: negative
+    parent_id: FR-005
+  - id: AC-011
+    statement: Given a candidate unused flag, when inventoried, then the inventory entry records the
+      exact grep commands and their match counts beside the removal claim.
+    category: happy
+    parent_id: FR-006
+  - id: AC-012
+    statement: Given a candidate whose grep shows a live consumer in src/ or a deployed skill, when
+      inventoried, then the entry is excluded from removal candidates or recorded as refuted with
+      the consumer named.
+    category: negative
+    parent_id: FR-006
+  - id: AC-013
+    statement: Given three accepted findings spanning different tiers, when proposals are written, then
+      each becomes its own docs/ideas document containing all nine P11/P12 sections and a runnable
+      kickoff command.
+    category: happy
+    parent_id: FR-007
+  - id: AC-014
+    statement: Given a finding whose resolution spans multiple tiers, when proposed, then the document
+      states the highest required tier and why lower-tier partial resolutions were rejected.
+    category: edge
+    parent_id: FR-007
+  - id: AC-015
+    statement: Given a friction point backed by counts or timings, when processed, then it enters the
+      register as a finding with the evidence inline.
+    category: happy
+    parent_id: FR-008
+  - id: AC-016
+    statement: Given a friction point asserted from memory with no artifact behind it, when processed,
+      then it appears only as an unverified hypothesis naming the missing evidence, or is dropped,
+      and never enters a proposal body as established fact.
+    category: negative
+    parent_id: FR-008
+  - id: AC-017
+    statement: Given a completed review, when the register refreshes, then every Fixed row carries a
+      dated regression-check result and every Open row a dated progress note.
+    category: happy
+    parent_id: FR-009
+  - id: AC-018
+    statement: Given a Fixed row found regressed, when the register refreshes, then the row reopens with
+      regression evidence and a sibling-hunt note for newly added surface.
+    category: edge
+    parent_id: FR-009
+  - id: AC-019
+    statement: Given a first run with no goals list on disk, when the review starts, then a dated goals
+      list grounded in AGENTS.md, docs/current/, agentic-SDLC best practice, and dogfooding
+      experience is proposed and stored before any finding is evaluated.
+    category: happy
+    parent_id: FR-010
+  - id: AC-020
+    statement: Given a goals list stored by a previous run, when a later review starts, then the stored
+      list loads and amendments require dated justification instead of silent rewrites.
+    category: edge
+    parent_id: FR-010
+  - id: AC-021
+    statement: Given a proposal that would place judgment inside the engine, when tested, then the
+      proposal is rejected or reshaped to route judgment to the calling agent, and the test result
+      is recorded in the document.
+    category: happy
+    parent_id: FR-011
+  - id: AC-022
+    statement: Given a proposal touching the capped check catalog or the frozen envelope, when tested,
+      then the document flags the corresponding governance event (design review for the catalog,
+      decision for the envelope) before its kickoff command.
+    category: boundary
+    parent_id: FR-011
+  - id: AC-023
+    statement: Given npm run deploy:smoke completes, when the bundle is inspected, then
+      .opencode/skills/ contains exactly agentic-sdlc and knowledge-init and no improvement-review
+      folder.
+    category: happy
+    parent_id: NFR-001
+  - id: AC-024
+    statement: Given npm run validate:templates runs, when it evaluates the new skill, then frontmatter
+      passes with name equal to the folder name and a non-empty description.
+    category: boundary
+    parent_id: NFR-001
+  - id: AC-025
+    statement: Given identical repository state, when any helper script runs twice, then both runs
+      produce byte-identical output apart from values passed explicitly as arguments.
+    category: happy
+    parent_id: NFR-002
+  - id: AC-026
+    statement: Given a helper script pointed at unreadable input, when it runs, then it exits non-zero
+      with a message naming the unreadable path instead of printing zeros.
+    category: negative
+    parent_id: NFR-002
+  - id: AC-027
+    statement: Given baseline numbers from the 2026-08 register, when today's scripts run, then outputs
+      use the same units and field order so direct delta comparison works without transformation.
+    category: happy
+    parent_id: NFR-003
+  - id: AC-028
+    statement: Given a recipe that had to change shape, when the review reports numbers, then the
+      register states which prior baselines remain comparable and which do not.
+    category: edge
+    parent_id: NFR-003
+  - id: AC-029
+    statement: Given any helper script run without flags, when it prints, then default output stays
+      within 40 lines and full detail appears only behind a verbose flag.
+    category: boundary
+    parent_id: NFR-004
+out_of_scope:
+  - Auto-enrolling proposals as toolkit changes; the skill writes kickoff commands only.
+  - Deploying the skill or adapting it for repositories other than this one.
+  - Engine, stage, check-catalog, or envelope changes within this change; those arrive via the
+    proposals the skill produces, each as its own change.
+  - Automating the when-to-run trigger decision.
+  - Any LLM call inside the CLI or engine; judgment stays at the call site per the determinism
+    stance.
+  - Re-running the historical 2026-08 process-economy review; this change builds the instrument and
+    does not perform a review.
+failure_paths:
+  - If the playbook moves or its sections change anchor, the skill shall fail loudly naming the
+    missing file rather than silently reviewing without baselines.
+  - If validation rejects scripts under src/skills/, the design shall relocate helpers (bin/ or
+    src/scripts/) and record the decision before implementation proceeds.
+  - If transcript extraction returns zero parseable events from a supplied file, the recipe reports
+    zero-extraction explicitly and the review treats session-derived numbers for that file as
+    missing.
+  - If the register shows no review across more than the guided cadence of two to three substantive
+    changes, the next authoring session surfaces a stale-register reminder; skipping remains
+    possible but is recorded.
+risks_and_dependencies:
+  - "Playbook location coupling: the skill references
+    docs/ideas/sdlc-improvement-review-playbook.md; moving or restructuring the playbook breaks the
+    reference. (failure path 1)"
+  - Validation tolerance for bundled scripts under src/skills/ is unproven; design must confirm
+    validate:templates and deploy smoke accept them before implementation. (failure path 2)
+  - Transcript availability varies by runtime and machine; recipes must degrade gracefully to
+    instrumentation notes only. (failure path 3)
+  - Without an automated trigger, reviews may be skipped indefinitely; the stale-register reminder
+    mitigates but relies on honesty. (failure path 4)
+  - "Dependency: this change delivers the instrument only; every engine, stage, or check improvement
+    it proposes lands as its own change through the normal pipeline."
+  - "Dependency: the goals list proposed by the first run requires maintainer acceptance before it
+    becomes evaluation canon."
+delta:
+  - phase: Requirements
+    target_doc: docs/current/capabilities.md
+    change: Add
+    reason: New dev-only capability entry for the improvement-review skill executing the six-step
+      playbook method with bundled deterministic measurement helpers.
+    date: 2026-08-27
+  - phase: Requirements
+    target_doc: docs/current/conventions.md
+    change: Add
+    reason: New convention that dev-only skills may bundle deterministic helper scripts under
+      src/skills/<name>/scripts/ (first instance is this skill).
+    date: 2026-08-27
+  - phase: Requirements
+    target_doc: docs/current/operations.md
+    change: Add
+    reason: "Operator procedure for running the improvement review: invocation, inputs (instrumentation
+      notes, transcript paths), outputs (docs/ideas proposals, refreshed register)."
+    date: 2026-08-27
