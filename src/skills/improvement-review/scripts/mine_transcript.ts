@@ -31,7 +31,7 @@ function fail(cause: string): never {
 const INVOCATION_RE = /(?:^|[\s`(])(?:node\s+\S*sdlc\.(?:ts|js)|\bsdlc)\s+(\S+)/;
 
 /** Delegation event: a line mentioning delegation plus at least one sub-field token. */
-const DELEGATION_RE = /\bdelegate(?:d|s|ion)?\b/i;
+const DELEGATION_RE = /\bdelegat(?:e|ed|es|ion)\b/i;
 const DELEGATION_SUBFIELD_RE = /\b(type|model|rework)=/i;
 
 interface DelegationEvent {

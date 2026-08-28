@@ -1,0 +1,304 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: mine-transcript-delegation-stem"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-28
+  updated: 2026-08-28
+  based_on_design: 0.1.0
+  based_on_requirements: 0.1.0
+  implementation_status: accepted
+  step: complete
+  delta_reviewed: true
+tasks:
+  - id: TASK-001
+    title: Replace the delegation stem constant in mine_transcript.ts (CMP-001)
+    description: |
+      CMP-001 / FR-001. In src/skills/improvement-review/scripts/mine_transcript.ts replace
+      the line-34 stem constant DELEGATION_RE = /\bdelegate(?:d|s|ion)?\b/i with the
+      word-bounded, case-insensitive four-form alternation /\bdelegat(?:e|ed|es|ion)\b/i over
+      delegate, delegated, delegates, and delegation. Change this one line and nothing else in
+      the miner: the sub-field requirement (DELEGATION_SUBFIELD_RE), the report shape, the
+      exit codes, and the event grammar stay untouched (CMP-001). DEC-001 scopes the edit to
+      the stem constant alone, which keeps stdout bytes and exit codes identical for
+      transcripts containing no word matching either stem (AC-008, NFR-001); divergence on
+      inputs the pre-fix stem over-matched (delegateion) is the fix operating as specified and
+      is pinned by the TASK-003 boundary test.
+      COMPLETION CRITERIA: the constant reads exactly /\bdelegat(?:e|ed|es|ion)\b/i; git diff
+      over the miner shows exactly one changed line; delegating and delegateion remain
+      unmatched and grammar extensions (subagent, delegate_to) stay out (AC-003 scope,
+      requirements out_of_scope).
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-001
+      - NFR-001
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-008
+    design_refs:
+      - DEC-001
+    depends_on: []
+    files:
+      - path: src/skills/improvement-review/scripts/mine_transcript.ts
+        operation: modify
+    implementation_note: "Replaced line 34 stem constant with exactly /\\bdelegat(?:e|ed|es|ion)\\b/i
+      (kept DELEGATION_RE binding and /i flag). git diff over the miner shows exactly one changed
+      line; the preceding comment already read 'a line mentioning delegation plus at least one
+      sub-field token' so no comment tweak was needed. Verified via node -e (not committed): pre-fix
+      stem yields false on 'delegation type=...' (AC-007 premise) and true on 'delegateion'
+      (over-match); fixed stem matches delegate/delegated/delegates/delegation and still rejects
+      delegating and delegateion (AC-003 scope, DEC-001 boundary)."
+    started_at: 2026-08-28
+    files_changed:
+      - path: src/skills/improvement-review/scripts/mine_transcript.ts
+        operation: modify
+    completed_at: 2026-08-28
+  - id: TASK-002
+    title: Add the committed fixture transcript (CMP-003)
+    description: |
+      CMP-003 / FR-002 (DEC-002). Create test/fixtures/mine-transcript/delegation-transcript.txt
+      carrying exactly two event lines. Line 1 is a clean sdlc invocation line reading
+      `node src/scripts/sdlc.ts requirements --change demo` — it carries no delegat-form word
+      and no sub-field token, per the design-review advisory: a delegat-form word on the
+      invocation line together with a sub-field token would double-count. Line 2 is the
+      delegation-phrased event line `delegation type=subagent model=resolved rework=none`.
+      On these bytes the pre-fix stem yields delegations 0 and the fixed stem yields
+      delegations 1 — the mechanical regression property (AC-007 holds by construction). The
+      mine-transcript directory mirrors the fixtures tree directory-per-concern layout
+      (DEC-002). This is the only committed fixture; every other acceptance case uses a
+      per-case temp transcript created by the TASK-003 suite.
+      COMPLETION CRITERIA: the file exists with exactly those two lines and no other fixture
+      file is added under test/fixtures/mine-transcript/.
+    type: test
+    status: done
+    complexity: low
+    covers:
+      - FR-002
+    acceptance_ids:
+      - AC-006
+      - AC-007
+    design_refs:
+      - DEC-002
+    depends_on: []
+    files:
+      - path: test/fixtures/mine-transcript/delegation-transcript.txt
+        operation: create
+    implementation_note: "Created test/fixtures/mine-transcript/delegation-transcript.txt with exactly
+      two event lines: 'node src/scripts/sdlc.ts requirements --change demo' (clean invocation, no
+      delegat-form word, no sub-field token) and 'delegation type=subagent model=resolved
+      rework=none'. Trailing newline matches the existing fixtures under test/fixtures/ (all end
+      with \\n). It is the only file under test/fixtures/mine-transcript/. On these bytes the
+      pre-fix stem yields delegations=0 and the fixed stem yields delegations=1 (AC-007 by
+      construction)."
+    started_at: 2026-08-28
+    files_changed:
+      - path: test/fixtures/mine-transcript/delegation-transcript.txt
+        operation: create
+    completed_at: 2026-08-28
+  - id: TASK-003
+    title: Add the regression unit test (CMP-002)
+    description: |
+      CMP-002 / FR-002. Create test/unit/mine-transcript.test.ts (node:test) that spawns the
+      miner with process.execPath via spawnSync from the repo root, consuming the unchanged
+      CLI surface of API-001 (stdout rows plus exit code). Acceptance mapping per CMP-002
+      with the design-review corrections applied:
+      AC-001 — spawn on the committed fixture with --verbose and assert the three
+      basename-prefixed verbose sub-field labels in the emitted format
+      `label=delegation-transcript.txt:delegation_type:subagent value=1`, likewise
+      delegation_model resolved and delegation_rework none, each value 1; the labels are
+      basename-prefixed per mine_transcript.ts lines 213-224 (design-review advisory 1),
+      never bare `delegation_type subagent` pairs (DEC-003).
+      AC-002 — temp transcript with one delegated line and one delegates line, both carrying
+      sub-field tokens; delegations row value 2.
+      AC-003 — temp transcript whose only line is a delegating line with sub-field tokens;
+      delegations row value 0.
+      AC-004 — temp transcript with one invocation line and one prose line mentioning
+      delegation without any sub-field token; delegations row value 0.
+      AC-005 — temp transcript with delegation at line start and delegation wrapped in
+      backticks, both lines carrying sub-field tokens; delegations row value 2.
+      AC-006 — spawn on the committed fixture with default output; result ok, invocations row
+      value 1, delegations row value 1, exit code 0.
+      AC-007 — holds by construction: the fixture line is spelled delegation, which the
+      pre-fix stem cannot match, so the delegations value 1 assertion fails under the pre-fix
+      stem and passes under the fixed stem; record this reasoning in a test comment, never as
+      a two-version byte diff (DEC-001, design-review advisory 3).
+      AC-008 — temp transcript with one invocation line and one prose line containing no
+      delegat-form word at all; assert result ok, delegations value 0, invocations value 1,
+      and exit code 0 — the observable no-stem-word behavior class from NFR-001, never a
+      cross-version byte comparison (DEC-001, design-review advisory 3).
+      AC-009 — the AC-003 transcript yields zero invocations and zero delegation events;
+      assert the zero_extraction_report names the file and the exit code is 1.
+      Boundary pin for DEC-001 — temp transcript with a delegateion line carrying sub-field
+      tokens; delegations row value 0, pinning the four-form scope against the pre-fix stem
+      over-match.
+      Per-case transcripts are written into a temp directory created with fs.mkdtempSync
+      under os.tmpdir() and removed after the run (DEC-002).
+      COMPLETION CRITERIA: the suite passes under node --test inside npm run validate and
+      every case AC-001 through AC-009 plus the boundary pin is present with a named
+      assertion.
+    type: test
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-002
+      - NFR-001
+      - NFR-002
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-006
+      - AC-007
+      - AC-008
+      - AC-009
+    design_refs:
+      - DEC-001
+      - DEC-002
+      - DEC-003
+    depends_on:
+      - TASK-001
+      - TASK-002
+    files:
+      - path: test/unit/mine-transcript.test.ts
+        operation: create
+    implementation_note: "Created test/unit/mine-transcript.test.ts (node:test + node:assert/strict,
+      ESM) spawning the miner via spawnSync(process.execPath, [minerPath, ...], {cwd: root}). 8
+      named tests cover the full acceptance mapping: AC-006 (fixture default output: result ok,
+      invocations=1, delegations=1, exit 0), AC-001 via --verbose with prefix matches on the emitted
+      basename-prefixed labels (delegation-transcript.txt:delegation_type:subagent /
+      :delegation_model:resolved / :delegation_rework:none, each value=1, no whole-line byte compare
+      per DEC-003), AC-002 (delegated+delegates -> 2), AC-003+AC-009 (delegating -> 0,
+      zero_extraction_report names the file, exit 1), AC-004 (delegation mention without sub-field
+      token -> 0), AC-005 (line start + backtick with sub-field tokens -> 2), AC-008 (no stem word
+      -> result ok, delegations=0, invocations=1, exit 0, behavior class only per DEC-001), DEC-001
+      boundary pin (delegateion -> 0, exit 1 + report as side effect). AC-007 recorded in the header
+      comment as by-construction reasoning (pre-fix stem yields 0 on the fixture bytes; verified
+      once via node -e during TASK-001, no pre-fix copy committed). Temp dirs created with
+      fs.mkdtempSync under os.tmpdir() and removed via fs.rmSync recursive in a finally guard. Suite
+      run standalone: 8/8 pass."
+    started_at: 2026-08-28
+    files_changed:
+      - path: test/unit/mine-transcript.test.ts
+        operation: create
+    completed_at: 2026-08-28
+  - id: TASK-004
+    title: Run npm run validate and confirm the gate is green
+    description: |
+      FR-002 / FLW-001 (AGENTS.md section 1). Run npm run validate from the repo root after
+      TASK-001, TASK-002, and TASK-003 are done and require exit 0 — the change touches src/
+      and test/, so the seconds-long gate is mandatory before the change is declared
+      complete. The run proves the new suite is wired into the gate (node --test over
+      test/unit/) and the fixture assertions hold (AC-006); it also re-proves AC-007's
+      mechanical property, since the suite now fails every future validate run in which the
+      stem cannot match delegation.
+      COMPLETION CRITERIA: npm run validate exits 0 with the mine-transcript test passing;
+      record the evidence in the task note via sdlc implementation --note.
+    type: verification
+    status: done
+    complexity: low
+    covers:
+      - FR-002
+    acceptance_ids:
+      - AC-006
+      - AC-007
+    depends_on:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+    implementation_note: "npm run validate from the repo root exited 0 (ran twice, both green): schemas
+      + policies + templates + typecheck + unit tests, 204 tests / 204 pass / 0 fail. The
+      mine-transcript suite is wired into the gate and all 8 tests pass inside it: AC-006 fixture
+      default output, AC-001 verbose sub-field labels, AC-002, AC-003+AC-009, AC-004, AC-005,
+      AC-008, and the DEC-001 delegateion boundary pin. This re-proves AC-007's mechanical property:
+      any future stem unable to match 'delegation' fails every validate run."
+    started_at: 2026-08-28
+    files_changed: []
+    completed_at: 2026-08-28
+  - id: TASK-005
+    title: Land the idea doc per the docs/ideas queue contract
+    description: |
+      Documentation task mandated by the requirements risk register (risks_and_dependencies
+      row 3) and the docs/ideas queue contract (docs/current/conventions.md). Set the Status
+      header of docs/ideas/mine-transcript-delegation-stem.md to
+      "Landed in mine-transcript-delegation-stem <implementation-date>" where
+      <implementation-date> is the date this task runs in YYYY-MM-DD form, matching the
+      landing signature regex ^Landed in \S+ \d{4}-\d{2}-\d{2}$, then git mv the file into
+      this change folder as
+      docs/changes/mine-transcript-delegation-stem/mine-transcript-delegation-stem.md,
+      unmodified apart from the Status header. The landed document is the origin record of
+      FR-001 and FR-002 and the provenance for the byte-exact defect verification behind
+      AC-007 (the requirements' verified assumptions cite it).
+      COMPLETION CRITERIA: the file is absent from docs/ideas; the landed copy exists in the
+      change folder with the Status header matching the landing signature; git diff shows
+      only the Status line changed; implementation-review's docs/ideas signature sweep finds
+      no landed signature afterward.
+    type: documentation
+    status: done
+    complexity: low
+    covers:
+      - FR-001
+      - FR-002
+    acceptance_ids:
+      - AC-007
+    depends_on: []
+    files:
+      - path: docs/ideas/mine-transcript-delegation-stem.md
+        operation: delete
+      - path: docs/changes/mine-transcript-delegation-stem/mine-transcript-delegation-stem.md
+        operation: create
+    implementation_note: "Edited only the Status header line to '| Status | Landed in
+      mine-transcript-delegation-stem 2026-08-28 |' (matches ^Landed in \\S+ \\d{4}-\\d{2}-\\d{2}$
+      per docs/current/conventions.md queue contract) and ran git mv into
+      docs/changes/mine-transcript-delegation-stem/. git diff HEAD over the file shows the rename
+      with similarity 97% and exactly one content hunk (the Status line); the file is absent from
+      docs/ideas. Note: git mv staged the rename with the HEAD blob, so the Status edit sits as an
+      unstaged change on the new path — working tree is correct, nothing committed."
+    started_at: 2026-08-28
+    files_changed:
+      - path: docs/ideas/mine-transcript-delegation-stem.md
+        operation: delete
+      - path: docs/changes/mine-transcript-delegation-stem/mine-transcript-delegation-stem.md
+        operation: create
+    completed_at: 2026-08-28
+milestones:
+  - id: MS-001
+    title: Stem fix, regression suite, and gate green
+    tasks:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+    done_when: The miner diff shows exactly one changed line reading the four-form stem, the fixture and
+      the eight-test regression suite exist under test/, and npm run validate exits 0 with the
+      mine-transcript tests passing inside the gate (AC-001..AC-009, DEC-001 boundary pin).
+  - id: MS-002
+    title: Idea doc landed per the queue contract
+    tasks:
+      - TASK-005
+    done_when: The idea file's Status header carries the landing signature "Landed in
+      mine-transcript-delegation-stem 2026-08-28", the file lives in the change folder otherwise
+      unmodified, and docs/ideas holds no landed signature for it.
+risks:
+  - id: RISK-001
+    description: Scope creep into delegation-grammar changes (subagent, delegate_to, delegating forms)
+      would widen the fix beyond the accepted bug fix.
+    mitigation: Excluded by the requirements out_of_scope list; the TASK-003 delegateion boundary pin
+      mechanically locks the four-form stem scope, and the git-diff completion criterion holds
+      TASK-001 to exactly one changed line.
+  - id: RISK-002
+    description: The idea doc is not landed per the docs/ideas queue contract, leaving a landed
+      signature in docs/ideas or a stale Proposed status.
+    mitigation: TASK-005 exists solely for the landing and is independent of the code tasks;
+      implementation-review verifies docs/ideas holds no landed signatures and that the change
+      folder carries the file with only the Status line changed.
+delta: []

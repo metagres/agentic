@@ -1,0 +1,2 @@
+node src/scripts/sdlc.ts requirements --change demo
+delegation type=subagent model=resolved rework=none

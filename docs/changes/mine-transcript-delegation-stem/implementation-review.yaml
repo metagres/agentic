@@ -1,0 +1,42 @@
+metadata:
+  artifact: plan.yaml
+  target: implementation
+  latest_round: 2
+  created: 2026-08-28
+  updated: 2026-08-28
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-08-28T12:55:39.494Z
+    artifact_version: 0.1.0
+    implementation_status: rejected
+    decision: rejected
+    can_accept: false
+    mechanical:
+      valid: false
+      blocking_count: 2
+      findings:
+        - check: schema
+          severity: blocking
+          category: structural
+          target: doc
+          finding: doc must have required property 'milestones'
+          fix: Fix doc to match schema.yaml
+        - check: schema
+          severity: blocking
+          category: structural
+          target: doc
+          finding: doc must have required property 'risks'
+          fix: Fix doc to match schema.yaml
+    warnings: []
+  - round: 2
+    reviewed_at: 2026-08-28T13:18:00.462Z
+    artifact_version: 0.1.0
+    implementation_status: accepted
+    decision: accepted
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    warnings: []

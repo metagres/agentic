@@ -1,0 +1,168 @@
+metadata:
+  id: DES-001
+  title: "Design: mine-transcript-delegation-stem"
+  stage: design
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-28
+  updated: 2026-08-28
+  based_on_requirements: 0.1.0
+  delta_reviewed: true
+  step: complete
+context_summary: The defect is a delegation stem in the improvement-review miner that can never
+  match the word delegation because it demands the literal prefix delegate, which the spelling of
+  delegation does not contain. The design replaces that one stem constant with the accepted
+  four-form word-bounded alternation and changes no other line of the miner. A regression suite
+  under the unit test tree spawns the miner against a committed fixture transcript and against small
+  per-case transcripts it writes to a temp directory, asserting counts, sub-fields, boundary forms,
+  and the zero-extraction report with its non-zero exit. One fixture file under the fixtures tree
+  carries exactly the mandated delegation-phrased event line plus one invocation line. Byte-identity
+  is interpreted as the determinism contract recorded in the miner header, so identical inputs yield
+  identical output bytes and exit codes, and the pre-fix stem over-match is treated as the bug being
+  fixed rather than as behavior to preserve.
+components:
+  - id: CMP-001
+    name: Delegation stem matcher
+    responsibility: Owns the single corrected line in mine_transcript.ts. The stem constant
+      DELEGATION_RE is replaced with the word-bounded, case-insensitive four-form alternation over
+      delegate, delegated, delegates, and delegation, exactly as FR-001 specifies. Every other line
+      of the miner stays untouched, including the sub-field requirement, the report shape, and the
+      exit codes.
+  - id: CMP-002
+    name: Regression suite
+    responsibility: Owns test/unit/mine-transcript.test.ts, the mechanical regression guard from FR-002.
+      The suite spawns the miner with process.execPath via spawnSync from the repo root, asserts the
+      delegation and invocation counts for the committed fixture, covers the four-form boundary and
+      negative cases with small transcripts written to a temp directory, and asserts the
+      zero-extraction report and non-zero exit. It runs under node --test inside npm run validate,
+      so a stem unable to match delegation fails on every validate run.
+    acceptance_mapping:
+      - AC-001 | spawn the miner on the committed fixture with --verbose and assert the three
+        verbose sub-field labels delegation_type subagent, delegation_model resolved, and
+        delegation_rework none, each with value 1.
+      - AC-002 | temp transcript with one delegated line and one delegates line, both carrying
+        sub-field tokens; assert the delegations row reports value 2.
+      - AC-003 | temp transcript whose only line is a delegating line with sub-field tokens; assert
+        the delegations row reports value 0.
+      - AC-004 | temp transcript with one invocation line and one prose line mentioning delegation
+        without any sub-field token; assert the delegations row reports value 0.
+      - AC-005 | temp transcript with delegation at line start and delegation wrapped in backticks,
+        both lines carrying sub-field tokens; assert the delegations row reports value 2.
+      - AC-006 | spawn the miner on the committed fixture with default output; assert result ok, the
+        invocations row value 1, the delegations row value 1, and exit code 0.
+      - "AC-007 | holds by construction: the fixture delegation-phrased line is spelled delegation,
+        which the pre-fix stem cannot match, so the delegations value 1 assertion fails under the
+        pre-fix stem and passes under the fixed stem."
+      - AC-008 | temp transcript with one invocation line and one prose line containing no
+        delegat-form word at all; assert result ok, delegations value 0, invocations value 1, and
+        exit code 0, the observable no-stem-word behavior class from NFR-001.
+      - AC-009 | the AC-003 transcript yields zero invocations and zero delegation events; assert
+        the zero_extraction_report names the file and the exit code is 1, identical to pre-fix
+        behavior because delegating matched neither stem.
+      - Boundary pin for DEC-001 | temp transcript with a delegateion line carrying sub-field
+        tokens; assert the delegations row reports value 0, pinning the four-form scope against the
+        pre-fix stem over-match.
+  - id: CMP-003
+    name: Regression fixture transcript
+    responsibility: "Owns test/fixtures/mine-transcript/delegation-transcript.txt, the committed fixture
+      mandated by FR-002 and AC-006. It carries exactly two event lines: one sdlc invocation line
+      and one delegation-phrased event line reading delegation type=subagent model=resolved
+      rework=none. On these bytes the pre-fix stem yields delegations 0 and the fixed stem yields
+      delegations 1, which is the mechanical regression property."
+data_models:
+  - id: DM-001
+    name: Delegation event line grammar
+    definition: A line is a delegation event when it contains a word-bounded, case-insensitive form of
+      the four-form stem and at least one sub-field token of the form type=, model=, or rework=.
+      Sub-field values are the characters after the equals sign up to the next whitespace or closing
+      delimiter. The fixture and every test transcript use only this grammar; the design changes no
+      event grammar and no output shape.
+apis:
+  - id: API-001
+    path: node src/skills/improvement-review/scripts/mine_transcript.ts <file>... [--verbose]
+    method: spawnSync
+    contract: Unchanged CLI surface consumed by the test exactly as documented in the miner usage line.
+      The suite reads stdout, asserts report rows, and reads the exit code; the zero-extraction
+      report and its non-zero exit are preserved.
+flows:
+  - id: FLW-001
+    name: Regression guard flow
+    steps:
+      - npm run validate runs node --test over the unit test tree, executing
+        test/unit/mine-transcript.test.ts.
+      - The suite spawns the miner on the committed fixture and on the per-case temp transcripts.
+      - Each case asserts its report rows and exit code; any assertion failure fails the suite and
+        the validate run.
+  - id: FLW-002
+    name: Delegation counting flow
+    steps:
+      - The miner trims each input line and tests it against the fixed four-form stem.
+      - A line passing the stem test must also carry at least one sub-field token to be recorded as
+        a delegation event.
+      - Recorded events aggregate into the delegations row and, under --verbose, into the three
+        sub-field labels the test asserts.
+decisions:
+  - id: DEC-001
+    title: Byte-identity means determinism, not cross-version equivalence
+    context: "NFR-001 and AC-008 state byte-identical stdout for a transcript containing no word
+      matching the delegation stem. Read as a universal quantifier over all such transcripts the
+      claim is falsifiable: a line such as delegateion type=x rework=y matches the pre-fix stem but
+      not the four-form stem, so pre-fix and post-fix outputs differ on that input by design. The
+      miner header and the frozen scoping decision define byte-identity as determinism,
+      byte-identical output for identical input files."
+    decision: The design interprets NFR-001 as the determinism contract. For inputs where neither the
+      pre-fix stem nor the four-form stem matches any word, the delegation branch is inert in both
+      versions and the only changed line is the stem constant, so stdout bytes and exit code are
+      preserved; the AC-008 case asserts this observable class. Divergence on inputs the pre-fix
+      stem over-matched, such as the delegateion form, is the bug fix working as specified and is
+      pinned by a boundary test so the four-form scope cannot silently widen.
+    status: accepted
+  - id: DEC-002
+    title: One committed fixture plus per-case temp transcripts
+    context: FR-002, AC-006, and AC-007 mandate one fixture transcript under the fixtures tree carrying
+      exactly one delegation-phrased event line and one invocation line. The remaining acceptance
+      scenarios each need a distinct transcript, and folding them into the mandated fixture would
+      contradict the acceptance scenario that fixes its contents.
+    decision: The suite commits exactly one fixture at
+      test/fixtures/mine-transcript/delegation-transcript.txt, grouped under a directory named for
+      the miner, mirroring the existing directory-per-concern layout of the fixtures tree. Every
+      other acceptance case writes its small transcript into a temp directory created with
+      fs.mkdtempSync under os.tmpdir() and removes it after the run, keeping each scenario input
+      next to its assertion.
+    status: accepted
+  - id: DEC-003
+    title: Sub-field assertions run in verbose mode
+    context: AC-001 asserts the sub-fields type=subagent, model=resolved, and rework=none, which appear
+      in the report only when the miner runs with --verbose; the default report carries only the
+      delegations count row.
+    decision: The suite asserts AC-001 by spawning the miner with --verbose on the committed fixture and
+      matching the three verbose sub-field labels; all count assertions use the default report. No
+      miner output change is made or required.
+    status: accepted
+  - id: DEC-004
+    title: No design-phase delta for living docs
+    context: The requirements stage already appended the Modify entry for the operations helper row, and
+      the verified assumptions record that the skill documentation already describes the intended
+      four-form grammar, so the fix aligns code with existing documentation. The design introduces
+      no new capability, contract, or command beyond what the requirements delta records.
+    decision: The design delta array stays empty and the delta step is marked reviewed; knowledge
+      extraction applies the requirements-stage entry when the change lands.
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+      - CMP-002
+      - CMP-003
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-002
+      - CMP-003
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-001
+      - CMP-002
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-002
+delta: []

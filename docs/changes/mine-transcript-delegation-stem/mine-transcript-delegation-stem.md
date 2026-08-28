@@ -3,7 +3,7 @@
 | Field | Value |
 |---|---|
 | Origin | Implementation session of `rehome-improvement-review-canon` (2026-08-27), implementer anomaly report (TASK-006 byte-identity runs) |
-| Status | Proposed |
+| Status | Landed in mine-transcript-delegation-stem 2026-08-28 |
 | Suggested change slug | `mine-transcript-delegation-stem` |
 | Depends on | Nothing |
 | Kind | Bug fix (dev-only helper script; quick win) |

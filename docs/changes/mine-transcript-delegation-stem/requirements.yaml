@@ -1,0 +1,212 @@
+metadata:
+  id: REQ-001
+  title: Fix the delegation-event stem in mine_transcript.ts (DELEGATION_RE can never ...
+  stage: requirements
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-28
+  updated: 2026-08-28
+  request_summary: Fix the delegation-event stem in mine_transcript.ts (DELEGATION_RE can never match
+    the word delegation because the literal prefix delegate does not occur in delegat+ion) and add a
+    regression fixture line phrased with delegation so under-counting fails mechanically.
+  clarity: clear
+  assumptions_reviewed: false
+  delta_reviewed: true
+  discovery_reviewed: false
+  scenarios_reviewed: false
+  step: complete
+problem_statement: "mine_transcript.ts counts delegation events with a delegation regex whose stem
+  requires the literal prefix \"delegate\", a prefix that never occurs in the word \"delegation\"
+  because \"delegation\" spells \"delegat\" + \"ion\". A transcript line phrased exactly as SKILL.md
+  documents (\"delegation type=… model=… rework=…\") yields delegations=0, verified byte-exact
+  during the originating change's TASK-006. The effect is silent under-counting of one of the three
+  delegation instrumentation sub-fields in the improvement review's primary evidence: no crash, no
+  wrong non-zero number, only a number too low."
+discovery_log:
+  - id: DL-001
+    question: Who consumes the delegation counts, and is retroactive re-mining of past transcripts wanted?
+    answer: The improvement review's economics lens consumes delegation counts as one of the three
+      delegation instrumentation sub-fields; the maintainer runs the review. Retroactive re-mining
+      of past transcripts is a non-goal per the idea doc and was not requested, so existing mined
+      numbers stand as produced.
+    lens: stakeholder
+    resolved: true
+  - id: DL-002
+    question: Where does the regression evidence live so under-counting fails mechanically?
+    answer: "A unit test under test/unit/ spawns mine_transcript.ts against a fixture transcript under
+      test/fixtures/ and asserts the delegation count; it runs in npm run validate via node --test.
+      The idea doc's premise that no helper test harness exists was outdated: test/unit/ exists
+      (node:test, wired into the fast gate)."
+    lens: interface
+    resolved: true
+  - id: DL-003
+    question: Which word forms must the fixed DELEGATION_RE match?
+    answer: "Exactly four word-bounded, case-insensitive forms: delegate, delegated, delegates,
+      delegation, via /\\bdelegat(?:e|ed|es|ion)\\b/i. Delegating stays unmatched (unchanged scope,
+      not a regression) and grammar extensions (subagent, delegate_to) are out of scope."
+    lens: data
+    resolved: true
+  - id: DL-004
+    question: What happens when a transcript yields zero delegation events?
+    answer: "Behavior is unchanged: delegations=0 is valid data; the zero-extraction report and non-zero
+      exit fire only when a file yields both zero invocations and zero delegation events; no
+      output-shape or exit-code change."
+    lens: failure
+    resolved: true
+  - id: DL-005
+    question: What contracts bind the fix?
+    answer: Byte-identity of output for the fixed version (frozen DEC-008 scoping); the script is a
+      dev-only skill helper, never deployed; no event-grammar or output-shape change.
+    lens: constraint
+    resolved: true
+assumptions:
+  - type: verified
+    text: 'The defect reproduces byte-exact: a line phrased "delegation type=… model=… rework=…" yields
+      delegations=0 under the current regex, while "delegated"/"delegates" lines count.'
+    source: docs/ideas/mine-transcript-delegation-stem.md (TASK-006 byte-identity runs of change
+      rehome-improvement-review-canon); src/skills/improvement-review/scripts/mine_transcript.ts
+      line 34
+  - type: verified
+    text: The repo unit-test harness (test/unit/, node --test) runs as part of npm run validate, so a
+      unit test there fails mechanically on regression.
+    source: package.json (test:unit script); AGENTS.md §1
+  - type: verified
+    text: DELEGATION_RE is the only delegation matcher among the improvement-review helper scripts; no
+      sibling regex shares the stem defect.
+    source: src/skills/improvement-review/scripts/mine_transcript.ts (INVOCATION_RE and
+      DELEGATION_SUBFIELD_RE inspected; no other script defines a delegation matcher)
+  - type: verified
+    text: SKILL.md's documented delegation grammar ("a line mentioning delegation that carries sub-field
+      tokens") already describes the intended behavior; the fix aligns the code with the existing
+      documentation, so no skill-doc change is required.
+    source: src/skills/improvement-review/SKILL.md (delegation event section)
+  - type: verified
+    text: No retroactive re-mining of past transcripts is requested; existing mined numbers stand as
+      produced.
+    source: docs/ideas/mine-transcript-delegation-stem.md Non-goals; maintainer applied the proposal
+      without requesting re-mining
+functional_requirements:
+  - id: FR-001
+    description: When mine_transcript.ts evaluates a transcript line that carries at least one
+      delegation sub-field token (type=, model=, or rework=), the system shall count the line as a
+      delegation event exactly when the line contains one of the word-bounded, case-insensitive
+      forms delegate, delegated, delegates, or delegation (stem regex
+      /\bdelegat(?:e|ed|es|ion)\b/i), so that lines phrased with the word "delegation" are counted.
+    ac_ids:
+      - AC-001
+      - AC-002
+      - AC-003
+      - AC-004
+      - AC-005
+  - id: FR-002
+    description: When the unit test suite runs (node --test test/unit/*.test.ts, part of npm run
+      validate), the system shall fail if mine_transcript.ts reports fewer delegation events for the
+      fixture transcript under test/fixtures/ than that fixture contains, so that a stem unable to
+      match "delegation" fails mechanically on every validate run.
+    ac_ids:
+      - AC-006
+      - AC-007
+non_functional_requirements:
+  - id: NFR-001
+    description: When mine_transcript.ts processes a transcript containing no word matching the
+      delegation stem, the system shall emit stdout byte-identical to the pre-fix version's stdout
+      for the same input and exit with the same code (byte-identity contract, frozen DEC-008
+      scoping).
+    ac_ids:
+      - AC-008
+  - id: NFR-002
+    description: When mine_transcript.ts processes a transcript file whose content yields zero
+      invocations and zero delegation events, the system shall preserve the pre-fix zero-extraction
+      report and non-zero exit behavior unchanged.
+    ac_ids:
+      - AC-009
+acceptance_criteria:
+  - id: AC-001
+    statement: Given a transcript line "delegation type=subagent model=resolved rework=none", when
+      mine_transcript.ts processes the transcript, then the reported delegations count for the file
+      is 1 with sub-fields type=subagent, model=resolved, rework=none.
+    category: happy
+    parent_id: FR-001
+  - id: AC-002
+    statement: Given transcript lines phrased "delegated type=x rework=y" and "delegates type=z
+      model=w", when mine_transcript.ts processes the transcript, then each line is counted and the
+      reported delegations total is 2.
+    category: happy
+    parent_id: FR-001
+  - id: AC-003
+    statement: Given a transcript line "delegating type=a rework=b" (a delegat- form outside the four
+      matched forms), when mine_transcript.ts processes the transcript, then the line is not counted
+      and the reported delegations count is 0.
+    category: edge
+    parent_id: FR-001
+  - id: AC-004
+    statement: Given a transcript line mentioning "delegation" with no sub-field token (no type=,
+      model=, or rework=), when mine_transcript.ts processes the transcript, then the line is not
+      counted as a delegation event.
+    category: negative
+    parent_id: FR-001
+  - id: AC-005
+    statement: Given a transcript line where "delegation" appears at line start or after a non-word
+      character such as a backtick, and the line carries a sub-field token, when mine_transcript.ts
+      processes the transcript, then the line is counted because the word boundary holds at non-word
+      characters.
+    category: boundary
+    parent_id: FR-001
+  - id: AC-006
+    statement: Given the fixture transcript under test/fixtures/ containing one delegation-phrased event
+      line and one sdlc invocation line, when the unit test suite runs, then the suite exits zero
+      with the mine-transcript test's assertions on the spawned script's stdout holding (delegations
+      count 1, invocations count 1).
+    category: happy
+    parent_id: FR-002
+  - id: AC-007
+    statement: Given the pre-fix stem regex /\bdelegate(?:d|s|ion)?\b/i, when the fixture transcript's
+      delegation-phrased line is evaluated under that stem, then the line is not counted and the
+      unit test's assertion of delegations count 1 fails, demonstrating the regression fails
+      mechanically.
+    category: negative
+    parent_id: FR-002
+  - id: AC-008
+    statement: Given a transcript containing no word matching the delegation stem, when
+      mine_transcript.ts is run before and after the fix on the same input, then both runs emit
+      byte-identical stdout and the same exit code.
+    category: boundary
+    parent_id: NFR-001
+  - id: AC-009
+    statement: Given a transcript file whose content yields zero invocations and zero delegation events,
+      when mine_transcript.ts processes it, then the output contains the zero_extraction_report
+      naming the file and the process exits non-zero, identical to pre-fix behavior.
+    category: edge
+    parent_id: NFR-002
+out_of_scope:
+  - 'Grammar extension beyond the four word-bounded forms: matching "delegating", "subagent",
+    "delegate_to", or any other delegat- form; file separately if wanted.'
+  - Retroactive re-mining of past transcripts with the fixed regex.
+  - Any change to the event grammar, output shape, or byte-identity contract of mine_transcript.ts
+    beyond the stem correction.
+  - "Changes to the deployed skills under .opencode/skills/: the helper is dev-only and never
+    deployed."
+failure_paths:
+  - If the fixture file is missing or unreadable at test time, the unit test fails naming the path;
+    the suite never silently passes with a skipped fixture.
+  - If a grammar extension is later wanted (subagent, delegate_to, delegating forms), it is a
+    separate proposal per the idea doc's design space; this change rejects it to prevent scope
+    creep.
+risks_and_dependencies:
+  - Depends on nothing (idea doc Depends-on field).
+  - "Risk: scope creep into grammar changes would widen the fix beyond the bug; excluded via
+    out_of_scope and covered by the second failure path."
+  - 'Risk: the idea doc must be landed per the docs/ideas queue contract during implementation
+    (Status set to "Landed in mine-transcript-delegation-stem <date>" and the file moved into the
+    change folder); planning must carry a task for it.'
+delta:
+  - phase: Requirements
+    target_doc: docs/current/operations.md
+    target_anchor: Commands
+    change: Modify
+    reason: The improvement-review helper row's mine_transcript.ts delegation matching is corrected to
+      the word-bounded four-form stem /\bdelegat(?:e|ed|es|ion)\b/i so lines phrased "delegation"
+      count, and delegation counting is now regression-guarded by a unit test (test/unit/) plus
+      fixture (test/fixtures/) running in npm run validate; knowledge extraction may enrich the
+      helper row accordingly.
+    date: 2026-08-28
