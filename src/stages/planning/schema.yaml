@@ -6,6 +6,8 @@
   "required": [
     "metadata",
     "tasks",
+    "milestones",
+    "risks",
     "delta"
   ],
   "properties": {
@@ -239,10 +241,65 @@
       }
     },
     "milestones": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "title",
+          "tasks",
+          "done_when"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "tasks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "pattern": "^TASK-[0-9]{3}$"
+            }
+          },
+          "done_when": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
     },
     "risks": {
-      "type": "array"
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "description",
+          "mitigation"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mitigation": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
     },
     "delta": {
       "type": "array",

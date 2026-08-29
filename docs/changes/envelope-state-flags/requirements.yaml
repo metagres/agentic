@@ -1,0 +1,82 @@
+metadata:
+  id: REQ-001
+  title: "Fix authoring envelope state flags: data.metadata.step must reflect the step ..."
+  stage: requirements
+  status: draft
+  version: 0.1.0
+  created: 2026-08-28
+  updated: 2026-08-29
+  request_summary: "Fix authoring envelope state flags: data.metadata.step must reflect the step
+    machine's current step after every state-changing call (or be removed in favor of the envelope
+    step field as single source of truth), and semantic_complete must not report true for an empty
+    artifact at init."
+  clarity: clear
+  assumptions_reviewed: false
+  delta_reviewed: false
+  discovery_reviewed: false
+  scenarios_reviewed: false
+  step: init
+problem_statement: ""
+discovery_log:
+  - id: DL-001
+    question: Does anything outside this repository (your own scripts, other agent runtimes, CI jobs)
+      currently read data.metadata.step or data.semantic_complete from the sdlc CLI envelopes?
+    answer: No external consumers known. Grep of the repo confirms zero in-repo consumers of either flag
+      (no tests, no skill instructions, no templates reference them); the only references are the
+      engine itself, the codemap, and the deployed bundle build artifact.
+    lens: stakeholder
+    resolved: true
+  - id: DL-002
+    question: "For data.metadata.step: sync it with the step machine on every call (option a), or remove
+      it and make the envelope's top-level step field the single source of truth (option b)?"
+    answer: "Option (b): remove the field entirely. Both the envelope exposure (data.metadata.step) and
+      the artifact persistence (metadata.step written at init and finalize) are removed. The
+      envelope's top-level step field, recomputed via detectStep on every call, becomes the single
+      source of truth for step-machine state. Rationale: zero in-repo consumers (verified by grep),
+      and keeping a synced second copy would preserve a drift-prone duplicate of state the envelope
+      already carries."
+    lens: interface
+    resolved: true
+  - id: DL-003
+    question: What should data.semantic_complete mean after the fix, given it is hardcoded true in every
+      standard envelope today?
+    answer: "Revalue without renaming: semantic_complete reports true exactly when the artifact status
+      is ready-for-review or accepted (statuses reachable only through a successful --finalize
+      --confirm-semantic), and false for draft (init, authoring) and rejected (recovery). The value
+      is derived from existing artifact state — no new persisted field, no schema change. Any
+      post-finalize mutation resets status to draft via markMutated, which correctly voids the
+      confirmation. All four authoring stages declare at least one semantic check, so no zero-check
+      special case is needed."
+    lens: data
+    resolved: true
+  - id: DL-004
+    question: Existing artifact files already carry a stale metadata.step in their YAML. When the engine
+      next writes such a file after the removal, what should happen to the legacy field?
+    answer: "Leave legacy files as-is: no migration or stripping code. New artifacts never receive
+      metadata.step; existing files keep their stale value until manually cleaned. The envelope
+      stops exposing the field regardless, so envelope consumers are unaffected; only direct YAML
+      readers of old files could still see the stale value, and that is accepted."
+    lens: failure
+    resolved: true
+  - id: DL-005
+    question: "Constraint check: envelope's seven frozen top-level fields stay untouched; stage schemas
+      set metadata additionalProperties:false. Can the schema step property be removed given legacy
+      files keep theirs?"
+    answer: "Yes, with a coordinated cleanup: the four stage schemas drop the optional metadata.step
+      property definition, AND this change's diff deletes the stale 'step:' line from the 36
+      historical artifact files under docs/changes/ (12 change dirs x requirements/design/plan). No
+      engine migration logic is added (refining the earlier failure-lens answer: 'leave as-is'
+      applies to engine behavior on write, not to this one-time repo cleanup). The envelope's seven
+      frozen top-level fields are untouched; the data payload is free-form per stage and may change.
+      Rationale for tightening the schema: leaving the property would permit the exact stale-state
+      field this change removes, and the cleanup guarantees no file can fail re-validation."
+    lens: constraint
+    resolved: true
+assumptions: []
+functional_requirements: []
+non_functional_requirements: []
+acceptance_criteria: []
+out_of_scope: []
+failure_paths: []
+risks_and_dependencies: []
+delta: []

@@ -45,7 +45,9 @@ export interface StageRecord {
  * Canonical per-kind file sets (CMP-009): authoring stages carry the full set;
  * review stages carry stage.yaml and steps.yaml; tasks stages carry structural
  * checks, schema, steps, and semantic checks; aggregator stages carry steps and
- * schema.
+ * schema. Exception: a descriptor declaring schema_from delegates its artifact
+ * schema to the named stage's schema.yaml (declared once by the owning stage),
+ * so the local schema.yaml is waived for that stage.
  */
 const KIND_FILE_SETS: Record<StageKind, string[]> = {
   authoring: [
@@ -67,7 +69,12 @@ function isStageKind(value: unknown): value is StageKind {
   );
 }
 
-function resolveStageFiles(folder: string, kind: StageKind): StageRecord['files'] {
+function resolveStageFiles(
+  folder: string,
+  kind: StageKind,
+  schemaFrom: string | null,
+  stagesDir: string
+): StageRecord['files'] {
   const files: StageRecord['files'] = {
     structuralChecks: null,
     schema: null,
@@ -85,6 +92,24 @@ function resolveStageFiles(folder: string, kind: StageKind): StageRecord['files'
   };
 
   for (const file of KIND_FILE_SETS[kind]) {
+    if (file === 'schema.yaml' && schemaFrom) {
+      // Schema delegation (schema_from): the artifact contract is declared
+      // once by the owning stage; a delegating stage must not also carry a
+      // local schema.yaml.
+      if (fs.existsSync(path.join(folder, 'schema.yaml'))) {
+        throw new Error(
+          `Stage folder '${path.basename(folder)}' declares schema_from '${schemaFrom}' but also carries a local schema.yaml.`
+        );
+      }
+      const target = path.join(stagesDir, schemaFrom, 'schema.yaml');
+      if (!fs.existsSync(target)) {
+        throw new Error(
+          `Stage folder '${path.basename(folder)}' declares schema_from '${schemaFrom}', but '${schemaFrom}/schema.yaml' was not found.`
+        );
+      }
+      files.schema = target;
+      continue;
+    }
     const abs = path.join(folder, file);
     if (!fs.existsSync(abs)) {
       throw new Error(
@@ -141,6 +166,8 @@ function loadStageFolder(folder: string, cwd: string): StageRecord {
     );
   }
 
+  const schemaFrom = descriptor.schema_from ? String(descriptor.schema_from) : null;
+
   return {
     id,
     folder,
@@ -162,7 +189,7 @@ function loadStageFolder(folder: string, cwd: string): StageRecord {
       : 'Untitled change',
     agent: descriptor.agent ? String(descriptor.agent) : null,
     permissionOverrides: (descriptor.permissions as Record<string, string>) || {},
-    files: resolveStageFiles(folder, kind),
+    files: resolveStageFiles(folder, kind, schemaFrom, path.dirname(folder)),
     hasHooks: fs.existsSync(path.join(folder, 'hooks.ts')) ||
       fs.existsSync(path.join(folder, 'hooks.js')),
   };

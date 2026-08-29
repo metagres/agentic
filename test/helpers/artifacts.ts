@@ -184,7 +184,15 @@ export function validPlan({
         files: [{ path: 'src/devices.ts', operation: 'create' }],
       },
     ],
-    milestones: [],
+    milestones: [
+      {
+        id: 'MS-001',
+        title: 'Device registration works end to end',
+        tasks: ['TASK-001'],
+        done_when:
+          'The registration endpoint creates a device record and returns 201 with a device identifier.',
+      },
+    ],
     risks: [],
     delta: Array.isArray(delta) ? delta : defaultDelta('Planning'),
   };

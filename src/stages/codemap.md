@@ -17,9 +17,9 @@ directory is copied next to the CLI and `hooks.ts` is compiled to `hooks.js`
 | `requirements-review/` | review | requirements.yaml / `status` | — | requirements → requirements-review.yaml | — (no structural checks of its own; runs the target stage's) | needs_input, review, accept, reject | no | |
 | `design/` | authoring | design.yaml / `status` | requirements-review | — | sentence-count, ref-exists, duplicate-refs | needs_input, init, authoring, recovery, ready, complete | yes | Cross-file `ref-exists` into requirements.yaml; delta phase `Design`; next ids CMP/DM/API/DEC |
 | `design-review/` | review | design.yaml / `status` | — | design → design-review.yaml | — | needs_input, review, accept, reject | no | |
-| `planning/` | authoring | plan.yaml / `status` | requirements-review, design-review | — | ref-exists ×3, dependency-acyclic, dependency-order | needs_input, init, authoring, recovery, ready, complete | yes | Cross-file refs into requirements.yaml + design.yaml; complexity/milestones/risks optional; delta phase `Planning`; next id TASK |
+| `planning/` | authoring | plan.yaml / `status` | requirements-review, design-review | — | unique-ids, ref-exists ×4, dependency-acyclic, dependency-order | needs_input, init, authoring, recovery, ready, complete | yes | Cross-file refs into requirements.yaml + design.yaml; milestones/risks required (milestone id/title/tasks/done_when; risk id/description/mitigation; empty arrays legal); milestone `tasks` refs checked against `tasks[].id`; delta phase `Planning`; next id TASK |
 | `planning-review/` | review | plan.yaml / `status` | — | planning → **plan-review.yaml** (note: not `planning-review.yaml`) | — | needs_input, review, accept, reject | no | |
-| `implementation/` | tasks | plan.yaml / `implementation_status` | planning-review | — | required-note-for-status, all-tasks-terminal | needs_input, progress, complete | no | Shares plan.yaml with planning; no template (not authoring); drives the task state machine |
+| `implementation/` | tasks | plan.yaml / `implementation_status` | planning-review | — | required-note-for-status, all-tasks-terminal | needs_input, progress, complete | no | Shares plan.yaml with planning; validates against planning's schema via `schema_from: planning` (no local schema.yaml); no template (not authoring); drives the task state machine |
 | `implementation-review/` | review | plan.yaml / `implementation_status` | — | implementation → implementation-review.yaml | — | needs_input, review, accept, reject | no | |
 | `knowledge-extraction/` | aggregator | docs-delta.yaml / `status` | implementation-review | — | — | needs_input, docs_delta, complete | no | Terminal stage; aliases `docs`/`knowledge` |
 
@@ -28,7 +28,12 @@ Per-kind file sets (CMP-009, enforced by the registry): authoring =
 `steps.yaml` + `semantic-checks.yaml`; review = `stage.yaml` + `steps.yaml`;
 tasks = `stage.yaml` + `structural-checks.yaml` + `schema.yaml` +
 `steps.yaml` + `semantic-checks.yaml`; aggregator = `stage.yaml` +
-`steps.yaml` + `schema.yaml`. Optional `hooks.ts` where noted.
+`steps.yaml` + `schema.yaml`. Optional `hooks.ts` where noted. A descriptor
+may declare `schema_from: <stage-id>` to delegate its artifact schema to the
+named stage's `schema.yaml` — the artifact contract is declared once by the
+owning stage, the local `schema.yaml` is waived for that stage, and a missing
+target or local coexistence is a hard startup error. `implementation/` uses
+this for the shared `plan.yaml` (`schema_from: planning`).
 
 ## Design Patterns
 - **Declarative configuration over code**: `stage.yaml` is the descriptor
@@ -113,7 +118,9 @@ Runtime consumption of this directory:
    scans `src/stages/` (or the deployed sibling `stages/`), alphabetically;
    per folder: parse `stage.yaml` → meta-schema validation via
    `validateWithSchema` → folder/id equality → kind check → resolve the
-   per-kind file set (missing file = startup error) → detect `hooks.ts`/
+   per-kind file set (missing file = startup error; `schema_from` resolves
+   `files.schema` to the named stage's `schema.yaml`, with a missing target or
+   local coexistence as a startup error) → detect `hooks.ts`/
    `hooks.js`.
 2. **Graph**: `computePipelineOrder` (`src/scripts/lib/requires-graph.ts:71`)
    builds the DAG (missing ref / cycle = hard error); `evaluateGate`

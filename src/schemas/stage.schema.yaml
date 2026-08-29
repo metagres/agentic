@@ -37,6 +37,10 @@
       "type": "string",
       "pattern": "\\.yaml$"
     },
+    "schema_from": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
     "status_field": {
       "type": "string"
     },

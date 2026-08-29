@@ -366,3 +366,148 @@ test('missing required kind file is a hard error naming the folder', () => {
 
   assert.throws(() => loadStageRegistry(tmp, path.join(tmp, 'stages')), /incomplete/);
 });
+
+test('schema_from delegates the artifact schema to the owning stage folder', () => {
+  const tmp = makeStageFixture({
+    owner: {
+      'stage.yaml': [
+        'version: 1',
+        'id: owner',
+        'kind: authoring',
+        'title: Owner',
+        'artifact: shared.yaml',
+        'status_field: status',
+        '',
+      ].join('\n'),
+      'structural-checks.yaml': 'version: 1\nchecks: []\n',
+      'schema.yaml': '{ "type": "object" }\n',
+      'template.yaml': 'metadata:\n  id: OWN-001\n',
+      'steps.yaml': 'version: 1\nsteps: {}\n',
+      'semantic-checks.yaml': 'version: 1\nchecks: []\n',
+    },
+    consumer: {
+      'stage.yaml': [
+        'version: 1',
+        'id: consumer',
+        'kind: tasks',
+        'title: Consumer',
+        'artifact: shared.yaml',
+        'schema_from: owner',
+        'status_field: execution_status',
+        '',
+      ].join('\n'),
+      'structural-checks.yaml': 'version: 1\nchecks: []\n',
+      'steps.yaml': 'version: 1\nsteps: {}\n',
+      'semantic-checks.yaml': 'version: 1\nchecks: []\n',
+    },
+  });
+
+  const registry = loadStageRegistry(tmp, path.join(tmp, 'stages'));
+  const consumer = registry.find((s) => s.id === 'consumer');
+  assert.ok(consumer);
+  assert.ok(consumer.files.schema, 'consumer must resolve a schema');
+  assert.ok(
+    consumer.files.schema.endsWith(path.join('stages', 'owner', 'schema.yaml')),
+    `unexpected schema path: ${consumer.files.schema}`
+  );
+  assert.ok(consumer.files.structuralChecks);
+  assert.ok(consumer.files.steps);
+  assert.ok(consumer.files.semanticChecks);
+});
+
+test('schema_from naming a missing target schema is a hard error naming the folder', () => {
+  const tmp = makeStageFixture({
+    owner: {
+      'stage.yaml': [
+        'version: 1',
+        'id: owner',
+        'kind: authoring',
+        'title: Owner',
+        'artifact: shared.yaml',
+        'status_field: status',
+        '',
+      ].join('\n'),
+      'structural-checks.yaml': 'version: 1\nchecks: []\n',
+      'template.yaml': 'metadata:\n  id: OWN-001\n',
+      'steps.yaml': 'version: 1\nsteps: {}\n',
+      'semantic-checks.yaml': 'version: 1\nchecks: []\n',
+    },
+    consumer: {
+      'stage.yaml': [
+        'version: 1',
+        'id: consumer',
+        'kind: tasks',
+        'title: Consumer',
+        'artifact: shared.yaml',
+        'schema_from: owner',
+        'status_field: execution_status',
+        '',
+      ].join('\n'),
+      'structural-checks.yaml': 'version: 1\nchecks: []\n',
+      'steps.yaml': 'version: 1\nsteps: {}\n',
+      'semantic-checks.yaml': 'version: 1\nchecks: []\n',
+    },
+  });
+
+  assert.throws(
+    () => loadStageRegistry(tmp, path.join(tmp, 'stages')),
+    /consumer.*schema_from 'owner'/
+  );
+});
+
+test('schema_from alongside a local schema.yaml is a hard error naming the folder', () => {
+  const tmp = makeStageFixture({
+    owner: {
+      'stage.yaml': [
+        'version: 1',
+        'id: owner',
+        'kind: authoring',
+        'title: Owner',
+        'artifact: shared.yaml',
+        'status_field: status',
+        '',
+      ].join('\n'),
+      'structural-checks.yaml': 'version: 1\nchecks: []\n',
+      'schema.yaml': '{ "type": "object" }\n',
+      'template.yaml': 'metadata:\n  id: OWN-001\n',
+      'steps.yaml': 'version: 1\nsteps: {}\n',
+      'semantic-checks.yaml': 'version: 1\nchecks: []\n',
+    },
+    consumer: {
+      'stage.yaml': [
+        'version: 1',
+        'id: consumer',
+        'kind: tasks',
+        'title: Consumer',
+        'artifact: shared.yaml',
+        'schema_from: owner',
+        'status_field: execution_status',
+        '',
+      ].join('\n'),
+      'structural-checks.yaml': 'version: 1\nchecks: []\n',
+      'schema.yaml': '{ "type": "object" }\n',
+      'steps.yaml': 'version: 1\nsteps: {}\n',
+      'semantic-checks.yaml': 'version: 1\nchecks: []\n',
+    },
+  });
+
+  assert.throws(
+    () => loadStageRegistry(tmp, path.join(tmp, 'stages')),
+    /consumer.*local schema\.yaml/
+  );
+});
+
+test('the implementation stage validates plan.yaml against the planning schema (schema_from)', () => {
+  const registry = loadStageRegistry(root);
+  const implementation = registry.find((s) => s.id === 'implementation');
+  const planning = registry.find((s) => s.id === 'planning');
+  assert.ok(implementation);
+  assert.ok(planning);
+  assert.ok(planning.files.schema);
+  assert.ok(implementation.files.schema, 'implementation must resolve a delegated schema');
+  assert.equal(implementation.files.schema, planning.files.schema);
+  assert.ok(
+    !fs.existsSync(path.join(root, 'src', 'stages', 'implementation', 'schema.yaml')),
+    'implementation must not carry a local schema.yaml'
+  );
+});

@@ -72,11 +72,12 @@ for (const stageName of fs.readdirSync(stagesDir).sort()) {
 
   // stage.yaml descriptor against the meta-schema.
   const descriptorPath = path.join(folder, 'stage.yaml');
+  let descriptor: Record<string, unknown> = {};
   try {
     if (!fs.existsSync(descriptorPath)) {
       throw new Error(`missing stage.yaml`);
     }
-    const descriptor = readYaml(descriptorPath) as Record<string, unknown>;
+    descriptor = readYaml(descriptorPath) as Record<string, unknown>;
     const valid = compileDescriptor(descriptor);
     if (!valid) {
       throw new Error(
@@ -146,9 +147,39 @@ for (const stageName of fs.readdirSync(stagesDir).sort()) {
     }
   }
 
-  // schema.yaml must compile as a JSON schema.
+  // schema.yaml must compile as a JSON schema. A descriptor declaring
+  // schema_from delegates its artifact schema to the named stage's folder
+  // (the contract is declared once by the owning stage): the local
+  // schema.yaml must be absent and the referenced one must exist — the
+  // owning stage's own pass compiles it.
+  const schemaFrom =
+    typeof descriptor.schema_from === 'string' && descriptor.schema_from
+      ? descriptor.schema_from
+      : null;
   const schemaPath = path.join(folder, 'schema.yaml');
-  if (fs.existsSync(schemaPath)) {
+  if (schemaFrom) {
+    try {
+      if (fs.existsSync(schemaPath)) {
+        throw new Error(
+          `declares schema_from '${schemaFrom}' but also carries a local schema.yaml`
+        );
+      }
+      const target = path.join(stagesDir, schemaFrom, 'schema.yaml');
+      if (!fs.existsSync(target)) {
+        throw new Error(
+          `declares schema_from '${schemaFrom}', but '${schemaFrom}/schema.yaml' was not found`
+        );
+      }
+      results.push({ file: `stages/${stageName}/schema_from`, ok: true });
+    } catch (err: unknown) {
+      failed = true;
+      results.push({
+        file: `stages/${stageName}/schema_from`,
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  } else if (fs.existsSync(schemaPath)) {
     try {
       const schema = readYaml(schemaPath) as Record<string, unknown>;
       ajv.compile(schema);

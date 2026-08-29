@@ -88,6 +88,12 @@ existing kind requires only a new folder — no TypeScript change.
 | tasks | `stage.yaml`, `structural-checks.yaml`, `schema.yaml`, `steps.yaml`, `semantic-checks.yaml` |
 | aggregator | `stage.yaml`, `steps.yaml`, `schema.yaml` |
 
+A descriptor may declare `schema_from: <stage-id>` to validate its artifact against the named
+stage's `schema.yaml` instead of carrying its own copy — the artifact contract is then declared
+once by the owning stage, the local `schema.yaml` is waived for that stage, and a missing target
+or local coexistence is a hard startup error. The implementation stage uses this for the shared
+`plan.yaml` (`schema_from: planning`).
+
 Optional `hooks.ts` (compiled to `hooks.js` in the bundle) supplies stage-specific behavior
 such as the requirements discovery gate; it is the only stage-specific code allowed and never
 participates in validation. `stage.yaml` is validated at startup against the engine-owned

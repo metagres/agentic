@@ -1,5 +1,19 @@
 version: 1
 checks:
+  - check: unique-ids
+    params:
+      arrays:
+        - milestones
+        - risks
+  - check: ref-exists
+    params:
+      from:
+        array: milestones
+        field: tasks
+      to:
+        arrays:
+          - tasks
+        field: id
   - check: ref-exists
     params:
       from:

@@ -130,3 +130,81 @@ test('unknown stage id produces no findings', () => {
   const findings = validateArtifact('does-not-exist', validRequirements(), root, changeRoot);
   assert.deepEqual(findings, []);
 });
+
+test('a plan without milestones or risks fails with two blocking schema findings', () => {
+  const changeRoot = makeChangeRoot();
+  const plan = validPlan() as Record<string, unknown>;
+  delete plan.milestones;
+  delete plan.risks;
+  const findings = validateArtifact('planning', plan, root, changeRoot);
+  const missing = findings.filter(
+    (f) =>
+      f.check === 'schema' &&
+      /must have required property '(milestones|risks)'/.test(f.finding)
+  );
+  assert.equal(missing.length, 2, JSON.stringify(findings));
+  for (const f of missing) {
+    assert.equal(f.severity, 'blocking');
+    assert.equal(f.category, 'structural');
+  }
+});
+
+test('a milestone without done_when is a blocking schema finding', () => {
+  const changeRoot = makeChangeRoot();
+  const plan = validPlan();
+  const milestone = plan.milestones[0] as Record<string, unknown>;
+  delete milestone.done_when;
+  const findings = validateArtifact('planning', plan, root, changeRoot);
+  assert.ok(
+    findings.some(
+      (f) => f.check === 'schema' && f.severity === 'blocking' && /done_when/.test(f.finding)
+    ),
+    JSON.stringify(findings)
+  );
+});
+
+test('a risk without mitigation is a blocking schema finding', () => {
+  const changeRoot = makeChangeRoot();
+  const plan = validPlan();
+  (plan.risks as Record<string, unknown>[]).push({
+    id: 'RISK-001',
+    description: 'The endpoint contract could drift from the design.',
+  });
+  const findings = validateArtifact('planning', plan, root, changeRoot);
+  assert.ok(
+    findings.some(
+      (f) => f.check === 'schema' && f.severity === 'blocking' && /mitigation/.test(f.finding)
+    ),
+    JSON.stringify(findings)
+  );
+});
+
+test('a milestone referencing an unknown task is a blocking ref-exists finding', () => {
+  const changeRoot = makeChangeRoot();
+  const plan = validPlan();
+  plan.milestones[0].tasks.push('TASK-999');
+  const findings = validateArtifact('planning', plan, root, changeRoot);
+  const refs = findings.filter((f) => f.check === 'ref-exists');
+  assert.equal(refs.length, 1, JSON.stringify(findings));
+  assert.equal(refs[0].severity, 'blocking');
+  assert.match(refs[0].finding, /TASK-999/);
+});
+
+test('duplicate milestone ids are a blocking unique-ids finding', () => {
+  const changeRoot = makeChangeRoot();
+  const plan = validPlan();
+  plan.milestones.push({ ...plan.milestones[0] });
+  const findings = validateArtifact('planning', plan, root, changeRoot);
+  const dups = findings.filter((f) => f.check === 'unique-ids');
+  assert.equal(dups.length, 1, JSON.stringify(findings));
+  assert.equal(dups[0].severity, 'blocking');
+  assert.match(dups[0].finding, /MS-001/);
+});
+
+test('a plan with empty milestones and risks arrays passes planning validation', () => {
+  const changeRoot = makeChangeRoot();
+  const plan = validPlan();
+  plan.milestones = [];
+  const findings = validateArtifact('planning', plan, root, changeRoot);
+  assert.deepEqual(findings, []);
+});
