@@ -1,0 +1,453 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: the-sdlc-cli-resolves-the-project-s-docs-changes-directory"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-09-02
+  updated: 2026-09-02
+  based_on_design: 0.1.0
+  based_on_requirements: 0.1.0
+  implementation_status: accepted
+  delta_reviewed: true
+tasks:
+  - id: TASK-001
+    title: Add the two shared resolution helpers (changesDirFor, resolveCwd)
+    description: "Add changesDirFor(cwd) to src/scripts/lib/resolve-root.ts as the single constructor of
+      the project changes directory path (<root>/docs/changes); resolveRootOrError switches its
+      internal path.join(cwd, 'docs', 'changes') (line 64) to call it, and resolve-root.ts keeps its
+      fs/path-only purity (no import from cli.ts). Add resolveCwd(args) to src/scripts/lib/cli.ts
+      implementing the one args-to-root derivation (args.cwd ? path.resolve(String(args.cwd)) :
+      process.cwd()). Both are pure additions with no call-site changes yet, so behavior is
+      byte-identical."
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-001
+      - FR-002
+      - FR-004
+    acceptance_ids:
+      - AC-007
+    design_refs:
+      - DEC-001
+      - DEC-002
+    depends_on: []
+    files:
+      - path: src/scripts/lib/resolve-root.ts
+        operation: modify
+      - path: src/scripts/lib/cli.ts
+        operation: modify
+    implementation_note: "Added changesDirFor(cwd) to resolve-root.ts (single <root>/docs/changes
+      constructor, fs/path purity kept) and resolveCwd(args) to cli.ts (character-identical to the
+      existing pattern); resolveRootOrError now calls changesDirFor internally. Pure additions, no
+      call-site changes; registry lookups untouched per DEC-002. Verified: npm run validate green
+      (219 tests), grep confirms both exports."
+    started_at: 2026-09-02
+    files_changed:
+      - path: src/scripts/lib/resolve-root.ts
+        operation: modify
+      - path: src/scripts/lib/cli.ts
+        operation: modify
+    completed_at: 2026-09-02
+  - id: TASK-002
+    title: Consolidate all docs/changes construction and cwd derivation onto the helpers
+    description: "Route the three duplicate construction sites through changesDirFor:
+      requireChangeRoot's available_changes listing (change-root.ts:39), listExistingChanges
+      (kinds/authoring.ts:38), and createChangeDir (kinds/authoring.ts:141). Adopt resolveCwd at the
+      five cwd-derivation sites: runner.ts:14, the workflow dispatch closure in workflows/index.ts
+      (lines 67-69, which also removes the double parseArgs call), status.ts:62, feedback.ts:70, and
+      doctor.ts:30. Behavior-preserving refactor: resolveCwd is character-identical to the pattern
+      it replaces."
+    type: refactor
+    status: done
+    complexity: medium
+    covers:
+      - FR-002
+      - FR-004
+    acceptance_ids:
+      - AC-002
+      - AC-007
+    design_refs:
+      - DEC-002
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/scripts/lib/change-root.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: src/scripts/workflows/index.ts
+        operation: modify
+      - path: src/scripts/lib/runner.ts
+        operation: modify
+      - path: src/scripts/workflows/status.ts
+        operation: modify
+      - path: src/scripts/workflows/feedback.ts
+        operation: modify
+      - path: src/scripts/workflows/doctor.ts
+        operation: modify
+    implementation_note: "Behavior-preserving consolidation: change-root.ts:39, kinds/authoring.ts:38
+      and :141 now call changesDirFor; runner.ts, workflows/index.ts dispatch closure (double
+      parseArgs removed), status.ts:62, feedback.ts:70, doctor.ts:30 now call resolveCwd. Registry
+      lookups (workflows/index.ts getStageById/listWorkflows, cli.ts normalizeEnvelope) stay on
+      process.cwd() per DEC-002; bin/lint-artifact.ts:45 excluded per design-review note (a).
+      Incidental: removed now-unused path imports in change-root.ts, runner.ts, workflows/index.ts.
+      Verified: greps hit only the two helpers; npm run validate green (219 tests, suites
+      unmodified)."
+    started_at: 2026-09-02
+    files_changed:
+      - path: src/scripts/lib/change-root.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: src/scripts/workflows/index.ts
+        operation: modify
+      - path: src/scripts/lib/runner.ts
+        operation: modify
+      - path: src/scripts/workflows/status.ts
+        operation: modify
+      - path: src/scripts/workflows/feedback.ts
+        operation: modify
+      - path: src/scripts/workflows/doctor.ts
+        operation: modify
+    completed_at: 2026-09-02
+  - id: TASK-003
+    title: Actionable resolution-failure message and data.searched additions
+    description: "Replace the not-exists branch message in resolveRootOrError (resolve-root.ts:113-117)
+      with the DEC-003 wording: \"docs/changes does not exist under <root> (searched:
+      <root>/docs/changes). Run from the project root or pass the root explicitly with --cwd
+      <project-root>.\" — preserving the e2e-asserted prefix \"docs/changes does not exist under
+      <path>\" and dropping \"Create a change first\" entirely. Add searched: changesDirFor(cwd) to
+      requireChangeRoot's missing-change branch data (change-root.ts) and to the data payload of
+      doctor's failed change_name check (doctor.ts). Update exactly one message-text assertion in
+      test/unit/resolve-root.test.ts:143 (the \"Create a change first.\" expectation that AC-006
+      explicitly supersedes); every resolution expectation in that file stays untouched."
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-003
+      - NFR-002
+    acceptance_ids:
+      - AC-005
+      - AC-006
+      - AC-011
+    design_refs:
+      - DEC-003
+    depends_on:
+      - TASK-002
+    files:
+      - path: src/scripts/lib/resolve-root.ts
+        operation: modify
+      - path: src/scripts/lib/change-root.ts
+        operation: modify
+      - path: src/scripts/workflows/doctor.ts
+        operation: modify
+      - path: test/unit/resolve-root.test.ts
+        operation: modify
+    implementation_note: "DEC-003 message in resolveRootOrError: 'docs/changes does not exist under
+      <root> (searched: <root>/docs/changes). Run from the project root or pass the root explicitly
+      with --cwd <project-root>.' — e2e-asserted prefix preserved, 'Create a change first' dropped.
+      data.searched added to requireChangeRoot's missing-change branch and to doctor's failed
+      change_name check (data payload, conditional on failure). Exactly one unit assertion updated
+      (resolve-root.test.ts:143 old-text expectation -> remedies text); all resolution expectations
+      untouched. Verified: grep 'Create a change first' over src/scripts hits nothing; npm run
+      validate green (219 tests)."
+    started_at: 2026-09-02
+    files_changed:
+      - path: src/scripts/lib/resolve-root.ts
+        operation: modify
+      - path: src/scripts/lib/change-root.ts
+        operation: modify
+      - path: src/scripts/workflows/doctor.ts
+        operation: modify
+      - path: test/unit/resolve-root.test.ts
+        operation: modify
+    completed_at: 2026-09-02
+  - id: TASK-004
+    title: Function-level resolution unit matrix (new cwd-resolution test)
+    description: "Create test/unit/cwd-resolution.test.ts covering the five-scenario matrix: (1)
+      resolves from a project root; (2) fails from a directory without docs/changes with the
+      actionable message and the searched path; (3) resolves via the cwd option override; (4) fails
+      naming a nonexistent override root; (5) never walks up ancestor directories. Exercise
+      changesDirFor and resolveCwd directly as pure functions alongside resolveRootOrError."
+    type: test
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-002
+      - FR-003
+      - NFR-001
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-008
+    design_refs:
+      - DEC-004
+    depends_on:
+      - TASK-003
+    files:
+      - path: test/unit/cwd-resolution.test.ts
+        operation: create
+    implementation_note: "Created test/unit/cwd-resolution.test.ts: five-scenario matrix (project-root
+      resolve, bare-dir failure with DEC-003 message + searched path + both remedies + no 'Create a
+      change first', --cwd override resolve, nonexistent override naming the override path as
+      searched, no ancestor walk-up) plus direct pure-function coverage of changesDirFor and
+      resolveCwd (default, absolute, relative, boolean-flag degradation). Verified: npm run
+      test:unit green, 226 tests (7 new)."
+    started_at: 2026-09-02
+    files_changed:
+      - path: test/unit/cwd-resolution.test.ts
+        operation: create
+    completed_at: 2026-09-02
+  - id: TASK-005
+    title: Shared CWD_FLAG_DOC help constant across all usage surfaces
+    description: "Add a shared CWD_FLAG_DOC constant to cli.ts describing --cwd <project-root> (run as
+      if invoked from the given project root; default is the current working directory) and append
+      it to every existing help and usage surface: the top-level sdlc help (sdlc.ts), the authoring
+      helpPayload usage instructions (kinds/authoring.ts), and the usage payloads of review
+      (kinds/review.ts), tasks (kinds/tasks.ts), aggregator (kinds/aggregator.ts), and status
+      (workflows/status.ts), plus both feedback usage branches (workflows/feedback.ts). doctor emits
+      no usage payload today and is excluded."
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-005
+    acceptance_ids:
+      - AC-009
+    design_refs:
+      - DEC-001
+    depends_on:
+      - TASK-002
+    files:
+      - path: src/scripts/lib/cli.ts
+        operation: modify
+      - path: src/scripts/sdlc.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/tasks.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/aggregator.ts
+        operation: modify
+      - path: src/scripts/workflows/status.ts
+        operation: modify
+      - path: src/scripts/workflows/feedback.ts
+        operation: modify
+    implementation_note: "Added shared CWD_FLAG_DOC constant to cli.ts ('--cwd <project-root>: run as if
+      invoked from the given project root (default: the current working directory).') and appended
+      it to all enumerated usage surfaces: sdlc.ts top-level help, authoring helpPayload (as a
+      trailing line), review.ts both usage variants, tasks.ts, aggregator.ts, status.ts, and both
+      feedback branches (:77, :164). Doctor excluded (no usage payload today). Verified: grep
+      CWD_FLAG_DOC hits exactly cli.ts + the enumerated surfaces and no others; npm run validate
+      green (226 tests)."
+    started_at: 2026-09-02
+    files_changed:
+      - path: src/scripts/lib/cli.ts
+        operation: modify
+      - path: src/scripts/sdlc.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/tasks.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/aggregator.ts
+        operation: modify
+      - path: src/scripts/workflows/status.ts
+        operation: modify
+      - path: src/scripts/workflows/feedback.ts
+        operation: modify
+    completed_at: 2026-09-02
+  - id: TASK-006
+    title: e2e extensions for --cwd threading and the invalid-override envelope
+    description: "Extend test/e2e/change-resolution.test.ts (spawn-based, matching the file's existing
+      pattern) with: (a) a --cwd override success case — invoked from a directory that is not the
+      project root with --cwd pointing at the project, the change resolves exactly as if invoked
+      from the project root; (b) an invalid-cwd blocked-envelope case — --cwd pointing at a
+      nonexistent path produces a blocked envelope, non-zero exit, message and data.searched naming
+      the invalid root, and exactly the seven frozen top-level envelope fields."
+    type: test
+    status: done
+    complexity: medium
+    covers:
+      - FR-002
+      - FR-003
+      - NFR-002
+    acceptance_ids:
+      - AC-002
+      - AC-004
+      - AC-005
+      - AC-011
+    design_refs:
+      - DEC-003
+      - DEC-004
+    depends_on:
+      - TASK-003
+      - TASK-005
+    files:
+      - path: test/e2e/change-resolution.test.ts
+        operation: modify
+    implementation_note: "Extended test/e2e/change-resolution.test.ts (spawn-based, matching file
+      pattern): (a) --cwd override success case asserting identical state/change_name/change_root vs
+      a project-root invocation, spawned from a bare non-root directory; (b) invalid-cwd
+      blocked-envelope case asserting non-zero exit, exactly the seven frozen top-level fields,
+      message + data.searched naming the invalid root, remedies present, 'Create a change first'
+      absent; (c) reviewer-recommended AC-009 hardening: help-output assertions that top-level,
+      status, and requirements help all contain the shared CWD_FLAG_DOC text. Incidental: runCli
+      gained an optional spawn-opts param (backward compatible). Verified: npm run test:e2e green,
+      51 tests (3 new)."
+    started_at: 2026-09-02
+    files_changed:
+      - path: test/e2e/change-resolution.test.ts
+        operation: modify
+    completed_at: 2026-09-02
+  - id: TASK-007
+    title: Full coverage gate at the final source boundary
+    description: "Run the full coverage sequence at the final source boundary: npm run validate (fast
+      gate), then npm run check:all (unit + e2e + deploy smoke). Confirms NFR-001 — every
+      pre-existing test passes without modifying its resolution expectations, the only sanctioned
+      edit being the single AC-006 assertion update from TASK-003."
+    type: verification
+    status: done
+    complexity: low
+    covers:
+      - NFR-001
+    acceptance_ids:
+      - AC-010
+      - AC-011
+    design_refs:
+      - DEC-005
+    depends_on:
+      - TASK-004
+      - TASK-006
+    implementation_note: "Full coverage gate at the final source boundary: npm run validate exit 0 (226
+      tests) and npm run check:all exit 0 (unit 226 pass, e2e 51 pass, deploy smoke green). Every
+      pre-existing test passed without modifying its resolution expectations; the only sanctioned
+      edit was the single AC-006 assertion update from TASK-003 (NFR-001/AC-010 confirmed)."
+    started_at: 2026-09-02
+    files_changed: []
+    completed_at: 2026-09-02
+  - id: TASK-008
+    title: Deploy smoke as the final shipping step and shipped-bundle verification
+    description: "Run npm run deploy:smoke as the last action (DEC-005): the bundle re-render ships the
+      fix, because the deployed CLI at .opencode/skills/agentic-sdlc/scripts/sdlc.js keeps the old
+      behavior until re-rendered. Then behaviorally verify the deployed CLI: invoked from a
+      directory without docs/changes it emits the actionable blocked envelope with data.searched;
+      invoked with --cwd <project-root> it resolves. Confirm the deploy-output invariants: the skill
+      folder still contains no package.json, no node_modules, no source .ts files, and exactly one
+      SKILL.md."
+    type: release
+    status: done
+    complexity: low
+    covers:
+      - FR-003
+      - NFR-001
+    acceptance_ids:
+      - AC-005
+      - AC-010
+    design_refs:
+      - DEC-005
+    depends_on:
+      - TASK-007
+    implementation_note: "Shipping: npm run deploy:smoke exit 0 (gate), then re-rendered the deployed
+      bundle with 'node bin/deploy-to-agent.ts --dest .opencode' (deploy:smoke targets .tmp/agent,
+      not .opencode — deviation noted). Behavioral probes of the deployed CLI: (1) from repo root
+      resolves the change, exit 0; (2) from a non-root dir without --cwd emits the actionable
+      blocked envelope naming the searched path with both remedies and no 'Create a change first',
+      exit 3; (3) with --cwd <project-root> resolves identically to root invocation, exit 0; (4)
+      deployed help surfaces carry the CWD_FLAG_DOC text. Deploy-output invariants verified:
+      .opencode/skills/agentic-sdlc/ and knowledge-init/ each contain no package.json, no
+      node_modules, no source .ts, exactly one SKILL.md."
+    started_at: 2026-09-02
+    files_changed:
+      - path: .opencode/skills/agentic-sdlc/scripts/sdlc.js
+        operation: modify
+    completed_at: 2026-09-02
+milestones:
+  - id: MS-1
+    title: Shared resolution helpers exist
+    tasks:
+      - TASK-001
+    done_when: changesDirFor is exported from src/scripts/lib/resolve-root.ts and resolveCwd from
+      src/scripts/lib/cli.ts; npm run validate passes with the existing suites unmodified (pure
+      additions, byte-identical behavior).
+  - id: MS-2
+    title: Single-path consolidation complete
+    tasks:
+      - TASK-002
+    done_when: grep finds no docs/changes path construction outside resolve-root.ts and no remaining
+      inline "args.cwd ? path.resolve(...)" derivation in src/scripts; npm run validate passes with
+      the existing suites acting as characterization.
+  - id: MS-3
+    title: Actionable failure contract in source
+    tasks:
+      - TASK-003
+    done_when: The DEC-003 message with the preserved e2e prefix is in place; data.searched is present
+      in requireChangeRoot's missing-change branch and doctor's failed change_name check; exactly
+      one unit assertion updated; npm run validate passes.
+  - id: MS-4
+    title: Resolution coverage complete
+    tasks:
+      - TASK-004
+      - TASK-006
+    done_when: The new unit matrix and the e2e extensions pass; npm run test:unit and npm run test:e2e
+      are green.
+  - id: MS-5
+    title: Override flag documented everywhere
+    tasks:
+      - TASK-005
+    done_when: CWD_FLAG_DOC appears in all enumerated usage surfaces (top-level help, authoring
+      helpPayload, review, tasks, aggregator, status, both feedback branches) with doctor excluded;
+      npm run validate passes.
+  - id: MS-6
+    title: Shipped
+    tasks:
+      - TASK-007
+      - TASK-008
+    done_when: npm run check:all is green; deploy:smoke re-rendered the bundle as the final step; the
+      deployed CLI behaviorally verified from a non-root cwd (actionable blocked envelope with
+      data.searched, and --cwd resolution).
+risks:
+  - id: RISK-001
+    description: The message-text change breaks the e2e-asserted prefix "docs/changes does not exist
+      under <path>" if the new wording is implemented carelessly.
+    mitigation: Implement exactly DEC-003's wording, which preserves the asserted prefix verbatim; the
+      only sanctioned test edit is the single unit assertion at test/unit/resolve-root.test.ts:143;
+      the e2e suite must pass unmodified (AC-010), verified at the TASK-007 boundary.
+  - id: RISK-002
+    description: Consolidation silently changes a workflow that already works — status, feedback, and
+      doctor already honor --cwd today.
+    mitigation: resolveCwd is character-identical to the pattern it replaces; the existing unit and e2e
+      suites (six e2e files exercise --cwd) run unchanged as characterization at every task
+      boundary; per the requirements failure path, any divergence is fixed in the shared function,
+      never as a per-workflow special case.
+  - id: RISK-003
+    description: "The fix never reaches the deployed bundle: the deployed skill embeds the compiled CLI,
+      so a source-only change leaves the deployed CLI with the old behavior."
+    mitigation: DEC-005 deploy-last ordering — TASK-008 runs npm run deploy:smoke as the final shipping
+      step and then behaviorally probes the deployed CLI from a non-root cwd; no task follows the
+      deploy, and a source-only state is never treated as done.
+  - id: RISK-004
+    description: Implementation reveals an unplanned architectural change — for example a call site that
+      cannot receive the resolved root without a kind-interpreter signature change.
+    mitigation: Stop, mark the affected task blocked with a note via --update-artifact, report, and
+      update this plan before proceeding (requirements failure_path 2). Design-time verification
+      found review, tasks, and aggregator kinds already receive cwd via runStage, so the
+      stop-condition is not expected to trigger.
+  - id: RISK-005
+    description: An external consumer matching the literal old message text ("Create a change first")
+      would see changed text — residual, low per the requirements.
+    mitigation: If such a consumer is found, keep the old message as a secondary detail line while the
+      primary instruction names the resolved root and the two remedies, then re-run the affected
+      review (requirements failure_path 1).
+delta: []

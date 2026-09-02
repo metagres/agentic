@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import type { StageRecord } from '../stage-registry.ts';
 import { loadStageRegistry } from '../stage-registry.ts';
-import { parseArgs, writeJson, EXIT } from '../cli.ts';
+import { parseArgs, writeJson, EXIT, CWD_FLAG_DOC } from '../cli.ts';
 import { writeYamlAtomic } from '../yaml-io.ts';
 import { safeReadYaml } from '../context.ts';
 import { requireChangeRoot } from '../change-root.ts';
@@ -100,7 +100,7 @@ function usage(stage: StageRecord, code = EXIT.ok) {
       workflow: stage.id,
       step: 'help',
       state: code === EXIT.ok ? 'ok' : 'blocked',
-      instructions: `Usage: sdlc ${stage.id} --change <change-name> [--complete]`,
+      instructions: `Usage: sdlc ${stage.id} --change <change-name> [--complete] ` + CWD_FLAG_DOC,
       data: {},
       errors: [],
       warnings: [],

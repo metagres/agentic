@@ -2,7 +2,7 @@ import path from 'node:path';
 
 import type { StageRecord } from '../stage-registry.ts';
 import { getStageById } from '../stage-registry.ts';
-import { parseArgs, writeJson, EXIT } from '../cli.ts';
+import { parseArgs, writeJson, EXIT, CWD_FLAG_DOC } from '../cli.ts';
 import { writeYamlAtomic, readYaml } from '../yaml-io.ts';
 import { safeReadYaml } from '../context.ts';
 import { resolveRootOrError, ResolveRootError } from '../resolve-root.ts';
@@ -45,8 +45,10 @@ export async function runReviewStage(
   const usage = (code: number, message: string | null = null) => {
     const instructions =
       options.workflowLabel === 'review'
-        ? 'Usage: sdlc review --target <requirements|design|plan|implementation> --change <change-name> [--accept|--reject] [--dry-run]'
-        : `Usage: sdlc ${stage.id} --change <change-name> [--accept|--reject] [--dry-run]`;
+        ? 'Usage: sdlc review --target <requirements|design|plan|implementation> --change <change-name> [--accept|--reject] [--dry-run] ' +
+          CWD_FLAG_DOC
+        : `Usage: sdlc ${stage.id} --change <change-name> [--accept|--reject] [--dry-run] ` +
+          CWD_FLAG_DOC;
     writeJson(
       {
         workflow,

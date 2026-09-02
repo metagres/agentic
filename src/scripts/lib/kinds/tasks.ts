@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import type { StageRecord } from '../stage-registry.ts';
-import { parseArgs, writeJson, EXIT } from '../cli.ts';
+import { parseArgs, writeJson, EXIT, CWD_FLAG_DOC } from '../cli.ts';
 import { writeYamlAtomic } from '../yaml-io.ts';
 import { safeReadYaml } from '../context.ts';
 import { requireChangeRoot } from '../change-root.ts';
@@ -39,7 +39,8 @@ function usage(stage: StageRecord, code = EXIT.ok) {
       state: code === EXIT.ok ? 'ok' : 'blocked',
       instructions:
         `Usage: sdlc ${stage.id} --change <change-name> ` +
-        '[--task-id TASK-001 --status in_progress --note "..." --files "create:src/a.ts,modify:src/b.ts"]',
+        '[--task-id TASK-001 --status in_progress --note "..." --files "create:src/a.ts,modify:src/b.ts"] ' +
+        CWD_FLAG_DOC,
       data: {
         allowed_task_status: ALLOWED_TASK_STATUS,
       },

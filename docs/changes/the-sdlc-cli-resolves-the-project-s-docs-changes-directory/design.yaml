@@ -1,0 +1,296 @@
+metadata:
+  id: DES-001
+  title: "Design: the-sdlc-cli-resolves-the-project-s-docs-changes-directory"
+  stage: design
+  status: accepted
+  version: 0.1.0
+  created: 2026-09-02
+  updated: 2026-09-02
+  based_on_requirements: 0.1.0
+  delta_reviewed: true
+context_summary: The sdlc CLI locates the project changes directory by joining the invocation
+  working directory with docs/changes at four duplicated sites, so invoking the deployed skill from
+  its own folder fails with a misleading error that reports a skill-internal path and instructs
+  creating a change first. The design keeps the existing --cwd flag as the sole override mechanism
+  and consolidates every changes-directory construction behind one shared resolver in
+  resolve-root.ts, with cwd derivation from CLI args unified in a second helper in cli.ts. The
+  missing-directory error is redesigned to name the resolved root and the searched path and to
+  instruct running from the project root or passing the root explicitly, while data.searched remains
+  the machine-readable carrier inside the frozen envelope. Every resolution-failure surface inherits
+  the new wording automatically because all of them render the single ResolveRootError message. Help
+  and usage output across stages and workflows gains a documented --cwd line sourced from one shared
+  constant. Behavior from the project root is unchanged, and existing tests keep their resolution
+  expectations except the one message-text assertion that the requirements explicitly supersede.
+  Unit tests cover the resolution matrix and e2e tests cover CLI-level override threading and the
+  invalid-override blocked envelope. Rollout sequences engine work and tests first, with the deploy
+  smoke re-render last so the bundled CLI actually ships the fix.
+components:
+  - id: CMP-001
+    name: Shared changes-directory resolver
+    responsibility: Export changesDirFor(cwd) from src/scripts/lib/resolve-root.ts as the single
+      constructor of the project changes directory path (<root>/docs/changes); resolveRootOrError
+      uses it internally and no other module may construct the path directly. resolve-root.ts keeps
+      its fs/path-only purity (no imports from cli.ts), so the changes-dir contract stays
+      unit-testable in isolation and the no-walk-up, no-marker-heuristic rule has exactly one
+      enforcement point.
+  - id: CMP-002
+    name: Shared cwd-from-args resolver
+    responsibility: "Export resolveCwd(args) from src/scripts/lib/cli.ts implementing the one
+      args-to-root derivation (args.cwd ? path.resolve(String(args.cwd)) : process.cwd());
+      runner.ts, the workflow dispatch closure in workflows/index.ts, status.ts, feedback.ts, and
+      doctor.ts all call it, eliminating six copies of the pattern and the double parseArgs call in
+      workflows/index.ts. cli.ts is already imported by every call site, so no new module and no
+      import cycle is introduced."
+  - id: CMP-003
+    name: Call-site consolidation
+    responsibility: "Route the three remaining duplicate construction sites through changesDirFor: the
+      requireChangeRoot available_changes listing in change-root.ts, listExistingChanges in
+      kinds/authoring.ts, and createChangeDir in kinds/authoring.ts; the workflow dispatch closure
+      in workflows/index.ts derives cwd via resolveCwd. The registry lookups in workflows/index.ts
+      (getStageById inside resolveWorkflow and the cwd in listWorkflows) stay on process.cwd()
+      because they resolve bundled engine assets, which the requirements place out of scope, their
+      script-relative resolution shadows the cwd fallback in both source and deployed forms, and
+      they never construct a docs/changes path."
+  - id: CMP-004
+    name: Actionable resolution-failure message
+    responsibility: Redesign the not-exists branch message in resolveRootOrError to name the resolved
+      root and the searched docs/changes path and instruct running from the project root or passing
+      the root explicitly with --cwd, dropping the create-a-change-first instruction; every
+      resolution-failure surface (requireChangeRoot in change-root.ts, the authoring resolve and
+      slug envelopes, review, feedback, doctor) inherits the wording because they all render
+      ResolveRootError.message from this one source. The missing---change usage envelope in
+      requireChangeRoot and a failed change_name check in doctor additionally carry data.searched so
+      every envelope reporting a resolution problem surfaces the searched path; data.searched stays
+      the machine-readable carrier and no top-level envelope field is added or removed.
+  - id: CMP-005
+    name: Help and usage documentation of the override flag
+    responsibility: "Add a shared CWD_FLAG_DOC constant to cli.ts describing --cwd <project-root> (run
+      as if invoked from the given project root; default is the current working directory) and
+      append it to every existing help and usage surface: the top-level sdlc help in sdlc.ts, the
+      authoring helpPayload usage instructions, and the usage payloads of review, tasks, aggregator,
+      and status, plus both feedback usage branches. doctor emits no usage payload today, so it has
+      no help surface to document; the shared constant guarantees identical wording everywhere and
+      gives AC-009 a single string to test for."
+  - id: CMP-006
+    name: Resolution test coverage
+    responsibility: "Add test/unit/cwd-resolution.test.ts covering the function-level matrix: resolves
+      from a project root; fails from a directory without docs/changes with the actionable message
+      and searched path; resolves via the cwd option override; fails naming a nonexistent override
+      root; never walks up ancestor directories. Update exactly one message-text assertion in
+      test/unit/resolve-root.test.ts that AC-006 explicitly supersedes while leaving every
+      resolution expectation in that file untouched, and extend test/e2e/change-resolution.test.ts
+      with a --cwd override success case and an invalid---cwd blocked-envelope case; envelope
+      assertions keep the seven frozen top-level fields under surveillance."
+data_models:
+  - id: DM-001
+    name: Project-root resolution contract
+    fields:
+      override_input: The raw --cwd argv value as parsed by parseArgs (string when a value follows the
+        flag, boolean true when the flag is followed by another flag, absent when not passed);
+        absent means no override.
+      effective_root: The absolute project root, path.resolve(override ?? process.cwd()); the only root
+        used for project-data resolution in every stage and workflow.
+      changes_dir: path.join(effective_root, 'docs', 'changes'), produced exclusively by changesDirFor;
+        the directory every stage and workflow lists, resolves changes under, and creates changes
+        under.
+      searched: The changes_dir value carried on ResolveRootError.searched and surfaced as data.searched
+        in every resolution-failure envelope; the machine-readable carrier required by DL-003 and
+        NFR-002.
+      available_changes: Sorted directory names of changes_dir (empty when the directory does not exist),
+        carried in data.available_changes for self-correction.
+    invariants: No directory walking, no marker heuristics, and no script-location inference anywhere in
+      resolution; the seven frozen envelope top-level fields are unchanged; bundled-asset resolution
+      in paths.ts is untouched.
+apis:
+  - id: API-001
+    path: sdlc <stage|workflow> ... --cwd <project-root>
+    method: CLI flag
+    notes: "Already parsed by parseArgs and threaded by runner.ts and the status, feedback, and doctor
+      workflows; this change documents the flag in every help and usage surface (FR-005) and routes
+      all cwd derivation through resolveCwd so the override is effective uniformly. Relative --cwd
+      values resolve against process.cwd(). The envelope shape is unchanged: exactly the seven
+      frozen top-level fields, with failure detail in data.searched."
+  - id: API-002
+    path: src/scripts/lib/resolve-root.ts (changesDirFor), src/scripts/lib/cli.ts (resolveCwd)
+    method: function
+    notes: "changesDirFor(cwd: string): string is the single docs/changes constructor; resolveCwd(args):
+      string is the single args-to-root derivation. Both are pure, unit-testable, and the only
+      sanctioned ways to obtain these values, satisfying AC-007 by construction."
+flows:
+  - id: F-1
+    name: Invocation from the project root (unchanged behavior)
+    steps:
+      - The agent runs any sdlc stage or workflow from the project root without --cwd.
+      - resolveCwd returns process.cwd(); changesDirFor yields <root>/docs/changes.
+      - The change resolves and the envelope is identical to pre-change behavior.
+    outcome: NFR-001 holds byte-for-byte for the default path; existing unit and e2e suites pass with
+      their resolution expectations untouched (AC-001, AC-010).
+    requirement_ids:
+      - FR-001
+      - NFR-001
+  - id: F-2
+    name: Invocation from the skill directory without override (actionable failure)
+    steps:
+      - The agent invokes the bundled script from the skill base directory (in-project or global)
+        without --cwd.
+      - resolveCwd returns the skill directory; changesDirFor yields <skill-dir>/docs/changes, which
+        does not exist.
+      - resolveRootOrError throws with the redesigned message naming the skill dir and the searched
+        path plus the two remedies.
+      - The blocked envelope carries data.searched = <skill-dir>/docs/changes and exits non-zero.
+    outcome: The error is actionable instead of misleading (AC-005, AC-006); no directory walking and no
+      ancestor or script-location inference occurs, so a project subdirectory behaves identically
+      (AC-008).
+    requirement_ids:
+      - FR-003
+  - id: F-3
+    name: Invocation with --cwd override (resolves)
+    steps:
+      - The caller passes --cwd <project-root> from any directory.
+      - resolveCwd resolves the flag (relative values against process.cwd()).
+      - Resolution is identical to a project-root invocation for every stage and workflow, including
+        review, tasks, and aggregator kinds that receive cwd via runStage.
+    outcome: The change resolves exactly as if invoked from the project root (AC-002); an override
+      pointing at an existing directory without docs/changes fails naming that override-provided
+      path as the searched root (AC-003).
+    requirement_ids:
+      - FR-002
+  - id: F-4
+    name: Invalid --cwd (blocked envelope)
+    steps:
+      - The caller passes --cwd pointing at a path that does not exist.
+      - path.resolve succeeds (no existence check at parse time); changesDirFor yields
+        <invalid>/docs/changes, which does not exist.
+      - The blocked envelope's message and data.searched name the override-provided path; the CLI
+        exits non-zero with no crash and no partial resolution.
+      - A boolean --cwd (flag followed by another flag) degrades to the same actionable failure
+        naming the resolved garbage path rather than crashing.
+    outcome: Invalid input produces a self-correcting blocked envelope (AC-004) that names the invalid
+      root (AC-003).
+    requirement_ids:
+      - FR-002
+      - FR-003
+decisions:
+  - id: DEC-001
+    title: Override mechanism is the --cwd flag only, with no environment variable
+    context: DL-002 permits a CLI flag and/or an environment variable and leaves the mechanism to
+      design; FR-005 and AC-009 speak of an override flag; --cwd already exists, is parsed by
+      parseArgs, threaded through runner.ts and the status, feedback, and doctor workflows, and
+      exercised by six existing e2e test files. The requirements review carried forward a wording
+      tension between FR-005's "override flag" and DL-002's "flag and/or env var".
+    decision: "Keep the flag as the sole override mechanism. This resolves the carry-forward without
+      reopening requirements: with a flag-only mechanism, FR-005's \"override flag\" wording is
+      exactly what ships, and DL-002's \"and/or\" explicitly delegated the narrower choice to
+      design, so the requirements text needs no change and this decision records the resolution. An
+      environment variable would add a second, envelope-invisible source of truth that is harder to
+      test deterministically and can leak across agent sessions on long-lived runtimes."
+    status: accepted
+  - id: DEC-002
+    title: Consolidation uses two small helpers with an explicit scope boundary
+    context: FR-004 and AC-007 require one shared resolution function for docs/changes construction; the
+      cwd-from-args pattern is separately duplicated six times; registry lookups in
+      workflows/index.ts also call bare process.cwd().
+    decision: "changesDirFor(cwd) lives in resolve-root.ts, the owner of the docs/changes contract, kept
+      fs/path-pure for isolated unit testing; resolveCwd(args) lives in cli.ts, which every call
+      site already imports, so no new module and no import cycle. The workflow dispatch closure
+      adopts resolveCwd and thereby also removes its double parseArgs call. The registry lookups in
+      resolveWorkflow and listWorkflows stay on process.cwd(): they resolve bundled engine assets,
+      which the requirements place out of scope, their script-relative resolution shadows the cwd
+      fallback in both source and deployed forms, and they never construct a docs/changes path, so
+      AC-007's scope (direct construction of the docs/changes path from cwd) does not reach them."
+    status: accepted
+  - id: DEC-003
+    title: Error-wording contract of one source message with two remedies
+    context: The misleading text lives only in resolveRootOrError's not-exists branch; every
+      resolution-failure surface renders ResolveRootError.message, so one fix makes all surfaces
+      consistent. The e2e suite asserts the message prefix "docs/changes does not exist under
+      <path>", and one unit assertion expects the old "Create a change first." text.
+    decision: "Replace the message with: docs/changes does not exist under <root> (searched:
+      <root>/docs/changes). Run from the project root or pass the root explicitly with --cwd
+      <project-root>. It preserves the asserted prefix so existing e2e passes unmodified, names both
+      the resolved root and the full searched path (AC-005), states the two remedies, and drops
+      \"Create a change first\" entirely (AC-006; the advice is also never necessary because
+      --request auto-creates docs/changes via createChangeDir). data.searched remains the
+      machine-readable carrier (NFR-002, AC-011). The single unit assertion expecting the old text
+      is updated because AC-006 explicitly mandates that text change, while every resolution
+      expectation in the file (searched path, available list, no-walk-up) stays untouched, so
+      AC-010's resolution-expectation clause holds. If an external consumer matching the old text is
+      ever found, the requirements failure_path prescribes keeping the old message as a secondary
+      detail line; no such consumer is known and the residual risk is accepted as low per the
+      requirements."
+    status: accepted
+  - id: DEC-004
+    title: Test strategy of a function-level unit matrix plus CLI-level e2e threading
+    context: The resolution matrix (project root, non-root directory, override, invalid override,
+      no-walk-up) is function behavior of resolveRootOrError and changesDirFor; flag threading into
+      runner, status, feedback, and doctor is CLI behavior already partially exercised by six e2e
+      files that pass --cwd.
+    decision: Add test/unit/cwd-resolution.test.ts for the five-scenario function matrix; extend
+      test/e2e/change-resolution.test.ts with a --cwd override success case and an invalid---cwd
+      blocked-envelope case, spawn-based to match the file's existing pattern; update exactly one
+      message-text assertion in test/unit/resolve-root.test.ts (the AC-006-mandated change) and zero
+      resolution expectations. New envelopes are asserted against the seven frozen top-level fields
+      to keep AC-011 under surveillance.
+    status: accepted
+  - id: DEC-005
+    title: Rollout orders engine work and tests first with the deploy smoke last
+    context: The deployed bundle embeds the compiled CLI, so a source-only change leaves the deployed
+      skill with the old behavior (requirements risk); the requirements failure_path prescribes
+      stopping if a kind interpreter cannot receive the resolved root without an unplanned signature
+      change.
+    decision: Sequence (1) engine change plus unit tests, (2) npm run validate, (3) npm run test:e2e,
+      (4) npm run deploy:smoke as the final shipping step so the bundle re-render is part of the
+      change rather than an afterthought; the plan must sequence deploy last. Design-time
+      verification found that review, tasks, and aggregator kinds already receive cwd via runStage,
+      so the stop-condition does not trigger and no signature change is needed.
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+      - CMP-003
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-002
+      - CMP-003
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-004
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-001
+      - CMP-003
+  - requirement_id: FR-005
+    component_ids:
+      - CMP-005
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-002
+      - CMP-004
+      - CMP-006
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-004
+      - CMP-006
+delta:
+  - phase: Design
+    target_doc: docs/current/api-contract.md
+    target_anchor: Envelope
+    entity_id: null
+    change: Modify
+    reason: "Document the resolution-failure envelope contract: the error names the resolved project
+      root and the searched docs/changes path and instructs running from the project root or passing
+      the root explicitly with --cwd, the searched path is carried in the existing data.searched
+      field rather than new envelope surface, and the seven frozen top-level envelope fields are
+      unchanged."
+    date: 2026-09-02
+  - phase: Design
+    target_doc: docs/current/operations.md
+    target_anchor: Commands
+    entity_id: null
+    change: Modify
+    reason: "Document the --cwd <project-root> override flag for every stage and workflow command: it
+      replaces the invocation working directory as the project root for project-data resolution,
+      defaults to the current working directory, and appears with a description of its effect in all
+      help and usage output."
+    date: 2026-09-02

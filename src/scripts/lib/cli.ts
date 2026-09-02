@@ -1,4 +1,5 @@
 import type { WarningItem } from './types.ts';
+import * as path from 'node:path';
 import { getStageById } from './stage-registry.ts';
 import { delegationDirective } from './delegation.ts';
 
@@ -41,6 +42,18 @@ export function parseArgs(argv: string[]): Record<string, string | boolean | str
 
   return args;
 }
+
+// The single args-to-root derivation: the effective project root is the
+// --cwd override (resolved against process.cwd() when relative) or the
+// invocation working directory itself.
+export function resolveCwd(args: Record<string, string | boolean | string[]>): string {
+  return args.cwd ? path.resolve(String(args.cwd)) : process.cwd();
+}
+
+// Shared help text for the --cwd override flag (CMP-005): one constant keeps
+// the wording identical across every help and usage surface.
+export const CWD_FLAG_DOC =
+  '--cwd <project-root>: run as if invoked from the given project root (default: the current working directory).';
 
 export function normalizeEnvelope(payload: Record<string, unknown> = {}, stagesDir?: string): { workflow: string; step: string; state: string; instructions: string; data: Record<string, unknown>; errors: unknown[]; warnings: unknown[] } {
   const data: Record<string, unknown> = {

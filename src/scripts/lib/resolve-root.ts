@@ -53,15 +53,20 @@ function availableSuffix(available: string[]): string {
   return ` Available changes: ${shown}${more}`;
 }
 
+// The single constructor of the project changes directory path. The cwd is
+// the project root: the agent always invokes the CLI from the folder where it
+// started, and docs/changes lives directly under it. The CLI script's own
+// location (which may be a global skill dir) is never used to infer the
+// project root, and no directory walking or marker heuristics apply.
+export function changesDirFor(cwd: string): string {
+  return path.join(cwd, 'docs', 'changes');
+}
+
 export function resolveRootOrError(
   dir: string,
   { cwd = process.cwd(), allowExternal = false }: { cwd?: string; allowExternal?: boolean } = {}
 ) {
-  // The cwd is the project root: the agent always invokes the CLI from the
-  // folder where it started, and docs/changes lives directly under it. The
-  // CLI script's own location (which may be a global skill dir) is never used
-  // to infer the project root.
-  const changesDir = path.join(cwd, 'docs', 'changes');
+  const changesDir = changesDirFor(cwd);
 
   const mkError = (
     message: string,
@@ -112,7 +117,8 @@ export function resolveRootOrError(
 
   if (!fs.existsSync(changesDir)) {
     throw mkError(
-      `docs/changes does not exist under ${cwd}. Create a change first.`
+      `docs/changes does not exist under ${cwd} (searched: ${changesDir}). ` +
+        'Run from the project root or pass the root explicitly with --cwd <project-root>.'
     );
   }
 

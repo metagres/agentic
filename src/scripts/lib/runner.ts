@@ -1,6 +1,4 @@
-import path from 'node:path';
-
-import { writeJson, EXIT, parseArgs } from './cli.ts';
+import { writeJson, EXIT, parseArgs, resolveCwd } from './cli.ts';
 import { getStageById } from './stage-registry.ts';
 import { runStage } from './kinds/index.ts';
 
@@ -11,7 +9,7 @@ import { runStage } from './kinds/index.ts';
  */
 export async function runAuthoringStage(stageId: string, argv: string[]): Promise<void> {
   const args = parseArgs(argv);
-  const cwd = args.cwd ? path.resolve(String(args.cwd)) : process.cwd();
+  const cwd = resolveCwd(args);
   const stage = getStageById(cwd, stageId);
 
   if (!stage) {

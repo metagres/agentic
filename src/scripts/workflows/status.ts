@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { parseArgs, writeJson, EXIT } from '../lib/cli.ts';
+import { parseArgs, writeJson, EXIT, resolveCwd, CWD_FLAG_DOC } from '../lib/cli.ts';
 import { safeReadYaml } from '../lib/context.ts';
 import { requireChangeRoot } from '../lib/change-root.ts';
 import { loadStageRegistry, getStageById } from '../lib/stage-registry.ts';
@@ -14,7 +14,7 @@ function usage(code: number = EXIT.ok): void {
       workflow: 'status',
       step: 'help',
       state: code === EXIT.ok ? 'ok' : 'blocked',
-      instructions: 'Usage: sdlc status --change <change-name>',
+      instructions: 'Usage: sdlc status --change <change-name> ' + CWD_FLAG_DOC,
       data: {},
       errors: [],
       warnings: [],
@@ -59,7 +59,7 @@ export function runStatus(argv: string[]): void {
     return;
   }
 
-  const cwd = args.cwd ? path.resolve(String(args.cwd)) : process.cwd();
+  const cwd = resolveCwd(args);
 
   const base: Record<string, unknown> = {
     workflow: 'status',

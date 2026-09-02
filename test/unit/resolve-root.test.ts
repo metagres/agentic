@@ -140,7 +140,9 @@ test('cwd without docs/changes is authoritative — no ancestor or script-dir in
       assert.deepEqual(resolveErr.available, []);
       assert.match(resolveErr.message, /docs\/changes does not exist under/);
       assert.ok(
-        resolveErr.message.includes('Create a change first.'),
+        resolveErr.message.includes(
+          'Run from the project root or pass the root explicitly with --cwd <project-root>.'
+        ),
         resolveErr.message
       );
       return true;

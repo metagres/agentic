@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { parseArgs, writeJson, EXIT } from '../cli.ts';
-import { resolveRootOrError, ResolveRootError } from '../resolve-root.ts';
+import { parseArgs, writeJson, EXIT, CWD_FLAG_DOC } from '../cli.ts';
+import { changesDirFor, resolveRootOrError, ResolveRootError } from '../resolve-root.ts';
 import { writeYamlAtomic, readStdin, parseYamlString, readYaml } from '../yaml-io.ts';
 import { safeReadYaml, loadReviewReport } from '../context.ts';
 import { loadDocsIndex, headingExists } from '../docs-index.ts';
@@ -35,7 +35,7 @@ function cliInvocation(cwd: string): string {
 }
 
 function listExistingChanges(cwd: string) {
-  const changesDir = path.join(cwd, 'docs', 'changes');
+  const changesDir = changesDirFor(cwd);
   if (!fs.existsSync(changesDir)) return [];
 
   return fs
@@ -138,7 +138,7 @@ export function createChangeDir(
   stage: StageRecord,
   explicitSlug?: string
 ): string {
-  const changesDir = path.join(cwd, 'docs', 'changes');
+  const changesDir = changesDirFor(cwd);
 
   let slug: string | undefined;
 
@@ -597,6 +597,8 @@ function helpPayload(stage: StageRecord) {
       ``,
       `Available ${stage.id} commands:`,
       ...usage.map((command) => `  ${command}`),
+      ``,
+      CWD_FLAG_DOC,
     ].join('\n'),
     data: {
       artifact: stage.artifact,

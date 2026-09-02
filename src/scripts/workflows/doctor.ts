@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseArgs, writeJson, EXIT } from '../lib/cli.ts';
+import { parseArgs, writeJson, EXIT, resolveCwd } from '../lib/cli.ts';
 import { makeError } from '../lib/error-catalog.ts';
 import { resolveRuntimeDir } from '../lib/paths.ts';
 import { loadStageRegistry } from '../lib/stage-registry.ts';
@@ -27,7 +27,7 @@ function findManifest() {
 
 export function runDoctor(argv: string[]): void {
   const args = parseArgs(argv);
-  const cwd = args.cwd ? path.resolve(String(args.cwd)) : process.cwd();
+  const cwd = resolveCwd(args);
   const strict = Boolean(args.strict);
 
   const checks: { id: string; passed: boolean; details: string }[] = [];
@@ -142,6 +142,7 @@ export function runDoctor(argv: string[]): void {
     addCheck('deployed_manifest', true, 'skipped; not a deployed runtime');
   }
 
+  let changeSearched: string | undefined;
   if (args.change) {
     try {
       const changeRoot = resolveRootOrError(String(args.change), { cwd });
@@ -149,6 +150,7 @@ export function runDoctor(argv: string[]): void {
     } catch (err: unknown) {
       addCheck('change_name', false, String(args.change));
       if (err instanceof ResolveRootError) {
+        changeSearched = err.searched || undefined;
         errors.push(
           makeError(
             err.candidates && err.candidates.length > 0
@@ -203,6 +205,7 @@ export function runDoctor(argv: string[]): void {
         strict,
         checks,
         ...(args.change ? { change_name: String(args.change) } : {}),
+        ...(changeSearched ? { searched: changeSearched } : {}),
       },
       errors,
       warnings,

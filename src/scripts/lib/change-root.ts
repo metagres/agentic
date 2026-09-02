@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import {
+  changesDirFor,
   resolveRootOrError,
   ResolveRootError,
 } from './resolve-root.ts';
@@ -36,7 +36,8 @@ export function requireChangeRoot(args: ParseArgsResult, cwd: string, base: Reco
         state: 'blocked',
         instructions: 'Provide --change <change-name>.',
         data: {
-          available_changes: listChangeDirNames(path.join(cwd, 'docs', 'changes')),
+          available_changes: listChangeDirNames(changesDirFor(cwd)),
+          searched: changesDirFor(cwd),
         },
         errors: [makeError('MISSING_CHANGE_DIR')],
         warnings: [],

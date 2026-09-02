@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { writeJson, EXIT } from './lib/cli.ts';
+import { writeJson, EXIT, CWD_FLAG_DOC } from './lib/cli.ts';
 import { resolveWorkflow, listWorkflows } from './workflows/index.ts';
 import { VERSION } from './lib/version.ts';
 
@@ -15,7 +15,8 @@ if (!command || command === '--help' || command === '-h') {
       instructions:
         'Usage: sdlc <stage|command> [flags]. ' +
         'Use --list-workflows to see workflows. ' +
-        'Use status --change <change-name> for pipeline state.',
+        'Use status --change <change-name> for pipeline state. ' +
+        CWD_FLAG_DOC,
       data: {
         version: VERSION,
         workflows: listWorkflows(),

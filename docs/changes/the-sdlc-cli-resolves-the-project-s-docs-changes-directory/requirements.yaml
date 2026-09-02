@@ -1,0 +1,266 @@
+metadata:
+  id: REQ-001
+  title: The sdlc CLI resolves the project's docs/changes directory relative to the project root where
+    the agent runs
+  stage: requirements
+  status: accepted
+  version: 0.1.0
+  created: 2026-09-02
+  updated: 2026-09-02
+  request_summary: The sdlc CLI resolves the project's docs/changes directory relative to the process
+    working directory, assuming the invocation directory is the project root. When the agent invokes
+    the deployed skill script from the skill's own folder (as the skill instructions' relative-path
+    note invites), resolution fails with a misleading error pointing inside the skill folder. The
+    skill may also be installed globally (~/.config/opencode/skills), so the project root cannot be
+    inferred from the script location or by walking up directories. The project root is where the AI
+    coding agent runs; the CLI must keep that contract, allow the caller to provide the root
+    explicitly, and fail with an actionable error naming the resolved root when docs/changes is not
+    found.
+  clarity: clear
+  assumptions_reviewed: true
+  delta_reviewed: true
+  discovery_reviewed: true
+  scenarios_reviewed: true
+problem_statement: "The sdlc CLI locates the project's changes directory by joining the invocation
+  working directory with docs/changes, assuming the agent always invokes it from the project root.
+  That assumption breaks in a real agent session: the skill instructions describe the skill base
+  directory as the base for relative paths, which invites invoking the script from the skill folder,
+  where docs/changes does not exist. The resulting failure is also misleading — it reports the
+  skill-internal path as the searched location and instructs the agent to 'Create a change first',
+  sending diagnosis in the wrong direction. The skill may be installed globally
+  (~/.config/opencode/skills), so the project root cannot be inferred from the script location, and
+  the stakeholder has explicitly rejected directory-walking heuristics. The project root is where
+  the AI coding agent runs; the CLI must keep that contract, honor an explicit caller-provided root,
+  and fail with an actionable error when the resolved root does not contain docs/changes."
+discovery_log:
+  - id: DL-001
+    question: Who invokes the CLI and where does the project root come from?
+    answer: The AI coding agent invokes the deployed skill script (node scripts/sdlc.js relative to the
+      skill base dir, or by absolute path for global installs). The project root is the agent's own
+      working directory - the folder where the agent runs. The agent always knows it; the script
+      location (in-project .opencode/skills or global ~/.config/opencode/skills) must never be used
+      to infer the root.
+    lens: stakeholder
+    resolved: true
+  - id: DL-002
+    question: How should the CLI receive the project root?
+    answer: "Default contract unchanged: process.cwd() at invocation is the project root because the
+      agent invokes from where it runs. Additionally the caller must be able to provide the root
+      explicitly (CLI flag and/or environment variable) for robustness when the invocation cwd is
+      not the project root; exact mechanism is a design decision."
+    lens: interface
+    resolved: true
+  - id: DL-003
+    question: What is resolved from the root and what must failure envelopes carry?
+    answer: The changes directory <root>/docs/changes. Every resolution-failure envelope must include
+      the resolved project root / searched path in data.searched so the agent can self-correct
+      instead of guessing.
+    lens: data
+    resolved: true
+  - id: DL-004
+    question: What should happen when docs/changes is not found under the resolved root?
+    answer: "A blocked envelope with an actionable error naming the resolved project root and
+      instructing to run from the project root or pass the root explicitly. No directory walking and
+      no marker heuristics: the stakeholder explicitly rejected inference because global skill
+      installs make it impossible."
+    lens: failure
+    resolved: true
+  - id: DL-005
+    question: What constraints bound the fix?
+    answer: Behavior when invoked from the project root is unchanged (backward compatible). No SKILL.md
+      or skill-instruction changes in this change. Bundled assets (templates, schemas, policies)
+      keep resolving relative to the skill bundle. The seven frozen envelope top-level fields are
+      untouched. All internal sites that locate docs/changes must route through one shared
+      resolution function.
+    lens: constraint
+    resolved: true
+assumptions:
+  - type: verified
+    text: An explicit project-root override flag (--cwd) is already parsed and threaded by the authoring
+      runner and the status, feedback, and doctor workflows; the authoring kind interpreters receive
+      the resolved cwd and pass it to change-root resolution.
+    source: src/scripts/lib/runner.ts:14; grep of args.cwd over src/scripts (status.ts:62,
+      feedback.ts:70, doctor.ts:30) performed 2026-09-02
+  - type: verified
+    text: Bundled engine assets (stages, agents, templates, schemas, policies) resolve relative to the
+      script location first and only fall back to cwd, so they are location-independent; only the
+      project changes directory is purely cwd-relative. The workflow listing worked when invoked
+      from the deployed skill folder at session start.
+    source: src/scripts/lib/paths.ts resolveRuntimeDir/resolveRuntimeFile; session-start invocation of
+      --list-workflows from .opencode/skills/agentic-sdlc on 2026-09-02
+  - type: verified
+    text: "The current resolution failure is misleading: it reports the skill-internal docs/changes path
+      as searched and instructs 'Create a change first', and the same cwd assumption is duplicated
+      at multiple sites instead of one shared resolution function."
+    source: src/scripts/lib/resolve-root.ts:113-117; grep of "join(cwd, 'docs', 'changes')" over
+      src/scripts (resolve-root.ts:64, change-root.ts:39, kinds/authoring.ts:38,141) and bare
+      process.cwd() in workflows/index.ts:59,69,88, performed 2026-09-02
+  - type: unverified
+    text: No consumer outside this repository parses the exact text of CLI resolution-failure messages
+      or instructions.
+    source: Stakeholder statement implied during discovery (DL-004); no external consumer inventory exists.
+    risk: An external script matching on the literal "Create a change first" instruction or on the
+      searched-path value would see changed text.
+    impact: low
+    severity: low
+functional_requirements:
+  - id: FR-001
+    description: When any CLI stage or workflow resolves the project changes directory, the system shall
+      locate it at <project-root>/docs/changes where the project root is the invocation working
+      directory by default.
+    ac_ids:
+      - AC-001
+      - AC-008
+  - id: FR-002
+    description: When the caller provides the project root explicitly through the CLI's supported
+      override mechanism, the system shall use that root in place of the invocation working
+      directory for all project-data resolution in every stage and workflow.
+    ac_ids:
+      - AC-002
+      - AC-003
+      - AC-004
+  - id: FR-003
+    description: When docs/changes does not exist under the resolved project root, the system shall emit
+      a blocked envelope whose error names the resolved project root as the searched location and
+      instructs the caller to run from the project root or pass the root explicitly.
+    ac_ids:
+      - AC-005
+      - AC-006
+  - id: FR-004
+    description: When any internal component constructs or lists the project changes directory, the
+      system shall do so through the single shared resolution function, with no divergent duplicate
+      path construction at other sites.
+    ac_ids:
+      - AC-007
+  - id: FR-005
+    description: When the CLI prints usage or help for any stage or workflow, the system shall document
+      the project-root override flag so callers can discover it.
+    ac_ids:
+      - AC-009
+non_functional_requirements:
+  - id: NFR-001
+    description: When the CLI is invoked from the project root without the override, the system shall
+      behave exactly as before this change, and the existing unit and end-to-end suites shall pass
+      without modifying their resolution expectations.
+    ac_ids:
+      - AC-010
+  - id: NFR-002
+    description: When any envelope is produced after this change, the system shall keep the seven frozen
+      top-level envelope fields unchanged and carry the searched path in the existing data.searched
+      field rather than introducing new envelope surface.
+    ac_ids:
+      - AC-011
+acceptance_criteria:
+  - id: AC-001
+    statement: Given the CLI is invoked from the project root that contains docs/changes, When any stage
+      runs with --change naming an existing change, Then the change resolves and the envelope is not
+      a resolution failure.
+    category: happy
+    parent_id: FR-001
+  - id: AC-002
+    statement: Given the CLI is invoked from a directory that is not the project root, When the caller
+      passes the project root through the override mechanism, Then the change resolves exactly as if
+      invoked from the project root.
+    category: happy
+    parent_id: FR-002
+  - id: AC-003
+    statement: Given the override mechanism receives a directory that exists but contains no
+      docs/changes, When a stage runs with --change, Then the failure envelope names the
+      override-provided path as the searched root.
+    category: edge
+    parent_id: FR-002
+  - id: AC-004
+    statement: Given the override mechanism receives a path that does not exist, When a stage runs, Then
+      the CLI emits a blocked envelope naming the invalid root and exits non-zero without a crash or
+      a partial resolution.
+    category: negative
+    parent_id: FR-002
+  - id: AC-005
+    statement: Given the CLI is invoked from a directory without docs/changes (for example the deployed
+      skill folder), When a stage runs with --change, Then the blocked envelope's error names the
+      searched docs/changes path under the resolved root and instructs running from the project root
+      or passing the root explicitly.
+    category: happy
+    parent_id: FR-003
+  - id: AC-006
+    statement: Given the same mislocated invocation, When the error text is inspected, Then it no longer
+      instructs "Create a change first" as the primary remedy for a missing docs/changes directory.
+    category: negative
+    parent_id: FR-003
+  - id: AC-007
+    statement: Given the repository source after this change, When a search runs for direct construction
+      of the docs/changes path from cwd, Then every site routes through the single shared resolution
+      function and no divergent duplicate remains.
+    category: happy
+    parent_id: FR-004
+  - id: AC-008
+    statement: Given the CLI is invoked from a project subdirectory without the override, When a stage
+      runs with --change, Then the CLI does not walk up directories to find a root and reports the
+      actionable resolution failure for the invocation directory.
+    category: edge
+    parent_id: FR-001
+  - id: AC-009
+    statement: Given the usage or help output of any stage or workflow, When it is displayed, Then the
+      project-root override flag appears with a description of its effect.
+    category: happy
+    parent_id: FR-005
+  - id: AC-010
+    statement: Given the full unit and end-to-end test suites, When they run after this change, Then
+      every pre-existing test passes without modifying its expectations about resolution from the
+      project root.
+    category: boundary
+    parent_id: NFR-001
+  - id: AC-011
+    statement: Given any resolution-failure envelope after this change, When it is validated against the
+      CLI envelope schema, Then it carries exactly the seven frozen top-level fields and the
+      searched path appears in data.searched.
+    category: boundary
+    parent_id: NFR-002
+out_of_scope:
+  - Directory walking or project-root marker heuristics (for example searching for .git or
+    package.json ancestors); the stakeholder explicitly rejected inference because global skill
+    installs make it impossible.
+  - Changes to SKILL.md, the skill manifest, or any agent-facing skill instructions; the CLI fix
+    alone must make invocation robust.
+  - Changing how bundled engine assets (stages, agents, templates, schemas, policies) are resolved;
+    they stay bundle-relative with cwd fallback.
+  - Renaming or relocating the docs/changes directory or changing change-slug resolution semantics
+    (exact, normalized, token-subset, substring matching stay as they are).
+  - Introducing new top-level envelope fields; failure details stay within the existing data payload.
+failure_paths:
+  - If an external consumer is found that depends on the literal resolution-failure message text,
+    keep the old message as a secondary detail line while the primary instruction names the resolved
+    root and the two remedies, then re-run the affected review.
+  - If threading the override through every stage or workflow reveals a kind interpreter that cannot
+    receive the resolved root without an unplanned signature change, stop, mark the task blocked
+    with a note, and update the plan before proceeding.
+  - If the shared resolution function changes behavior for the status, feedback, or doctor workflows
+    in a way their tests did not anticipate, fix the divergence in the shared function rather than
+    adding per-workflow special cases.
+risks_and_dependencies:
+  - "The unverified assumption that no external consumer parses resolution-failure message text
+    carries residual risk: such a consumer would see the instruction text change."
+  - The fix must ship through a bundle re-render (deploy smoke) to reach the deployed skill; a
+    source-only change leaves the deployed CLI with the old behavior.
+  - The existing --cwd flag is honored by some workflows today; consolidating on one resolution
+    function must not silently change the workflows that already work.
+delta:
+  - phase: Requirements
+    target_doc: docs/current/api-contract.md
+    target_anchor: Envelope
+    entity_id: null
+    change: Modify
+    reason: "Document the resolution-failure envelope contract: the error names the resolved project
+      root as the searched location and instructs running from the project root or passing the root
+      explicitly, replacing the misleading create-a-change-first instruction for a missing
+      docs/changes directory."
+    date: 2026-09-02
+  - phase: Requirements
+    target_doc: docs/current/operations.md
+    target_anchor: Commands
+    entity_id: null
+    change: Modify
+    reason: "Document the CLI invocation contract: the project root is the directory where the AI coding
+      agent runs, the changes directory resolves as <project-root>/docs/changes, and the caller can
+      pass the root explicitly through the documented override flag."
+    date: 2026-09-02

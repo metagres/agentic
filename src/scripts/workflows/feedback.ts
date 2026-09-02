@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { parseArgs, writeJson, EXIT } from '../lib/cli.ts';
+import { parseArgs, writeJson, EXIT, resolveCwd, CWD_FLAG_DOC } from '../lib/cli.ts';
 import { writeYamlAtomic, readYaml } from '../lib/yaml-io.ts';
 import { resolveRootOrError, ResolveRootError } from '../lib/resolve-root.ts';
 import { today, nextId } from '../lib/ids.ts';
@@ -67,14 +67,14 @@ function setTrackedStatus(
 
 export function runFeedback(argv: string[]) {
   const args = parseArgs(argv);
-  const cwd = args.cwd ? path.resolve(String(args.cwd)) : process.cwd();
+  const cwd = resolveCwd(args);
 
   if (!args.change) {
     return writeJson({
       workflow: 'feedback',
       step: 'blocked',
       state: 'blocked',
-      instructions: 'Usage: sdlc feedback --change <change-name> --from <stage> --to <stage> --reason "..." [--resolve <FB-id>]',
+      instructions: 'Usage: sdlc feedback --change <change-name> --from <stage> --to <stage> --reason "..." [--resolve <FB-id>] ' + CWD_FLAG_DOC,
       data: {},
       errors: [makeError('MISSING_CHANGE_DIR')],
       warnings: [],
@@ -161,7 +161,7 @@ export function runFeedback(argv: string[]) {
       workflow: 'feedback',
       step: 'blocked',
       state: 'blocked',
-      instructions: 'Usage: sdlc feedback --change <change-name> --from <stage> --to <stage> --reason "..."',
+      instructions: 'Usage: sdlc feedback --change <change-name> --from <stage> --to <stage> --reason "..." ' + CWD_FLAG_DOC,
       data: { change_root: changeRoot },
       errors: [makeError('USAGE', { message: 'Missing --from, --to, or --reason' })],
       warnings: [],

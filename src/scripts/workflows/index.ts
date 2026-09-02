@@ -1,12 +1,10 @@
-import path from 'node:path';
-
 import { getStageById, getStageDescriptions } from '../lib/stage-registry.ts';
 import { getAgentModelFields } from '../lib/agent-registry.ts';
 import { runStage } from '../lib/kinds/index.ts';
 import { runStatus } from './status.ts';
 import { runFeedback } from './feedback.ts';
 import { runDoctor } from './doctor.ts';
-import { parseArgs } from '../lib/cli.ts';
+import { parseArgs, resolveCwd } from '../lib/cli.ts';
 
 interface WorkflowEntry {
   id: string;
@@ -64,10 +62,7 @@ export function resolveWorkflow(command: string | undefined): WorkflowEntry | nu
     description: stage.title,
     agent: stage.agent,
     run(argv: string[]) {
-      const cwd = parseArgs(argv).cwd
-        ? path.resolve(String(parseArgs(argv).cwd))
-        : process.cwd();
-      return runStage(stage, argv, cwd);
+      return runStage(stage, argv, resolveCwd(parseArgs(argv)));
     },
   };
 }
