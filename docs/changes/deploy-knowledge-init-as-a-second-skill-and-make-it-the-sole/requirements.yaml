@@ -10,7 +10,6 @@ metadata:
   clarity: clear
   assumptions_reviewed: true
   delta_reviewed: true
-  step: complete
 problem_statement: "The knowledge-init bootstrap skill exists only as an unversioned file inside the
   gitignored .opencode runtime, so a fresh clone loses it, deployment to other agent roots never
   ships it, and no validation covers it. The sdlc toolkit's docs-init workflow overlaps it by

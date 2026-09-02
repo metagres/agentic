@@ -20,7 +20,6 @@ metadata:
   delta_reviewed: false
   discovery_reviewed: true
   scenarios_reviewed: false
-  step: complete
 problem_statement: The opencode-go model catalog was frozen as a hand-maintained enum in
   src/schemas/agent.schema.yaml at authoring time, but the live catalog at
   http://opencode.ai/zen/go/v1/models has already drifted (23 stored ids versus 30 live ids today),

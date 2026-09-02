@@ -14,7 +14,6 @@ metadata:
   delta_reviewed: true
   discovery_reviewed: false
   scenarios_reviewed: false
-  step: complete
 problem_statement: "mine_transcript.ts counts delegation events with a delegation regex whose stem
   requires the literal prefix \"delegate\", a prefix that never occurs in the word \"delegation\"
   because \"delegation\" spells \"delegat\" + \"ion\". A transcript line phrased exactly as SKILL.md

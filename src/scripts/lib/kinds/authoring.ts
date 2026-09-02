@@ -99,7 +99,6 @@ function instantiateArtifact(
   if (metadata.updated === 'YYYY-MM-DD') metadata.updated = today();
 
   metadata.status = 'draft';
-  metadata.step = 'init';
   if (!metadata.version) metadata.version = '0.1.0';
 
   doc.metadata = metadata;
@@ -499,7 +498,6 @@ function finalizeArtifact(env: AuthorEnv): void {
   }
 
   meta.status = 'ready-for-review';
-  meta.step = 'complete';
   meta.updated = today();
 }
 
@@ -917,7 +915,6 @@ export async function runAuthoringStage(
       ...env,
       findings,
       blocking,
-      semantic: { complete: true, missing: [], failed: [], results: [] },
     };
 
     const stepDefinitions = loadStepDefinitions(stage) || {};

@@ -2,7 +2,6 @@ metadata:
   id: PLAN-001
   title: "Plan: genericize-stage-engine"
   stage: planning
-  step: complete
   status: accepted
   version: 0.1.1
   created: 2026-08-24

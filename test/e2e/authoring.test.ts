@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { validRequirements } from '../helpers/artifacts.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cli = path.resolve(__dirname, '../../src/scripts/sdlc.ts');
@@ -13,9 +14,10 @@ function makeTmpProject() {
   return fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-authoring-'));
 }
 
-function runCli(args) {
+function runCli(args, input) {
   return spawnSync(process.execPath, [cli, ...args], {
     encoding: 'utf8',
+    input,
   });
 }
 
@@ -77,4 +79,59 @@ test('planning enters init when design is missing', () => {
   assert.equal(planJson.workflow, 'planning');
   assert.equal(planJson.step, 'init');
   assert.equal(planJson.data.based_on_design, null);
+});
+
+test('envelope data reports the revalued semantic_complete across the authoring tour', () => {
+  const tmp = makeTmpProject();
+
+  // docs/current fixture so the artifact delta validates against the index.
+  fs.mkdirSync(path.join(tmp, 'docs', 'current'), { recursive: true });
+  fs.writeFileSync(
+    path.join(tmp, 'docs', 'current', 'index.md'),
+    [
+      '# Current Docs Index',
+      '',
+      '| File | Purpose | When to Read | Notes |',
+      '|---|---|---|---|',
+      '| docs/current/architecture.md | Tech stack, boundaries, folder responsibilities | Structural changes | Fixture |',
+      '',
+    ].join('\n'),
+    'utf8'
+  );
+
+  // Init on the empty draft: semantic_complete false, no metadata step key.
+  const init = runCli(['requirements', '--cwd', tmp, '--request', 'Add login']);
+  assert.equal(init.status, 0, init.stderr);
+  const initJson = JSON.parse(init.stdout);
+  assert.equal(initJson.data.semantic_complete, false);
+  assert.equal(initJson.data.metadata.step, undefined);
+  const changeDir = path.basename(initJson.data.change_root);
+
+  // Author the artifact so finalize can pass mechanical validation.
+  const upd = runCli(
+    ['requirements', '--cwd', tmp, '--change', changeDir, '--update-artifact'],
+    JSON.stringify(validRequirements({}))
+  );
+  assert.equal(upd.status, 0, upd.stderr);
+  const updJson = JSON.parse(upd.stdout);
+  assert.notEqual(updJson.state, 'blocked', updJson.instructions);
+  // A mutation resets status to draft, so the flag stays false.
+  assert.equal(updJson.data.semantic_complete, false);
+  assert.equal(updJson.data.metadata.step, undefined);
+
+  // Finalize with --confirm-semantic: status ready-for-review, flag true.
+  const fin = runCli([
+    'requirements',
+    '--cwd',
+    tmp,
+    '--change',
+    changeDir,
+    '--finalize',
+    '--confirm-semantic',
+  ]);
+  assert.equal(fin.status, 0, fin.stderr);
+  const finJson = JSON.parse(fin.stdout);
+  assert.equal(finJson.state, 'complete', finJson.instructions);
+  assert.equal(finJson.data.semantic_complete, true);
+  assert.equal(finJson.data.metadata.step, undefined);
 });

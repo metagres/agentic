@@ -8,7 +8,6 @@ metadata:
   updated: 2026-08-28
   based_on_requirements: 0.1.0
   delta_reviewed: true
-  step: complete
 context_summary: The defect is a delegation stem in the improvement-review miner that can never
   match the word delegation because it demands the literal prefix delegate, which the spelling of
   delegation does not contain. The design replaces that one stem constant with the accepted

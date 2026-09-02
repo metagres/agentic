@@ -17,7 +17,6 @@ metadata:
   delta_reviewed: false
   discovery_reviewed: true
   scenarios_reviewed: true
-  step: complete
 problem_statement: "Stage agents are deployable only as delegated workers today: nothing lets the
   user switch to one directly for ad-hoc questions or work outside a running lifecycle. The
   requirements discovery conversation also depends on free-text answers even though target runtimes

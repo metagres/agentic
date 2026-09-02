@@ -16,7 +16,6 @@ metadata:
   delta_reviewed: false
   discovery_reviewed: true
   scenarios_reviewed: false
-  step: complete
 problem_statement: "The toolkit deploys skills but defines no agents: every SDLC stage runs inside
   whatever coding agent the user happens to drive, under one generic personality, model, and
   permission policy. Stage work that benefits from a probing analyst, a decisive architect, or an

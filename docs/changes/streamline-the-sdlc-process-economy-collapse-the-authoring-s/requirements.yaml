@@ -16,7 +16,6 @@ metadata:
   delta_reviewed: false
   discovery_reviewed: true
   scenarios_reviewed: true
-  step: complete
 problem_statement: Driving this toolkit through two real changes cost roughly three to five times
   the necessary tokens and rounds for a capable agent. The step tour demands a CLI round-trip per
   micro-phase, scenarios and acceptance criteria duplicate the same text twice, and deltas are

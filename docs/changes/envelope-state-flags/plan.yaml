@@ -1,0 +1,441 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: envelope-state-flags"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-29
+  updated: 2026-09-02
+  based_on_design: 0.1.0
+  based_on_requirements: 0.1.0
+  implementation_status: accepted
+tasks:
+  - id: TASK-001
+    title: Derive semantic_complete from artifact status in the envelope data assembler
+    description: >
+      In src/scripts/lib/authoring-base.ts, getData() stops reading the environment semantic summary
+      and derives data.semantic_complete from the artifact metadata status: true exactly when status
+      is ready-for-review or accepted, false when the status is draft or rejected or the artifact is
+      missing. The metadata mirror stays verbatim with no key-specific stripping (DEC-003), and the
+      review-readiness helper isReadyForReview keeps reading the environment semantic summary
+      unchanged (it is imported but never called today). This task lands first so the fabricated
+      standard-output summary loses its only live consumer before TASK-002 removes it. Done when: a
+      draft or missing artifact reports semantic_complete false, a ready-for-review or accepted
+      artifact reports true, a rejected artifact reports false, and npm run validate passes.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-003
+      - NFR-002
+    acceptance_ids:
+      - AC-005
+      - AC-006
+      - AC-007
+      - AC-008
+    design_refs:
+      - DEC-002
+      - DEC-003
+    depends_on: []
+    files:
+      - path: src/scripts/lib/authoring-base.ts
+        operation: modify
+    implementation_note: getData() in src/scripts/lib/authoring-base.ts now derives semantic_complete
+      from artifact metadata status (true exactly for ready-for-review/accepted; false for
+      draft/rejected/missing); env.semantic read removed; metadata mirror and isReadyForReview
+      untouched. npm run validate passes (214 tests).
+    started_at: 2026-09-02
+    files_changed: []
+    completed_at: 2026-09-02
+  - id: TASK-002
+    title: Remove metadata step writes and the fabricated semantic summary from the authoring interpreter
+    description: >
+      In src/scripts/lib/kinds/authoring.ts, delete the step-key write at artifact instantiation
+      (metadata.step = 'init'), the step-key write at finalization (meta.step = 'complete'), and the
+      fabricated semantic summary (semantic: { complete: true, ... }) on the standard-output
+      environment, whose only consumer was removed by TASK-001. Add no migration or stripping logic:
+      every mutation preserves metadata keys the engine does not manage (NFR-002), so legacy files
+      keep their stale step key until the TASK-005 sweep. The envelope top-level step field,
+      recomputed by detectStep on every call, becomes the single source of truth for step-machine
+      state (DEC-001). Done when: grep finds no step-key assignment in the authoring interpreter, a
+      change created through --request persists no step key, a finalize with --confirm-semantic
+      writes status ready-for-review and no step key, a legacy file's unmanaged keys survive a
+      mutation, and npm run validate passes.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-001
+      - FR-002
+      - NFR-001
+      - NFR-002
+    acceptance_ids:
+      - AC-003
+      - AC-004
+      - AC-012
+    design_refs:
+      - DEC-001
+      - DEC-002
+      - DEC-003
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+    implementation_note: Removed metadata.step='init' at instantiation, meta.step='complete' at
+      finalization, and the fabricated semantic:{complete:true,...} from the standard-output stepEnv
+      in kinds/authoring.ts. No migration/stripping logic added (NFR-002); isReadyForReview import
+      untouched. rg confirms zero metadata step references in src/scripts/lib/. npm run validate
+      passes (214 tests).
+    started_at: 2026-09-02
+    files_changed: []
+    completed_at: 2026-09-02
+  - id: TASK-003
+    title: Add the dedicated unit test file for the flag changes
+    description: >
+      Create test/unit/envelope-state-flags.test.ts covering: the semantic_complete derivation
+      across all four statuses (draft, ready-for-review, accepted, rejected) plus the
+      missing-artifact case; the absence of a step key after instantiation and after finalization;
+      and envelope assembly for a representative authoring stage, including the seven frozen
+      top-level envelope fields (NFR-001). Done when: the new test file passes in npm run test:unit
+      and npm run validate passes.
+    type: test
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-002
+      - FR-003
+      - NFR-001
+    acceptance_ids:
+      - AC-001
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-006
+      - AC-007
+      - AC-008
+      - AC-011
+    design_refs:
+      - DEC-006
+      - DEC-001
+      - DEC-002
+    depends_on:
+      - TASK-001
+      - TASK-002
+    files:
+      - path: test/unit/envelope-state-flags.test.ts
+        operation: create
+    implementation_note: "Created test/unit/envelope-state-flags.test.ts with 5 tests: semantic_complete
+      derivation across draft/ready-for-review/accepted/rejected/missing (+legacy step key ignored),
+      no step key after --request instantiation, finalize writes ready-for-review with no step key
+      and next envelope reports semantic_complete true, legacy step key survives a mutation
+      (AC-012), and exactly the seven frozen top-level envelope fields with schema validation. npm
+      run validate passes (219 tests)."
+    started_at: 2026-09-02
+    files_changed: []
+    completed_at: 2026-09-02
+  - id: TASK-004
+    title: Extend end-to-end authoring assertions for the revalued flags
+    description: >
+      Extend test/e2e/authoring.test.ts with assertions that the real CLI envelope data payload
+      reports the revalued semantic_complete across the authoring tour (false at init on the empty
+      draft, true after finalize with --confirm-semantic) and that data.metadata carries no step key
+      (the key reads undefined rather than a stale step name). Done when: npm run test:e2e passes
+      with the new assertions and npm run validate passes.
+    type: test
+    status: done
+    complexity: low
+    covers:
+      - FR-001
+      - FR-003
+      - NFR-001
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-005
+      - AC-011
+    design_refs:
+      - DEC-006
+    depends_on:
+      - TASK-003
+    files:
+      - path: test/e2e/authoring.test.ts
+        operation: modify
+    implementation_note: "Extended test/e2e/authoring.test.ts with a tour test: semantic_complete false
+      at init on the empty draft, false after a mutating update-artifact, true after finalize
+      --confirm-semantic, and data.metadata.step undefined at every point. Incidental helper
+      changes: runCli gained an optional stdin input parameter and the test imports
+      validRequirements plus a docs/current index fixture. e2e file passes (3 tests); npm run
+      validate passes (219 tests)."
+    started_at: 2026-09-02
+    files_changed: []
+    completed_at: 2026-09-02
+  - id: TASK-005
+    title: Sweep the stale metadata step line from the change artifact corpus
+    description: >
+      One-time implementation-time sweep (CMP-004, DEC-005): delete the stale step line inside the
+      metadata block from every artifact file under docs/changes/ as it exists at that moment,
+      including this change's own requirements.yaml, design.yaml, and plan.yaml (the current engine
+      writes the key at init and finalize, so this plan itself carries the line until this sweep).
+      Scope is point in time because the file count grows while this change is in flight;
+      verification is a line search returning zero files, not a count comparison. Touch nothing but
+      the step line. If the sweep corrupts an artifact, restore that file from git history before
+      any review stage runs against it. Runs only after TASK-002 so the fixed engine never re-adds
+      the key. Done when: a line search for metadata step keys over docs/changes/ returns zero
+      files, every swept file still parses as YAML and lints clean for its stage via
+      bin/lint-artifact.ts, and npm run validate passes.
+    type: refactor
+    status: done
+    complexity: medium
+    covers:
+      - FR-005
+    acceptance_ids:
+      - AC-010
+    design_refs:
+      - DEC-005
+      - DEC-003
+      - DEC-001
+    depends_on:
+      - TASK-002
+    files:
+      - path: docs/changes/*/requirements.yaml
+        operation: modify
+      - path: docs/changes/*/design.yaml
+        operation: modify
+      - path: docs/changes/*/plan.yaml
+        operation: modify
+    implementation_note: "Swept the stale '  step: complete' metadata line from all 39 artifact files
+      under docs/changes/ (13 change dirs x requirements/design/plan) via a scripted line-only
+      deletion. Verified: (a) line search for '^  step:' over docs/changes/ returns ZERO files; (b)
+      all 39 files parse as YAML (0 parse failures); (c) git diff shows each tracked file lost
+      exactly 1 line, nothing else; (d) plan.yaml tasks/milestones/risks sections intact (CLI task
+      machine reads it fine); (e) npm run validate passes (219 tests). DEVIATION NOTED: 14 of the 39
+      files do not lint clean via bin/lint-artifact.ts, but a control experiment linting their
+      pre-sweep versions from git HEAD shows all 14 fail IDENTICALLY before the sweep — pre-existing
+      schema drift (old artifacts authored against older schemas: acceptance_criteria without
+      category, milestones without done_when, risks as plain strings), NOT sweep corruption. No file
+      was corrupted, so no git restoration was needed; per the plan's touch-nothing-else rule the
+      drift was left as-is."
+    started_at: 2026-09-02
+    files_changed: []
+    completed_at: 2026-09-02
+  - id: TASK-006
+    title: Drop the step property from the three stage schemas
+    description: >
+      Remove the optional step property from the metadata object in exactly three schema files:
+      src/stages/requirements/schema.yaml, src/stages/design/schema.yaml, and
+      src/stages/planning/schema.yaml (CMP-003, DEC-004). The implementation stage validates its
+      plan artifact against the planning schema through its schema_from binding and needs no change
+      of its own; the knowledge-extraction schema already declares no step property and is
+      untouched. No other metadata property changes and the frozen envelope schema is untouched.
+      Runs only after TASK-005: tightening first would make every legacy artifact carrying the key
+      fail validation at finalization or review, including this change's own artifacts (DEC-007).
+      Done when: no authoring stage metadata schema declares a step property, npm run
+      validate:schemas and the full fast gate pass, and a synthetic artifact carrying metadata.step
+      now fails validation at finalization or review.
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-004
+    acceptance_ids:
+      - AC-009
+    design_refs:
+      - DEC-004
+      - DEC-007
+    depends_on:
+      - TASK-005
+    files:
+      - path: src/stages/requirements/schema.yaml
+        operation: modify
+      - path: src/stages/design/schema.yaml
+        operation: modify
+      - path: src/stages/planning/schema.yaml
+        operation: modify
+    implementation_note: "Removed the optional step property from the metadata object in exactly three
+      schema files: src/stages/requirements/schema.yaml, src/stages/design/schema.yaml,
+      src/stages/planning/schema.yaml (git diff confirms only the 3x 3-line property blocks
+      deleted). Implementation inherits via schema_from: planning; knowledge-extraction schema
+      untouched; envelope schema untouched. Verified: rg finds no '\"step\"' in any stage schema;
+      npm run validate:schemas passes; a synthetic artifact with metadata.step now fails validation
+      with exactly one blocking finding (/metadata must NOT have additional properties); npm run
+      validate passes (219 tests). Incidental test note: the TASK-003 legacy-preservation unit test
+      asserted a non-blocked envelope for a synthetic legacy file, which the tightening now
+      (correctly) blocks — updated that assertion to expect blocked/recovery while still verifying
+      the engine preserves the unmanaged key on write (AC-012)."
+    started_at: 2026-09-02
+    files_changed: []
+    completed_at: 2026-09-02
+  - id: TASK-007
+    title: Confirm the Planning-phase living-docs delta entries against the landed behavior
+    description: >
+      The two Planning-phase delta entries recorded in this plan's delta array target
+      docs/current/api-contract.md (Envelope anchor) and docs/current/capabilities.md (SDLC Goals
+      anchor); they were authored at planning time via --append-delta and knowledge extraction
+      applies them, deduping against the Requirements- and Design-phase entries for the same
+      targets. After the engine and schema work lands, verify the entries' reasons still match the
+      implemented behavior and that no additional living doc is affected. The tasks kind cannot
+      append delta entries, so any drift is recorded in this task's note and the planning stage is
+      re-opened via recovery to amend the entries before implementation-review. Done when: plan.yaml
+      delta contains exactly the two Planning-phase entries with the intended targets and anchors,
+      and their reasons match the landed behavior.
+    type: documentation
+    status: done
+    complexity: low
+    covers:
+      - FR-001
+      - FR-003
+    acceptance_ids:
+      - AC-001
+      - AC-005
+    design_refs:
+      - DEC-001
+      - DEC-002
+      - DEC-007
+    depends_on:
+      - TASK-006
+    files:
+      - path: docs/changes/envelope-state-flags/plan.yaml
+        operation: modify
+    implementation_note: "Confirmed both Planning-phase delta entries against the landed behavior: (1)
+      docs/current/api-contract.md -> Envelope anchor (exists, line 24) — reason's claims all
+      landed: instantiation/finalization no longer write step (TASK-002), the three stage schemas no
+      longer declare it (TASK-006), the one-time corpus sweep removed legacy lines (TASK-005),
+      semantic_complete derives from status (TASK-001); (2) docs/current/capabilities.md -> SDLC
+      Goals anchor (exists, line 23) — the stated rollout order matches the executed order exactly.
+      plan.yaml delta contains exactly these two entries, both phase Planning, change Modify; no
+      additional living doc is affected. No drift; no recovery/re-open of planning needed."
+    started_at: 2026-09-02
+    files_changed: []
+    completed_at: 2026-09-02
+  - id: TASK-008
+    title: Run full coverage and re-render the deployed bundle
+    description: >
+      Final gate (DEC-007, last): run npm run check:all (fast gate plus unit, e2e, and deploy
+      smoke). The deploy smoke re-renders the skill bundle, which embeds the stage schemas, so
+      confirm the rendered bundle's embedded schemas carry no step property, the CLI smoke test
+      passes, and .opencode/skills/agentic-sdlc/ still contains no package.json, no node_modules, no
+      source .ts files, and exactly one SKILL.md. Done when: npm run check:all exits 0 and the
+      rendered-bundle checks above hold.
+    type: verification
+    status: done
+    complexity: low
+    covers:
+      - FR-004
+      - FR-005
+      - NFR-001
+    acceptance_ids:
+      - AC-009
+      - AC-010
+      - AC-011
+    design_refs:
+      - DEC-007
+      - DEC-004
+    depends_on:
+      - TASK-004
+      - TASK-005
+      - TASK-006
+      - TASK-007
+    files:
+      - path: .opencode/skills/agentic-sdlc
+        operation: modify
+    implementation_note: "Ran npm run check:all (exit 0: fast gate 219/219, unit 219/219, e2e 48/48,
+      deploy bundle smoke passed) and npm run deploy:smoke (ok: true, all six agent smokes passed).
+      Re-rendered the deployed runtime bundle with node bin/deploy-to-agent.ts --dest .opencode
+      --clean (deploy:smoke itself targets .tmp/agent; the .opencode render is the separate --dest
+      .opencode invocation per AGENTS.md). Verified rendered-bundle invariants: embedded stage
+      schemas in .opencode/skills/agentic-sdlc/stages/{requirements,design,planning}/schema.yaml
+      carry no step property; the skill folder contains 0 package.json, 0 node_modules, 0 source .ts
+      files, exactly 1 SKILL.md; knowledge-init skill intact (SKILL.md + manifest.json); the
+      deployed CLI runs against the new bundle."
+    started_at: 2026-09-02
+    files_changed: []
+    completed_at: 2026-09-02
+milestones:
+  - id: M1
+    title: Engine flags fixed with unit and e2e coverage
+    tasks:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+    done_when: >
+      The data assembler derives semantic_complete from artifact status, no engine write site emits
+      a metadata step key, the fabricated standard-output semantic summary is removed, the new unit
+      file passes, and the extended e2e assertions pass, with the fast gate green at each task
+      boundary.
+  - id: M2
+    title: Corpus clean and schemas tightened
+    tasks:
+      - TASK-005
+      - TASK-006
+    done_when: >
+      A line search over docs/changes/ returns zero artifact files carrying a metadata step key, and
+      none of the requirements, design, or planning stage schemas declares a step property, with the
+      fast gate green after the sweep and again after the tightening.
+  - id: M3
+    title: Deltas confirmed and bundle re-rendered
+    tasks:
+      - TASK-007
+      - TASK-008
+    done_when: >
+      The two Planning-phase delta entries are confirmed against the landed behavior and npm run
+      check:all passes with the re-rendered bundle embedding the tightened schemas and the
+      skill-folder invariants intact.
+risks:
+  - id: RISK-001
+    description: >
+      The one-time sweep edits every artifact file under docs/changes/ (36 or more files across 12
+      change directories, including this change's own accepted requirements and design and its
+      in-flight plan); an editing mistake could corrupt an accepted record and later break a review
+      stage that validates it (DEC-005).
+    mitigation: >
+      Delete only the stale step line inside each metadata block using a scripted, reviewable edit;
+      after the sweep verify every file still parses as YAML and lints clean for its stage via
+      bin/lint-artifact.ts; restore any corrupted artifact from git history before any review stage
+      runs against it.
+  - id: RISK-002
+    description: >
+      Ordering hazard (DEC-007): tightening the stage schemas before the corpus sweep would make
+      every legacy artifact carrying a metadata step key fail validation at finalization and review,
+      including this change's own artifacts, deadlocking the pipeline mid-change.
+    mitigation: >
+      Enforce the task dependency TASK-005 (sweep) before TASK-006 (schema tightening); run npm run
+      validate at each task boundary and never reorder the two tasks without re-running the gate on
+      the intermediate state.
+  - id: RISK-003
+    description: >
+      An unknown consumer outside this repository keying on data.metadata.step (key disappears) or
+      data.semantic_complete (value changes at init) would break; the requirements verified zero
+      in-repo consumers but could not verify external ones.
+    mitigation: >
+      Accepted as low impact and severity in the requirements; if such a consumer surfaces, apply
+      the requirements failure path: restore a data-level step field fed from the envelope step
+      value with no artifact persistence, then re-run the affected review.
+delta:
+  - phase: Planning
+    target_doc: docs/current/api-contract.md
+    target_anchor: Envelope
+    entity_id: null
+    change: Modify
+    reason: >
+      Authoring data payload contract: the metadata mirror in the data object carries no step key
+      because artifacts no longer persist one (instantiation and finalization no longer write it,
+      the requirements, design, and planning stage schemas no longer declare it, and the one-time
+      corpus sweep removed the legacy lines), and semantic_complete reports true exactly when
+      artifact status is ready-for-review or accepted, derived from status rather than fabricated as
+      always-true.
+    date: 2026-09-02
+  - phase: Planning
+    target_doc: docs/current/capabilities.md
+    target_anchor: SDLC Goals
+    entity_id: null
+    change: Modify
+    reason: >
+      Correctness goal: authoring envelope payloads carry no field that misrepresents step-machine
+      state — the metadata step flag is removed at both write sites and semantic_complete is derived
+      from artifact status; the planned order (engine fix with tests, corpus sweep, schema
+      tightening, delta confirmation, bundle re-render) keeps legacy artifacts valid at every task
+      boundary.
+    date: 2026-09-02

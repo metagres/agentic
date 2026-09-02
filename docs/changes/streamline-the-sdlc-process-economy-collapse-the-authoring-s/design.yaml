@@ -8,7 +8,6 @@ metadata:
   updated: 2026-08-25
   based_on_requirements: 0.1.0
   delta_reviewed: false
-  step: complete
 context_summary: "Two dogfooded cycles measured the toolkit's process economy and found the cost
   concentrated in round-trips, duplicated artifact text, and late failures. This design reforms the
   engine along six axes: a slimmer envelope payload with opt-in step guidance, write-time

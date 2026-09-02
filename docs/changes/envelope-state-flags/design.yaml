@@ -1,0 +1,240 @@
+metadata:
+  id: DES-001
+  title: "Design: envelope-state-flags"
+  stage: design
+  status: accepted
+  version: 0.1.0
+  created: 2026-08-29
+  updated: 2026-08-29
+  based_on_requirements: 0.1.0
+  delta_reviewed: true
+context_summary: "Two flags in authoring envelopes misrepresent the step machine: a metadata step
+  flag frozen at the value written at initialization, and a semantic-complete flag hardcoded to true
+  in every standard envelope. This design removes the metadata step flag at both write sites and
+  revalues the semantic-complete flag to derive from artifact status. The envelope top-level step
+  field, recomputed by the step detector on every call, becomes the single source of truth for
+  step-machine state. The semantic-complete flag reports true exactly when the artifact status is
+  ready-for-review or accepted, and false for draft and rejected. The derivation lives in the shared
+  envelope data assembler, replacing its read of the fabricated semantic summary. The
+  standard-output environment stops fabricating that summary because the revalued derivation was its
+  only live consumer. Stage schemas for requirements, design, and planning drop the optional
+  metadata step property; the implementation stage inherits the planning schema through its
+  schema-from binding, and the knowledge-extraction schema declares no step property. A one-time
+  cleanup deletes the stale step line from every artifact file under the changes directory at
+  implementation time, including this change's own artifacts. The cleanup scope is point in time
+  because artifacts authored before the engine fix lands will carry the stale line. Unit tests cover
+  the new derivation and the envelope assembly, and the rollout orders the cleanup before schema
+  tightening so no legacy file fails re-validation."
+components:
+  - id: CMP-001
+    name: Authoring kind interpreter
+    responsibility: Runs the authoring stage lifecycle in src/scripts/lib/kinds/authoring.ts. After this
+      change it writes no step key at artifact instantiation or finalization, keeps mirroring
+      artifact metadata verbatim into the envelope data payload, and stops fabricating a semantic
+      summary on the standard-output environment.
+  - id: CMP-002
+    name: Authoring base helpers
+    responsibility: Supplies the shared step detector, review-readiness helper, and envelope data
+      assembler in src/scripts/lib/authoring-base.ts. After this change the data assembler derives
+      the semantic-complete flag from artifact metadata status instead of reading the environment
+      semantic summary; the review-readiness helper is untouched because it has no live caller.
+  - id: CMP-003
+    name: Stage schema set
+    responsibility: Declares artifact structure per stage in src/stages/requirements/schema.yaml,
+      src/stages/design/schema.yaml, and src/stages/planning/schema.yaml. After this change no
+      metadata object schema declares a step property; the implementation stage validates against
+      the planning schema through its schema-from binding, and the knowledge-extraction schema
+      already declares no step property.
+  - id: CMP-004
+    name: Change artifact corpus
+    responsibility: Holds every change's artifact files under docs/changes/. A one-time
+      implementation-time sweep deletes the stale metadata step line from all artifact files present
+      at that moment, including this change's own requirements, design, and plan files.
+  - id: CMP-005
+    name: Unit test suite
+    responsibility: Guards engine behavior in the fast gate from test/unit/. A new test file covers the
+      semantic-complete derivation across all four statuses and asserts that instantiation,
+      finalization, and envelope assembly never produce a metadata step key.
+  - id: CMP-006
+    name: Living docs
+    responsibility: Records the durable contract in docs/current/. Knowledge extraction applies the
+      design delta entries to the Envelope section of the API contract and the SDLC Goals section of
+      the capabilities document.
+data_models:
+  - id: DM-001
+    name: Authoring envelope data payload
+    notes: The data object of a standard authoring envelope carries authoring_complete,
+      mechanical_valid, semantic_complete, delta_complete, stage-specific extras, and the metadata
+      mirror. After this change semantic_complete is status-derived and the metadata mirror carries
+      no step key. The seven frozen top-level envelope fields are untouched.
+  - id: DM-002
+    name: Artifact metadata object
+    notes: The persisted metadata block of an authoring artifact. Managed keys are id, title, stage,
+      status, version, created, updated, and the stage-specific based-on and review-confirmation
+      flags. The step key is no longer a managed key; unmanaged keys present in legacy files are
+      preserved on write, so the engine performs no migration.
+apis:
+  - id: API-001
+    path: sdlc <authoring-stage> --change <name> (standard envelope)
+    method: CLI
+    notes: Every standard authoring envelope for requirements, design, planning, and implementation
+      reports data.semantic_complete as true exactly when artifact metadata status is
+      ready-for-review or accepted, and reports data.metadata without a step key. Envelope top-level
+      fields are unchanged.
+  - id: API-002
+    path: artifact metadata write contract
+    method: CLI
+    notes: Artifact instantiation and finalization write no step key into metadata; every mutation
+      preserves metadata keys the engine does not manage.
+flows:
+  - id: FLOW-001
+    name: Initialization
+    steps: A new change is created through the request or change flag; the interpreter instantiates the
+      artifact from the stage template with status draft and no step key; the init envelope reports
+      semantic_complete false because the status is draft.
+  - id: FLOW-002
+    name: Authoring and mutation
+    steps: Artifact updates, delta appends, and step confirmations run through the mutation path; unless
+      the keep-status flag is set, status resets to draft, so the envelope reports semantic_complete
+      false. With keep-status the status is preserved, so a post-finalize keep-status mutation
+      leaves semantic_complete true; the flag maps status, not mutation history.
+  - id: FLOW-003
+    name: Finalization
+    steps: Finalize with the semantic confirmation flag runs mechanical validation, sets status to
+      ready-for-review, and writes no step key; the next standard envelope reports semantic_complete
+      true.
+  - id: FLOW-004
+    name: Review outcomes
+    steps: Acceptance keeps status accepted, so semantic_complete stays true; rejection sets status
+      rejected, so the envelope reports semantic_complete false and the step detector routes to
+      recovery.
+  - id: FLOW-005
+    name: Legacy cleanup
+    steps: At implementation time a sweep deletes every metadata step line under the changes directory;
+      a line search then returns zero files, and the schema tightening that lands after the sweep
+      makes any future step key a validation failure at finalization or review.
+decisions:
+  - id: DEC-001
+    title: Remove the metadata step flag rather than syncing it
+    context: The metadata step flag is written at instantiation and finalization and never updated by
+      the mutation path, so it drifts from the envelope top-level step field that the step detector
+      recomputes on every call. Syncing it would preserve a drift-prone duplicate of state the
+      envelope already carries, and a repository-wide search found zero in-repo consumers of the
+      flag.
+    decision: "Remove the flag entirely: the envelope stops exposing it because artifacts stop carrying
+      it. The envelope top-level step field is the single source of truth for step-machine state. No
+      engine migration logic strips the key from legacy files on write."
+    status: accepted
+  - id: DEC-002
+    title: Derive the semantic-complete flag from artifact status in the data assembler
+    context: The envelope data assembler reads the environment semantic summary, which the
+      standard-output path fabricates as complete. Real semantic checks surface only in the finalize
+      confirmation flow, so the flag misreports an empty draft as complete. The tasks kind has its
+      own implementation-status path and consumes neither the assembler nor the semantic summary, so
+      it cannot regress.
+    decision: "The data assembler derives semantic_complete from artifact metadata status: true exactly
+      for ready-for-review and accepted, false for draft, rejected, and a missing artifact. The
+      fabricated semantic summary is removed from the standard-output environment because the
+      revalued derivation was its only live consumer. The review-readiness helper keeps reading the
+      environment semantic summary unchanged; it is imported but never called today, and any future
+      caller is expected to supply a real summary."
+    status: accepted
+  - id: DEC-003
+    title: Keep the envelope metadata exposure as a verbatim mirror without defensive stripping
+    context: The envelope mirrors artifact metadata verbatim into the data payload. Stripping the step
+      key at exposure would add a per-key special case and would mask legacy files instead of fixing
+      them.
+    decision: "The mirror stays verbatim and gains no key-specific logic. Correctness comes from three
+      coordinated removals: no write site emits the key, the tightened schemas make the key a
+      validation failure, and the one-time cleanup removes legacy keys. In a valid repository state
+      the mirror can therefore never expose a step key."
+    status: accepted
+  - id: DEC-004
+    title: Drop the step property from exactly three stage schemas
+    context: Only requirements, design, and planning carry their own schema.yaml with a step property in
+      the metadata object. The implementation stage validates its plan artifact against the planning
+      schema through its schema-from binding, so it is covered without its own file. The
+      knowledge-extraction schema declares no step property and is untouched. Leaving the property
+      would permit the exact stale-state field this change removes.
+    decision: Remove the optional step property from the metadata object in the three schema files. No
+      other metadata property changes; the frozen envelope schema is untouched.
+    status: accepted
+  - id: DEC-005
+    title: Sweep the change artifact corpus with point-in-time scope
+    context: Artifact files authored before the engine fix lands carry the stale step line, and the
+      count grows with every stage authored in the meantime; a frozen count would go stale before
+      implementation. This change's own requirements file already carries the line, and its design
+      and plan files will carry it because the current engine writes it.
+    decision: The cleanup deletes the stale step line from all artifact files under the changes
+      directory as they exist at implementation time, including this change's own artifacts. The
+      verification is a line search returning zero files, not a count comparison. If the sweep
+      corrupts an artifact, that file is restored from git history before any review stage runs
+      against it.
+    status: accepted
+  - id: DEC-006
+    title: Cover the flag changes with a dedicated unit test file plus end-to-end assertions
+    context: The data assembler, the mutation path, finalization, and the envelope assembly currently
+      have no covering unit tests, so a regression in the new derivation would not be caught by the
+      fast gate. End-to-end authoring tests exercise the real CLI but do not assert on the two flags
+      today.
+    decision: Add test/unit/envelope-state-flags.test.ts covering the derivation across draft,
+      ready-for-review, accepted, and rejected statuses, the absence of a step key after
+      instantiation and finalization, and the envelope assembly for a representative stage. Extend
+      the existing end-to-end authoring coverage with assertions that the envelope data payload
+      reports the revalued flag and no metadata step key.
+    status: accepted
+  - id: DEC-007
+    title: Order the rollout cleanup-first and redeploy the bundle last
+    context: Schema tightening makes any artifact carrying a step key fail validation, so tightening
+      before the sweep would break finalization and review for legacy files, including this change's
+      own artifacts. The deployed skill bundle embeds the stage schemas, so a schema change alters
+      deploy output.
+    decision: "Implementation order within this change: engine change with unit tests first, then the
+      corpus sweep, then schema tightening, then living-docs deltas, then the deploy smoke run that
+      re-renders the bundle. The fast gate must pass at each task boundary; full coverage runs at
+      the end."
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-001
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-002
+      - CMP-001
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-003
+  - requirement_id: FR-005
+    component_ids:
+      - CMP-004
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-001
+      - CMP-005
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-001
+      - CMP-002
+delta:
+  - phase: Design
+    target_doc: docs/current/api-contract.md
+    target_anchor: Envelope
+    entity_id: null
+    change: Modify
+    reason: "Document the authoring data payload contract: the metadata mirror in the data object
+      carries no step key because artifacts no longer persist one, and the semantic-complete flag in
+      the data object reports true exactly when artifact status is ready-for-review or accepted."
+    date: 2026-08-29
+  - phase: Design
+    target_doc: docs/current/capabilities.md
+    target_anchor: SDLC Goals
+    entity_id: null
+    change: Modify
+    reason: Record under the correctness goal that authoring envelopes no longer carry a metadata step
+      flag and no longer hardcode the semantic-complete flag, so envelope payloads report no state
+      the step machine does not hold.
+    date: 2026-08-29

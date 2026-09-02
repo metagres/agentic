@@ -18,7 +18,6 @@ metadata:
   delta_reviewed: false
   discovery_reviewed: true
   scenarios_reviewed: true
-  step: complete
 problem_statement: The improvement-review method exists only as prose in
   docs/ideas/sdlc-improvement-review-playbook.md, so each review runs ad hoc from memory and
   produces numbers that cannot be compared across runs. Findings rot because the docs/ideas handoff

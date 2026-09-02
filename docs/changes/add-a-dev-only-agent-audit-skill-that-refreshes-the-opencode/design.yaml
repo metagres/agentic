@@ -8,7 +8,6 @@ metadata:
   updated: 2026-08-26
   based_on_requirements: 0.1.0
   delta_reviewed: false
-  step: complete
 context_summary: The opencode-go model catalog is frozen as a hand-maintained enum while the live
   catalog at http://opencode.ai/zen/go/v1/models has drifted, agent-to-stage assignments and
   parameters can silently drift from stage purpose, and individuals cannot prefer a personal LLM

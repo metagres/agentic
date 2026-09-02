@@ -2,7 +2,6 @@ metadata:
   id: DES-001
   title: "Design: genericize-stage-engine"
   stage: design
-  step: complete
   status: accepted
   version: 0.1.0
   created: 2026-08-23

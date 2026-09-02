@@ -1,0 +1,30 @@
+metadata:
+  artifact: plan.yaml
+  target: implementation
+  latest_round: 2
+  created: 2026-09-02
+  updated: 2026-09-02
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-02T07:39:48.809Z
+    artifact_version: 0.1.0
+    implementation_status: ready-for-review
+    decision: review
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    warnings: []
+  - round: 2
+    reviewed_at: 2026-09-02T07:42:11.164Z
+    artifact_version: 0.1.0
+    implementation_status: accepted
+    decision: accepted
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    warnings: []

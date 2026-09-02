@@ -9,7 +9,6 @@ metadata:
   based_on_design: 0.1.1
   based_on_requirements: 0.1.2
   implementation_status: accepted
-  step: complete
 tasks:
   - id: TASK-001
     title: Re-verify register citations, record DM-005 dispositions, capture prose baselines verbatim

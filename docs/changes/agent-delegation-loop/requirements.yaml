@@ -14,7 +14,6 @@ metadata:
   delta_reviewed: false
   discovery_reviewed: false
   scenarios_reviewed: false
-  step: complete
 problem_statement: "The agent layer ships six deployed agents and per-stage bindings, but no runtime
   consumer acts on the binding: in every dogfooding cycle the orchestrating agent read
   data.workflows[].agent and then executed every stage itself. All four review stages were executed

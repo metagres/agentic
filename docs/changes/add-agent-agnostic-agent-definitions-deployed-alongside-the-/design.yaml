@@ -8,7 +8,6 @@ metadata:
   updated: 2026-08-25
   based_on_requirements: 0.1.0
   delta_reviewed: false
-  step: complete
 context_summary: "The engine discovers stages as folders and deploys two self-contained skills, but
   defines no agents: stage execution inherits whatever coding agent drives the CLI, and deployment
   knows exactly one target format. This design adds an agent layer in three parts: an agent-agnostic

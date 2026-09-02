@@ -8,7 +8,6 @@ metadata:
   updated: 2026-08-26
   based_on_requirements: 0.1.0
   delta_reviewed: false
-  step: complete
 context_summary: Creation currently slugifies the request opening whenever the directory is absent;
   the --change flag only ever resolves existing directories. The reform lets an explicit --change
   act as the creation name when combined with --request, validated by the script and judged by the

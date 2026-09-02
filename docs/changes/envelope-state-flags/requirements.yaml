@@ -2,7 +2,7 @@ metadata:
   id: REQ-001
   title: "Fix authoring envelope state flags: data.metadata.step must reflect the step ..."
   stage: requirements
-  status: draft
+  status: accepted
   version: 0.1.0
   created: 2026-08-28
   updated: 2026-08-29
@@ -11,12 +11,16 @@ metadata:
     step field as single source of truth), and semantic_complete must not report true for an empty
     artifact at init."
   clarity: clear
-  assumptions_reviewed: false
-  delta_reviewed: false
-  discovery_reviewed: false
-  scenarios_reviewed: false
-  step: init
-problem_statement: ""
+  assumptions_reviewed: true
+  delta_reviewed: true
+  discovery_reviewed: true
+  scenarios_reviewed: true
+problem_statement: Two data flags in authoring envelopes misrepresent the step machine's real state.
+  After an artifact update, the envelope's top-level step field advances while the metadata step
+  flag inside data keeps the value written at init, so a consumer keying on that flag acts on wrong
+  state. At init, the empty artifact reports the semantic-complete flag as true although no semantic
+  confirmation has occurred; the flag is hardcoded true in every standard envelope. Consumers
+  scripting against these flags receive values that contradict the envelope's authoritative fields.
 discovery_log:
   - id: DL-001
     question: Does anything outside this repository (your own scripts, other agent runtimes, CI jobs)
@@ -72,11 +76,180 @@ discovery_log:
       field this change removes, and the cleanup guarantees no file can fail re-validation."
     lens: constraint
     resolved: true
-assumptions: []
-functional_requirements: []
-non_functional_requirements: []
-acceptance_criteria: []
-out_of_scope: []
-failure_paths: []
-risks_and_dependencies: []
-delta: []
+assumptions:
+  - type: verified
+    text: "No in-repo consumer reads data.metadata.step or data.semantic_complete: a repository-wide
+      search finds references only in the engine source, codemap.md, the deployed bundle (a build
+      artifact), and this change's own documents."
+    source: grep -rn over src/ bin/ test/ docs/ .opencode/skills performed 2026-08-29
+  - type: verified
+    text: The envelope's top-level step field is recomputed from artifact state via detectStep on every
+      standard authoring call, so it is always current.
+    source: src/scripts/lib/kinds/authoring.ts, runAuthoringStage envelope assembly (detectStep call)
+  - type: verified
+    text: Artifact status ready-for-review or accepted is reachable only through --finalize, and
+      finalize requires --confirm-semantic when the stage declares semantic checks; all four
+      authoring stages declare at least one semantic check.
+    source: src/scripts/lib/kinds/authoring.ts finalizeArtifact; grep -c over
+      src/stages/*/semantic-checks.yaml (6 to 14 checks each)
+  - type: verified
+    text: Any post-finalize mutation resets artifact status to draft through markMutated, voiding the
+      semantic confirmation.
+    source: src/scripts/lib/kinds/authoring.ts markMutated
+  - type: verified
+    text: The four authoring stage schemas set additionalProperties false on the metadata object and
+      declare step as an optional property; 36 historical artifact files under docs/changes/ carry a
+      stale metadata.step.
+    source: src/stages/*/schema.yaml; grep -rln '^  step:' docs/changes returned 36 files across 12
+      change directories
+  - type: unverified
+    text: No consumer outside this repository reads data.metadata.step or data.semantic_complete.
+    source: Stakeholder statement during discovery (DL-001)
+    risk: An unknown external script keying on data.metadata.step would see the key disappear; one
+      keying on data.semantic_complete would see the value change at init.
+    impact: low
+    severity: low
+functional_requirements:
+  - id: FR-001
+    description: When the authoring interpreter assembles a standard envelope for an existing artifact,
+      the system shall omit the step key from the data.metadata object.
+    ac_ids:
+      - AC-001
+      - AC-002
+  - id: FR-002
+    description: When an artifact is instantiated from a stage template or finalized, the system shall
+      not write a step key into the artifact's metadata object.
+    ac_ids:
+      - AC-003
+      - AC-004
+  - id: FR-003
+    description: When the authoring interpreter assembles a standard envelope, the system shall report
+      data.semantic_complete as true exactly when the artifact metadata status is ready-for-review
+      or accepted, and as false when the status is draft or rejected.
+    ac_ids:
+      - AC-005
+      - AC-006
+      - AC-007
+      - AC-008
+  - id: FR-004
+    description: When the stage schemas for requirements, design, planning, and implementation are
+      validated, the system shall declare no step property inside the metadata object schema.
+    ac_ids:
+      - AC-009
+  - id: FR-005
+    description: When this change is applied to the repository, the system shall contain no artifact
+      file under docs/changes/ whose metadata object carries a step key.
+    ac_ids:
+      - AC-010
+non_functional_requirements:
+  - id: NFR-001
+    description: When any authoring envelope is produced after this change, the system shall keep the
+      seven frozen top-level envelope fields unchanged in name and shape.
+    ac_ids:
+      - AC-011
+  - id: NFR-002
+    description: When the engine writes an artifact file during any authoring mutation, the system shall
+      preserve metadata keys it does not manage, performing no legacy-key migration.
+    ac_ids:
+      - AC-012
+acceptance_criteria:
+  - id: AC-001
+    statement: Given an authoring stage with an existing artifact, When any standard authoring call
+      returns its envelope, Then data.metadata contains no step key and the top-level step field
+      names the step machine's current step.
+    category: happy
+    parent_id: FR-001
+  - id: AC-002
+    statement: Given a consumer inspecting the envelope payload, When it reads data.metadata.step, Then
+      the value is undefined rather than a stale step name.
+    category: negative
+    parent_id: FR-001
+  - id: AC-003
+    statement: Given a new change created through --request, When the artifact file is written at init,
+      Then its metadata object contains no step key.
+    category: happy
+    parent_id: FR-002
+  - id: AC-004
+    statement: Given an artifact that passes finalize with --confirm-semantic, When finalize writes the
+      artifact, Then the file's metadata contains status ready-for-review and no step key.
+    category: edge
+    parent_id: FR-002
+  - id: AC-005
+    statement: Given an artifact whose finalize with --confirm-semantic succeeded, When the next
+      standard envelope is returned, Then data.semantic_complete is true.
+    category: happy
+    parent_id: FR-003
+  - id: AC-006
+    statement: Given a freshly initialized empty artifact, When the init envelope is returned, Then
+      data.semantic_complete is false.
+    category: negative
+    parent_id: FR-003
+  - id: AC-007
+    statement: Given an artifact at ready-for-review, When a mutation resets its status to draft, Then
+      the next envelope reports data.semantic_complete as false.
+    category: edge
+    parent_id: FR-003
+  - id: AC-008
+    statement: Given an artifact whose review was accepted, When the standard envelope is returned, Then
+      data.semantic_complete is true while the status remains accepted.
+    category: boundary
+    parent_id: FR-003
+  - id: AC-009
+    statement: Given the four authoring stage schemas, When schema validation runs over the stage
+      folders, Then no metadata object schema declares a step property.
+    category: happy
+    parent_id: FR-004
+  - id: AC-010
+    statement: Given the repository after this change is applied, When a line search for metadata step
+      keys runs over docs/changes/, Then zero artifact files contain a step key inside their
+      metadata object.
+    category: happy
+    parent_id: FR-005
+  - id: AC-011
+    statement: Given the CLI envelope schema with additionalProperties false, When any envelope from
+      this change is validated, Then the envelope carries exactly the seven frozen top-level fields.
+    category: boundary
+    parent_id: NFR-001
+  - id: AC-012
+    statement: Given a legacy artifact file whose metadata contains a step key, When the engine writes
+      the file through a mutation, Then the written file preserves that step key.
+    category: edge
+    parent_id: NFR-002
+out_of_scope:
+  - Changing finalize or review semantics, including the --confirm-semantic gate flow.
+  - Adding or altering top-level envelope fields; the seven frozen fields stay untouched.
+  - Renaming data.semantic_complete.
+  - Syncing data.metadata.step with the step machine (option a of the idea document), superseded by
+    removal.
+  - Engine migration logic that strips legacy metadata.step keys from artifact files on write.
+failure_paths:
+  - If an unknown external consumer breaks because data.metadata.step disappeared, restore a
+    data-level step field fed from the envelope step value with no artifact persistence, then re-run
+    the affected review.
+  - If the historical-file cleanup corrupts an artifact under docs/changes/, restore that file from
+    git history before any review stage runs against it.
+risks_and_dependencies:
+  - "The unverified assumption that no external consumer reads the two flags carries residual risk:
+    an unknown consumer would see data.metadata.step disappear and data.semantic_complete change
+    value at init."
+  - The one-time cleanup edits 36 historical artifact files under docs/changes/; an editing mistake
+    could alter accepted records.
+delta:
+  - phase: Requirements
+    target_doc: docs/current/api-contract.md
+    target_anchor: Envelope
+    entity_id: null
+    change: Modify
+    reason: "Document the authoring data payload change: data.metadata no longer exposes a step key, and
+      data.semantic_complete reports true only after a confirmed finalize (status ready-for-review
+      or accepted)."
+    date: 2026-08-29
+  - phase: Requirements
+    target_doc: docs/current/capabilities.md
+    target_anchor: SDLC Goals
+    entity_id: null
+    change: Modify
+    reason: Record under goal G-02 that the two misrepresenting flags (data.metadata.step, always-true
+      semantic_complete) were removed and revalued so envelope payloads carry no field that
+      misrepresents state.
+    date: 2026-08-29

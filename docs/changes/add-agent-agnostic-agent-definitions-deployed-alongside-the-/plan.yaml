@@ -9,7 +9,6 @@ metadata:
   based_on_design: 0.1.0
   based_on_requirements: 0.1.0
   implementation_status: accepted
-  step: complete
 tasks:
   - id: TASK-001
     title: Create the agent meta-schema with the opencode-go model enum

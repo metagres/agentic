@@ -14,7 +14,6 @@ metadata:
   delta_reviewed: false
   discovery_reviewed: true
   scenarios_reviewed: false
-  step: complete
 problem_statement: Change directory names are derived mechanically from the request opening, which
   cannot know which words carry the essence; two of this repository's three changes got slugs with
   trailing articles or mid-phrase cuts. The calling agent is best positioned to name the change but

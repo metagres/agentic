@@ -41,9 +41,6 @@
           "type": "string",
           "const": "design"
         },
-        "step": {
-          "type": "string"
-        },
         "status": {
           "type": "string",
           "enum": [

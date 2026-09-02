@@ -37,9 +37,6 @@
           "type": "string",
           "const": "planning"
         },
-        "step": {
-          "type": "string"
-        },
         "status": {
           "type": "string",
           "enum": [

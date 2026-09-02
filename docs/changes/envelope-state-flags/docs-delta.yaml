@@ -1,0 +1,6 @@
+metadata:
+  stage: knowledge-extraction
+  status: complete
+  updated: 2026-09-02
+  change_root: /home/elton/repos/agentic/docs/changes/envelope-state-flags
+deltas_applied: 2

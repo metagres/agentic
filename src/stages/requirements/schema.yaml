@@ -45,9 +45,6 @@
           "type": "string",
           "const": "requirements"
         },
-        "step": {
-          "type": "string"
-        },
         "status": {
           "type": "string",
           "enum": [

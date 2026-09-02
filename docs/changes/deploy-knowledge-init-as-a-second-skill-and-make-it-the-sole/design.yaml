@@ -8,7 +8,6 @@ metadata:
   updated: 2026-08-24
   based_on_requirements: 0.1.0
   delta_reviewed: true
-  step: complete
 context_summary: "The design deploys knowledge-init as a second self-contained skill and removes
   every docs/current creation path from the sdlc CLI. A versioned source store at
   src/skills/knowledge-init/SKILL.md defines the bootstrap content contract: a four-column index and

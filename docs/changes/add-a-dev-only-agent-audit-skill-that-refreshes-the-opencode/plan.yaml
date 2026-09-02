@@ -9,7 +9,6 @@ metadata:
   based_on_design: 0.1.0
   based_on_requirements: 0.1.0
   implementation_status: accepted
-  step: complete
 tasks:
   - id: TASK-001
     title: Extend agent meta-schema with optional model_override field

@@ -106,11 +106,15 @@ export function isReadyForReview(env: AuthorEnv): { ready: boolean; reasons: str
 
 export function getData(env: AuthorEnv): Record<string, unknown> {
   const artifact = (env.artifact || {}) as Record<string, unknown>;
-  const semantic = env.semantic as { complete?: boolean } | undefined;
+  // semantic_complete derives from artifact status (DEC-002): true exactly for
+  // ready-for-review and accepted, false for draft, rejected, and a missing
+  // artifact. The environment semantic summary is not consulted here.
+  const metadata = (artifact.metadata as Record<string, unknown>) || {};
+  const status = metadata.status;
   const data: Record<string, unknown> = {
     authoring_complete: evaluatePredicate(stepPredicate(env, 'authoring'), artifact),
     mechanical_valid: ((env.blocking as unknown[])?.length || 0) === 0,
-    semantic_complete: Boolean(semantic?.complete),
+    semantic_complete: status === 'ready-for-review' || status === 'accepted',
     delta_complete: deltaComplete(artifact),
   };
 

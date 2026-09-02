@@ -19,7 +19,6 @@ metadata:
   delta_reviewed: false
   discovery_reviewed: true
   scenarios_reviewed: true
-  step: complete
 problem_statement: The improvement-review playbook hosts mutable canon (goals list, findings
   register, baselines) inside docs/ideas, a directory whose contract is a proposal queue where
   everything awaits consideration via a change. Every review run rewrites canon inside the queue,

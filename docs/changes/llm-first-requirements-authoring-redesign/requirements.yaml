@@ -10,7 +10,6 @@ metadata:
   clarity: partial
   assumptions_reviewed: false
   delta_reviewed: true
-  step: complete
 problem_statement: The requirements authoring stage exists to resolve ambiguity before design, but
   its discovery gate can be satisfied by question count alone, its discovery policy has a silent
   fallback that can drift from the shipped file, and concrete examples are used only as output
