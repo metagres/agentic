@@ -5,61 +5,16 @@ checks:
       arrays:
         - functional_requirements
         - non_functional_requirements
-        - acceptance_criteria
         - discovery_log
-  - check: ref-exists
-    params:
-      from:
-        array: functional_requirements
-        field: ac_ids
-      to:
-        arrays:
-          - acceptance_criteria
-        field: id
-  - check: ref-exists
-    params:
-      from:
-        array: non_functional_requirements
-        field: ac_ids
-      to:
-        arrays:
-          - acceptance_criteria
-        field: id
-  - check: ref-exists
-    params:
-      from:
-        array: acceptance_criteria
-        field: parent_id
-      to:
-        arrays:
-          - functional_requirements
-          - non_functional_requirements
-        field: id
-  # Dropped scenario-only checks (ref-exists scenarios.ac_id, ref-exists
-  # scenarios.question_id, given-when-then on scenarios): acceptance_criteria
-  # is now the single categorized example list, so there is no separate
-  # scenarios array and no open/resolved lifecycle to link back from.
-  # Question-outcome examples belong in discovery_log; out-of-scope examples
-  # go straight to out_of_scope.
-  - check: referenced-by
-    params:
-      array: acceptance_criteria
-      by:
-        - array: functional_requirements
-          ref_field: ac_ids
-        - array: non_functional_requirements
-          ref_field: ac_ids
-  - check: duplicate-refs
-    params:
-      array: functional_requirements
-      list_field: ac_ids
-  - check: duplicate-refs
-    params:
-      array: non_functional_requirements
-      list_field: ac_ids
+      unions:
+        - arrays:
+            - functional_requirements[].acceptance_criteria
+            - non_functional_requirements[].acceptance_criteria
   - check: given-when-then
     params:
-      array: acceptance_criteria
+      arrays:
+        - functional_requirements[].acceptance_criteria
+        - non_functional_requirements[].acceptance_criteria
       statement_field: statement
   - check: forbidden-words
     params:
@@ -67,7 +22,8 @@ checks:
         - problem_statement
         - functional_requirements[].description
         - non_functional_requirements[].description
-        - acceptance_criteria[].statement
+        - functional_requirements[].acceptance_criteria[].statement
+        - non_functional_requirements[].acceptance_criteria[].statement
   - check: sentence-count
     params:
       field: problem_statement

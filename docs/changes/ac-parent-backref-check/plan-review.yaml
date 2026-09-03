@@ -1,0 +1,133 @@
+metadata:
+  artifact: plan.yaml
+  target: planning
+  latest_round: 1
+  created: 2026-09-03
+  updated: 2026-09-03
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-03T12:28:59.162Z
+    artifact_version: 0.1.0
+    decision: accepted
+    status: closed
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    semantic:
+      results:
+        - check_id: Is task granularity consistent? No task should be so broad it hides sub-decisions, and
+            none so narrow it's pseudocode.
+          status: pass
+          evidence: "Nine tasks with coherent units: TASK-002 is one module (resolver, grammar specified per
+            CMP-001/DM-002); TASK-006 is large (11 files, 7 lettered parts) but deliberately atomic
+            — the given-when-then rename breaks the requirements declaration (currently array:
+            acceptance_criteria at src/stages/requirements/structural-checks.yaml:62), so the flip
+            cannot be partially landed; RISK-003 documents the red window and pairs
+            TASK-006/TASK-007 as one green unit. TASK-001 is analysis with concrete deliverables
+            (consumer inventory confirmation plus two recorded baselines). No task is
+            pseudocode-narrow."
+        - check_id: Does task order reflect real-world constraints (e.g., schema creation before queries,
+            characterization tests before refactoring)?
+          status: pass
+          evidence: "Resolver (TASK-002) before check routing (TASK-003) before declaration path validation
+            (TASK-004, which validates paths the resolver resolves). TASK-005 before TASK-006 is a
+            verified hard ordering: src/schemas/stage.schema.yaml:65-70 types next_ids
+            additionalProperties as string-only, so the two-path AC spec landed by TASK-006 would
+            fail startup validation without the widening. Pinning tests (TASK-003) precede the flip
+            (TASK-006); fixture migration (TASK-007) follows it; docs (TASK-008) and verification
+            (TASK-009) close."
+        - check_id: Are each task's acceptance criteria actually verifiable with clear pass/fail conditions?
+          status: pass
+          evidence: "Every task carries a concrete Done-when: named commands (npm run validate,
+            bin/lint-artifact.ts on a nested sample, sdlc requirements --help comparison), named
+            tests (three verbatim boolean-false finding strings, ten-check catalog, fresh-scaffold
+            AC-002 allocation), and named artifacts (baselines recorded in the task note). All are
+            mechanically checkable."
+        - check_id: Does completing 100% of the listed tasks actually satisfy 100% of the requirements?
+          status: pass
+          evidence: "Enumerated against requirements.yaml: all 25 ACs pinned (AC-001..006 to TASK-006/007;
+            AC-007 to TASK-003; AC-008 to TASK-002; AC-009 to TASK-004; AC-010..013 to TASK-006;
+            AC-014/015 to TASK-006/007; AC-016..018 to TASK-006/007; AC-019/021 to TASK-006; AC-020
+            to TASK-005/006/007; AC-022 to TASK-002; AC-023 to TASK-001/009; AC-024/025 to TASK-008)
+            and all six FRs plus NFR-001..003 covered by at least one task's covers list. All eight
+            design-review carry-forward points map to tasks."
+        - check_id: Does any task assume a design decision that was never made explicit in the design phase?
+          status: pass
+          evidence: "Every implementation task cites design refs (DEC-001..009, CMP-001..008, DM-002..004).
+            The two scheduling deviations are explained, not new decisions: TASK-006(g) lands
+            bin/validate-templates.ts with the template reshape because the reshape breaks the
+            required-key check (verified: acceptance_criteria at bin/validate-templates.ts:20), and
+            TASK-004 declares given-when-then pathParams metadata early but inert (no [].-bearing
+            string reaches that parameter until TASK-006)."
+        - check_id: Are complexity estimates plausible given the task description and files touched?
+          status: pass
+          evidence: High for TASK-004 (schema-walking declaration validation across two insertion points,
+            verified insertion point at src/scripts/lib/validate.ts:72-81), TASK-006 (11 files,
+            seven-part atomic flip), TASK-007 (9 files plus the full CMP-007 coverage list); medium
+            for the resolver and check routing; low for inventory, widening, docs, verification.
+            Estimates match file counts and mechanism depth.
+        - check_id: For refactor tasks, are there tasks ensuring behavior-preserving tests exist before the
+            tasks that change the code?
+          status: pass
+          evidence: "TASK-003 (type: refactor) mandates writing the byte-identical pinning tests first —
+            recording the exact findings of the unchanged design and planning declarations against
+            existing fixtures, asserted verbatim, passing before and after the routing change;
+            TASK-007 re-confirms they still pass after the flip."
+        - check_id: Do any two tasks touch the same component or logical area in a way that could conflict?
+          status: pass
+          evidence: "Shared files are all sequenced by depends_on: checks/index.ts (TASK-004 pathParams
+            metadata, then TASK-006 catalog rename and referenced-by removal — disjoint concerns
+            mirroring the design's CMP-002/CMP-003 split); test/unit/validate.test.ts,
+            stage-checks.test.ts, ids.test.ts across TASK-003/004/005/007 in dependency order. No
+            concurrent edits are possible in the linear DAG."
+        - check_id: Do delta entries plausibly describe the living docs affected by the plan?
+          status: pass
+          evidence: Two delta entries target docs/current/architecture.md (resolver shared with next-id
+            allocation, declaration path validation in validateArtifact and the startup policy gate,
+            path-addressed planning ref-exists) and docs/current/conventions.md (nested
+            per-requirement criteria, segment([].segment)* selectors, unions parameter, ten-check
+            catalog) — consistent with the requirements and design delta entries; decisions.md is
+            covered by the requirements-stage delta.
+    findings:
+      - target: TASK-002 / AC-022
+        finding: ADVISORY — AC-022's run-twice determinism assertion (same artifact and parameters, two
+          runs, identical findings) is not explicitly named in TASK-002's Done-when test list, which
+          enumerates grammar, union across array items, empty-collection semantics, indexed targets,
+          and single-segment byte-identity. The purity property is structurally specified (no I/O,
+          no ambient state), so the gap is a pinning nuance, not a coverage hole.
+        fix: When authoring TASK-002's unit tests, add an explicit run-twice-identical-output assertion for
+          both resolver functions, or record in the task note that the byte-identity and grammar
+          tests subsume the determinism check.
+      - target: TASK-006 done_when
+        finding: ADVISORY — TASK-006's completion criterion names bin/validate-templates.ts and stage-load
+          consistency but does not explicitly name npm run validate:policies, which AGENTS.md
+          section 9 requires for stage-folder changes (descriptors, structural-checks declarations,
+          steps.yaml, schema.yaml). The substance is covered — 'the requirements stage loads with
+          ten checks and no retired declaration' is what validate:policies verifies — but the gate
+          is implicit.
+        fix: During TASK-006, run npm run validate:policies explicitly alongside bin/validate-templates.ts
+          and record the result in the task note, making the red-window boundary airtight.
+      - target: plan.yaml PLAN-001 v0.1.0 (whole artifact)
+        finding: "ADVISORY — Adversarial verification against source found no blocking findings. Verified:
+          every TASK-001 line claim (bin/validate-templates.ts:20; test/helpers/artifacts.ts:38-107
+          with ac_ids at 75/83, acceptance_criteria at 86, parent_id at 92/99; five unit files; two
+          fixtures with acceptance_criteria: [] at line 19; semantic-checks.yaml:15; steps.yaml:46;
+          stage.yaml:12; stage-registry.ts:27/:183; stage.schema.yaml:65-70); the six dead
+          declarations at requirements/structural-checks.yaml:10-59; the planning ref-exists
+          declaration at planning/structural-checks.yaml:28-37; the unknown-check abort at
+          checks/index.ts:62-66; the stale ac_ids comment at duplicate-refs.ts:6; shared.ts
+          getTopArray/resolvePath single-segment behavior; ref-exists unioning valid-id set;
+          unique-ids finding text; given-when-then parameter named array; ids.ts:21 shape-aware
+          allocation; RISK-004 in depth — kinds/tasks.ts reads plan.yaml via safeReadYaml without
+          validation, and implementation-review validates plan.yaml with the implementation stage's
+          own checks (required-note-for-status, all-tasks-terminal only, no ref-exists) plus
+          planning's schema via schema_from, so the reconfigured planning ref-exists never re-runs
+          against this change's old-format requirements.yaml; no retired-field references in e2e or
+          helper-only unit files; no skill-manifest consumers; M1 touches no stage folder and no
+          artifact format. Coverage: all 25 ACs and all 9 FR/NFRs mapped; all eight design-review
+          carry-forward points mapped to tasks."
+        fix: No action; recorded as review evidence.
+    warnings: []

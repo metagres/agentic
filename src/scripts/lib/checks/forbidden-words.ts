@@ -1,6 +1,7 @@
 import type { Finding } from '../types.ts';
 import type { CheckFn } from './shared.ts';
-import { hasWord, resolvePath } from './shared.ts';
+import { hasWord } from './shared.ts';
+import { resolveLeafValues } from '../artifact-paths.ts';
 import { BLOCKING_WORDS, ADVISORY_WORDS } from './words.ts';
 
 interface FieldSpec {
@@ -29,7 +30,7 @@ export const forbiddenWords: CheckFn = (artifact, params) => {
     const blocking = Array.isArray(spec.blocking) ? spec.blocking : defaultBlocking;
     const advisory = Array.isArray(spec.advisory) ? spec.advisory : defaultAdvisory;
 
-    for (const { value, target } of resolvePath(artifact, pathSpec)) {
+    for (const { value, target } of resolveLeafValues(artifact, pathSpec)) {
       for (const word of blocking) {
         if (hasWord(value, word)) {
           findings.push({

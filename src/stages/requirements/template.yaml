@@ -20,11 +20,15 @@ discovery_log: []
 
 assumptions: []
 
-functional_requirements: []
+functional_requirements:
+  - id: FR-001
+    description: "replace-me: one verifiable behavior in EARS form (When <trigger>, the system shall <response>)."
+    acceptance_criteria:
+      - id: AC-001
+        statement: "Given a defined initial state, When the triggering action occurs, Then the system produces an observable result."
+        category: happy
 
 non_functional_requirements: []
-
-acceptance_criteria: []
 
 out_of_scope: []
 

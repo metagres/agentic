@@ -1,0 +1,398 @@
+metadata:
+  id: REQ-001
+  title: Embed acceptance criteria within each requirement and retire the flat criteria list
+  stage: requirements
+  status: accepted
+  version: 0.1.0
+  created: 2026-09-03
+  updated: 2026-09-03
+  request_summary: "Pivot of the ac-parent-backref-check idea: instead of adding a back-reference
+    check to the capped catalog, restructure the requirements artifact so each requirement carries
+    its own nested acceptance_criteria array, retiring the top-level criteria list, ac_ids, and
+    parent_id; extend the check library with multi-segment path addressing, remove the dead
+    declarations and the referenced-by catalog entry, and keep planning's cross-artifact validation
+    working through path-addressed ref-exists."
+  clarity: clear
+  assumptions_reviewed: true
+  delta_reviewed: true
+  discovery_reviewed: true
+  scenarios_reviewed: true
+problem_statement: "The requirements artifact stores acceptance criteria in a flat top-level list,
+  linked to requirements by two hand-maintained fields: ac_ids on each requirement and parent_id on
+  each criterion. No mechanical check enforces that the two links agree, so a criterion claimed by a
+  requirement other than its declared parent passes validation and is caught only by an LLM
+  reviewer, costing review rounds. Because parent_id is singular, each criterion in truth belongs to
+  exactly one requirement, which makes the flat list an indirect representation of an
+  exclusively-owned collection. Embedding each requirement's criteria inside that requirement
+  removes the dual representation and eliminates the mismatch bug class structurally."
+discovery_log:
+  - id: DL-001
+    question: Which stages should declare the new check, given design/planning have no bidirectional
+      id-link pair for it to enforce?
+    answer: "Pivot: this change becomes the full embedding migration — acceptance criteria nested inside
+      each requirement — abandoning the capped-catalog check entirely. Scope is the requirements
+      artifact format, not a new check."
+    lens: stakeholder
+    resolved: true
+  - id: DL-002
+    question: Can one AC be shared by two requirements (AC-021 verifying both FR-002 and FR-003)?
+    answer: No — exclusive parentage. The singular parent_id field already cannot represent sharing;
+      under the nested format exclusivity is structural (an AC lives inside exactly one
+      requirement). Shared verification is expressed by authoring two ACs or extracting a shared
+      requirement.
+    lens: data
+    resolved: true
+  - id: DL-003
+    question: What happens to the 15 accepted old-format requirements artifacts when the nested schema lands?
+    answer: Nothing. Old changes are archived and will never be re-validated. No migration, no
+      dual-format support, no dedicated retired-format error; git history preserves them.
+      Re-validating an archived artifact is out of scope by definition.
+    lens: failure
+    resolved: true
+  - id: DL-004
+    question: What should the nested per-requirement AC array be called inside each FR/NFR?
+    answer: acceptance_criteria — the same name as the current top-level array, keeping one consistent
+      vocabulary across schema, checks, templates, and docs.
+    lens: data
+    resolved: true
+  - id: DL-005
+    question: How should the check layer be dispositioned for the nested format?
+    answer: Extend the check library with nested-array addressing (path syntax in array parameters);
+      update the 3 surviving declarations (unique-ids, given-when-then, forbidden-words); delete the
+      6 dead declarations (ref-exists x3, referenced-by, duplicate-refs x2 on ac_ids); remove
+      referenced-by from the catalog entirely (11 -> 10 named checks). No dead code, no dead config.
+    lens: constraint
+    resolved: true
+  - id: DL-006
+    question: How does planning's cross-artifact tasks[].acceptance_ids validation keep working once ACs
+      are nested inside requirements?
+    answer: ref-exists' target spec gains path syntax (e.g.
+      functional_requirements[].acceptance_criteria) and planning's declaration updates to use it.
+      Planning's own schema and the global AC-NNN id pattern stay untouched; AC ids remain
+      artifact-globally unique.
+    lens: interface
+    resolved: true
+assumptions:
+  - type: verified
+    text: AC ids remain artifact-globally unique with the AC-NNN pattern; planning's schema pattern and
+      id allocation are untouched.
+    source: DL-006; planning schema tasks[].acceptance_ids pattern ^AC-[0-9]{3}$.
+  - type: verified
+    text: Archived (accepted) changes are never re-validated by any pipeline flow; the acceptance gate
+      reads artifact status, not schema.
+    source: DL-003 stakeholder statement; gate semantics in AGENTS.md section 5.
+  - type: unverified
+    text: No consumer outside the check library and planning's ref-exists declaration reads the
+      top-level acceptance_criteria array.
+    source: Believed from stage file inventory.
+    risk: A hidden consumer breaks silently after the format change.
+    question: Which scripts, templates, tests, or skill-manifest entries read the top-level
+      acceptance_criteria array?
+    impact: Design must inventory consumers across src/, bin/, test/, templates, and the skill manifest
+      before implementation.
+  - type: unverified
+    text: The --next-ids AC allocation is shape-agnostic and needs no code change beyond template and
+      guidance updates.
+    source: Allocation appears id-sequence-based.
+    risk: Allocation may assume the flat list when scanning for the next AC number.
+    question: Does the authoring kind interpreter derive next AC ids from artifact shape?
+    impact: Design confirms against the authoring kind interpreter; if shape-aware, allocation learns
+      the nested shape.
+  - type: verified
+    text: The deployed skill bundle under .opencode is a build artifact regenerated by deploy; no manual
+      bundle edits are part of this change.
+    source: AGENTS.md section 2 item 7 and section 10.
+  - type: unverified
+    text: Multi-segment path resolution can extend the existing path helpers without changing findings
+      for existing single-segment declarations.
+    source: resolvePath today handles one []. segment for scalar leaves.
+    risk: A shared-helper change could alter targets or findings for design/planning declarations.
+    question: Can the extension be purely additive?
+    impact: Design confirms; unit tests pin byte-identical findings for current declarations.
+functional_requirements:
+  - id: FR-001
+    description: When a requirements artifact is authored or validated, the system shall store each
+      acceptance criterion as an entry in the acceptance_criteria array of exactly one requirement
+      (functional or non-functional), and the artifact shall carry no top-level acceptance_criteria
+      array, no ac_ids field on requirements, and no parent_id field on criteria.
+    ac_ids:
+      - AC-001
+      - AC-002
+  - id: FR-002
+    description: When a requirements artifact is validated against the requirements schema, the system
+      shall reject with blocking findings any artifact that carries a retired field (top-level
+      acceptance_criteria, ac_ids, parent_id), whose requirement entries lack a non-empty
+      acceptance_criteria array, or whose nested criteria entries miss id, statement, or category.
+    ac_ids:
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-006
+  - id: FR-003
+    description: When a structural check parameter names an array with a path containing one or more [].
+      segments, the check library shall resolve the path by traversing each named array-in-item
+      nesting and shall evaluate the check against the union of all resolved collections; a path
+      naming an unknown array or field shall abort the run with an error naming the stage folder and
+      the declaration.
+    ac_ids:
+      - AC-007
+      - AC-008
+      - AC-009
+  - id: FR-004
+    description: When the requirements stage's structural checks run, the system shall enforce unique
+      ids across the union of all nested acceptance_criteria arrays, given-when-then form and
+      forbidden-word profiles on every nested statement, shall declare no check on ac_ids or
+      parent_id, and the check catalog shall no longer register referenced-by, leaving ten named
+      checks.
+    ac_ids:
+      - AC-010
+      - AC-011
+      - AC-012
+      - AC-013
+      - AC-014
+      - AC-015
+  - id: FR-005
+    description: When the planning stage validates tasks[].acceptance_ids, the system shall resolve each
+      referenced id against the union of all nested acceptance_criteria arrays in requirements.yaml
+      through the path-addressed ref-exists target, leaving planning's schema and the AC-NNN id
+      pattern unchanged.
+    ac_ids:
+      - AC-016
+      - AC-017
+      - AC-018
+  - id: FR-006
+    description: "When an authoring agent initializes or drafts a requirements artifact, the template,
+      step guidance, and --next-ids surface shall present the nested shape: criteria authored inside
+      their requirement, AC ids allocated artifact-globally in the AC-NNN sequence, and no parent_id
+      or ac_ids authoring guidance."
+    ac_ids:
+      - AC-019
+      - AC-020
+      - AC-021
+non_functional_requirements:
+  - id: NFR-001
+    description: "The path-addressed check resolution shall be a pure, deterministic function of the
+      artifact and parameters: no LLM calls, no network access, no ambient state; identical inputs
+      shall produce identical findings."
+    ac_ids:
+      - AC-022
+  - id: NFR-002
+    description: The change shall add no CLI flags, no envelope fields, and no new commands; the
+      requirements stage's flag surface and envelope shape shall remain as published.
+    ac_ids:
+      - AC-023
+  - id: NFR-003
+    description: "The change shall leave the governing documentation consistent: AGENTS.md section 5
+      shall describe the nested criteria shape and the ten-check catalog, and the change's delta
+      entries shall record the format decision for knowledge extraction."
+    ac_ids:
+      - AC-024
+      - AC-025
+acceptance_criteria:
+  - id: AC-001
+    statement: Given a requirements artifact whose functional requirement FR-002 contains an
+      acceptance_criteria array with one entry carrying id, statement, and category, when the
+      artifact is parsed and validated, then the criterion is recognized as belonging to FR-002 by
+      nesting alone and no parent_id or ac_ids field is present or required.
+    category: happy
+    parent_id: FR-001
+  - id: AC-002
+    statement: Given a requirements artifact whose non-functional requirement NFR-001 contains a nested
+      acceptance_criteria array, when the artifact is validated, then the nested shape applies
+      identically to non-functional requirements and no format distinction exists between FR and NFR
+      entries.
+    category: edge
+    parent_id: FR-001
+  - id: AC-003
+    statement: Given a requirements artifact that carries a top-level acceptance_criteria array, when
+      the artifact is validated, then validation fails with a blocking schema finding naming the
+      top-level acceptance_criteria property as not allowed.
+    category: negative
+    parent_id: FR-002
+  - id: AC-004
+    statement: Given a requirements artifact in which any requirement entry carries an ac_ids field or
+      any criteria entry carries a parent_id field, when the artifact is validated, then validation
+      fails with a blocking schema finding naming the retired field.
+    category: negative
+    parent_id: FR-002
+  - id: AC-005
+    statement: Given a requirements artifact in which a requirement entry has an empty
+      acceptance_criteria array, when the artifact is validated, then validation fails with a
+      blocking schema finding requiring at least one criterion per requirement.
+    category: boundary
+    parent_id: FR-002
+  - id: AC-006
+    statement: Given a nested criteria entry missing id, statement, or category, when the artifact is
+      validated, then validation fails with a blocking schema finding naming the missing property.
+    category: negative
+    parent_id: FR-002
+  - id: AC-007
+    statement: Given a check declaration whose array parameter is
+      functional_requirements[].acceptance_criteria and an artifact with two functional requirements
+      each holding criteria, when the check runs, then it evaluates the union of both nested lists
+      as one collection.
+    category: happy
+    parent_id: FR-003
+  - id: AC-008
+    statement: Given a top-level array with zero entries and a path-addressed check declaration, when
+      the check runs, then the path resolves to an empty collection, the check reports no findings,
+      and the run completes without error.
+    category: edge
+    parent_id: FR-003
+  - id: AC-009
+    statement: Given a check declaration whose path names an unknown top-level array or an unknown
+      nested field, when the stage's checks load or run, then the run aborts with an error naming
+      the stage folder and the offending declaration.
+    category: boundary
+    parent_id: FR-003
+  - id: AC-010
+    statement: Given two requirements whose nested acceptance_criteria arrays both contain an entry with
+      id AC-001, when the requirements structural checks run, then a blocking unique-ids finding
+      names the duplicated id and both containing requirements.
+    category: happy
+    parent_id: FR-004
+  - id: AC-011
+    statement: Given a nested criteria statement not in Given-When-Then form, when the requirements
+      structural checks run, then a given-when-then finding targets the nested statement path.
+    category: happy
+    parent_id: FR-004
+  - id: AC-012
+    statement: Given a nested criteria statement containing a blocking word from the shared profile,
+      when the requirements structural checks run, then a forbidden-word finding targets the nested
+      statement path.
+    category: happy
+    parent_id: FR-004
+  - id: AC-013
+    statement: Given the requirements structural-checks.yaml after this change, when the stage loads,
+      then no declaration references ac_ids or parent_id and the six retired declarations are
+      absent.
+    category: negative
+    parent_id: FR-004
+  - id: AC-014
+    statement: Given the check catalog after this change, when the engine loads, then the catalog
+      registers ten named checks and referenced-by is absent.
+    category: happy
+    parent_id: FR-004
+  - id: AC-015
+    statement: Given any stage whose structural-checks.yaml declares referenced-by after its removal,
+      when the engine starts, then startup fails with an error naming the stage folder and the
+      unknown check.
+    category: negative
+    parent_id: FR-004
+  - id: AC-016
+    statement: Given a plan artifact whose task lists acceptance_ids containing an id nested under a
+      functional requirement in requirements.yaml, when planning validation runs, then the reference
+      resolves and no finding is reported for it.
+    category: happy
+    parent_id: FR-005
+  - id: AC-017
+    statement: Given a plan artifact whose task lists an acceptance id that no nested criteria entry
+      carries, when planning validation runs, then a blocking ref-exists finding names the missing
+      reference.
+    category: negative
+    parent_id: FR-005
+  - id: AC-018
+    statement: Given a plan artifact whose task lists an acceptance id nested under a non-functional
+      requirement, when planning validation runs, then the reference resolves because the union
+      spans functional and non-functional lists.
+    category: edge
+    parent_id: FR-005
+  - id: AC-019
+    statement: Given the requirements template after this change, when an authoring agent initializes a
+      new artifact, then the scaffold shows acceptance_criteria nested inside each requirement entry
+      and contains no top-level criteria list.
+    category: happy
+    parent_id: FR-006
+  - id: AC-020
+    statement: Given an artifact with criteria under multiple requirements, when --next-ids is invoked,
+      then the allocated AC id continues the artifact-global AC-NNN sequence without collision.
+    category: happy
+    parent_id: FR-006
+  - id: AC-021
+    statement: Given the authoring step guidance after this change, when an authoring agent reads it,
+      then the guidance instructs nesting criteria under their requirement and contains no parent_id
+      or ac_ids authoring instruction.
+    category: edge
+    parent_id: FR-006
+  - id: AC-022
+    statement: Given the same artifact and the same path-addressed check parameters, when a check runs
+      twice, then both runs produce identical findings with no LLM call, no network access, and no
+      ambient state.
+    category: happy
+    parent_id: NFR-001
+  - id: AC-023
+    statement: Given the CLI after this change, when requirements --help runs, then the documented flag
+      surface matches the pre-change surface with no additions.
+    category: happy
+    parent_id: NFR-002
+  - id: AC-024
+    statement: Given the repository after this change, when AGENTS.md section 5 is read, then it
+      describes the nested per-requirement criteria shape and a ten-check catalog.
+    category: happy
+    parent_id: NFR-003
+  - id: AC-025
+    statement: Given this change's delta entries, when knowledge extraction runs, then decisions.md
+      records the format decision replacing the flat merged criteria list with nested
+      per-requirement lists.
+    category: happy
+    parent_id: NFR-003
+out_of_scope:
+  - Migration, transformation, or re-validation of archived (accepted) changes; their artifacts
+    remain as committed (DL-003).
+  - Any new CLI flag, command, or envelope surface for the nested shape (NFR-002).
+  - Declaring any parentage or back-reference check in design or planning; the nested shape removes
+    the pattern those declarations would police.
+  - Changes to the design-stage artifact format; design carries no bidirectional id-link pair
+    (DL-001 evidence).
+  - Reopening the abandoned capped-catalog back-reference check; this change supersedes
+    docs/ideas/ac-parent-backref-check.md.
+  - Changes to category semantics (happy/edge/negative/boundary) or given-when-then wording rules;
+    both carry over unchanged.
+failure_paths:
+  - "An old-format artifact is validated by hand (manual lint or re-review): it fails schema
+    validation with findings naming the retired fields; per DL-003 archived changes are not
+    re-validated, so this path is out of contract."
+  - "A path-addressed declaration names a nonexistent array or field: the run aborts with an error
+    naming the stage folder and declaration, mirroring the existing unknown-check abort, so
+    misconfiguration cannot silently pass."
+  - "A path-addressed declaration targets a stage whose artifact lacks the nested arrays: the path
+    resolves to an empty collection and the check reports no findings; schema validation, not the
+    check, guards the required shape."
+risks_and_dependencies:
+  - "Risk: an un-inventoried consumer reads the top-level acceptance_criteria array (scripts,
+    templates, tests, skill manifest) and breaks silently. Mitigation: design-stage consumer
+    inventory across src/, bin/, test/, and the skill manifest; e2e coverage of authoring, review,
+    and planning flows."
+  - "Risk: multi-segment path resolution alters behavior of existing single-segment declarations.
+    Mitigation: path resolution is additive; existing declarations keep byte-identical findings,
+    verified by unit tests."
+  - "Risk: union uniqueness semantics, if applied beyond path-resolved collections, could alter
+    existing top-level uniqueness behavior. Mitigation: union evaluation applies only to
+    path-resolved collections; top-level declarations unchanged."
+  - "Dependency: none external; no new runtime dependencies."
+delta:
+  - phase: Requirements
+    target_doc: docs/current/decisions.md
+    target_anchor: null
+    entity_id: null
+    change: Modify
+    reason: Record the decision replacing the flat merged acceptance_criteria list with per-requirement
+      nested acceptance_criteria arrays, retiring ac_ids and parent_id, and removing referenced-by
+      from the check catalog (ten named checks).
+    date: 2026-09-03
+  - phase: Requirements
+    target_doc: docs/current/conventions.md
+    target_anchor: null
+    entity_id: null
+    change: Modify
+    reason: "Requirements artifact authoring convention: acceptance criteria are authored nested inside
+      their owning requirement; no cross-reference fields between criteria and requirements."
+    date: 2026-09-03
+  - phase: Requirements
+    target_doc: docs/current/architecture.md
+    target_anchor: null
+    entity_id: null
+    change: Modify
+    reason: The check library resolves multi-segment array paths (top[].nested[].leaf) for structural
+      checks; planning validates tasks[].acceptance_ids through path-addressed ref-exists.
+    date: 2026-09-03

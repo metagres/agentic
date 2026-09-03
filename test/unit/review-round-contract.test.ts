@@ -123,10 +123,11 @@ function writeWalkFile(
 function breakArtifact(rc: ReadyChange): void {
   const artifactPath = path.join(rc.changeRoot, 'requirements.yaml');
   const artifact = readYaml(artifactPath) as Record<string, unknown> & {
-    acceptance_criteria: Record<string, unknown>[];
+    functional_requirements: { acceptance_criteria: Record<string, unknown>[] }[];
     metadata: { status: string };
   };
-  artifact.acceptance_criteria.push({ ...artifact.acceptance_criteria[0] });
+  const criteria = artifact.functional_requirements[0].acceptance_criteria;
+  criteria.push({ ...criteria[0] });
   artifact.metadata.status = 'ready-for-review';
   fs.writeFileSync(artifactPath, JSON.stringify(artifact), 'utf8');
 }

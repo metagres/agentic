@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { Finding } from '../types.ts';
 import type { CheckFn } from './shared.ts';
 import { getTopArray } from './shared.ts';
+import { resolveCollections } from '../artifact-paths.ts';
 import { safeReadYaml } from '../context.ts';
 
 interface RefSpec {
@@ -36,9 +37,17 @@ export const refExists: CheckFn = (artifact, params, context) => {
 
   const validIds = new Set<string>();
   for (const arrayName of to.arrays) {
-    for (const item of getTopArray(targetDoc, arrayName)) {
-      const id = item?.[to.field as string];
-      if (typeof id === 'string') validIds.add(id);
+    // Plain names resolve as top-level arrays; path entries bearing [] resolve
+    // through the artifact path resolver against the target document. The
+    // valid-id set unions across all entries either way.
+    const collections = arrayName.includes('[]')
+      ? resolveCollections(targetDoc, arrayName)
+      : [{ items: getTopArray(targetDoc, arrayName), location: arrayName }];
+    for (const collection of collections) {
+      for (const item of collection.items) {
+        const id = item?.[to.field as string];
+        if (typeof id === 'string') validIds.add(id);
+      }
     }
   }
 

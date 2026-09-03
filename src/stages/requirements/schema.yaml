@@ -10,7 +10,6 @@
     "assumptions",
     "functional_requirements",
     "non_functional_requirements",
-    "acceptance_criteria",
     "out_of_scope",
     "failure_paths",
     "risks_and_dependencies",
@@ -95,8 +94,7 @@
     "problem_statement": {
       "type": "string"
     },
-    "discovery_log": {
-      "type": "array",
+    "discovery_log": {      "type": "array",
       "items": {
         "type": "object",
         "additionalProperties": true,
@@ -185,11 +183,11 @@
       "type": "array",
       "items": {
         "type": "object",
-        "additionalProperties": true,
+        "additionalProperties": false,
         "required": [
           "id",
           "description",
-          "ac_ids"
+          "acceptance_criteria"
         ],
         "properties": {
           "id": {
@@ -199,13 +197,9 @@
           "description": {
             "type": "string"
           },
-          "ac_ids": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-              "type": "string",
-              "pattern": "^AC-[0-9]{3}$"
-            }
+          "ac_ids": false,
+          "acceptance_criteria": {
+            "$ref": "#/definitions/nested_criteria"
           }
         }
       }
@@ -214,11 +208,11 @@
       "type": "array",
       "items": {
         "type": "object",
-        "additionalProperties": true,
+        "additionalProperties": false,
         "required": [
           "id",
           "description",
-          "ac_ids"
+          "acceptance_criteria"
         ],
         "properties": {
           "id": {
@@ -228,52 +222,14 @@
           "description": {
             "type": "string"
           },
-          "ac_ids": {
-            "type": "array",
-            "minItems": 1,
-            "items": {
-              "type": "string",
-              "pattern": "^AC-[0-9]{3}$"
-            }
+          "ac_ids": false,
+          "acceptance_criteria": {
+            "$ref": "#/definitions/nested_criteria"
           }
         }
       }
     },
-    "acceptance_criteria": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "additionalProperties": true,
-        "required": [
-          "id",
-          "statement",
-          "category",
-          "parent_id"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^AC-[0-9]{3}$"
-          },
-          "statement": {
-            "type": "string"
-          },
-          "category": {
-            "type": "string",
-            "enum": [
-              "happy",
-              "edge",
-              "negative",
-              "boundary"
-            ]
-          },
-          "parent_id": {
-            "type": "string",
-            "pattern": "^(FR|NFR)-[0-9]{3}$"
-          }
-        }
-      }
-    },
+    "acceptance_criteria": false,
     "out_of_scope": {
       "type": "array",
       "items": {
@@ -351,6 +307,43 @@
             "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
           }
         }
+      }
+    }
+  },
+  "definitions": {
+    "criterion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "statement",
+        "category"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^AC-[0-9]{3}$"
+        },
+        "statement": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "happy",
+            "edge",
+            "negative",
+            "boundary"
+          ]
+        },
+        "parent_id": false
+      }
+    },
+    "nested_criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/criterion"
       }
     }
   }

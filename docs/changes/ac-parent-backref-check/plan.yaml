@@ -1,0 +1,874 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: ac-parent-backref-check — nested acceptance criteria with path-addressed structural
+    checks"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-09-03
+  updated: 2026-09-03
+  based_on_design: 0.1.2
+  based_on_requirements: 0.1.0
+  implementation_status: accepted
+  delta_reviewed: true
+tasks:
+  - id: TASK-001
+    title: Confirm the flat-format consumer inventory and capture the pre-change baselines
+    description: "Confirm the accepted design's flat-format consumer inventory against the live tree
+      before any implementation edit touches a file (FR-001). Verify each inventoried location at
+      its stated line: bin/validate-templates.ts:20 (acceptance_criteria in the requirements
+      required-key list); test/helpers/artifacts.ts:38-107 (validRequirements builds the flat shape
+      — ac_ids at lines 75 and 83, top-level acceptance_criteria at 86, parent_id at 92 and 99); the
+      five unit files that build flat fixtures directly (test/unit/validate.test.ts,
+      test/unit/stage-checks.test.ts, test/unit/ids.test.ts,
+      test/unit/review-round-contract.test.ts, test/unit/stage-registry.test.ts); the two fixture
+      artifacts under test/fixtures/agentic-project/docs/changes/add-a-health-endpoint/ and
+      add-a-health-endpoint-2/ (both carry acceptance_criteria: [] at line 19);
+      src/stages/requirements/semantic-checks.yaml:15 (the one question referencing the single flat
+      list and parent_id); src/stages/requirements/steps.yaml:46 (the parent_id authoring language);
+      src/stages/requirements/stage.yaml:12 (the AC: acceptance_criteria next_ids spec);
+      src/scripts/lib/stage-registry.ts:27 and :183 (nextIds typing);
+      src/schemas/stage.schema.yaml:65-70 (next_ids additionalProperties string-only). Then grep
+      src/, bin/, test/, and the skill manifest for any additional reader of the top-level
+      acceptance_criteria array, ac_ids, or parent_id, closing the requirements' unverified
+      hidden-consumer assumption or escalating it before implementation begins. Capture two
+      baselines this task hands to later tasks: (a) the exact findings of the unchanged design and
+      planning structural-check declarations against their existing fixtures — the input for the
+      byte-identical pinning tests in TASK-003 (DEC-008); (b) the sdlc requirements --help flag
+      surface — the comparison baseline for AC-023 in TASK-009 (NFR-002). Done when: every
+      inventoried location is confirmed at the stated line numbers or the deviation is recorded in
+      the task note, the extra-consumer grep result is recorded, and both baselines are written into
+      the task note for TASK-003 and TASK-009."
+    type: analysis
+    status: done
+    complexity: low
+    covers:
+      - FR-001
+      - FR-004
+      - FR-005
+      - FR-006
+    acceptance_ids:
+      - AC-023
+    depends_on: []
+    files: []
+    implementation_note: "Inventory confirmed at stated lines: bin/validate-templates.ts:20
+      (acceptance_criteria in required-key list); test/helpers/artifacts.ts:38-107 flat
+      validRequirements (ac_ids:75,83; top-level acceptance_criteria:86; parent_id:92,99); five unit
+      files build flat fixtures (validate.test.ts:56,105; stage-checks.test.ts:17-34,63-185;
+      ids.test.ts:26,31; review-round-contract.test.ts:126,129; stage-registry.test.ts:270); both
+      fixtures add-a-health-endpoint{,-2}/requirements.yaml carry acceptance_criteria: [] at line
+      19; semantic-checks.yaml:15 single-flat-list+parent_id question; steps.yaml:46 parent_id
+      authoring language; stage.yaml:12 AC: acceptance_criteria; stage-registry.ts:27 nextIds
+      Record<string,string> and :183 descriptor read; stage.schema.yaml:65-70 next_ids
+      additionalProperties string-only. Extra-consumer grep over src/, bin/, test/, skill manifest:
+      NO additional readers — only hits are the inventoried locations plus
+      src/scripts/lib/checks/duplicate-refs.ts:6 stale comment (planned TASK-003) and generated
+      src/stages/codemap.md:16 (regenerated TASK-008). Baseline (a) for TASK-003 pinning: this
+      change's accepted design.yaml and plan.yaml lint with 0 findings pre-change; exact finding
+      strings on invalid fixtures: 'Duplicate ID \\'MS-001\\' in \\'milestones\\'', 'Duplicate ID
+      \\'RISK-001\\' in \\'risks\\'', 'MS-001 references missing tasks value \\'TASK-999\\' in this
+      artifact', 'TASK-001 references missing covers value \\'FR-999\\' in requirements.yaml',
+      'TASK-001 references missing acceptance_ids value \\'AC-999\\' in requirements.yaml',
+      'TASK-001 references missing design_refs value \\'DEC-999\\' in design.yaml', 'Task TASK-001
+      depends on TASK-002 which appears later in the plan'. Baseline (b) for TASK-009 AC-023: sdlc
+      requirements --help surface captured (steps
+      needs_input/init/authoring/recovery/ready/complete; commands: bare, --request, --next-ids,
+      --update-artifact, --append-delta, --complete-step --step, --finalize [--confirm-semantic],
+      --describe, --describe-step; data.artifact, data.steps, data.usage) and stored at
+      /tmp/opencode/baseline-requirements-help.txt."
+    started_at: 2026-09-03
+    files_changed: []
+    completed_at: 2026-09-03
+  - id: TASK-002
+    title: Create the artifact path resolver module
+    description: "Add src/scripts/lib/artifact-paths.ts with the two pure functions specified by
+      CMP-001, DEC-001, and DM-002: resolveCollections(doc, spec) returning every array instance the
+      spec addresses together with its location chain, and resolveLeafValues(doc, spec) returning
+      scalar string values with fully indexed targets (for example
+      functional_requirements[0].acceptance_criteria[1].statement). Grammar: segment([].segment)*
+      over dot-separated names — a segment followed by [] iterates the array-valued property it
+      names across every current item; a spec without [] addresses a top-level node. A spec
+      traversing an absent property or an empty array yields an empty collection and never an error
+      (AC-008). Single-segment specs resolve exactly as the existing getTopArray and resolvePath
+      helpers, preserving byte-identical targets. The module performs no I/O and holds no ambient
+      state, so identical inputs produce identical outputs (NFR-001, AC-022). Done when: unit tests
+      cover the grammar (multi-segment traversal, union across array items, empty-collection
+      semantics, indexed target strings) and single-segment byte-identity against the current
+      getTopArray/resolvePath outputs, and npm run validate passes."
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-003
+      - FR-005
+      - NFR-001
+    acceptance_ids:
+      - AC-008
+      - AC-022
+    design_refs:
+      - DEC-001
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/scripts/lib/artifact-paths.ts
+        operation: create
+    implementation_note: "Created src/scripts/lib/artifact-paths.ts with resolveCollections and
+      resolveLeafValues implementing the segment([].segment)* grammar (CMP-001, DEC-001, DM-002):
+      []-marked segments iterate the array-valued property they name across every current item; a
+      spec without [] is one literal top-level segment (byte-identical with getTopArray/resolvePath
+      key lookups, including dotted keys); absent properties, empty arrays, and non-matching shapes
+      resolve to no collection and never error (AC-008) — empty arrays are skipped so single-segment
+      specs collapse exactly to getTopArray's [] for absent and empty alike. resolveLeafValues emits
+      fully indexed targets (functional_requirements[0].acceptance_criteria[1].statement);
+      two-segment specs reproduce resolvePath targets byte-identically; three-segment specs are new
+      behavior (resolvePath cannot express them). No I/O, no ambient state. Unit tests
+      (test/unit/artifact-paths.test.ts, 13 tests) cover multi-segment traversal, union across array
+      items, empty-collection semantics, indexed targets, single-segment byte-identity against
+      getTopArray and resolvePath, and an explicit run-twice determinism assertion (AC-022 CARRY
+      ADVISORY satisfied directly, not by subsumption). npm run validate passes (exit 0, 260 unit
+      tests green). Note: test file added beyond the plan's files list because the done-when
+      requires unit tests; no other files touched."
+    started_at: 2026-09-03
+    files_changed:
+      - path: src/scripts/lib/artifact-paths.ts
+        operation: create
+      - path: test/unit/artifact-paths.test.ts
+        operation: create
+    completed_at: 2026-09-03
+  - id: TASK-003
+    title: Route unique-ids, forbidden-words, and ref-exists through the resolver with byte-identical
+      pinning
+    description: "Behavior-preserving adoption of the resolver in the check library (CMP-002 part 1,
+      DEC-002, DEC-008). Write the pinning tests first: record the exact findings of the unchanged
+      design and planning structural-check declarations (planning's unique-ids over milestones and
+      risks, ref-exists milestones.tasks to tasks.id, ref-exists tasks.covers to the requirements
+      FR/NFR arrays, ref-exists tasks.design_refs to design decisions, dependency-acyclic,
+      dependency-order, and the design stage's declarations) against their existing fixtures,
+      asserting them verbatim; these tests must pass before and after the routing change. Then:
+      delegate getTopArray and resolvePath in src/scripts/lib/checks/shared.ts to the resolver
+      module keeping the exported signatures; route array selection in unique-ids.ts,
+      forbidden-words.ts, and ref-exists.ts through the resolver; add the unions parameter to
+      unique-ids — each unions group enforces one uniqueness scope across the union of the listed
+      path-resolved collections, with the duplicate finding naming the id and every containing entry
+      location, while plain-name arrays entries keep today's per-array scope and finding text
+      (DM-003, AC-007); teach ref-exists to resolve path entries in to.arrays against the target
+      document (its valid-id set already unions); resolve forbidden-words multi-segment leaf paths
+      through the resolver. Update the stale ac_ids example in the duplicate-refs.ts header comment
+      (line 6). The given-when-then parameter rename to arrays and the referenced-by deletion are
+      NOT in this task — they break the requirements stage declaration and land with the stage
+      reconfiguration (TASK-006). Done when: the pinning tests pass byte-identically, new unit tests
+      cover the unions group evaluation (two FR-nested criteria collections evaluated as one union,
+      AC-007) and cross-path duplicate detection, and npm run validate passes."
+    type: refactor
+    status: done
+    complexity: medium
+    covers:
+      - FR-003
+      - FR-004
+      - FR-005
+      - NFR-001
+    acceptance_ids:
+      - AC-007
+    design_refs:
+      - DEC-001
+      - DEC-002
+      - DEC-008
+    depends_on:
+      - TASK-002
+    files:
+      - path: src/scripts/lib/checks/shared.ts
+        operation: modify
+      - path: src/scripts/lib/checks/unique-ids.ts
+        operation: modify
+      - path: src/scripts/lib/checks/forbidden-words.ts
+        operation: modify
+      - path: src/scripts/lib/checks/ref-exists.ts
+        operation: modify
+      - path: src/scripts/lib/checks/duplicate-refs.ts
+        operation: modify
+      - path: test/unit/stage-checks.test.ts
+        operation: modify
+    implementation_note: "Pinning tests written FIRST and verified green against the pre-change
+      implementation, then kept green after routing: six pinning tests load the live planning and
+      design structural-checks.yaml from the stage folders and assert verbatim the TASK-001 baseline
+      findings (planning unique-ids 'Duplicate ID \\'MS-001\\' in \\'milestones\\''/'RISK-001' in
+      'risks' with targets milestones[].id/risks[].id; ref-exists 'MS-001 references missing tasks
+      value \\'TASK-999\\' in this artifact', cross-file covers/acceptance_ids/design_refs strings
+      with targets tasks[].covers/tasks[].acceptance_ids/tasks[].design_refs; dependency-order 'Task
+      TASK-001 depends on TASK-002 which appears later in the plan'; design ref-exists 'an entry
+      references missing requirement_id value \\'FR-999\\' in requirements.yaml' and duplicate-refs
+      'Duplicate CMP reference \\'CMP-001\\' in entry'; zero findings on valid fixtures). Routing:
+      shared.ts getTopArray/resolvePath now delegate to resolveCollections/resolveLeafValues keeping
+      exported signatures (single/two-segment byte-identical; three-segment gains full-grammar
+      behavior no existing declaration uses); forbidden-words imports resolveLeafValues directly;
+      ref-exists resolves [].-bearing to.arrays entries via resolveCollections against the target
+      document (valid-id set unions as before; from.array stays top-level per DEC-002); unique-ids
+      gains the unions parameter — each group one uniqueness scope across the union of path-resolved
+      collections, duplicate finding 'Duplicate ID \\'<id>\\' at <loc1>, <loc2>' naming every
+      containing entry location, plain-name arrays byte-identical per-array scope/text (DM-003,
+      AC-007). duplicate-refs.ts header example updated from ac_ids to component_ids. New tests:
+      unions two-FR-collection single-union evaluation (AC-007), cross-path FR/NFR duplicate naming
+      both containing requirements, plain-name+unions coexistence, ref-exists path-entry resolution,
+      forbidden-words three-segment leaf targeting. npm run validate passes (exit 0)."
+    started_at: 2026-09-03
+    files_changed:
+      - path: src/scripts/lib/checks/shared.ts
+        operation: modify
+      - path: src/scripts/lib/checks/unique-ids.ts
+        operation: modify
+      - path: src/scripts/lib/checks/forbidden-words.ts
+        operation: modify
+      - path: src/scripts/lib/checks/ref-exists.ts
+        operation: modify
+      - path: src/scripts/lib/checks/duplicate-refs.ts
+        operation: modify
+      - path: test/unit/stage-checks.test.ts
+        operation: modify
+    completed_at: 2026-09-03
+  - id: TASK-004
+    title: Validate check-declaration paths against stage schemas
+    description: "Implement declaration path validation (CMP-003, DEC-003). Add pathParams metadata to
+      the check catalog in src/scripts/lib/checks/index.ts declaring which parameters bear paths —
+      unique-ids: arrays and unions; given-when-then: arrays; forbidden-words: fields including the
+      path key of object entries; ref-exists: to.arrays — a [].-bearing string in any other
+      parameter aborts as an unsupported path. In src/scripts/lib/validate.ts, before
+      runStageChecks, validate every parameter string containing []. within those path-bearing
+      subtrees against the stage schema: each segment must be a property declared in the schema at
+      its nesting depth, a segment followed by [] must be array-typed there, a collection selector
+      must end at an array-typed property, and a leaf selector must end at a string-typed property.
+      For ref-exists to.file targets, resolve the owning stage's schema through the stage registry;
+      a file no stage owns falls back to grammar checks only. Violations abort with a thrown Error
+      naming the stage folder and the declaration, mirroring the unknown-check abort at
+      checks/index.ts:62-66; no new errors.yaml codes (DEC-003). Run the same validation inside
+      bin/validate-policies.ts at startup. The metadata for given-when-then: arrays is declared here
+      ahead of the TASK-006 rename and is inert until a [].-bearing string appears in that
+      parameter. Done when: unit tests cover the malformed-path abort naming the stage folder and
+      declaration (AC-009), the grammar-only fallback for files no stage owns, and acceptance of the
+      current requirements forbidden-words declaration (whose fields already bear one-segment paths)
+      against the current requirements schema; and npm run validate passes."
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-003
+    acceptance_ids:
+      - AC-009
+    design_refs:
+      - DEC-003
+    depends_on:
+      - TASK-003
+    files:
+      - path: src/scripts/lib/validate.ts
+        operation: modify
+      - path: src/scripts/lib/checks/index.ts
+        operation: modify
+      - path: bin/validate-policies.ts
+        operation: modify
+      - path: test/unit/validate.test.ts
+        operation: modify
+    implementation_note: "Declaration path validation implemented (CMP-003, DEC-003). checks/index.ts:
+      CHECK_CATALOG entries gained optional pathParams metadata ({spec, kind}) — unique-ids: arrays
+      + unions[].arrays (collection), ref-exists: to.arrays (collection), given-when-then: arrays
+      (collection, declared ahead of the TASK-006 rename and inert until a [].-bearing string
+      appears there), forbidden-words: fields (leaf, covering string entries and the path key of
+      object entries). validate.ts: new exported validateCheckDeclarations(stage, checksDoc, cwd)
+      runs before runStageChecks inside validateArtifact and inside bin/validate-policies.ts at
+      startup (registry loaded once and shared with the requires-graph check); it (a) aborts any
+      [].-bearing parameter string outside the declared slots as an unsupported path, (b) enforces
+      the segment([].segment)* grammar (intermediate segments must bear [], final must not), and (c)
+      validates [].-bearing selectors against the governing schema — the stage's own schema.yaml, or
+      for ref-exists to.file the schema of the stage owning that artifact resolved through the
+      registry, with grammar-only fallback when no stage owns the file. Schema walk resolves local
+      draft-07  (ready for the TASK-006 definitions/criterion reference), requires each segment
+      declared at its nesting depth, []-marked segments array-typed, collection selectors ending
+      array-typed, leaf selectors ending string-typed. Violations throw an Error naming the stage
+      folder and the declaration, mirroring the unknown-check abort; no new errors.yaml codes.
+      artifact-paths.ts parsePathSpec exported so validator and resolver share one grammar
+      definition. Unit tests (9 new in validate.test.ts): current requirements declarations
+      accepted; unsupported-path abort naming stage folder + declaration (AC-009); malformed
+      intermediate-segment abort; undeclared-property abort; collection-not-array abort;
+      leaf-not-string abort; grammar-only fallback for a file no stage owns; owned-file schema
+      validation aborting on the same selector; valid owned-file path passing. npm run validate
+      passes (exit 0); bin/validate-policies.ts passes standalone (44 ok, 0 failed)."
+    started_at: 2026-09-03
+    files_changed:
+      - path: src/scripts/lib/validate.ts
+        operation: modify
+      - path: src/scripts/lib/checks/index.ts
+        operation: modify
+      - path: bin/validate-policies.ts
+        operation: modify
+      - path: src/scripts/lib/artifact-paths.ts
+        operation: modify
+      - path: test/unit/validate.test.ts
+        operation: modify
+    completed_at: 2026-09-03
+  - id: TASK-005
+    title: Widen next-id allocation to list-valued specs
+    description: "Widen next-id allocation for the nested shape (CMP-006, DEC-004, DM-004). In
+      src/scripts/lib/ids.ts, nextIdsFromArrays accepts a spec value of string or string list: a
+      string keeps today's top-level field behavior byte-identically; a list resolves each entry as
+      a path through the resolver module and unions the collected ids before nextId. Widen the
+      stage-registry nextIds typing (src/scripts/lib/stage-registry.ts:27 and the descriptor read at
+      :183) to Record<string, string | string[]>, and widen the stage meta-schema next_ids
+      additionalProperties (src/schemas/stage.schema.yaml:65-70) to string or string-array. This
+      task must land before TASK-006 because the requirements stage.yaml two-path AC spec fails
+      startup validation against the string-only meta-schema. No CLI flag, envelope field, or
+      command changes (NFR-002). Done when: unit tests cover string-spec byte-identity and list-spec
+      union allocation, and npm run validate passes."
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-006
+      - NFR-002
+    acceptance_ids:
+      - AC-020
+    design_refs:
+      - DEC-004
+    depends_on:
+      - TASK-002
+    files:
+      - path: src/scripts/lib/ids.ts
+        operation: modify
+      - path: src/scripts/lib/stage-registry.ts
+        operation: modify
+      - path: src/schemas/stage.schema.yaml
+        operation: modify
+      - path: test/unit/ids.test.ts
+        operation: modify
+    implementation_note: "nextIdsFromArrays now accepts a spec value of string or string list (CMP-006,
+      DEC-004, DM-004): a string keeps today's top-level field behavior byte-identically (same
+      map/filter path); a list resolves each entry as a path through resolveCollections and unions
+      the collected ids in a Set before nextId, so allocation continues the artifact-global sequence
+      across nested collections. stage-registry nextIds typing widened to Record<string, string |
+      string[]> at both the interface (line 27) and the descriptor read (line 183); stage
+      meta-schema next_ids additionalProperties widened to oneOf string / non-empty string-array. No
+      CLI flag, envelope field, or command changed (NFR-002) — authoring.ts consumers pass
+      stage.nextIds straight through and tsc is clean. Unit tests: string-spec byte-identity
+      (FR-003/AC-008/NFR-001 on the same fixture shape as the pre-existing test) and list-spec union
+      allocation (AC-001/002/003/005 union -> AC-006) plus empty/absent nested collections ->
+      AC-001. npm run validate passes (exit 0). Landed before TASK-006 as the plan requires, since
+      the two-path AC spec would fail the string-only meta-schema."
+    started_at: 2026-09-03
+    files_changed:
+      - path: src/scripts/lib/ids.ts
+        operation: modify
+      - path: src/scripts/lib/stage-registry.ts
+        operation: modify
+      - path: src/schemas/stage.schema.yaml
+        operation: modify
+      - path: test/unit/ids.test.ts
+        operation: modify
+    completed_at: 2026-09-03
+  - id: TASK-006
+    title: Reconfigure the requirements and planning stages for the nested format
+    description: "Land the atomic format flip (CMP-002 part 2, CMP-004, CMP-005). The unit suite is red
+      on flat fixtures between this task and TASK-007; the two tasks form one green unit, and no
+      pipeline flow re-validates archived artifacts in between (DEC-006). This task's own completion
+      criterion is stage-folder and catalog consistency, not the full suite. Parts: (a)
+      Check-library breaking changes — rename the given-when-then parameter array to arrays
+      accepting a string or string list (a list evaluates the union) with findings targeted at the
+      full nested statement path, route it through the resolver, and update the catalog
+      requiredParams; delete src/scripts/lib/checks/referenced-by.ts and its catalog entry, leaving
+      ten named checks (AC-014); a stage still declaring referenced-by then fails startup with the
+      unknown-check error naming the stage folder (AC-015). (b) Requirements schema.yaml — remove
+      the top-level acceptance_criteria property and requirement, remove ac_ids from FR and NFR
+      entries, nest a required acceptance_criteria array (minItems 1) inside each FR and NFR entry,
+      declare the criterion item once under definitions (id matching ^AC-[0-9]{3}$, statement,
+      category enum happy/edge/negative/boundary) referenced from both entry types, and reject the
+      retired fields by name through boolean-false property schemas — acceptance_criteria: false at
+      the root, ac_ids: false on FR and NFR entries, parent_id: false on criterion items — declared
+      in addition to additionalProperties: false, so the rendered findings carry the retired field
+      in the instance path (DEC-005, AC-003, AC-004, AC-005, AC-006). (c) Requirements template.yaml
+      — drop the top-level acceptance_criteria key and seed functional_requirements with one
+      scaffold entry (id FR-001, a replace-me description, and a nested acceptance_criteria array
+      holding one example criterion: id AC-001, a Given-When-Then statement, category happy)
+      conforming to the new schema and passing the given-when-then and forbidden-word checks
+      (DEC-009, AC-019). (d) Requirements structural-checks.yaml rewrite — unique-ids with
+      plain-name scopes for functional_requirements, non_functional_requirements, and discovery_log
+      plus one unions group over functional_requirements[].acceptance_criteria and
+      non_functional_requirements[].acceptance_criteria (AC-010); given-when-then with the two-path
+      arrays list (AC-011); forbidden-words fields over problem_statement, both description paths,
+      and both nested statement paths (AC-012); delete the six dead declarations (ref-exists x3,
+      referenced-by, duplicate-refs x2 on ac_ids) so no declaration references ac_ids or parent_id
+      (AC-013); keep sentence-count untouched. (e) Requirements semantic-checks.yaml — rewrite the
+      line-15 question to name the nested per-requirement arrays; steps.yaml — replace the authoring
+      guidance paragraph with nested-criteria instruction and drop the parent_id authoring language
+      at line 46 (AC-021); stage.yaml — change the next_ids AC spec to the two-path list (AC-020).
+      (f) Planning structural-checks.yaml — point the tasks[].acceptance_ids ref-exists at to.file
+      requirements.yaml with to.arrays as the two path entries
+      functional_requirements[].acceptance_criteria and
+      non_functional_requirements[].acceptance_criteria and field id (AC-016, AC-017, AC-018); the
+      planning schema, the ^AC-[0-9]{3}$ pattern, and every other planning declaration stay
+      untouched. (g) bin/validate-templates.ts — drop acceptance_criteria from the requirements
+      required-key list and assert the template seeds at least one requirement entry carrying a
+      non-empty nested acceptance_criteria array, pinning AC-019 at the npm run validate gate; this
+      file is listed under CMP-007 in the design but lands here because the template reshape breaks
+      the required-key check. Done when: bin/validate-templates.ts passes; bin/lint-artifact.ts on a
+      hand-written nested sample requirements artifact reports no findings; the requirements stage
+      loads with ten checks and no retired declaration; known-red: unit tests building flat
+      fixtures, restored by TASK-007."
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-001
+      - FR-002
+      - FR-004
+      - FR-005
+      - FR-006
+      - NFR-002
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-006
+      - AC-010
+      - AC-011
+      - AC-012
+      - AC-013
+      - AC-014
+      - AC-015
+      - AC-016
+      - AC-017
+      - AC-018
+      - AC-019
+      - AC-020
+      - AC-021
+    design_refs:
+      - DEC-002
+      - DEC-005
+      - DEC-006
+      - DEC-009
+    depends_on:
+      - TASK-003
+      - TASK-004
+      - TASK-005
+    files:
+      - path: src/scripts/lib/checks/given-when-then.ts
+        operation: modify
+      - path: src/scripts/lib/checks/referenced-by.ts
+        operation: delete
+      - path: src/scripts/lib/checks/index.ts
+        operation: modify
+      - path: src/stages/requirements/schema.yaml
+        operation: modify
+      - path: src/stages/requirements/template.yaml
+        operation: modify
+      - path: src/stages/requirements/structural-checks.yaml
+        operation: modify
+      - path: src/stages/requirements/semantic-checks.yaml
+        operation: modify
+      - path: src/stages/requirements/steps.yaml
+        operation: modify
+      - path: src/stages/requirements/stage.yaml
+        operation: modify
+      - path: src/stages/planning/structural-checks.yaml
+        operation: modify
+      - path: bin/validate-templates.ts
+        operation: modify
+    implementation_note: "Format flip landed atomically (CMP-002 part 2, CMP-004, CMP-005, CMP-007
+      validate-templates part). (a) Check library: given-when-then renamed to arrays (string or
+      string list, list evaluates the union via resolveCollections, findings targeted at the full
+      nested statement path functional_requirements[0].acceptance_criteria[1].statement;
+      single-segment specs byte-identical with the old array param); referenced-by.ts deleted and
+      its catalog entry removed — exactly ten named checks remain (AC-014), a stage still declaring
+      it fails with the unknown-check error naming the stage folder (AC-015); catalog requiredParams
+      updated to arrays. (b) Requirements schema.yaml: top-level acceptance_criteria property and
+      required entry removed; ac_ids removed from FR/NFR; required nested acceptance_criteria
+      (minItems 1) inside each FR and NFR entry via definitions.nested_criteria ->
+      definitions.criterion (, id ^AC-[0-9]{3}$, statement, category enum, additionalProperties
+      false); retired fields rejected by name through literal boolean-false property schemas IN
+      ADDITION TO additionalProperties false — acceptance_criteria: false at root, ac_ids: false on
+      FR/NFR entries, parent_id: false on criterion items; verified against Ajv 8.20.0 that all
+      three pinned strings render verbatim: '/acceptance_criteria boolean schema is false',
+      '/functional_requirements/0/ac_ids boolean schema is false',
+      '/functional_requirements/0/acceptance_criteria/0/parent_id boolean schema is false'
+      (AC-003..006). (c) template.yaml: top-level acceptance_criteria dropped;
+      functional_requirements seeds FR-001 (replace-me EARS description) with nested AC-001
+      Given-When-Then happy criterion; scaffold verified schema-conformant and passing
+      given-when-then + forbidden-words (only the expected advisory sentence-count on the empty
+      problem_statement); fresh-scaffold allocation continues past the scaffold (AC-002) via the
+      two-path spec. (d) structural-checks.yaml rewritten: unique-ids plain-name scopes
+      FR/NFR/discovery_log + one unions group over both nested criteria paths (AC-010);
+      given-when-then two-path arrays list (AC-011); forbidden-words over problem_statement, both
+      description paths, both nested statement paths (AC-012); six dead declarations deleted
+      (ref-exists x3, referenced-by, duplicate-refs x2) — no declaration references ac_ids or
+      parent_id (AC-013); sentence-count untouched. (e) semantic-checks.yaml line-15 rewritten to
+      name the nested per-requirement arrays; steps.yaml authoring paragraph now instructs nested
+      criteria and the parent_id language is dropped (AC-021); stage.yaml AC spec is the two-path
+      list (AC-020). (f) planning structural-checks.yaml tasks[].acceptance_ids ref-exists now
+      to.arrays two path entries with field id (AC-016..018); planning schema and all other
+      declarations untouched. (g) validate-templates.ts: acceptance_criteria dropped from the
+      required-key list and a new assertion pins at least one requirement entry carrying a non-empty
+      nested acceptance_criteria array (AC-019). Gates: bin/validate-templates.ts exit 0;
+      bin/lint-artifact.ts on a hand-written nested sample reports zero findings; CARRY ADVISORY npm
+      run validate:policies run explicitly and PASSES (exit 0, 44 ok results); declaration path
+      validation accepts all rewritten declarations (definitions  resolution exercised by the
+      criterion reference). Known-red per RISK-003: 37 flat-fixture unit failures across
+      envelope-state-flags (2), requirements-stage (1), review-round-contract (21), stage-checks
+      (8), stage-registry (1), validate (4) — restored by TASK-007. The six TASK-003 pinning tests
+      still pass verbatim; the pinning change-root fixture requirements.yaml was updated to the
+      nested format because the planning acceptance-ids declaration itself changed in this task (the
+      byte-identity guarantee covers the routing refactor and the unchanged design/planning
+      declarations, re-confirmed in TASK-007). RISK-004 respected: no planning --finalize or
+      lint-artifact re-run against this change's own old-format requirements.yaml."
+    started_at: 2026-09-03
+    files_changed:
+      - path: src/scripts/lib/checks/given-when-then.ts
+        operation: modify
+      - path: src/scripts/lib/checks/referenced-by.ts
+        operation: delete
+      - path: src/scripts/lib/checks/index.ts
+        operation: modify
+      - path: src/stages/requirements/schema.yaml
+        operation: modify
+      - path: src/stages/requirements/template.yaml
+        operation: modify
+      - path: src/stages/requirements/structural-checks.yaml
+        operation: modify
+      - path: src/stages/requirements/semantic-checks.yaml
+        operation: modify
+      - path: src/stages/requirements/steps.yaml
+        operation: modify
+      - path: src/stages/requirements/stage.yaml
+        operation: modify
+      - path: src/stages/planning/structural-checks.yaml
+        operation: modify
+      - path: bin/validate-templates.ts
+        operation: modify
+      - path: test/unit/stage-checks.test.ts
+        operation: modify
+    completed_at: 2026-09-03
+  - id: TASK-007
+    title: Migrate flat-format fixtures and complete the unit-coverage list
+    description: "Consumer and test migration (CMP-007, DEC-008). Migrate the shared validRequirements
+      builder in test/helpers/artifacts.ts to the nested shape first — criteria nested under the
+      FR-001 and NFR-001 entries, no ac_ids, no top-level acceptance_criteria, no parent_id — then
+      the five unit files that build flat fixtures directly (test/unit/validate.test.ts,
+      test/unit/stage-checks.test.ts, test/unit/ids.test.ts,
+      test/unit/review-round-contract.test.ts, test/unit/stage-registry.test.ts); helper-only
+      consumers (requirements-stage, envelope-state-flags, and the seven e2e files) inherit the
+      migrated builder without edits beyond assertions that reference retired fields. Remove the
+      top-level acceptance_criteria key from the two fixture artifacts under
+      test/fixtures/agentic-project/docs/changes/add-a-health-endpoint/ and
+      add-a-health-endpoint-2/. Complete the CMP-007 unit-coverage list: the three pinned
+      boolean-false finding strings verbatim — '/acceptance_criteria boolean schema is false',
+      '/functional_requirements/0/ac_ids boolean schema is false',
+      '/functional_requirements/0/acceptance_criteria/0/parent_id boolean schema is false' — pinning
+      AC-003 and AC-004; path-addressed ref-exists tests pinning AC-016 (an FR-nested reference
+      resolves), AC-017 (a missing reference produces the blocking finding), and AC-018 (an
+      NFR-nested reference resolves through the union); the ten-check catalog test with
+      referenced-by absent (AC-014) and the startup-error test for a stage declaring referenced-by
+      after its removal (AC-015); the nested next-ids allocation test (a fresh scaffold artifact
+      allocates AC-002, AC-020); cross-FR/NFR duplicate detection naming both containing
+      requirements (AC-010); nested given-when-then and forbidden-word finding targets (AC-011,
+      AC-012); schema findings for an empty nested array (AC-005) and a missing criterion property
+      (AC-006); nested-shape recognition without parent_id or ac_ids (AC-001, AC-002); and
+      confirmation that the byte-identical pinning tests from TASK-003 still pass for the unchanged
+      design and planning declarations. E2e authoring flows overwrite the scaffold entry through
+      --update-artifact, so no assertion depends on scaffold content surviving. Done when: npm run
+      validate passes with the full unit suite green."
+    type: test
+    status: done
+    complexity: high
+    covers:
+      - FR-001
+      - FR-002
+      - FR-004
+      - FR-005
+      - FR-006
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-006
+      - AC-010
+      - AC-011
+      - AC-012
+      - AC-014
+      - AC-015
+      - AC-016
+      - AC-017
+      - AC-018
+      - AC-020
+    design_refs:
+      - DEC-005
+      - DEC-008
+      - DEC-009
+    depends_on:
+      - TASK-006
+    files:
+      - path: test/helpers/artifacts.ts
+        operation: modify
+      - path: test/unit/validate.test.ts
+        operation: modify
+      - path: test/unit/stage-checks.test.ts
+        operation: modify
+      - path: test/unit/ids.test.ts
+        operation: modify
+      - path: test/unit/review-round-contract.test.ts
+        operation: modify
+      - path: test/unit/stage-registry.test.ts
+        operation: modify
+      - path: test/fixtures/agentic-project/docs/changes/add-a-health-endpoint/requirements.yaml
+        operation: modify
+      - path: test/fixtures/agentic-project/docs/changes/add-a-health-endpoint-2/requirements.yaml
+        operation: modify
+    implementation_note: "Fixture migration and CMP-007 coverage complete. test/helpers/artifacts.ts
+      validRequirements migrated first: criteria nested under FR-001 (AC-001 happy) and NFR-001
+      (AC-002 boundary), no ac_ids, no top-level acceptance_criteria, no parent_id — helper-only
+      consumers (requirements-stage, envelope-state-flags, seven e2e files) inherited it with no
+      edits. The five unit files migrated: stage-checks.test.ts (local REQUIREMENTS_CHECKS doc
+      rewritten to the live nested declarations incl. unions group; baseRequirements nested; the
+      orphan-AC referenced-by test removed with the deleted check; Given/When/Then missing-then test
+      now asserts the full nested target
+      functional_requirements[0].acceptance_criteria[0].statement); review-round-contract.test.ts
+      breakArtifact now duplicates a criterion inside
+      functional_requirements[0].acceptance_criteria; stage-registry.test.ts nextIds assertion
+      expects the two-path AC list; validate.test.ts planning fixture requirements.yaml rewritten to
+      nested criteria; ids.test.ts unchanged except additions. Both fixture artifacts dropped the
+      top-level acceptance_criteria key. Coverage list completed: three pinned boolean-false strings
+      verbatim on a re-retired artifact (AC-003, AC-004); path-addressed ref-exists triple as
+      explicit tests — FR-nested resolves (AC-016), missing reference blocking with exact finding
+      text (AC-017), NFR-nested resolves through the union (AC-018); ten-check catalog pinned by
+      name with referenced-by absent (AC-014) and the referenced-by startup-error test naming stage
+      folder + check (AC-015); fresh-scaffold allocation test reading the real template pins
+      AC-002/FR-002 (AC-020); cross-FR/NFR duplicate naming both containing requirements (AC-010,
+      from TASK-003); nested given-when-then target (AC-011) and multi-segment forbidden-word target
+      (AC-012); empty nested array minItems finding (AC-005) and missing criterion property finding
+      (AC-006); nested-shape recognition without parent_id/ac_ids/top-level list (AC-001, AC-002);
+      all six byte-identical pinning tests still pass for the unchanged design and planning
+      declarations. npm run validate passes (exit 0, 293 unit tests green)."
+    started_at: 2026-09-03
+    files_changed:
+      - path: test/helpers/artifacts.ts
+        operation: modify
+      - path: test/unit/validate.test.ts
+        operation: modify
+      - path: test/unit/stage-checks.test.ts
+        operation: modify
+      - path: test/unit/ids.test.ts
+        operation: modify
+      - path: test/unit/review-round-contract.test.ts
+        operation: modify
+      - path: test/unit/stage-registry.test.ts
+        operation: modify
+      - path: test/fixtures/agentic-project/docs/changes/add-a-health-endpoint/requirements.yaml
+        operation: modify
+      - path: test/fixtures/agentic-project/docs/changes/add-a-health-endpoint-2/requirements.yaml
+        operation: modify
+    completed_at: 2026-09-03
+  - id: TASK-008
+    title: Align governing documentation with the nested format
+    description: "Governing documentation consistency (CMP-008, NFR-003). Update AGENTS.md section 5 to
+      describe the nested per-requirement criteria shape and the ten-check catalog, replacing the
+      merged-list wording and dropping referenced-by from the enumerated check catalog (AC-024).
+      Regenerate codemap.md and src/stages/codemap.md through the codemap skill — codemap files are
+      generated documentation and are never edited by hand (repository rule 11). Verify the change's
+      delta entries across requirements.yaml, design.yaml, and this plan coherently record the
+      format decision, the path-addressing mechanism, and the declaration conventions for knowledge
+      extraction (AC-025). Done when: AGENTS.md section 5 names the nested shape and the ten-check
+      catalog, the codemaps are regenerated via the codemap skill, and the delta entries across the
+      three artifacts are coherent."
+    type: documentation
+    status: done
+    complexity: low
+    covers:
+      - NFR-003
+    acceptance_ids:
+      - AC-024
+      - AC-025
+    depends_on:
+      - TASK-007
+    files:
+      - path: AGENTS.md
+        operation: modify
+      - path: codemap.md
+        operation: modify
+      - path: src/stages/codemap.md
+        operation: modify
+    implementation_note: "AGENTS.md section 5 updated (AC-024): the authoring-kind paragraph now
+      describes acceptance criteria NESTED inside their owning requirement (each FR and NFR entry
+      holds a required acceptance_criteria array minItems 1 of id/Given-When-Then statement/category
+      criteria; no top-level list, no ac_ids, no parent_id, no scenarios list, no promotion pass),
+      and the capped-check-catalog section enumerates TEN checks (referenced-by dropped) plus the
+      segment([].segment)* path-selector convention and the unique-ids unions parameter. Codemaps
+      regenerated through the codemap skill ONLY (never hand-edited outside it): ran codemap.mjs
+      changes (1 added artifact-paths.ts, 1 removed referenced-by.ts, 20 modified, 10 folders
+      affected), updated every affected folder's codemap — src/scripts/lib/checks/ (ten-check table,
+      unions/pathParams, resolver delegation, declaration-validation sequence), src/scripts/lib/
+      (validateCheckDeclarations, artifact-paths.ts module entry, list-valued next_ids, updated
+      pipeline layering), src/stages/ (requirements nested-criteria row, planning path-addressed
+      acceptance_ids row, path-addressed declaration convention), bin/ (validate-policies
+      declaration validation + shared registry load, validate-templates nested-scaffold assertion),
+      src/ (stage.schema.yaml next_ids string|string[]), root codemap.md (checks ten, lib resolver
+      mention) — then codemap.mjs update saved state (115 files). Subagent delegation was
+      unavailable (depth limit), so folder updates ran sequentially per the skill's
+      sequential-tool-call fallback. Delta coherence verified (AC-025): requirements.yaml delta
+      records the format decision + authoring convention + path-addressed checks; design.yaml delta
+      records the dedicated resolver module + unions scopes + declaration conventions; plan.yaml
+      delta records architecture.md (resolver, declaration validation, path-addressed planning refs)
+      and conventions.md (nested criteria, path selectors, unions, ten-check catalog) — the three
+      artifacts coherently record the format decision, the path-addressing mechanism, and the
+      declaration conventions for knowledge extraction."
+    started_at: 2026-09-03
+    files_changed:
+      - path: AGENTS.md
+        operation: modify
+      - path: codemap.md
+        operation: modify
+      - path: src/stages/codemap.md
+        operation: modify
+      - path: src/codemap.md
+        operation: modify
+      - path: src/scripts/codemap.md
+        operation: modify
+      - path: src/scripts/lib/codemap.md
+        operation: modify
+      - path: src/scripts/lib/checks/codemap.md
+        operation: modify
+      - path: bin/codemap.md
+        operation: modify
+    completed_at: 2026-09-03
+  - id: TASK-009
+    title: Run the full verification gate and regenerate the deployed bundle
+    description: "Final verification per AGENTS.md sections 1 and 9. Run npm run validate (the schemas,
+      policies, templates, typecheck, and unit-test gate), npm run check:all (unit plus e2e plus
+      deploy smoke), and npm run deploy:smoke, which regenerates the .opencode bundle with the
+      reconfigured stages, schemas, and checks — the bundle is a build artifact and is never edited
+      by hand (DEC-007). Confirm the requirements stage flag surface is unchanged by comparing sdlc
+      requirements --help output against the pre-change surface captured in TASK-001: no new flags,
+      commands, or envelope fields (AC-023, NFR-002). Confirm the e2e authoring, review, and
+      planning flows pass against the nested format, closing the hidden-consumer risk end to end.
+      Done when: all three commands pass and the flag-surface comparison shows no additions."
+    type: verification
+    status: done
+    complexity: low
+    covers:
+      - FR-001
+      - NFR-002
+    acceptance_ids:
+      - AC-023
+    depends_on:
+      - TASK-008
+    files: []
+    implementation_note: "Full verification gate passed (AGENTS.md §1/§9). npm run validate: exit 0
+      (schemas + policies + templates + typecheck + 293 unit tests green). npm run check:all: exit 0
+      (293 unit + 51 e2e — the authoring, review, and planning e2e flows pass against the nested
+      format, closing the hidden-consumer risk RISK-001 end to end). npm run deploy:smoke: exit 0
+      (bundle built to .tmp/agent with the reconfigured stages — unions group present, referenced-by
+      absent — and all six rendered agents smoke-passed). AC-023 flag-surface comparison: sdlc
+      requirements --help output diffed byte-identical against the TASK-001 pre-change baseline — no
+      new flags, commands, or envelope fields (NFR-002); re-verified against the deployed bundle CLI
+      after regeneration. Deviation note: the plan said deploy:smoke regenerates the .opencode
+      bundle, but the script actually deploys to .tmp/agent (--dest .tmp/agent --clean); the
+      .opencode bundle was therefore regenerated through the sanctioned deploy path
+      bin/deploy-to-agent.ts --dest .opencode --clean (AGENTS.md §10 — build artifact regenerated by
+      tool, never hand-edited), and the deployed stages now carry the nested declarations with the
+      flag surface unchanged. RISK-004 respected throughout: no planning --finalize and no
+      lint-artifact run against this change's own archived old-format requirements.yaml."
+    started_at: 2026-09-03
+    files_changed: []
+    completed_at: 2026-09-03
+milestones:
+  - id: M1
+    title: Additive foundation — resolver, check routing, declaration validation, allocation widening
+    tasks:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+      - TASK-005
+    done_when: npm run validate passes with the resolver module, the additive check routing, the
+      declaration path validation, and the widened next-id allocation in place; every pre-existing
+      unit test passes byte-identically, including the pinning tests recorded in TASK-003; no
+      stage-folder declaration and no artifact format has changed yet.
+  - id: M2
+    title: Format flip — nested requirements contract and consumer migration
+    tasks:
+      - TASK-006
+      - TASK-007
+    done_when: "npm run validate passes with the nested requirements contract live: retired fields
+      rejected by named boolean-false findings, the ten-check catalog with referenced-by absent, the
+      path-addressed planning ref-exists declaration, migrated fixtures and helpers, and the full
+      CMP-007 unit-coverage list green, including the three pinned finding strings and the
+      path-addressed ref-exists triple."
+  - id: M3
+    title: Documentation and final verification
+    tasks:
+      - TASK-008
+      - TASK-009
+    done_when: AGENTS.md section 5 describes the nested per-requirement criteria shape and the ten-check
+      catalog, the codemaps are regenerated through the codemap skill, and npm run validate, npm run
+      check:all, and npm run deploy:smoke all pass with the requirements flag surface unchanged.
+risks:
+  - id: RISK-001
+    description: A script, template, test, or skill-manifest entry outside the design's inventory reads
+      the top-level acceptance_criteria array, ac_ids, or parent_id and breaks silently after the
+      format flip — the requirements' unverified hidden-consumer assumption.
+    mitigation: TASK-001 re-verifies the design's consumer inventory across src/, bin/, test/, and the
+      skill manifest before any file is touched, and npm run check:all in TASK-009 exercises the
+      authoring, review, and planning e2e flows against the nested format.
+  - id: RISK-002
+    description: Multi-segment path resolution alters targets or findings for existing single-segment
+      declarations in the design, planning, or the unchanged requirements declarations.
+    mitigation: The resolver collapses single-segment specs to the current getTopArray/resolvePath
+      behavior (TASK-002), and the byte-identical pinning tests captured in TASK-001 and recorded in
+      TASK-003 must stay green through the flip (TASK-007).
+  - id: RISK-003
+    description: The format flip is atomic across the requirements schema, template, check renames, and
+      fixtures; between TASK-006 and TASK-007 the unit suite is red on flat fixtures.
+    mitigation: TASK-006 and TASK-007 are sequenced back-to-back and form one green unit; TASK-006's own
+      criterion is stage-folder consistency, validate-templates, and lint on a nested sample; no
+      pipeline flow re-validates archived artifacts inside the window (DEC-006).
+  - id: RISK-004
+    description: Once the planning ref-exists declaration targets the two nested criteria paths,
+      re-running planning validation against this change's own old-format requirements.yaml would
+      report every acceptance_id as a missing reference, because the union of nested arrays in that
+      artifact is empty.
+    mitigation: Planning is finalized and reviewed before implementation begins; the implementation
+      stage reads plan.yaml without re-running the planning structural checks (verified against
+      src/scripts/lib/kinds/tasks.ts during planning); this change's requirements.yaml is archived
+      old-format and is never migrated (DEC-006).
+  - id: RISK-005
+    description: The three pinned boolean-false finding strings depend on the repository's Ajv 8.20.0
+      rendering rule (instancePath plus message); a dependency upgrade could change the rendered
+      text and break the pinned tests.
+    mitigation: The strings are pinned verbatim in unit tests (TASK-007), so any rendering change
+      surfaces as a visible test failure in npm run validate rather than a silent behavior change.
+  - id: RISK-006
+    description: The template's example criterion AC-001 participates in next-id allocation, so a
+      freshly initialized artifact allocates AC-002; an authoring agent reusing AC-001 for a real
+      criterion collides with the scaffold entry until it is replaced.
+    mitigation: steps.yaml instructs the authoring agent to replace the scaffold entry with real
+      requirements and criteria, and the nested allocation test pins AC-002 on a fresh scaffold
+      (TASK-007).
+delta:
+  - phase: Planning
+    target_doc: docs/current/architecture.md
+    target_anchor: null
+    entity_id: null
+    change: Modify
+    reason: The check library resolves multi-segment array paths through a shared artifact-path resolver
+      also used by next-id allocation; declaration path validation against stage schemas aborts
+      malformed check declarations inside validateArtifact and the startup policy gate; planning
+      validates task acceptance-id references through path-addressed ref-exists into the nested
+      per-requirement criteria arrays.
+    date: 2026-09-03
+  - phase: Planning
+    target_doc: docs/current/conventions.md
+    target_anchor: null
+    entity_id: null
+    change: Modify
+    reason: Requirements artifacts carry acceptance criteria nested inside their owning requirement with
+      no ac_ids or parent_id cross-reference fields; structural-check declarations address nested
+      collections through segment([].segment)* path selectors and declare cross-path uniqueness
+      through the unique-ids unions parameter; the check catalog registers ten named checks after
+      referenced-by is removed.
+    date: 2026-09-03

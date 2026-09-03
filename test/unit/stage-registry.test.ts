@@ -263,11 +263,14 @@ test('the migrated repository stages are all discovered with the expected kinds'
     assert.equal(stage.files.schema, null);
   }
 
-  // next_ids mapping lives in stage.yaml.
+  // next_ids mapping lives in stage.yaml; the AC spec is the two-path list.
   assert.deepEqual(byId.get('requirements').nextIds, {
     FR: 'functional_requirements',
     NFR: 'non_functional_requirements',
-    AC: 'acceptance_criteria',
+    AC: [
+      'functional_requirements[].acceptance_criteria',
+      'non_functional_requirements[].acceptance_criteria',
+    ],
     DL: 'discovery_log',
     SC: 'scenarios',
   });

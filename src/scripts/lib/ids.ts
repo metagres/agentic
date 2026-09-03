@@ -1,3 +1,5 @@
+import { resolveCollections } from './artifact-paths.ts';
+
 export function today(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -18,16 +20,35 @@ export function nextId(existingIds: string[] = [], prefix: string = 'ID'): strin
   return `${prefix}-${String(next).padStart(3, '0')}`;
 }
 
-export function nextIdsFromArrays(artifact: Record<string, unknown>, specs: Record<string, string>): Record<string, string> {
+export function nextIdsFromArrays(
+  artifact: Record<string, unknown>,
+  specs: Record<string, string | string[]>
+): Record<string, string> {
   const result: Record<string, string> = {};
 
-  for (const [prefix, field] of Object.entries(specs)) {
-    const arr = Array.isArray(artifact?.[field]) ? artifact[field] as { id?: string }[] : [];
+  for (const [prefix, spec] of Object.entries(specs)) {
+    let ids: string[];
 
-    result[prefix] = nextId(
-      arr.map((item: { id?: string }) => item?.id).filter((id): id is string => id !== undefined),
-      prefix
-    );
+    if (typeof spec === 'string') {
+      // A string spec keeps today's top-level field behavior byte-identically.
+      const arr = Array.isArray(artifact?.[spec]) ? artifact[spec] as { id?: string }[] : [];
+      ids = arr.map((item: { id?: string }) => item?.id).filter((id): id is string => id !== undefined);
+    } else {
+      // A list spec resolves each entry as a path through the artifact path
+      // resolver and unions the collected ids before nextId (DEC-004).
+      const collected = new Set<string>();
+      for (const entry of spec) {
+        for (const collection of resolveCollections(artifact, String(entry))) {
+          for (const item of collection.items) {
+            const id = item?.id;
+            if (typeof id === 'string') collected.add(id);
+          }
+        }
+      }
+      ids = [...collected];
+    }
+
+    result[prefix] = nextId(ids, prefix);
   }
 
   return result;

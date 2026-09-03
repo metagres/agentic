@@ -12,5 +12,5 @@ checks:
   - "Could any requirement or acceptance criterion be read in more than one way by a machine consumer? If so, split it, add precision, or record a discovery question."
   - "Is each requirement description phrased in EARS form (When <trigger>, the system shall <response>) or an equally unambiguous pattern?"
   - "Does each requirement describe exactly one verifiable behavior, with no conjunctions joining unrelated behaviors?"
-  - "Does the single categorized acceptance_criteria list cover happy, edge, negative, and boundary cases for the core behaviors, with each criterion's parent_id naming the FR or NFR it verifies?"
+  - "Do the acceptance criteria nested under the functional and non-functional requirements cover happy, edge, negative, and boundary cases for the core behaviors, with each criterion verifying the requirement that carries it?"
   - "Do delta entries plausibly describe the living docs affected by the requirements?"

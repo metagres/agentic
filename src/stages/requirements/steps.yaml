@@ -42,11 +42,11 @@ steps:
       - Assumptions: list every assumption implied by the request and the
         discovery answers, classifying each as verified or unverified.
       - Acceptance criteria: author every criterion directly in Given-When-Then
-        form, each with a category (happy, edge, negative, boundary) and a
-        parent_id linked to the FR or NFR it verifies. Cover every category for
-        the core behaviors. There is no separate promotion or back-fill pass: an
-        example is authored as an acceptance criterion or it does not enter the
-        artifact.
+        form, each with a category (happy, edge, negative, boundary), nested in
+        the acceptance_criteria array of the FR or NFR entry it verifies. Cover
+        every category for the core behaviors. There is no separate promotion
+        or back-fill pass: an example is authored as an acceptance criterion
+        inside its owning requirement or it does not enter the artifact.
       - Delta: determine which living docs are affected and append entries via
         --append-delta (allowed targets: `data.delta_allowed_target_docs`) or
         include them in --update-artifact. Knowledge extraction dedupes.

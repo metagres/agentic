@@ -1,0 +1,313 @@
+metadata:
+  artifact: design.yaml
+  target: design
+  latest_round: 3
+  created: 2026-09-03
+  updated: 2026-09-03
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-03T12:11:07.876Z
+    artifact_version: 0.1.0
+    decision: rejected
+    status: closed
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    findings:
+      - target: AC-019 / CMP-004
+        finding: BLOCKING — Requirements AC-019 (requirements.yaml:301-303) requires the scaffold to show
+          acceptance_criteria nested inside each requirement entry. CMP-004 (design.yaml:86-87)
+          keeps the template's FR/NFR arrays empty and delegates the demonstration to steps.yaml
+          guidance — but the scaffold is the parsed template (deepClone(readYaml(...)),
+          src/scripts/lib/kinds/authoring.ts:83), so guidance text never enters it, and comments
+          would not survive init either. The guidance is AC-021's subject, not AC-019's. Under the
+          non-vacuous reading the conjunct is unmet; under the vacuous reading it is redundant with
+          the second conjunct. AC-019 as written would not hold.
+        fix: "Design must specify a literal nested example in template.yaml: at least one FR or NFR scaffold
+          entry carrying a nested acceptance_criteria array (with an example criterion entry), so
+          the parsed scaffold itself shows the nested shape. Update CMP-004 accordingly."
+      - target: design.yaml semantic checks 2-6
+        finding: "ADVISORY — Semantic checks 2 through 6 re-verified pass against source: component
+          disjointness, DM-001..004 consistent with schema.yaml/ids.ts/stage-registry.ts/
+          stage.schema.yaml, failure-path mechanisms, DEC grounding including the consumed falsified
+          assumptions from the requirements review round, delta plausibility."
+        fix: No action; recorded as review evidence.
+    warnings: []
+  - round: 2
+    reviewed_at: 2026-09-03T12:16:18.966Z
+    artifact_version: 0.1.1
+    decision: rejected
+    status: closed
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    semantic:
+      results:
+        - check_id: Is every FR and NFR from requirements.yaml covered by at least one traceability entry and
+            design element?
+          status: pass
+          evidence: "All nine requirements FR-001..FR-006 and NFR-001..NFR-003 have traceability entries
+            (design.yaml:344-380) mapping to components with concrete mechanisms: FR-001/FR-002 to
+            CMP-004 schema reshape plus DEC-005; FR-003 to CMP-001/CMP-002/CMP-003 (resolver, check
+            adoption, declaration validation); FR-004 to CMP-002 catalog reduction (eleven checks
+            verified at src/scripts/lib/checks/index.ts:20-32) and CMP-004 declaration rewrite (the
+            six dead declarations verified at src/stages/requirements/structural-checks.yaml:10-59);
+            FR-005 to CMP-005 (declaration verified at
+            src/stages/planning/structural-checks.yaml:28-37); FR-006 to CMP-004/CMP-006/CMP-007;
+            NFR-001 to CMP-001 purity (no I/O, no ambient state); NFR-002 honored by omission across
+            all components with the envelope-shape claim in the allocation flow (design.yaml:242);
+            NFR-003 to CMP-008 and the three delta entries."
+        - check_id: Are component responsibilities clear, non-overlapping, and testable?
+          status: pass
+          evidence: "Eight components with disjoint concerns: CMP-001 owns the resolver (pure functions,
+            grammar and empty-collection semantics specified); CMP-002 the per-check adoption and
+            catalog reduction; CMP-003 declaration validation with named insertion points (inside
+            validateArtifact ahead of runStageChecks, verified at src/scripts/lib/validate.ts:72-81,
+            and bin/validate-policies.ts at startup); CMP-004/CMP-005 stage-folder reconfiguration
+            enumerated per file; CMP-006 the ids.ts/stage-registry/stage.schema widening (current
+            shapes verified: ids.ts:21-34 Record<string, string> top-field specs,
+            stage-registry.ts:27 nextIds typing, stage.schema.yaml:65-70 string-only
+            additionalProperties); CMP-007 tests and fixtures; CMP-008 governing docs. The shared
+            file checks/index.ts between CMP-002 and CMP-003 carries disjoint concerns (catalog
+            entry removal vs pathParams metadata). Testability is specified per component through
+            CMP-007's coverage list."
+        - check_id: Are data models consistent with the requirements and APIs?
+          status: fail
+          evidence: "DM-001 and DEC-005 claim additionalProperties false alone delivers FR-002's rejection
+            with findings naming the retired field (AC-003 requirements.yaml:206-211: naming the
+            top-level acceptance_criteria property as not allowed; AC-004 requirements.yaml:212-217:
+            naming the retired field). Empirically false with the repository's own Ajv (allErrors:
+            true, the exact proposed schema shape including definitions/$ref and
+            additionalProperties false at both levels): validate.ts:48 renders findings as
+            instancePath plus message, and Ajv's additionalProperties message is the static 'must
+            NOT have additional properties' with the property name only in
+            err.params.additionalProperty, which validate.ts never renders. Rendered findings: 'doc
+            must NOT have additional properties' (top-level acceptance_criteria),
+            '/functional_requirements/0 must NOT have additional properties' (ac_ids),
+            '/functional_requirements/0/acceptance_criteria/0 must NOT have additional properties'
+            (parent_id). No finding names the retired field. Contrast: the required keyword
+            interpolates the missing property ('must have required property category'), so AC-006's
+            naming is satisfiable; the gap is specific to additionalProperties. The design specifies
+            no validate.ts rendering change (validate.ts appears only in CMP-003, for
+            declaration-path validation)."
+        - check_id: Does the design address the failure paths identified in requirements?
+          status: fail
+          evidence: "Failure paths 2 and 3 are addressed: CMP-003/DEC-003 abort naming the stage folder and
+            declaration, mirroring the verified unknown-check abort
+            (src/scripts/lib/checks/index.ts:62-66), and CMP-001/DM-002 specify empty-collection
+            semantics for absent properties and empty arrays. Failure path 1 is not:
+            requirements.yaml failure_paths[0] (lines 352-354) requires hand re-validation of an
+            old-format artifact to fail 'with findings naming the retired fields', and AC-003/AC-004
+            demand the same naming, but the design's only rejection mechanism for retired fields
+            (schema additionalProperties false per DEC-005) produces findings that do not name the
+            retired fields (empirically verified; see the data-models check evidence). The failure
+            path's contract is unmet by the specified mechanism."
+        - check_id: Do design decisions include enough context and rationale to be reviewed?
+          status: pass
+          evidence: "DEC-001..DEC-009 each carry context, decision, and accepted status, grounded in verified
+            source facts: DEC-001's layering concern (ids.ts importing from the checks folder);
+            DEC-002's unions-vs-arrays split with the verified single-declaration scope of
+            given-when-then (declared only by the requirements stage per grep over src/stages);
+            DEC-003's reuse of the thrown-Error pattern (verified at
+            src/scripts/lib/checks/index.ts:62-77); DEC-005's additionalProperties rationale;
+            DEC-006's archived-changes contract; DEC-008's helper-first migration (verified:
+            test/helpers/artifacts.ts:38-107 builds the flat shape; the five listed unit files build
+            flat fixtures directly per grep); DEC-009 records the round-1 rejection, the scaffold
+            mechanism, and the stakeholder resolution verbatim."
+        - check_id: Do delta entries plausibly describe the living docs affected by the design?
+          status: pass
+          evidence: Three delta entries (design.yaml:381-411) target architecture.md (resolver plus
+            declaration validation), decisions.md (the recorded decisions including the literal
+            nested scaffold example), and conventions.md (path-selector declaration conventions,
+            unions parameter, pathParams metadata, retired-field prohibition) — consistent with
+            CMP-008 and with the requirements-stage delta entries; targets and reasons are plausible
+            for knowledge extraction.
+    findings:
+      - target: AC-003 / AC-004 / DEC-005 / DM-001 / CMP-004
+        finding: "BLOCKING — The design's specified mechanism for rejecting retired fields cannot produce
+          the findings the requirements demand. FR-002 (requirements.yaml:121-130) and its criteria
+          AC-003 ('a blocking schema finding naming the top-level acceptance_criteria property as
+          not allowed', requirements.yaml:206-211) and AC-004 ('a blocking schema finding naming the
+          retired field', requirements.yaml:212-217) require the findings to name the retired field.
+          DEC-005 (design.yaml:290-299) asserts the schema alone delivers this via
+          additionalProperties false, and DM-001 (design.yaml:174-177) claims the root 'rejects it
+          by name'. Empirically false with the repository's own Ajv (allErrors: true, exact proposed
+          schema shape including definitions/$ref): validate.ts:48 renders findings as instancePath
+          plus message; Ajv's additionalProperties message is the static 'must NOT have additional
+          properties' and the property name appears only in err.params.additionalProperty, which
+          validate.ts never renders. The rendered findings are 'doc must NOT have additional
+          properties' (top-level acceptance_criteria), '/functional_requirements/0 must NOT have
+          additional properties' (ac_ids), and '/functional_requirements/0/acceptance_criteria/0
+          must NOT have additional properties' (parent_id) — none names the retired field. The
+          design specifies no validate.ts rendering change (validate.ts appears only in CMP-003, for
+          declaration-path validation). AC-003 and AC-004 as written would not hold; the same gap
+          unmeets requirements failure_paths[0] ('findings naming the retired fields')."
+        fix: "Specify a mechanism whose findings name the retired field, and update DEC-005/DM-001/CMP-004
+          to match. Two schema-layer-compatible options, both empirically verified against the
+          repository's Ajv: (a) declare the retired fields explicitly with boolean-false schemas in
+          the schema properties (root acceptance_criteria: false; ac_ids/parent_id: false on FR and
+          NFR entries) in addition to additionalProperties false — this renders the retired field
+          name in the finding target ('/ac_ids boolean schema is false'); or (b) extend validate.ts
+          schemaFindings to append err.params.additionalProperty to the finding text when present (a
+          one-line rendering change; add validate.ts to CMP-004's or CMP-003's files and pin the
+          rendered finding with a unit test in CMP-007's coverage list)."
+      - target: design.yaml semantic checks 1, 2, 5, 6
+        finding: "ADVISORY — Semantic checks 1, 2, 5, and 6 re-verified pass against source: complete
+          traceability for all nine FR/NFRs; disjoint, testable component responsibilities with
+          verified insertion points and current-shape grounding; decisions grounded including the
+          resolved round-1 finding; plausible delta entries. The round-1 blocking finding
+          AC-019/CMP-004 is resolved: CMP-004 (design.yaml:86-93) now specifies the literal scaffold
+          FR-001 entry with a nested acceptance_criteria array holding example criterion AC-001,
+          verified against the scaffold mechanism (instantiateArtifact deepClone(readYaml(template))
+          at src/scripts/lib/kinds/authoring.ts:83 substitutes metadata only), with all ripple
+          claims verified: CMP-007's validate-templates assertion (the required-key drop is needed
+          per bin/validate-templates.ts:20; the new assertion pins AC-019 at the fast gate), DM-001
+          (design.yaml:179-180), the AC-id-allocation flow (the scaffold's AC-001 participates in
+          the next-ids union, so fresh artifacts allocate from AC-002 — mechanically consistent with
+          nextId max-plus-one at src/scripts/lib/ids.ts:9-34), and DEC-009 (design.yaml:327-343)."
+        fix: No action; recorded as review evidence.
+      - target: CMP-004 semantic-checks rewrite count
+        finding: ADVISORY — CMP-004 (design.yaml:99-100) says 'rewrite the two questions that reference the
+          single flat list and parent_id', but src/stages/requirements/semantic-checks.yaml contains
+          exactly one such question (line 15). The selection criterion is unambiguous, so the
+          rewrite outcome is unaffected.
+        fix: Correct the count to one, or name the intended second question explicitly, when the design is
+          revised.
+      - target: CMP-004 steps.yaml ac_ids language
+        finding: ADVISORY — CMP-004 (design.yaml:100-101) says steps.yaml must 'drop parent_id and ac_ids
+          authoring language', but src/stages/requirements/steps.yaml contains parent_id authoring
+          language (line 46) and no ac_ids authoring language. The parent_id instruction is real;
+          the ac_ids mention is vacuous. AC-021 is unaffected (both will be absent after the
+          rewrite).
+        fix: Drop the vacuous ac_ids mention when the design is revised.
+      - target: CMP-007 ref-exists path coverage
+        finding: "ADVISORY — CMP-007's unit-coverage list (design.yaml:144-148) does not explicitly name a
+          test for the path-addressed ref-exists target resolution (CMP-002: 'ref-exists resolves
+          path entries in to.arrays against the target document'), which carries
+          AC-016/AC-017/AC-018. Coverage is implied via resolver unit tests and e2e planning flows
+          but is not pinned at the unit level, unlike the other five coverage items."
+        fix: Planning should carry an explicit task adding a ref-exists unit test with path entries in
+          to.arrays (FR-nested and NFR-nested resolution plus the missing-reference finding),
+          pinning AC-016/AC-017/AC-018.
+    warnings: []
+  - round: 3
+    reviewed_at: 2026-09-03T12:20:49.485Z
+    artifact_version: 0.1.2
+    decision: accepted
+    status: closed
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    semantic:
+      results:
+        - check_id: Is every FR and NFR from requirements.yaml covered by at least one traceability entry and
+            design element?
+          status: pass
+          evidence: "All nine requirements have traceability entries (design.yaml:372-408) mapping to
+            components with concrete, source-verified mechanisms: FR-001/FR-002 to CMP-004 (schema
+            reshape with the boolean-false retired-field guard) and CMP-007 (pinning tests); FR-003
+            to CMP-001/CMP-002/CMP-003 (resolver, check adoption, declaration validation); FR-004 to
+            CMP-002 (catalog reduction — eleven checks verified at
+            src/scripts/lib/checks/index.ts:20-32, so removing referenced-by leaves ten) and CMP-004
+            (the six dead declarations verified at
+            src/stages/requirements/structural-checks.yaml:10-59: ref-exists x3, referenced-by,
+            duplicate-refs x2); FR-005 to CMP-001/CMP-005 (declaration verified at
+            src/stages/planning/structural-checks.yaml:28-37); FR-006 to CMP-004/CMP-006/CMP-007;
+            NFR-001 to CMP-001 (pure functions, no I/O, no ambient state); NFR-002 honored by
+            omission across all components with the envelope-shape claim in the AC id allocation
+            flow (design.yaml:256); NFR-003 to CMP-008 and the three delta entries."
+        - check_id: Are component responsibilities clear, non-overlapping, and testable?
+          status: pass
+          evidence: Eight components with disjoint concerns and disjoint file sets; the single shared file
+            (checks/index.ts between CMP-002 and CMP-003) carries disjoint concerns (catalog entry
+            removal vs pathParams metadata). Responsibilities are testable through CMP-007's
+            enumerated unit-coverage list, which now explicitly pins the three rendered
+            boolean-false finding strings (AC-003/AC-004) and path-addressed ref-exists resolution
+            for AC-016/AC-017/AC-018 (design.yaml:151-158), plus byte-identical pinning for
+            unchanged design/planning declarations (DEC-008).
+        - check_id: Are data models consistent with the requirements and APIs?
+          status: pass
+          evidence: "DM-001: independently re-verified the DEC-005 mechanism with the repository's own Ajv
+            8.20.0 (allErrors: true, strict: false, probe schema faithful to the proposed shape:
+            draft-07, definitions/$ref for the criterion item, boolean-false acceptance_criteria at
+            root / ac_ids on FR and NFR entries / parent_id on criterion items, additionalProperties
+            false at every level) rendering findings as validate.ts does (instancePath || 'doc' plus
+            message, validate.ts:36-46). All three quoted strings reproduce exactly:
+            '/acceptance_criteria boolean schema is false', '/functional_requirements/0/ac_ids
+            boolean schema is false', '/functional_requirements/0/acceptance_criteria/0/parent_id
+            boolean schema is false' (the last through the definitions $ref). A clean nested
+            artifact validates (no false positives from the boolean-false schemas); an empty nested
+            array fires minItems ('must NOT have fewer than 1 items', AC-005); a missing category
+            interpolates the property name (\"must have required property 'category'\", AC-006).
+            DM-002 grammar is consistent with the current single-segment behavior of
+            getTopArray/resolvePath (shared.ts:29-61). DM-003's plain-name finding text matches
+            unique-ids.ts:23 (\"Duplicate ID '<id>' in '<name>'\"); unions semantics satisfy AC-010.
+            DM-004's widening premise is accurate: ids.ts:21 types specs as Record<string, string>,
+            stage-registry.ts:27 nextIds Record<string, string>, and stage.schema.yaml:65-70
+            next_ids additionalProperties string-only today. apis: [] is consistent with NFR-002."
+        - check_id: Does the design address the failure paths identified in requirements?
+          status: pass
+          evidence: "Failure path 1 (requirements.yaml:352-354, hand re-validation of an old-format artifact
+            must fail with findings naming the retired fields): now delivered by DEC-005 option (a)
+            — the boolean-false property schemas render the retired field in the instance path,
+            empirically confirmed this session (see the data-models check); DEC-006 keeps archived
+            changes out of contract. Failure path 2 (malformed path declaration): CMP-003/DEC-003
+            abort with a thrown Error naming the stage folder and the declaration, mirroring the
+            verified unknown-check abort (src/scripts/lib/checks/index.ts:62-66), run inside
+            validateArtifact ahead of runStageChecks (validate.ts:72-81) and in
+            bin/validate-policies.ts at startup. Failure path 3 (target artifact lacks the nested
+            arrays): CMP-001/DM-002 specify empty-collection semantics with no findings; schema
+            validation guards the required shape."
+        - check_id: Do design decisions include enough context and rationale to be reviewed?
+          status: pass
+          evidence: "DEC-001..DEC-009 each carry context, decision, and accepted status, with premises
+            verified against source this session: DEC-001's layering concern (ids.ts sits in
+            src/scripts/lib/, the checks in src/scripts/lib/checks/); DEC-002's given-when-then
+            single-declaration scope (grep over src/stages: declared only by
+            requirements/structural-checks.yaml; the codemap hit is documentation); DEC-003's
+            thrown-Error reuse (index.ts:62-77); DEC-005 records the round-2 empirical falsification
+            verbatim, both options, and the three pinned finding strings — independently reproduced
+            this session; DEC-006's fifteen archived changes (16 docs/changes directories minus this
+            in-flight one); DEC-008's helper-first migration (test/helpers/artifacts.ts:38-107
+            builds the flat shape with ac_ids at 75/83, top-level acceptance_criteria at 86,
+            parent_id at 92/99; exactly seven e2e files import validRequirements per grep; the five
+            named unit files exist); DEC-009's scaffold mechanism (instantiateArtifact
+            deepClone(readYaml(template)) at src/scripts/lib/kinds/authoring.ts:83) and
+            bin/validate-templates.ts:20 carrying acceptance_criteria in the required-key list.
+            CMP-002's stale-comment claim verified: duplicate-refs.ts:6 contains the ac_ids
+            example."
+        - check_id: Do delta entries plausibly describe the living docs affected by the design?
+          status: pass
+          evidence: Three delta entries (design.yaml:409-440) target architecture.md (resolver module plus
+            declaration-path validation), decisions.md (the recorded decisions including the
+            boolean-false retired-field guard and the literal nested scaffold), and conventions.md
+            (path-selector declaration conventions, unions parameter, pathParams metadata,
+            retired-field prohibition) — consistent with CMP-001..CMP-008 mechanisms and with the
+            requirements-stage delta entries; targets and reasons are plausible for knowledge
+            extraction.
+    findings:
+      - target: DEC-005 / DM-001 / CMP-004 (round-2 blocking fix) and the three round-2 advisories
+        finding: "VERIFIED — The round-2 blocking fix landed and was independently reproduced: DEC-005
+          (design.yaml:304-327) specifies the three boolean-false declarations (acceptance_criteria:
+          false at root, ac_ids: false on FR/NFR entries, parent_id: false on criterion items) and
+          the exact rendered findings, which reproduce byte-identically under the repository's Ajv
+          8.20.0 with validate.ts's rendering rule (probe with definitions/$ref and
+          additionalProperties false at every level; clean nested artifacts validate; minItems and
+          required naming for AC-005/AC-006 also confirmed). All three round-2 advisory corrections
+          landed in v0.1.2: (1) CMP-004 now says 'rewrite the one question (line 15)'
+          (design.yaml:105-106) and src/stages/requirements/semantic-checks.yaml line 15 is indeed
+          the only question referencing the single flat list and parent_id; (2) CMP-004 now says
+          'drop the parent_id authoring language (line 46)' (design.yaml:107-108) and
+          src/stages/requirements/steps.yaml line 46 carries the parent_id language with no ac_ids
+          authoring language anywhere in the file; (3) CMP-007 now explicitly lists 'path-addressed
+          ref-exists target resolution pinning AC-016, AC-017, and AC-018' with the
+          FR-nested/NFR-nested/missing-reference triple (design.yaml:155-158)."
+        fix: No action; recorded as review evidence.
+    warnings: []

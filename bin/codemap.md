@@ -36,10 +36,14 @@ self-contained skill bundles plus per-platform rendered agent files.
    `message` per code; (b) for each folder under `src/stages/`, validates `stage.yaml`
    against the `src/schemas/stage.schema.yaml` meta-schema (compiled via `ajv.compile`),
    resolves `structural-checks.yaml` check names + required params against `CHECK_CATALOG`
-   (`src/scripts/lib/checks/index.ts`), checks `steps.yaml` defines a `steps` map, and
+   (`src/scripts/lib/checks/index.ts`), runs declaration path validation
+   (`validateCheckDeclarations` from `src/scripts/lib/validate.ts` — every `[]`-bearing
+   parameter string must sit inside a path-bearing slot and resolve against the governing
+   stage schema), checks `steps.yaml` defines a `steps` map, and
    compiles `schema.yaml` as a JSON schema — unless the descriptor declares `schema_from`,
    in which case the local `schema.yaml` must be absent and the named stage's schema
-   must exist; (c) loads the registry via `loadStageRegistry(root)` and fails on any
+   must exist; (c) loads the registry once via `loadStageRegistry(root)` (shared by
+   declaration validation and the graph check) and fails on any
    missing `requires` reference; (d) validates every `src/agents/*.yaml` against
    `src/schemas/agent.schema.yaml` (descriptor id = filename stem), runs the model-field
    cross-check (`checkAgentModelFields` against the schema's model enum), rejects prompt
@@ -50,7 +54,9 @@ self-contained skill bundles plus per-platform rendered agent files.
 3. `validate-templates.ts` — verifies the three authoring stage templates
    (`src/stages/<stage>/template.yaml`) carry the expected top-level keys, the correct
    `metadata.stage`, and (requirements only) `discovery_reviewed`/`scenarios_reviewed`
-   initialized to false; then validates every folder under `src/skills/`: `SKILL.md`
+   initialized to false plus at least one requirement entry carrying a non-empty nested
+   `acceptance_criteria` array (the nested-criteria scaffold contract, AC-019); then
+   validates every folder under `src/skills/`: `SKILL.md`
    frontmatter `name` equals the folder name and `description` is a non-empty string.
 4. `lint-artifact.ts` — parses `--target/--artifact/--cwd/--no-fail`, maps the legacy
    alias `plan` → stage `planning` (`TARGET_TO_STAGE`), reads the artifact with

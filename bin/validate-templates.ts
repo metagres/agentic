@@ -17,7 +17,6 @@ const expectedKeys = {
     'assumptions',
     'functional_requirements',
     'non_functional_requirements',
-    'acceptance_criteria',
     'out_of_scope',
     'failure_paths',
     'risks_and_dependencies',
@@ -92,6 +91,27 @@ for (const [stageId, keys] of Object.entries(expectedKeys)) {
       if (metadata.discovery_reviewed !== false || metadata.scenarios_reviewed !== false) {
         throw new Error(
           'requirements template must initialize discovery_reviewed and scenarios_reviewed to false'
+        );
+      }
+
+      // Nested acceptance-criteria contract (CMP-004, AC-019): the template
+      // must seed at least one requirement entry carrying a non-empty nested
+      // acceptance_criteria array, so the parsed scaffold shows the nested
+      // shape and next-id allocation continues past the scaffold example.
+      const frs = doc.functional_requirements as
+        | { acceptance_criteria?: unknown[] }[]
+        | undefined;
+      const seeded = Array.isArray(frs) &&
+        frs.some(
+          (fr) =>
+            fr !== null &&
+            typeof fr === 'object' &&
+            Array.isArray(fr.acceptance_criteria) &&
+            fr.acceptance_criteria.length > 0
+        );
+      if (!seeded) {
+        throw new Error(
+          'requirements template must seed at least one requirement entry with a non-empty nested acceptance_criteria array'
         );
       }
     }

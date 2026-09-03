@@ -5,7 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { validateArtifact } from '../../src/scripts/lib/validate.ts';
+import { validateArtifact, validateCheckDeclarations } from '../../src/scripts/lib/validate.ts';
+import { getStageById } from '../../src/scripts/lib/stage-registry.ts';
+import type { StructuralChecksDoc } from '../../src/scripts/lib/checks/index.ts';
+import { readYaml } from '../../src/scripts/lib/yaml-io.ts';
 import { validRequirements, validDesign, validPlan } from '../helpers/artifacts.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -99,12 +102,19 @@ test('planning checks validate tasks against requirements and design artifacts',
     [
       'metadata: { version: 0.1.0 }',
       'functional_requirements:',
-      '  - { id: FR-001 }',
+      '  - id: FR-001',
+      '    description: The system shall create a device record.',
+      '    acceptance_criteria:',
+      '      - id: AC-001',
+      '        statement: Given none, When submitted, Then 201.',
+      '        category: happy',
       'non_functional_requirements:',
-      '  - { id: NFR-001 }',
-      'acceptance_criteria:',
-      '  - { id: AC-001 }',
-      '  - { id: AC-002 }',
+      '  - id: NFR-001',
+      '    description: The endpoint shall respond within 500 ms.',
+      '    acceptance_criteria:',
+      '      - id: AC-002',
+      '        statement: Given load, When measured, Then under 500 ms.',
+      '        category: boundary',
       '',
     ].join('\n'),
     'utf8'
@@ -207,4 +217,291 @@ test('a plan with empty milestones and risks arrays passes planning validation',
   plan.milestones = [];
   const findings = validateArtifact('planning', plan, root, changeRoot);
   assert.deepEqual(findings, []);
+});
+
+// ---------------------------------------------------------------------------
+// Declaration path validation (CMP-003, DEC-003, AC-009)
+// ---------------------------------------------------------------------------
+
+const REQUIREMENTS_STAGE = getStageById(root, 'requirements') as NonNullable<
+  ReturnType<typeof getStageById>
+>;
+
+test('the current requirements declarations pass declaration path validation', () => {
+  const checksDoc = readYaml(
+    path.join(root, 'src', 'stages', 'requirements', 'structural-checks.yaml')
+  ) as StructuralChecksDoc;
+  assert.doesNotThrow(() => validateCheckDeclarations(REQUIREMENTS_STAGE, checksDoc, root));
+});
+
+test('a [].-bearing string outside path-bearing slots aborts naming the stage folder and declaration', () => {
+  const checksDoc: StructuralChecksDoc = {
+    version: 1,
+    checks: [
+      {
+        check: 'sentence-count',
+        params: { field: 'tasks[].title', min: 1, max: 6 },
+      },
+    ],
+  };
+  assert.throws(
+    () => validateCheckDeclarations(REQUIREMENTS_STAGE, checksDoc, root),
+    (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      return (
+        message.includes('src/stages/requirements') &&
+        message.includes("check 'sentence-count'") &&
+        message.includes('unsupported path')
+      );
+    }
+  );
+});
+
+test('a malformed selector in a path-bearing slot aborts naming the stage folder and declaration', () => {
+  // Intermediate segment 'acceptance_criteria' without [] violates the
+  // segment([].segment)* grammar.
+  const checksDoc: StructuralChecksDoc = {
+    version: 1,
+    checks: [
+      {
+        check: 'unique-ids',
+        params: {
+          arrays: ['functional_requirements[].acceptance_criteria.statement'],
+        },
+      },
+    ],
+  };
+  assert.throws(
+    () => validateCheckDeclarations(REQUIREMENTS_STAGE, checksDoc, root),
+    (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      return (
+        message.includes('src/stages/requirements') &&
+        message.includes("check 'unique-ids'") &&
+        message.includes("intermediate segment 'acceptance_criteria' must bear []")
+      );
+    }
+  );
+});
+
+test('a selector naming an undeclared schema property aborts naming the stage folder and declaration', () => {
+  const checksDoc: StructuralChecksDoc = {
+    version: 1,
+    checks: [
+      {
+        check: 'unique-ids',
+        params: {
+          arrays: ['functional_requirements[].missing_nested'],
+        },
+      },
+    ],
+  };
+  assert.throws(
+    () => validateCheckDeclarations(REQUIREMENTS_STAGE, checksDoc, root),
+    (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      return (
+        message.includes('src/stages/requirements') &&
+        message.includes("check 'unique-ids'") &&
+        message.includes("property 'missing_nested' is not declared")
+      );
+    }
+  );
+});
+
+test('a collection selector ending at a non-array property aborts', () => {
+  const checksDoc: StructuralChecksDoc = {
+    version: 1,
+    checks: [
+      {
+        check: 'unique-ids',
+        params: {
+          arrays: ['functional_requirements[].description'],
+        },
+      },
+    ],
+  };
+  assert.throws(
+    () => validateCheckDeclarations(REQUIREMENTS_STAGE, checksDoc, root),
+    /must be array-typed/
+  );
+});
+
+test('a leaf selector ending at a non-string property aborts', () => {
+  const checksDoc: StructuralChecksDoc = {
+    version: 1,
+    checks: [
+      {
+        check: 'forbidden-words',
+        params: {
+          fields: [{ path: 'functional_requirements[].acceptance_criteria' }],
+        },
+      },
+    ],
+  };
+  assert.throws(
+    () => validateCheckDeclarations(REQUIREMENTS_STAGE, checksDoc, root),
+    /must be string-typed/
+  );
+});
+
+test('a ref-exists to.file no stage owns falls back to grammar checks only', () => {
+  // 'unknown-file.yaml' is owned by no stage: the selector is grammatically
+  // valid, so validation passes even though the property is undeclared in
+  // every stage schema.
+  const checksDoc: StructuralChecksDoc = {
+    version: 1,
+    checks: [
+      {
+        check: 'ref-exists',
+        params: {
+          from: { array: 'tasks', field: 'acceptance_ids' },
+          to: {
+            file: 'unknown-file.yaml',
+            arrays: ['missing_property[].whatever'],
+            field: 'id',
+          },
+        },
+      },
+    ],
+  };
+  assert.doesNotThrow(() => validateCheckDeclarations(REQUIREMENTS_STAGE, checksDoc, root));
+});
+
+test('a ref-exists to.file owned by a stage validates to.arrays against the owning schema', () => {
+  // requirements.yaml is owned by the requirements stage: the same selector
+  // that passes the grammar-only fallback now aborts against that schema.
+  const checksDoc: StructuralChecksDoc = {
+    version: 1,
+    checks: [
+      {
+        check: 'ref-exists',
+        params: {
+          from: { array: 'tasks', field: 'acceptance_ids' },
+          to: {
+            file: 'requirements.yaml',
+            arrays: ['missing_property[].whatever'],
+            field: 'id',
+          },
+        },
+      },
+    ],
+  };
+  assert.throws(
+    () => validateCheckDeclarations(REQUIREMENTS_STAGE, checksDoc, root),
+    (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      return (
+        message.includes("check 'ref-exists'") &&
+        message.includes("property 'missing_property' is not declared")
+      );
+    }
+  );
+});
+
+test('a ref-exists to.arrays path resolving through the owning stage schema passes', () => {
+  // 'functional_requirements[].acceptance_criteria' resolves against the
+  // requirements schema: functional_requirements is array-typed and its items
+  // declare the nested array-typed acceptance_criteria through the criterion
+  // definitions reference.
+  const checksDoc: StructuralChecksDoc = {
+    version: 1,
+    checks: [
+      {
+        check: 'ref-exists',
+        params: {
+          from: { array: 'tasks', field: 'acceptance_ids' },
+          to: {
+            file: 'requirements.yaml',
+            arrays: ['functional_requirements[].acceptance_criteria'],
+            field: 'id',
+          },
+        },
+      },
+    ],
+  };
+  assert.doesNotThrow(() => validateCheckDeclarations(REQUIREMENTS_STAGE, checksDoc, root));
+});
+
+// ---------------------------------------------------------------------------
+// Nested requirements contract (CMP-004, CMP-007 coverage list)
+// ---------------------------------------------------------------------------
+
+test('retired fields render the three pinned boolean-false finding strings verbatim (AC-003, AC-004)', () => {
+  const changeRoot = makeChangeRoot();
+  const artifact = validRequirements() as Record<string, unknown> & {
+    acceptance_criteria?: unknown;
+    functional_requirements: Record<string, unknown>[];
+  };
+  // Re-introduce all three retired fields on an otherwise nested artifact.
+  artifact.acceptance_criteria = [];
+  artifact.functional_requirements[0].ac_ids = ['AC-001'];
+  (
+    artifact.functional_requirements[0].acceptance_criteria as Record<string, unknown>[]
+  )[0].parent_id = 'FR-001';
+
+  const findings = validateArtifact('requirements', artifact, root, changeRoot);
+  const strings = findings.map((f) => f.finding);
+  assert.ok(
+    strings.includes('/acceptance_criteria boolean schema is false'),
+    JSON.stringify(strings)
+  );
+  assert.ok(
+    strings.includes('/functional_requirements/0/ac_ids boolean schema is false'),
+    JSON.stringify(strings)
+  );
+  assert.ok(
+    strings.includes(
+      '/functional_requirements/0/acceptance_criteria/0/parent_id boolean schema is false'
+    ),
+    JSON.stringify(strings)
+  );
+});
+
+test('an empty nested acceptance_criteria array is a blocking schema finding (AC-005)', () => {
+  const changeRoot = makeChangeRoot();
+  const artifact = validRequirements() as Record<string, unknown> & {
+    functional_requirements: Record<string, unknown>[];
+  };
+  artifact.functional_requirements[0].acceptance_criteria = [];
+  const findings = validateArtifact('requirements', artifact, root, changeRoot);
+  assert.ok(
+    findings.some(
+      (f) =>
+        f.check === 'schema' &&
+        f.severity === 'blocking' &&
+        /acceptance_criteria.*must NOT have fewer than 1 items/.test(f.finding)
+    ),
+    JSON.stringify(findings)
+  );
+});
+
+test('a criterion missing a required property is a blocking schema finding (AC-006)', () => {
+  const changeRoot = makeChangeRoot();
+  const artifact = validRequirements() as Record<string, unknown> & {
+    functional_requirements: Record<string, unknown>[];
+  };
+  const criterion = artifact.functional_requirements[0]
+    .acceptance_criteria[0] as Record<string, unknown>;
+  delete criterion.category;
+  const findings = validateArtifact('requirements', artifact, root, changeRoot);
+  assert.ok(
+    findings.some(
+      (f) =>
+        f.check === 'schema' &&
+        f.severity === 'blocking' &&
+        /acceptance_criteria\/0 must have required property 'category'/.test(f.finding)
+    ),
+    JSON.stringify(findings)
+  );
+});
+
+test('the nested shape is recognized without parent_id or ac_ids (AC-001, AC-002)', () => {
+  const changeRoot = makeChangeRoot();
+  const artifact = validRequirements();
+  const text = JSON.stringify(artifact);
+  assert.ok(!text.includes('parent_id'), 'helper must not carry parent_id');
+  assert.ok(!text.includes('ac_ids'), 'helper must not carry ac_ids');
+  assert.ok(!('acceptance_criteria' in artifact), 'helper must not carry a top-level list');
+  assert.deepEqual(validateArtifact('requirements', artifact, root, changeRoot), []);
 });
