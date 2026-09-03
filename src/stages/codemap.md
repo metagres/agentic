@@ -11,17 +11,17 @@ directory is copied next to the CLI and `hooks.ts` is compiled to `hooks.js`
 (by `bin/deploy-to-agent.ts`).
 
 ## Stage Inventory
-| Stage (folder) | Kind | Artifact / status field | requires | reviews / review file | Declared structural checks | Steps (steps.yaml) | Hooks | Notes |
-|---|---|---|---|---|---|---|---|---|
-| `requirements/` | authoring | requirements.yaml / `status` | — | — | unique-ids, ref-exists ×3, referenced-by, duplicate-refs ×2, given-when-then, forbidden-words, sentence-count | needs_input, init, authoring, recovery, ready, complete | yes | Also carries `requirements-policy.yaml` (discovery gate policy); ONE merged `acceptance_criteria` list (id, Given-When-Then statement, category happy/edge/negative/boundary, parent_id) — no scenarios array; delta phase `Requirements`; next ids FR/NFR/AC/DL |
-| `requirements-review/` | review | requirements.yaml / `status` | — | requirements → requirements-review.yaml | — (no structural checks of its own; runs the target stage's) | needs_input, review, accept, reject | no | |
-| `design/` | authoring | design.yaml / `status` | requirements-review | — | sentence-count, ref-exists, duplicate-refs | needs_input, init, authoring, recovery, ready, complete | yes | Cross-file `ref-exists` into requirements.yaml; delta phase `Design`; next ids CMP/DM/API/DEC |
-| `design-review/` | review | design.yaml / `status` | — | design → design-review.yaml | — | needs_input, review, accept, reject | no | |
-| `planning/` | authoring | plan.yaml / `status` | requirements-review, design-review | — | unique-ids, ref-exists ×4, dependency-acyclic, dependency-order | needs_input, init, authoring, recovery, ready, complete | yes | Cross-file refs into requirements.yaml + design.yaml; milestones/risks required (milestone id/title/tasks/done_when; risk id/description/mitigation; empty arrays legal); milestone `tasks` refs checked against `tasks[].id`; delta phase `Planning`; next id TASK |
-| `planning-review/` | review | plan.yaml / `status` | — | planning → **plan-review.yaml** (note: not `planning-review.yaml`) | — | needs_input, review, accept, reject | no | |
-| `implementation/` | tasks | plan.yaml / `implementation_status` | planning-review | — | required-note-for-status, all-tasks-terminal | needs_input, progress, complete | no | Shares plan.yaml with planning; validates against planning's schema via `schema_from: planning` (no local schema.yaml); no template (not authoring); drives the task state machine |
-| `implementation-review/` | review | plan.yaml / `implementation_status` | — | implementation → implementation-review.yaml | — | needs_input, review, accept, reject | no | |
-| `knowledge-extraction/` | aggregator | docs-delta.yaml / `status` | implementation-review | — | — | needs_input, docs_delta, complete | no | Terminal stage; aliases `docs`/`knowledge` |
+| Stage (folder) | Kind | Agent | Artifact / status field | requires | reviews / review file | Declared structural checks | Steps (steps.yaml) | Hooks | Notes |
+|---|---|---|---|---|---|---|---|---|---|
+| `requirements/` | authoring | requirements-analyst | requirements.yaml / `status` | — | — | unique-ids, ref-exists ×3, referenced-by, duplicate-refs ×2, given-when-then, forbidden-words, sentence-count | needs_input, init, authoring, recovery, ready, complete | yes | Also carries `requirements-policy.yaml` (discovery gate policy); ONE merged `acceptance_criteria` list (id, Given-When-Then statement, category happy/edge/negative/boundary, parent_id) — no scenarios array; delta phase `Requirements`; next ids FR/NFR/AC/DL/SC |
+| `requirements-review/` | review | stage-reviewer | requirements.yaml / `status` | — | requirements → requirements-review.yaml | — (no structural checks of its own; runs the target stage's) | needs_input, review, accept, reject | no | |
+| `design/` | authoring | systems-architect | design.yaml / `status` | requirements-review | — | sentence-count, ref-exists, duplicate-refs | needs_input, init, authoring, recovery, ready, complete | yes | Cross-file `ref-exists` into requirements.yaml; delta phase `Design`; next ids CMP/DM/API/DEC |
+| `design-review/` | review | stage-reviewer | design.yaml / `status` | — | design → design-review.yaml | — | needs_input, review, accept, reject | no | |
+| `planning/` | authoring | task-planner | plan.yaml / `status` | requirements-review, design-review | — | unique-ids, ref-exists ×4, dependency-acyclic, dependency-order | needs_input, init, authoring, recovery, ready, complete | yes | Cross-file refs into requirements.yaml (covers, acceptance_ids) + design.yaml (design_refs); tasks array is the main body; milestones/risks required (milestone id/title/tasks/done_when; risk id/description/mitigation; empty arrays legal); milestone `tasks` refs checked against `tasks[].id`; delta phase `Planning`; next id TASK |
+| `planning-review/` | review | stage-reviewer | plan.yaml / `status` | — | planning → **plan-review.yaml** (note: not `planning-review.yaml`) | — | needs_input, review, accept, reject | no | |
+| `implementation/` | tasks | implementation-engineer | plan.yaml / `implementation_status` | planning-review | — | required-note-for-status, all-tasks-terminal | needs_input, progress, complete | no | Shares plan.yaml with planning; validates against planning's schema via `schema_from: planning` (no local schema.yaml); no template (not authoring); drives the task state machine |
+| `implementation-review/` | review | stage-reviewer | plan.yaml / `implementation_status` | — | implementation → implementation-review.yaml | — | needs_input, review, accept, reject | no | |
+| `knowledge-extraction/` | aggregator | knowledge-curator | docs-delta.yaml / `status` | implementation-review | — | — | needs_input, docs_delta, complete | no | Terminal stage; aliases `docs`/`knowledge` |
 
 Per-kind file sets (CMP-009, enforced by the registry): authoring =
 `stage.yaml` + `structural-checks.yaml` + `schema.yaml` + `template.yaml` +
@@ -42,6 +42,13 @@ this for the shared `plan.yaml` (`schema_from: planning`).
   title_default`) and validates at startup against the engine meta-schema
   `src/schemas/stage.schema.yaml`. Missing descriptor, invalid YAML, unknown
   kind, or folder/id mismatch is a hard startup error naming the folder.
+  Two optional descriptor fields bind a stage to a dedicated agent: `agent`
+  (the agent id from `src/agents/<id>.yaml`; absent means the current agent
+  runs the stage) and `permissions` (per-key `allow`/`ask`/`deny` overrides
+  of the stage kind's permission contract). Every shipped stage declares an
+  `agent`: `requirements-analyst`, `systems-architect`, `task-planner`,
+  `implementation-engineer`, `knowledge-curator`, and `stage-reviewer`
+  (shared by all four review stages).
 - **Requires DAG + acceptance gate (DEC-007/DEC-008)**: pipeline order is a
   topological sort of the `requires` graph with an alphabetical stage-id
   tie-break — there is no sequence field. Migrated edges:
@@ -76,10 +83,12 @@ this for the shared `plan.yaml` (`schema_from: planning`).
   validation):
   - `requirements/hooks.ts` — the **discovery gate**: `discoveryGate(env)`
     reads `requirements-policy.yaml` (8 lenses: stakeholder, scope, interface,
-    behavior, design, constraint, failure, outcome; clarity levels
+    behavior, data, constraint, failure, outcome; clarity levels
     `clear`/`partial`/`vague` each with `required_lenses` and
-    `min_resolved_questions`) with built-in fallbacks; the gate passes when
-    every required lens has a resolved `discovery_log` entry and the resolved
+    `min_resolved_questions`); the policy is fail-loud — a missing or
+    malformed `requirements-policy.yaml` raises `STAGE_POLICY_MISSING` /
+    `STAGE_POLICY_INVALID` (no silent fallbacks). The gate passes when every
+    required lens has a resolved `discovery_log` entry and the resolved
     question count meets the minimum. Exports `startup` (loads/validates the
     policy before any command), `getExtraData` (exposes `discovery_gate`,
     `scenarios_state`, and `assumptions_complete` in the envelope),

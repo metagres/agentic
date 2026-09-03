@@ -1,0 +1,379 @@
+metadata:
+  id: DES-001
+  title: "Design: review rounds carry findings — semantic block, reviewer rationale, open-to-closed
+    rounds"
+  stage: design
+  status: accepted
+  version: 0.1.0
+  created: 2026-09-02
+  updated: 2026-09-02
+  based_on_requirements: 0.1.0
+  delta_reviewed: false
+context_summary: "The review interpreter records a round on every non-dry-run invocation, but the
+  round carries only a mechanical snapshot and a decision token, so reviewer rationale lives in
+  session conversation and every verdict costs two rounds. This design extends the review-kind
+  interpreter with an open-to-closed round lifecycle: a bare invocation opens or refreshes a round
+  with status open, and a verdict completes the latest open round in place or appends a complete
+  closed round when none exists. Five components decompose the work: a round store owning
+  review-file writes and round numbering, a findings input gate validating the new --note and
+  --findings flags, a findings file validator resolving entry targets against known artifact ids, a
+  semantic walk validator checking reviewer-supplied results against the target stage's
+  semantic-checks.yaml, and a verdict composer assembling the completed round and envelope. The
+  round schema gains status, rationale, a semantic block of per-check results with evidence, and
+  reviewer findings that never carry a severity field, because the decision alone determines
+  blocking versus advisory. Unknown finding targets warn only when the target is id-shaped and fails
+  resolution against the ids collected from the change's YAML artifacts; free-text targets never
+  warn. Acceptance with blocking mechanical findings completes the round with the explicit decision
+  token accept_blocked and no semantic block. The CLI validates the shape, completeness, and status
+  values of reviewer-supplied semantic results but never evaluates the checks themselves, which stay
+  agent-walked. The envelope keeps its seven frozen top-level fields, with all new data riding
+  existing structures inside data and the round. Review history stays append-only except for
+  completing or refreshing an open round, and legacy rounds without a status field are treated as
+  closed."
+components:
+  - id: CMP-001
+    name: Review round store
+    responsibility: "Owns the review-file lifecycle inside the review interpreter
+      (src/scripts/lib/kinds/review.ts): reads the review file, classifies rounds by status (a round
+      without a status field is legacy and treated as closed), opens a round on a bare invocation
+      (status open, decision review, fresh mechanical block), refreshes an existing open round in
+      place keeping the same round number with decision review and status open, completes the latest
+      open round in place on a verdict, and appends a complete closed round when no open round
+      exists. Closed rounds are never modified; round numbers increment only when a round is
+      appended, never on refresh (assumption 6 — confirm during planning). All writes go through
+      writeYamlAtomic; append-only holds except for the one open round being completed or refreshed
+      (FR-001, FR-002, FR-003, FR-004, NFR-002)."
+  - id: CMP-002
+    name: Findings input gate
+    responsibility: "Pre-flight argv validation that runs before the gate check and before any file
+      mutation: --note and --findings are mutually exclusive (usage error, AC-010); either flag
+      without --accept or --reject is a usage error (AC-011); --reject with zero mechanical blocking
+      findings requires --note or --findings (usage error, AC-009) while --reject with blocking
+      findings proceeds without reviewer input (AC-008). Every violation exits before any write so
+      the artifact and review file stay untouched. Flag violations reuse the USAGE error code; the
+      --findings value is a file path resolved relative to the process working directory, matching
+      --record-answers behavior (assumption 5 — confirm during planning) (FR-005, FR-006)."
+  - id: CMP-003
+    name: Findings file validator and target resolver
+    responsibility: "Parses the --findings YAML document (DM-002), requires each findings entry to carry
+      target and finding with fix optional, and refuses the invocation naming the offending entry
+      when a required field is missing (new error code FINDINGS_ENTRY_INVALID in
+      src/policies/errors.yaml, AC-012). Normalizes entries to {target, finding, fix?}, dropping any
+      supplied severity so no per-finding severity is ever recorded (FR-008, AC-014, AC-015).
+      Resolves each entry target against the known-id universe (DM-004, DEC-001): a target
+      containing an id-shaped token that resolves to no known id emits a warning naming the target
+      (new warning code UNKNOWN_FINDING_TARGET in src/policies/errors.yaml, riding the envelope
+      warnings array and the round's warnings array, AC-013); targets without an id-shaped token are
+      free-text anchors and never warn."
+  - id: CMP-004
+    name: Semantic walk validator
+    responsibility: "Validates the optional semantic section of the findings file against the reviewed
+      (target) stage's semantic-checks.yaml (DEC-003): every check must appear exactly once as a
+      {check_id, status, evidence} item (DM-003, FR-010, AC-016). When the verdict is --accept and
+      mechanical checks pass, the section is required and every status must be 'pass'; a missing,
+      incomplete, or failing walk refuses the invocation with nothing written (new error code
+      SEMANTIC_WALK_INVALID in src/policies/errors.yaml, FR-011, AC-017). When mechanical blocking
+      findings exist, the section is ignored and not recorded (FR-009, AC-018). The CLI validates
+      shape, completeness, and status values of reviewer-supplied results only; it never evaluates
+      the semantic checks themselves — validating reviewer-supplied results is in scope, evaluating
+      check outcomes is not."
+  - id: CMP-005
+    name: Verdict composer and envelope renderer
+    responsibility: "Assembles the completed round — decision, status closed, rationale (DEC-004
+      precedence), semantic block when valid and mechanical passed, reviewer findings, refreshed
+      artifact_version, mechanical, and can_accept as of verdict time — and applies the artifact
+      status transition (accepted or rejected; unchanged for accept_blocked). Renders the envelope:
+      bare invocations with passing mechanical checks name in instructions that acceptance requires
+      the complete semantic walk and rejection requires --note or --findings (FR-012, AC-019); all
+      new data rides existing structures inside data and the round, keeping the seven frozen
+      top-level fields (NFR-001, AC-020); errors reuse the catalog (USAGE, CANNOT_ACCEPT,
+      CONFLICTING_DECISION)."
+  - id: CMP-006
+    name: Review round contract test suite
+    responsibility: Unit tests covering the round lifecycle (open on bare invocation, refresh in place,
+      complete in place on verdict, append-closed when no open round, legacy rounds treated as
+      closed and byte-identical), the input gate (both-flags conflict, findings without verdict,
+      rationale-less semantic rejection), findings-file validation (missing field refuses naming the
+      entry, severity dropped, unknown id-shaped target warns while the round is still recorded),
+      semantic walk validation (complete all-pass walk accepted, incomplete or failing walk refused
+      with nothing written, mechanical-failure rounds carry no semantic block), the accept_blocked
+      path (DEC-002 — no AC exercises it, so the test names the token explicitly), and the frozen
+      envelope shape.
+data_models:
+  - id: DM-001
+    name: Review round (v2)
+    description: "Round shape written by CMP-001: {round, reviewed_at, artifact_version, decision,
+      status, can_accept, mechanical, semantic?, findings?, rationale?, warnings}. status is open or
+      closed; legacy rounds lacking status are treated as closed and never modified (FR-004,
+      AC-007). decision tokens are exactly review (open inspection round), accepted, rejected, and
+      accept_blocked (a verdict ran while blocking mechanical findings exist — token named
+      explicitly per DEC-002). mechanical keeps {valid, blocking_count, findings}. semantic is
+      {results: [DM-003 items], rationale?} recorded only when supplied, valid, and mechanical
+      checks passed. findings is the reviewer findings array of {target, finding, fix?} items with
+      no severity field; on a rejected round every finding is blocking, on an accepted round every
+      finding is advisory (FR-008, AC-014, AC-015). rationale is the --note text or the composed
+      mechanical summary (DEC-004). can_accept stays at round level; existing readers are
+      unaffected."
+  - id: DM-002
+    name: Findings file
+    description: "Reviewer-supplied YAML document with two optional sections: semantic, an array of
+      DM-003 items, and findings, an array of {target, finding, fix?} entries (DL-011). One verdict
+      is one round fed by one file; --note stays the free-text rationale and is mutually exclusive
+      with --findings. The semantic section is required as a complete walk whenever mechanical
+      checks passed and the verdict is accept; it is ignored when mechanical checks failed. Findings
+      entries require target and finding; fix is optional; no severity field is read or recorded."
+  - id: DM-003
+    name: Semantic result item
+    description: "{check_id, status, evidence} — one item per check in the target stage's
+      semantic-checks.yaml. check_id carries the check text as listed by the stage; status is the
+      reviewer's judgment (the CLI validates that the value is present and, on the accept path,
+      equal to 'pass' — it never computes the judgment); evidence is a non-empty justification
+      string. Shared by DM-001's semantic block and DM-002's semantic section."
+  - id: DM-004
+    name: Known-id universe
+    description: "The resolution universe for CMP-003 target checks: every string value matching the id
+      pattern ^[A-Z]{2,6}-[0-9]{2,4}$ collected by recursively walking the YAML documents in the
+      change root (requirements.yaml, design.yaml, plan.yaml, review files), covering
+      FR/NFR/AC/DL/CMP/DM/API/ DEC/TASK and stage-artifact ids without per-stage hardcoding. A
+      finding target is id-shaped when it contains a standalone token matching the same pattern;
+      id-shaped targets must resolve into this universe or trigger the unknown-target warning;
+      targets with no id-shaped token are free-text anchors and skip resolution entirely (DEC-001,
+      AC-013)."
+apis:
+  - id: API-001
+    path: sdlc <review-stage> --change <change-name> [--accept|--reject] [--note <text>] [--findings
+      <file>] [--dry-run]
+    method: CLI
+    description: Extended review command for the four review stages (requirements-review, design-review,
+      planning-review, implementation-review). New flags --note and --findings are verdict-scoped
+      and mutually exclusive; either without --accept or --reject is a usage error. Bare invocations
+      open or refresh an open round; verdicts complete the latest open round in place or append a
+      complete closed round. The envelope keeps the seven frozen top-level fields; decision,
+      rationale, semantic results, findings, and warnings ride data and the round structure
+      (NFR-001, AC-020).
+  - id: API-002
+    path: --findings <file> (reviewer-supplied YAML document)
+    method: file-contract
+    description: YAML document with optional semantic and findings sections (DM-002), resolved relative
+      to the process working directory. Shape violations (missing target or finding) refuse the
+      invocation naming the offending entry with nothing written (AC-012); an incomplete or failing
+      semantic walk on the accept path refuses with nothing written (AC-017); unknown id-shaped
+      targets warn and the round is still recorded (AC-013).
+flows:
+  - id: F-001
+    name: Bare invocation opens or refreshes a round
+    steps:
+      - Reviewer runs the review stage without a decision flag and without --dry-run against a
+        gate-satisfied artifact; CMP-002 passes because no findings flags are present.
+      - CMP-001 computes the mechanical validation and searches the review file for the latest open
+        round (status open; legacy rounds without status never qualify).
+      - "Open round exists: refresh in place — same round number, refreshed mechanical snapshot,
+        decision stays review, status stays open; no round proliferation (FR-002, AC-003, DL-010)."
+      - "No open round: append a round with status open, decision review, and a fresh mechanical
+        block; the envelope reports the new round number (FR-001, AC-001)."
+      - "CMP-005 renders instructions: when mechanical checks pass they list the target stage's
+        semantic checks and state that acceptance requires the complete semantic walk and rejection
+        requires --note or --findings (FR-012, AC-019)."
+  - id: F-002
+    name: Acceptance verdict
+    steps:
+      - Reviewer runs --accept, optionally with --note or --findings (never both); CMP-002
+        pre-flight turns flag violations into usage errors that write nothing (AC-010, AC-011).
+      - "Mechanical blocking findings exist: CMP-001 completes the latest open round in place (or
+        appends a closed round when none exists) with decision accept_blocked, status closed, no
+        semantic block, and rationale composed from the mechanical findings; the artifact status is
+        left unchanged and the envelope reports state blocked with CANNOT_ACCEPT (DEC-002, FR-009,
+        AC-018)."
+      - "Mechanical checks pass: CMP-004 requires the semantic section and validates completeness
+        against the target stage's semantic-checks.yaml plus every status being 'pass'; a missing,
+        incomplete, or failing walk refuses with nothing written (FR-011, AC-017)."
+      - "Valid walk: the round is completed with decision accepted, the semantic block recorded, and
+        optional advisories recorded as findings without severity; the artifact status becomes
+        accepted (FR-003, AC-005, AC-016, DL-006)."
+  - id: F-003
+    name: Rejection verdict
+    steps:
+      - Reviewer runs --reject with --note or --findings; CMP-002 pre-flight validates flag
+        placement before any write.
+      - "Mechanical blocking findings exist: the rejection is recorded without requiring reviewer
+        input; rationale follows DEC-004 precedence (mechanical summary, or the note when supplied);
+        no semantic block is recorded; the artifact status becomes rejected (FR-005, AC-008, FR-009,
+        AC-018, DL-005)."
+      - "Mechanical checks pass: --note or --findings is required and its absence is a usage error
+        writing nothing (FR-005, AC-009, DL-001); a supplied semantic section is validated for
+        completeness (FR-010) and recorded on the round."
+      - CMP-001 completes the latest open round in place, or appends a complete closed round when no
+        open round exists (FR-003, AC-004, AC-006, DL-003).
+  - id: F-004
+    name: Findings file ingestion and target resolution
+    steps:
+      - CMP-003 parses the --findings document; an entry missing target or finding refuses the
+        invocation naming the offending entry with nothing written (AC-012).
+      - Entries are normalized to {target, finding, fix?}; any severity field is dropped so recorded
+        findings never carry severity (FR-008, AC-014, AC-015).
+      - "Each target is classified against the DM-004 id pattern: id-shaped or free text."
+      - Id-shaped targets resolve against the known-id universe; an unresolved target emits the
+        UNKNOWN_FINDING_TARGET warning naming it and the round is still recorded (AC-013, DEC-001).
+      - Free-text targets skip resolution and never warn (DEC-001).
+decisions:
+  - id: DEC-001
+    title: Unknown-target warning fires only on id-shaped targets
+    context: FR-007 and AC-013 require a warning when an entry target matches no known artifact id, but
+      DL-008 explicitly allows free-text section anchors as targets, and free text cannot resolve
+      against an id universe without producing false warnings on every legitimate anchor. The
+      accepted review asks to pin when the unknown-target warning fires.
+    decision: "Define the known-id universe as all id-shaped strings matching ^[A-Z]{2,6}-[0-9]{2,4}$
+      collected from the change root's YAML artifacts (DM-004). A target containing a standalone
+      id-shaped token must resolve into that universe; an unresolved id-shaped target emits the
+      UNKNOWN_FINDING_TARGET warning naming the target, and the round is still recorded. A target
+      with no id-shaped token is a free-text anchor: it skips resolution and never warns. This
+      resolves FR-007/AC-013 against DL-008 — the warning fires exactly when a target claims to be
+      an id and the claim fails."
+    status: accepted
+  - id: DEC-002
+    title: Name the accept_blocked token; accept-with-blocking-findings completes the round
+    context: FR-003 and FR-009 imply that --accept with blocking mechanical findings still completes the
+      round (the verdict ran), and the current interpreter already records the token accept_blocked
+      in that case, but no AC exercises the path and the token appears nowhere in the requirements
+      text — the accepted review asks the design to name it explicitly.
+    decision: The decision token set is exactly review, accepted, rejected, accept_blocked. When
+      --accept runs with blocking mechanical findings, the round is completed closed with decision
+      accept_blocked, no semantic block, and rationale composed from the mechanical findings; the
+      artifact status is left unchanged and the envelope reports state blocked with CANNOT_ACCEPT.
+      Planning should add explicit test coverage for this path since no AC exercises it (CMP-006
+      names it).
+    status: accepted
+  - id: DEC-003
+    title: Semantic walk universe is the target stage's semantic-checks.yaml; the CLI validates, never
+      evaluates
+    context: "DL-009 says the semantic block covers every check in \"the stage's semantic-checks.yaml\"
+      while FR-010 says \"the target stage's semantic-checks.yaml\"; review stages carry no
+      semantic-checks.yaml of their own (per-kind file set), so DL-009's phrasing is ambiguous — the
+      accepted review directs the design to follow FR-010. The requirements out-of-scope bullet was
+      also tightened: validating reviewer-supplied results is in scope, evaluating check outcomes is
+      not."
+    decision: "Follow FR-010: completeness is measured against the reviewed (target) stage's
+      semantic-checks.yaml — exactly what semanticChecksFor(trackedStage) already reads — and review
+      stages carry none. The CLI validates the shape, completeness, and status values of
+      reviewer-supplied results (status must be 'pass' for every item on the accept path, FR-011)
+      but never evaluates the checks themselves; they stay agent-walked. This acknowledges the
+      tightened out-of-scope wording as a design boundary, not just a wording fix."
+    status: accepted
+  - id: DEC-004
+    title: Rationale composition precedence — note first, mechanical summary as fallback
+    context: FR-005 and DL-005 make the mechanical findings the rejection rationale when the reviewer
+      supplies nothing, while FR-006 stores --note on the round; a supplied --note alongside
+      blocking mechanical findings is not forbidden by any AC, so the design must fix one
+      deterministic composition.
+    decision: The round's rationale is the --note text when supplied; otherwise, when blocking
+      mechanical findings exist, a deterministic summary of those findings; otherwise the field is
+      omitted. The mechanical block always carries the full findings regardless of the precedence,
+      so no information is lost by the choice.
+    status: accepted
+  - id: DEC-005
+    title: Findings input validation is pre-flight and writes nothing on failure
+    context: "AC-009 through AC-012 and AC-017 all demand that invalid input writes nothing, but the
+      current interpreter writes the artifact status and the round deep inside the verdict branches,
+      so validation must be hoisted ahead of every mutation. Two requirements assumptions also need
+      planning confirmation: the --findings path resolution base (assumption 5) and round numbering
+      on refresh (assumption 6)."
+    decision: All input validation — flag conflicts, verdict-scoping, findings-file shape, semantic walk
+      completeness — runs before the gate result is acted on and before any file is touched; every
+      violation exits with a USAGE- or validation-coded error and neither the artifact nor the
+      review file is written. The --findings path resolves relative to the process working
+      directory, matching --record-answers behavior (assumption 5 — confirm during planning); round
+      numbering increments only when a round is appended, never when an open round is refreshed
+      (assumption 6 — confirm during planning).
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-001
+      - CMP-005
+      - CMP-006
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-001
+      - CMP-006
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-001
+      - CMP-005
+      - CMP-006
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-001
+      - CMP-006
+  - requirement_id: FR-005
+    component_ids:
+      - CMP-002
+      - CMP-005
+      - CMP-006
+  - requirement_id: FR-006
+    component_ids:
+      - CMP-002
+      - CMP-006
+  - requirement_id: FR-007
+    component_ids:
+      - CMP-003
+      - CMP-006
+  - requirement_id: FR-008
+    component_ids:
+      - CMP-003
+      - CMP-005
+      - CMP-006
+  - requirement_id: FR-009
+    component_ids:
+      - CMP-004
+      - CMP-005
+      - CMP-006
+  - requirement_id: FR-010
+    component_ids:
+      - CMP-004
+      - CMP-006
+  - requirement_id: FR-011
+    component_ids:
+      - CMP-004
+      - CMP-006
+  - requirement_id: FR-012
+    component_ids:
+      - CMP-005
+      - CMP-006
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-005
+      - CMP-006
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-001
+      - CMP-006
+delta:
+  - phase: Design
+    target_doc: docs/current/api-contract.md
+    target_anchor: "## Endpoints (CLI Commands)"
+    entity_id: null
+    change: Modify
+    reason: The review-kind CLI row gains the verdict-scoped, mutually exclusive --note and --findings
+      flags; verdicts complete the latest open round in place instead of appending a second round,
+      and the round payload carries status, rationale, semantic results, and reviewer findings
+      without severity.
+    date: 2026-09-02
+  - phase: Design
+    target_doc: docs/current/glossary.md
+    target_anchor: null
+    entity_id: null
+    change: Add
+    reason: "Add a Review Round entity documenting the extended round schema: status open/closed with
+      the legacy-rounds-are-closed rule, decision tokens review/accepted/rejected/accept_blocked,
+      rationale, the semantic block of per-check results with evidence, and reviewer findings that
+      never carry a severity field."
+    date: 2026-09-02
+  - phase: Design
+    target_doc: docs/current/capabilities.md
+    target_anchor: "## Workflows"
+    entity_id: null
+    change: Modify
+    reason: The Review gate workflow row changes from append round to open-or-refresh round then
+      complete the latest open round on verdict, reflecting that bare invocations no longer append
+      content-free inspection rounds and verdicts carry reviewer findings and semantic walks.
+    date: 2026-09-02

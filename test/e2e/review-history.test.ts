@@ -66,11 +66,22 @@ test('plain review records by default and dry-run does not', () => {
   out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete');
 
+  // Bare invocation appends an open round (open-to-closed lifecycle).
   out = run(tmp, ['requirements-review', '--change', changeDir]);
   assert.equal(out.data.round, 1);
 
   let rev = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
   assert.equal(rev.rounds.length, 1);
+  assert.equal(rev.rounds[0].status, 'open');
+  assert.equal(rev.rounds[0].decision, 'review');
+
+  // A second bare invocation refreshes the same round number in place.
+  out = run(tmp, ['requirements-review', '--change', changeDir]);
+  assert.equal(out.data.round, 1);
+  rev = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
+  assert.equal(rev.rounds.length, 1);
+  assert.equal(rev.rounds[0].round, 1);
+  assert.equal(rev.rounds[0].status, 'open');
 
   out = run(tmp, [
     'requirements-review',
@@ -83,4 +94,22 @@ test('plain review records by default and dry-run does not', () => {
 
   rev = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
   assert.equal(rev.rounds.length, 1);
+
+  // A verdict completes the open round in place instead of appending.
+  out = run(tmp, [
+    'requirements-review',
+    '--change',
+    changeDir,
+    '--reject',
+    '--note',
+    'Needs a narrower scope.',
+  ]);
+  assert.equal(out.data.round, 1);
+
+  rev = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
+  assert.equal(rev.rounds.length, 1);
+  assert.equal(rev.rounds[0].round, 1);
+  assert.equal(rev.rounds[0].decision, 'rejected');
+  assert.equal(rev.rounds[0].status, 'closed');
+  assert.equal(rev.rounds[0].rationale, 'Needs a narrower scope.');
 });

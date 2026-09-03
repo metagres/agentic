@@ -54,7 +54,33 @@
 | Business Rules | Rule | Location |
 |----------------|------|----------|
 | Ownership | CLI owns lifecycle state transitions | src/scripts/lib/kinds/authoring.ts, src/scripts/lib/kinds/review.ts |
-| Review history | append-only; rounds never deleted | src/scripts/lib/kinds/review.ts, AGENTS.md (invariant 3) |
+| Review history | append-only; rounds never deleted or rewritten except completing or refreshing an open round (legacy rounds without a status field are treated as closed) | src/scripts/lib/kinds/review.ts, AGENTS.md (invariant 3) |
+
+## Entity: Review Round (review file rounds[])
+
+| Field | Type | Nullable | Source |
+|-------|------|----------|--------|
+| round | int (1-based; frozen on refresh) | No | src/scripts/lib/kinds/review.ts |
+| reviewed_at | ISO timestamp | No | src/scripts/lib/kinds/review.ts |
+| artifact_version | string \| null | Yes | src/scripts/lib/kinds/review.ts |
+| implementation_status | string \| null | implementation-stage rounds only (roundBase) | src/scripts/lib/kinds/review.ts |
+| decision | review \| accepted \| rejected \| accept_blocked | No | src/scripts/lib/kinds/review.ts |
+| status | open \| closed | No (legacy rounds without the field are treated as closed) | src/scripts/lib/kinds/review.ts |
+| can_accept | bool | No | src/scripts/lib/kinds/review.ts |
+| mechanical | {valid, blocking_count, findings} | No | src/scripts/lib/kinds/review.ts |
+| rationale | string | Yes (--note text, else the mechanical-findings summary when blocking findings exist, else omitted) | src/scripts/lib/kinds/review.ts |
+| semantic | {results: [{check_id, status, evidence}]} | Yes (recorded only when supplied, valid, and mechanical checks passed) | src/scripts/lib/kinds/review.ts |
+| findings | array of {target, finding, fix?} — never a severity field | Yes | src/scripts/lib/review-findings.ts |
+| warnings | array of {code, message} | No | src/scripts/lib/kinds/review.ts |
+
+| Business Rules | Rule | Location |
+|----------------|------|----------|
+| Open-to-closed lifecycle | bare invocations open an inspection round or refresh the existing open round in place (round number frozen); verdicts (--accept/--reject) complete the latest open round in place, appending a closed round only when no open round exists | src/scripts/lib/kinds/review.ts |
+| Legacy rounds | rounds without a status field are treated as closed and never modified | src/scripts/lib/kinds/review.ts (isOpenRound) |
+| accept_blocked | --accept with blocking findings: the round completes closed, the artifact is untouched, and the envelope is blocked with CANNOT_ACCEPT | src/scripts/lib/kinds/review.ts, src/policies/errors.yaml |
+| Reviewer input | --note (rationale) and --findings (file) are verdict-scoped and mutually exclusive; violations are refused with nothing written | src/scripts/lib/kinds/review.ts |
+| Semantic walk | per-check {check_id, status, evidence} results validated against the target stage's semantic-checks.yaml; required and all-pass to accept with passing mechanicals (SEMANTIC_WALK_INVALID) | src/scripts/lib/kinds/review.ts, src/policies/errors.yaml |
+| Finding targets | id-shaped targets matching no known artifact id warn (UNKNOWN_FINDING_TARGET) while the round is still recorded; free-text targets never warn; malformed entries refuse the invocation (FINDINGS_ENTRY_INVALID) | src/scripts/lib/review-findings.ts, src/policies/errors.yaml |
 
 ## Entity: Docs Delta (docs-delta.yaml)
 

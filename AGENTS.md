@@ -34,13 +34,12 @@ npm run check:all
 3. Review history is append-only; rounds are never deleted.
 4. Living docs (`docs/current/`) are updated only through knowledge extraction.
 5. Authoring stages produce delta entries; they never edit `docs/current/` directly.
-6. Implementation state lives in `plan.yaml`.
-7. The toolkit is agent-agnostic — no hardcoded agent paths.
-8. The CLI envelope shape is frozen (workflow, step, state, instructions, data, errors, warnings).
-9. The deployed skills (`.opencode/skills/agentic-sdlc/` and `.opencode/skills/knowledge-init/`) are build artifacts: exactly two self-contained skill folders, fully bundled with all dependencies inlined (no `package.json`, no `node_modules`, no source `.ts` files inside them). They must never be treated as, or confused with, this repository's own source/config.
-10. Stages are discovered by directory: every stage is one folder under `src/stages/<stage-id>/` and no central file enumerates stages.
-11. Validation logic is declarative: stages declare named checks from the capped catalog; stage-specific validation scripts are prohibited.
-12. A stage is runnable only when every required stage's tracked artifact has status `accepted`; a review stage is runnable when its tracked artifact is `ready-for-review` or `accepted`.
+6. The toolkit is agent-agnostic — no hardcoded agent paths.
+7. The deployed skills and agents deployed in `.opencode` folder are build artifacts. They must never be treated as, or confused with, this repository's own source/config.
+8. Stages are discovered by directory: every stage is one folder under `src/stages/<stage-id>/` and no central file enumerates stages.
+9. Validation logic is declarative: stages declare named checks from the capped catalog; stage-specific validation scripts are prohibited.
+10. A stage is runnable only when every required stage's tracked artifact has status `accepted`; a review stage is runnable when its tracked artifact is `ready-for-review` or `accepted`.
+11. Codemap files (`codemap.md` in the project root and per-folder codemaps) are generated documentation: update them only by running the codemap skill — never edit them by hand.
 
 ---
 
@@ -65,10 +64,8 @@ A change is complete when:
 
 - `npm run validate` passes (required when code or YAML definitions changed; documentation-only changes are exempt — see §1).
 - No invariant from §2 is violated.
-- No new top-level CLI envelope fields were introduced.
 - No hardcoded agent-specific paths were added.
 - If deployment-related files changed: `npm run deploy:smoke` passes.
-- If deploy output changed: confirm `.opencode/skills/agentic-sdlc/` still contains no `package.json`/`node_modules`/source `.ts` files and exactly one `SKILL.md`.
 - If behavior changed: relevant docs in this file or referenced docs are updated.
 
 ---
@@ -122,9 +119,9 @@ both values.
 
 ### The four kinds (DEC-006)
 
-- **authoring** — generic flag loop (`--change`, `--request`, `--next-ids`, `--update-artifact`,
-  `--append-delta`, `--complete-step`, `--finalize`, `--confirm-semantic`, `--describe`,
-  `--describe-step`, `--help`) driving the step machine from `steps.yaml` completion predicates.
+- **authoring** — generic flag loop driving the step machine from `steps.yaml` completion
+  predicates. The flag surface is engine-generated: `sdlc <stage> --help` is the authoritative
+  list — this document deliberately does not enumerate the flags (enumerations drift).
   Every authoring stage declares the same six-step tour (`needs_input`, `init`, `authoring`,
   `ready`, `complete`, `recovery`), detected from artifact state; discovery/scenarios/assumptions
   guidance is folded into the `authoring` step, and `--finalize --confirm-semantic` evaluates

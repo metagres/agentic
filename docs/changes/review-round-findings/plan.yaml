@@ -1,0 +1,612 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: review rounds carry findings — semantic block, reviewer rationale, open-to-closed rounds"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-09-02
+  updated: 2026-09-02
+  based_on_design: 0.1.0
+  based_on_requirements: 0.1.0
+  implementation_status: accepted
+tasks:
+  - id: TASK-001
+    title: Add review-findings policy codes to the error catalog
+    description: >
+      Add three codes to src/policies/errors.yaml: warning UNKNOWN_FINDING_TARGET (a findings entry
+      target contains an id-shaped token matching no known artifact id; fix: correct the target id
+      or use a free-text anchor), error FINDINGS_ENTRY_INVALID (a --findings entry is missing its
+      required target or finding field; fix: supply both fields on every entry), and error
+      SEMANTIC_WALK_INVALID (the reviewer-supplied semantic walk is missing, incomplete, or carries
+      a non-pass status on the accept path; fix: supply one {check_id, status, evidence} item per
+      check of the target stage's semantic-checks.yaml, all status 'pass' when accepting). makeError
+      resolves codes dynamically from the catalog (src/scripts/lib/error-catalog.ts), so no other
+      wiring is required. This is the foundation task: every later task references these codes, so
+      the catalog must land first.
+    type: setup
+    status: done
+    complexity: low
+    covers:
+      - FR-007
+      - FR-011
+    acceptance_ids:
+      - AC-012
+      - AC-013
+      - AC-017
+    design_refs:
+      - DEC-001
+    depends_on: []
+    files:
+      - path: src/policies/errors.yaml
+        operation: modify
+    started_at: 2026-09-02
+    files_changed:
+      - path: src/policies/errors.yaml
+        operation: modify
+    implementation_note: "Added UNKNOWN_FINDING_TARGET (warning), FINDINGS_ENTRY_INVALID (error), and
+      SEMANTIC_WALK_INVALID (error) to src/policies/errors.yaml with the plan's message/fix texts.
+      makeError resolves codes dynamically so no other wiring needed. Verified: npm run
+      validate:policies passes with zero failures."
+    completed_at: 2026-09-02
+  - id: TASK-002
+    title: "Round store: open-to-closed review round lifecycle (CMP-001)"
+    description: >
+      Restructure round recording in src/scripts/lib/kinds/review.ts into a round store. Bare
+      non-dry-run invocation against a satisfied gate appends a round with status open, decision
+      review, and a fresh mechanical block (FR-001, AC-001). An existing open round is refreshed in
+      place keeping the same round number, decision review, status open (FR-002, AC-003); round
+      numbering increments only when a round is appended, never on refresh (assumption 6 — confirmed
+      during planning against the current roundsArr.length + 1 logic). A verdict completes the
+      latest open round in place — decision, status closed, rationale, refreshed artifact_version,
+      mechanical, and can_accept as of verdict time — or appends a complete closed round when no
+      open round exists (FR-003, AC-004, AC-006). Rounds without a status field are legacy, treated
+      as closed, never modified, byte-identical (FR-004, AC-007; assumption 4 — no migration needed,
+      confirmed). Append-only holds except for the one open round being completed or refreshed; all
+      writes go through writeYamlAtomic (NFR-002, AC-021). PRESERVE the conditional
+      implementation_status round field written when trackedStage.statusField ===
+      'implementation_status' (review.ts:332-336): DM-001's v2 field list omits it, but the
+      design-review round-2 follow-up note 1 requires it kept, not dropped, in the v2 round shape.
+      Dry-run semantics preserved: shouldRecord = !dryRun — no round is written and no artifact
+      status changes on any dry-run invocation (AC-002, follow-up note 3).
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-001
+      - FR-002
+      - FR-003
+      - FR-004
+      - NFR-002
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-003
+      - AC-004
+      - AC-006
+      - AC-007
+      - AC-021
+    depends_on: []
+    files:
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+    started_at: 2026-09-02
+    files_changed:
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+    implementation_note: "Restructured round recording in review.ts into a round store: bare non-dry-run
+      invocations open a round (status open, decision review, fresh mechanical block) or refresh the
+      existing open round in place keeping its round number; verdicts complete the latest open round
+      in place (decision, status closed, rationale, refreshed
+      artifact_version/mechanical/can_accept) or append a complete closed round when none exists.
+      Legacy rounds without status are treated as closed and never modified. Round numbers increment
+      only on append. Conditional implementation_status field preserved (roundBase helper).
+      Rationale currently uses the DEC-004 mechanical-summary fallback only (--note precedence lands
+      in TASK-006). All writes via writeYamlAtomic; dry-run writes nothing (shouldRecord = !dryRun).
+      Incidental: removed the dead ILLEGAL_STATUS_TRANSITION condition from the record predicate (no
+      code path in this function ever pushes that code). Verified: typecheck clean, existing review
+      e2e tests pass, npm run validate passes 226/226."
+    completed_at: 2026-09-02
+  - id: TASK-003
+    title: "Findings input gate: pre-flight argv validation (CMP-002)"
+    description: >
+      Hoist pre-flight validation in src/scripts/lib/kinds/review.ts ahead of the gate check and
+      ahead of every file mutation (DEC-005): --note and --findings are mutually exclusive (USAGE
+      error, AC-010); either flag without --accept or --reject is a USAGE error (AC-011); --reject
+      with zero mechanical blocking findings requires --note or --findings (USAGE error, AC-009)
+      while --reject with blocking findings proceeds without reviewer input (AC-008). --accept
+      --note with blocking findings proceeds: the note is carried as rationale on the accept_blocked
+      round per DEC-004 precedence, applied uniformly on the accept_blocked path (design-review
+      round-2 follow-up note 2). Every violation exits before any write so the artifact and review
+      file stay untouched. The --findings value is a file path resolved relative to the process
+      working directory, matching --record-answers behavior — precedent verified at authoring.ts:311
+      where the raw argv path goes straight into fs.existsSync (assumption 5 — confirmed during
+      planning).
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-005
+      - FR-006
+    acceptance_ids:
+      - AC-008
+      - AC-009
+      - AC-010
+      - AC-011
+    design_refs:
+      - DEC-004
+      - DEC-005
+    depends_on:
+      - TASK-002
+    files:
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+    started_at: 2026-09-02
+    files_changed:
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+    implementation_note: "Added the findings input gate to review.ts per DEC-005: (1) --note and
+      --findings mutual exclusion -> USAGE error (AC-010); (2) either flag without --accept/--reject
+      -> USAGE error (AC-011); (3) --findings file existence pre-flight using the raw argv path
+      resolved against process cwd, matching --record-answers precedent (assumption 5); (4) --reject
+      with zero mechanical blocking findings without --note/--findings -> USAGE error, checked after
+      mechanical validation but before any write (AC-009), while --reject with blocking findings
+      proceeds without reviewer input (AC-008). Note text is carried into the round rationale with
+      DEC-004 precedence (note first, mechanical summary fallback, else omitted) applied uniformly
+      on accepted/rejected/accept_blocked paths per follow-up note 3. All violations exit before any
+      write. Incidental: added node:fs import. Known test debt: test/e2e/reject-recover.test.ts now
+      fails on the bare --reject (expected under AC-009); TASK-008 updates it to supply a note.
+      Verified: typecheck clean, unit tests 226/226, review-history and full-pipeline e2e pass."
+    completed_at: 2026-09-02
+  - id: TASK-004
+    title: Findings file validator and known-id target resolver (CMP-003)
+    description: >
+      New module src/scripts/lib/review-findings.ts: parse the --findings YAML document (DM-002);
+      each findings entry requires target and finding with fix optional; a missing required field
+      refuses the invocation naming the offending entry with FINDINGS_ENTRY_INVALID and nothing
+      written (AC-012). Normalize entries to {target, finding, fix?}, dropping any supplied severity
+      so no per-finding severity is ever recorded (FR-008, AC-014, AC-015). Build the known-id
+      universe (DM-004): recursively walk the change root's YAML documents (requirements.yaml,
+      design.yaml, plan.yaml, review files) collecting every string value matching
+      ^[A-Z]{2,6}-[0-9]{2,4}$ without per-stage hardcoding. Classify each target: a target
+      containing a standalone id-shaped token must resolve into the universe, else emit the
+      UNKNOWN_FINDING_TARGET warning naming the target — riding both the envelope warnings array and
+      the round's warnings array — while the round is still recorded (AC-013, DEC-001); a target
+      with no id-shaped token is a free-text anchor, skips resolution, and never warns. Known blind
+      spot (design-review round-2 follow-up note 5, advisory): the pattern excludes
+      single-letter-prefixed ids such as F-001, so targets referencing them are treated as free text
+      and never warn — carry as a documented test note in TASK-007; widening the pattern is a
+      design-review event, not an implementation decision.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-007
+      - FR-008
+    acceptance_ids:
+      - AC-012
+      - AC-013
+      - AC-014
+      - AC-015
+    design_refs:
+      - DEC-001
+    depends_on:
+      - TASK-001
+      - TASK-003
+    files:
+      - path: src/scripts/lib/review-findings.ts
+        operation: create
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+    started_at: 2026-09-02
+    files_changed:
+      - path: src/scripts/lib/review-findings.ts
+        operation: create
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+    implementation_note: "Created src/scripts/lib/review-findings.ts (CMP-003): parseFindingsFile
+      validates the DM-002 document shape, requires target+finding per entry with fix optional,
+      refuses with FINDINGS_ENTRY_INVALID naming the offending entry index (AC-012), and normalizes
+      entries to {target, finding, fix?} dropping any supplied severity (FR-008, AC-014, AC-015).
+      collectKnownIds builds the DM-004 universe by recursively walking all YAML documents under the
+      change root collecting string values matching ^[A-Z]{2,6}-[0-9]{2,4}$ with no per-stage
+      hardcoding. resolveFindingTargets classifies targets: id-shaped tokens must resolve into the
+      universe else one UNKNOWN_FINDING_TARGET warning per target; free-text targets skip resolution
+      and never warn (DEC-001); the F-001 single-letter-prefix blind spot is preserved as
+      documented. Wired into review.ts pre-flight (before gate action and any write): parse errors
+      refuse with the catalog code; target warnings ride both the envelope warnings array and the
+      round's warnings array while the round is still recorded (AC-013). Verified by manual smoke on
+      a temp change: FR-999 warns on envelope+round with round recorded, free-text and REQ-001
+      targets silent, missing-field entry refused with FINDINGS_ENTRY_INVALID, severity dropped and
+      fix kept. Typecheck clean, unit tests 226/226."
+    completed_at: 2026-09-02
+  - id: TASK-005
+    title: Semantic walk validator (CMP-004)
+    description: >
+      Extend src/scripts/lib/review-findings.ts: validate the optional semantic section of the
+      findings file against the reviewed (target) stage's semantic-checks.yaml (DEC-003 — exactly
+      what semanticChecksFor(trackedStage) already reads; review stages carry no
+      semantic-checks.yaml of their own). Every check must appear exactly once as a {check_id,
+      status, evidence} item with non-empty evidence (DM-003, FR-010, AC-016). When the verdict is
+      --accept and mechanical checks pass, the section is required and every status must be 'pass';
+      a missing, incomplete, or failing walk refuses the invocation with SEMANTIC_WALK_INVALID and
+      nothing written (FR-011, AC-017). When mechanical blocking findings exist, the section is
+      ignored and not recorded (FR-009, AC-018). The CLI validates shape, completeness, and status
+      values of reviewer-supplied results only; it never evaluates the semantic checks themselves —
+      they stay agent-walked (DEC-003 boundary).
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-009
+      - FR-010
+      - FR-011
+    acceptance_ids:
+      - AC-016
+      - AC-017
+      - AC-018
+    design_refs:
+      - DEC-003
+    depends_on:
+      - TASK-001
+      - TASK-003
+    files:
+      - path: src/scripts/lib/review-findings.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+    started_at: 2026-09-02
+    files_changed:
+      - path: src/scripts/lib/review-findings.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+    implementation_note: "Extended review-findings.ts with validateSemanticWalk (CMP-004, DEC-003):
+      validates the reviewer-supplied semantic section against the target stage's
+      semantic-checks.yaml check list (the list semanticChecksFor(trackedStage) already reads);
+      every check must appear exactly once as {check_id, status, evidence} with non-empty evidence;
+      unknown or duplicate check_ids refused. When --accept runs with passing mechanical checks the
+      walk is required and every status must be 'pass' — missing, incomplete, or failing walks
+      refuse with SEMANTIC_WALK_INVALID and nothing written (FR-011, AC-017). With blocking
+      mechanical findings the section is ignored and not recorded (FR-009, AC-018); on reject with
+      passing mechanicals a supplied section is completeness-validated with free statuses and
+      recorded (FR-010). Wired into review.ts pre-flight after the AC-009 check and before any
+      write; the valid walk is recorded as the round's semantic block {results}. CLI validates
+      shape/completeness/status values only, never evaluates checks (DEC-003 boundary). Verified by
+      manual smoke: accept without walk / incomplete / failing all refuse with nothing written (no
+      review file, artifact status unchanged), full all-pass walk accepts with 14/14 results
+      recorded, reject with failing statuses records them. Typecheck clean, unit tests 226/226."
+    completed_at: 2026-09-02
+  - id: TASK-006
+    title: Verdict composer and envelope renderer (CMP-005)
+    description: >
+      Assemble the completed round in src/scripts/lib/kinds/review.ts: decision, status closed,
+      rationale per DEC-004 precedence (--note text when supplied; otherwise a deterministic summary
+      of blocking mechanical findings when they exist; otherwise omitted) applied uniformly on the
+      accepted, rejected, AND accept_blocked paths (design-review round-2 follow-up note 2), the
+      semantic block when supplied, valid, and mechanical checks passed, reviewer findings without
+      severity, refreshed artifact_version, mechanical, and can_accept as of verdict time. Apply the
+      artifact status transition: accepted or rejected; unchanged for accept_blocked, which
+      completes the round with the explicit token, leaves the artifact untouched, and reports
+      envelope state blocked with CANNOT_ACCEPT (DEC-002 — token named explicitly; no AC exercises
+      this path, TASK-007 covers it). Bare invocations with passing mechanical checks render
+      instructions naming the target stage's semantic checks and stating that acceptance requires
+      the complete semantic walk and rejection requires --note or --findings (FR-012, AC-019). All
+      new data rides existing structures inside data and the round — the seven frozen top-level
+      envelope fields are unchanged (NFR-001, AC-020). Dry-run reports the decision that would be
+      recorded and writes nothing (AC-002). Errors reuse the catalog: USAGE, CANNOT_ACCEPT,
+      CONFLICTING_DECISION.
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-003
+      - FR-012
+      - NFR-001
+    acceptance_ids:
+      - AC-002
+      - AC-004
+      - AC-005
+      - AC-016
+      - AC-019
+      - AC-020
+    design_refs:
+      - DEC-002
+      - DEC-004
+    depends_on:
+      - TASK-002
+      - TASK-004
+      - TASK-005
+    files:
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+    started_at: 2026-09-02
+    files_changed:
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+    implementation_note: "Completed the verdict composer and envelope renderer (CMP-005). The completed
+      round now assembles in DM-001 field order: round, reviewed_at, artifact_version,
+      [implementation_status], decision, status closed, can_accept, mechanical, semantic? (when
+      supplied, valid, and mechanical passed), findings? (reviewer findings normalized without
+      severity — blocking by definition on rejected, advisory on accepted), rationale? (DEC-004
+      precedence: --note text, else mechanical-findings summary, else omitted — uniform on accepted,
+      rejected, AND accept_blocked paths), warnings. Verified accept_blocked per DEC-002 by smoke:
+      --accept with blocking mechanical findings completes the open round in place with the explicit
+      accept_blocked token, leaves the artifact status untouched, reports envelope state blocked
+      with CANNOT_ACCEPT, and records the supplied --note as rationale (follow-up note 3). Bare
+      invocations with passing mechanical checks now render instructions naming the target stage's
+      semantic checks and stating that acceptance requires the complete semantic walk and rejection
+      requires --note or --findings (FR-012, AC-019). Envelope keeps exactly the seven frozen
+      top-level fields; all new data rides the round (NFR-001, AC-020). Dry-run semantics preserved
+      (shouldRecord = !dryRun). Errors reuse USAGE/CANNOT_ACCEPT/CONFLICTING_DECISION. Note:
+      rationale note-precedence and the semantic block recording landed with TASK-003/TASK-005
+      respectively; TASK-006 added the findings recording, DM-001 field order, and FR-012
+      instructions. Verified by smoke (accept_blocked + reject-with-blocking + accept-with-findings)
+      and npm run validate 226/226."
+    completed_at: 2026-09-02
+  - id: TASK-007
+    title: Review round contract test suite (CMP-006)
+    description: >
+      New test/unit/review-round-contract.test.ts covering the full round contract: the round
+      lifecycle (open on bare invocation, refresh in place keeping the same round number, complete
+      in place on verdict, append-closed when no open round, legacy rounds treated as closed and
+      byte-identical); the input gate (both-flags conflict, findings without verdict, rationale-less
+      semantic rejection); findings-file validation (missing field refuses naming the entry,
+      severity dropped, unknown id-shaped target warns while the round is still recorded); semantic
+      walk validation (complete all-pass walk accepted, incomplete or failing walk refused with
+      nothing written, mechanical-failure rounds carry no semantic block); the accept_blocked path
+      named explicitly per DEC-002 — no AC exercises it, so the test asserts the token, the
+      unchanged artifact status, the CANNOT_ACCEPT error, and that --accept --note records the note
+      as rationale on the blocked round (DEC-004 on the blocked path, follow-up note 2); the frozen
+      envelope shape (AC-020); and dry-run bare/verdict writing nothing while reporting the decision
+      that would be recorded (AC-002, follow-up note 3). Test note (follow-up note 5): the DM-004 id
+      pattern ^[A-Z]{2,6}-[0-9]{2,4}$ excludes single-letter-prefixed ids such as F-001, so a target
+      referencing F-001 is classified as free text and never warns — assert this documented behavior
+      so the blind spot is pinned.
+    type: test
+    status: done
+    complexity: high
+    covers:
+      - FR-001
+      - FR-002
+      - FR-003
+      - FR-004
+      - FR-005
+      - FR-006
+      - FR-007
+      - FR-008
+      - FR-009
+      - FR-010
+      - FR-011
+      - FR-012
+      - NFR-001
+      - NFR-002
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-003
+      - AC-004
+      - AC-005
+      - AC-006
+      - AC-007
+      - AC-008
+      - AC-009
+      - AC-010
+      - AC-011
+      - AC-012
+      - AC-013
+      - AC-014
+      - AC-015
+      - AC-016
+      - AC-017
+      - AC-018
+      - AC-019
+      - AC-020
+      - AC-021
+    design_refs:
+      - DEC-001
+      - DEC-002
+      - DEC-003
+      - DEC-004
+      - DEC-005
+    depends_on:
+      - TASK-002
+      - TASK-003
+      - TASK-004
+      - TASK-005
+      - TASK-006
+    files:
+      - path: test/unit/review-round-contract.test.ts
+        operation: create
+    started_at: 2026-09-02
+    files_changed:
+      - path: test/unit/review-round-contract.test.ts
+        operation: create
+    implementation_note: "Created test/unit/review-round-contract.test.ts (21 tests, CLI-driven per the
+      repo's unit-test spawnSync pattern) covering the full round contract: lifecycle (open on bare
+      AC-001, refresh in place keeping the round number AC-003 with the append-only-numbering
+      assumption 6 asserted, complete in place AC-004, append-closed AC-006, legacy rounds
+      deep-equal untouched AC-007); input gate (both-flags AC-010, findings-without-verdict AC-011,
+      rationale-less semantic rejection AC-009, reject-with-blocking proceeds AC-008); findings-file
+      validation (missing field refuses naming the entry AC-012, severity dropped AC-014/AC-015,
+      unknown id-shaped target warns on envelope+round while recorded AC-013); semantic walk
+      (all-pass accepted with per-item results AC-016, incomplete/failing/missing refused with
+      nothing written AC-017, mechanical-failure rounds carry no semantic block AC-018); the
+      accept_blocked path named explicitly per DEC-002 (token, unchanged artifact status,
+      CANNOT_ACCEPT, note recorded as rationale per DEC-004 follow-up note 2); frozen seven-field
+      envelope AC-020; FR-012 instruction text; dry-run bare+verdict writing nothing while reporting
+      the decision AC-002 (follow-up note 3); --findings cwd-relative resolution asserted
+      (assumption 5, follow-up note 5); and the DM-004 F-001 blind spot pinned as documented
+      never-warn behavior (follow-up notes 5/6). Verified: suite passes 21/21, npm run validate
+      247/247."
+    completed_at: 2026-09-02
+  - id: TASK-008
+    title: Update existing review-flow tests for the open-to-closed lifecycle
+    description: >
+      Update the e2e suites that drive review stages so they pass under the new contract:
+      test/e2e/review-history.test.ts (bare invocation appends an open round; a second bare
+      invocation refreshes the same round number; dry-run writes nothing; a verdict completes the
+      open round in place); test/e2e/reject-recover.test.ts (rejections with passing mechanical
+      checks now require --note or --findings per AC-009 — supply a note; round sequences updated
+      for open-to-closed); test/e2e/full-pipeline.test.ts (the four --accept verdicts now require a
+      complete all-pass semantic walk per AC-017 — supply per-stage --findings files with semantic
+      sections covering every check of each target stage's semantic-checks.yaml). Findings fixtures
+      are inline YAML strings written to the temp project at runtime — no new files under
+      test/fixtures. Confirm the improvement-review helper
+      src/skills/improvement-review/scripts/envelope_sizes.ts needs no code change: its review
+      invocations already pass --dry-run, which writes nothing under both lifecycles; only its
+      api-contract.md doc row changes (see the plan delta entries).
+    type: test
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-003
+      - FR-005
+      - FR-011
+      - NFR-002
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-004
+      - AC-005
+      - AC-009
+      - AC-017
+      - AC-021
+    depends_on:
+      - TASK-003
+      - TASK-005
+      - TASK-006
+    files:
+      - path: test/e2e/review-history.test.ts
+        operation: modify
+      - path: test/e2e/reject-recover.test.ts
+        operation: modify
+      - path: test/e2e/full-pipeline.test.ts
+        operation: modify
+    started_at: 2026-09-02
+    files_changed:
+      - path: test/e2e/review-history.test.ts
+        operation: modify
+      - path: test/e2e/reject-recover.test.ts
+        operation: modify
+      - path: test/e2e/full-pipeline.test.ts
+        operation: modify
+    implementation_note: "Updated the three e2e suites for the open-to-closed lifecycle.
+      review-history.test.ts: bare invocation appends an open round (status open, decision review),
+      a second bare invocation refreshes the same round number in place, dry-run writes nothing, and
+      a verdict with --note completes the open round in place (round 1 stays round 1, closed,
+      rationale recorded). reject-recover.test.ts: the rejection now supplies --note per AC-009 with
+      the rationale asserted, and the accept verdict supplies a requirements-stage semantic walk
+      file per AC-017; round sequence asserted as closed/closed. full-pipeline.test.ts: all four
+      --accept verdicts (requirements/design/planning/implementation review) now supply per-stage
+      --findings files with semantic sections covering every check of each target stage's
+      semantic-checks.yaml, generated as inline YAML written to the temp project at runtime (no new
+      test/fixtures files). Confirmed src/skills/improvement-review/scripts/envelope_sizes.ts needs
+      no code change: its review invocations already pass --dry-run which writes nothing under both
+      lifecycles; only its api-contract.md doc row changes, covered by the plan delta entries.
+      Verified: npm run check:all passes in full (validate 247/247, unit 247/247, e2e 51/51, deploy
+      smoke all six agents passed, deployed skills keep the two-folder no-ts no-package.json
+      invariant)."
+    completed_at: 2026-09-02
+milestones:
+  - id: MS-1
+    title: Policy foundation
+    tasks:
+      - TASK-001
+    done_when: >
+      src/policies/errors.yaml carries UNKNOWN_FINDING_TARGET, FINDINGS_ENTRY_INVALID, and
+      SEMANTIC_WALK_INVALID and npm run validate:policies passes.
+  - id: MS-2
+    title: Round lifecycle
+    tasks:
+      - TASK-002
+    done_when: >
+      Bare invocations open or refresh an open round, verdicts complete in place or append closed,
+      legacy rounds stay byte-identical, the conditional implementation_status field is preserved,
+      and dry-run writes nothing.
+  - id: MS-3
+    title: Reviewer input path
+    tasks:
+      - TASK-003
+      - TASK-004
+      - TASK-005
+    done_when: >
+      Pre-flight validation refuses invalid input writing nothing, findings files validate and
+      resolve targets against the known-id universe, and semantic walks validate against the target
+      stage's semantic-checks.yaml.
+  - id: MS-4
+    title: Verdict composition
+    tasks:
+      - TASK-006
+    done_when: >
+      Completed rounds carry decision, rationale (DEC-004 on all three verdict paths), semantic
+      block, and findings without severity; accept_blocked leaves the artifact unchanged with
+      CANNOT_ACCEPT; the envelope keeps its seven frozen top-level fields.
+  - id: MS-5
+    title: Contract verified
+    tasks:
+      - TASK-007
+      - TASK-008
+    done_when: |
+      The new unit contract suite and the updated e2e suites pass under npm run check:all.
+risks:
+  - id: R-01
+    description: >
+      DM-004 id-pattern blind spot: ^[A-Z]{2,6}-[0-9]{2,4}$ excludes single-letter-prefixed ids such
+      as F-001, so finding targets referencing them are treated as free text and never warn
+      (design-review round-2 follow-up note 5, advisory).
+    mitigation: >
+      Documented behavior asserted in the TASK-007 test notes so the blind spot is pinned; widening
+      the pattern changes DM-004 and is a design-review event, not an implementation decision.
+  - id: R-02
+    description: >
+      Reviewer agents must actually supply findings; the CLI can only enforce the hard error on
+      rationale-less semantic rejections, not force substantive notes (requirements
+      risks_and_dependencies).
+    mitigation: >
+      FR-012 instructions on every bare invocation with passing mechanical checks name that
+      acceptance requires the complete semantic walk and rejection requires --note or --findings;
+      TASK-007 asserts the instruction text.
+  - id: R-03
+    description: >
+      Legacy review files whose rounds lack a status field must remain readable without migration; a
+      legacy inspection round could be misread as a completed verdict (requirements assumption 4,
+      unverified until planning).
+    mitigation: >
+      The legacy-rounds-are-closed rule is implemented in TASK-002 and asserted byte-identical in
+      TASK-007 (AC-007); no migration code exists anywhere in this plan — confirmed during planning
+      that none is needed.
+  - id: R-04
+    description: >
+      The round store, input gate, and verdict composer all restructure
+      src/scripts/lib/kinds/review.ts; overlapping edits could conflict.
+    mitigation: >
+      Strict dependency chain TASK-002 → TASK-003 → TASK-006 with no parallel edits to review.ts;
+      TASK-004 and TASK-005 isolate new logic in src/scripts/lib/review-findings.ts and touch
+      review.ts only for call-site wiring after TASK-003 lands.
+delta:
+  - phase: Planning
+    target_doc: docs/current/api-contract.md
+    target_anchor: "## Endpoints (CLI Commands)"
+    entity_id: null
+    change: Modify
+    reason: >
+      The improvement-review envelope_sizes.ts row's parenthetical "(bare review invocations append
+      a round)" becomes stale under the open-to-closed round lifecycle: bare invocations open or
+      refresh an open round and only verdicts append when no open round exists. Reword the
+      parenthetical when knowledge extraction applies this plan (design-review round-2 follow-up
+      note 6).
+    date: 2026-09-02
+  - phase: Planning
+    target_doc: docs/current/glossary.md
+    target_anchor: "## Entity: Artifact Status"
+    entity_id: null
+    change: Modify
+    reason: >
+      The "Review history | append-only; rounds never deleted" row (glossary.md:57) becomes stale
+      under the open-to-closed lifecycle: it must gain the open-round exception — rounds are never
+      deleted or rewritten except completing or refreshing an open round, and legacy rounds without
+      a status field are treated as closed. Correction to the design-review follow-up note: the row
+      lives in glossary.md, not capabilities.md:57; capabilities.md's Review gate workflow row is
+      already covered by the design-phase delta.
+    date: 2026-09-02

@@ -182,3 +182,12 @@ errors:
   PLATFORM_UNKNOWN:
     message: Deployment platform or version selection does not resolve.
     fix: Use a known platform and version for the deployment target.
+  UNKNOWN_FINDING_TARGET:
+    message: A findings entry target contains an id-shaped token matching no known artifact id.
+    fix: Correct the target id or use a free-text anchor.
+  FINDINGS_ENTRY_INVALID:
+    message: A --findings entry is missing its required target or finding field.
+    fix: Supply both fields on every entry.
+  SEMANTIC_WALK_INVALID:
+    message: The reviewer-supplied semantic walk is missing, incomplete, or carries a non-pass status on the accept path.
+    fix: Supply one {check_id, status, evidence} item per check of the target stage's semantic-checks.yaml, all status 'pass' when accepting.

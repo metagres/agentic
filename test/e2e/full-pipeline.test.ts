@@ -52,6 +52,20 @@ function run(tmp, args, input) {
   return JSON.parse(res.stdout);
 }
 
+// Writes a findings file whose semantic section covers every check of the
+// target stage's semantic-checks.yaml with status 'pass' (AC-017). Inline
+// YAML built at runtime — no fixture files.
+function writeWalkFile(tmp, stageId) {
+  const checksPath = path.join(root, 'src', 'stages', stageId, 'semantic-checks.yaml');
+  const checks = readYaml(checksPath).checks;
+  const items = checks
+    .map((c) => `  - check_id: ${JSON.stringify(c)}\n    status: pass\n    evidence: "Verified in session."\n`)
+    .join('');
+  const file = path.join(tmp, `${stageId}-walk.yaml`);
+  fs.writeFileSync(file, `semantic:\n${items}`, 'utf8');
+  return file;
+}
+
 test('full pipeline requirements -> knowledge extraction complete', () => {
   const tmp = makeTmpProject();
 
@@ -70,7 +84,7 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['requirements-review', '--change', changeDir, '--accept']);
+  out = run(tmp, ['requirements-review', '--change', changeDir, '--accept', '--findings', writeWalkFile(tmp, 'requirements')]);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   const req = readYaml(path.join(changeRoot, 'requirements.yaml'));
@@ -86,7 +100,7 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   out = run(tmp, ['design', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['design-review', '--change', changeDir, '--accept']);
+  out = run(tmp, ['design-review', '--change', changeDir, '--accept', '--findings', writeWalkFile(tmp, 'design')]);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   const des = readYaml(path.join(changeRoot, 'design.yaml'));
@@ -102,7 +116,7 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   out = run(tmp, ['planning', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['planning-review', '--change', changeDir, '--accept']);
+  out = run(tmp, ['planning-review', '--change', changeDir, '--accept', '--findings', writeWalkFile(tmp, 'planning')]);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   out = run(
@@ -111,7 +125,7 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   );
   assert.notEqual(out.state, 'blocked', JSON.stringify(out));
 
-  out = run(tmp, ['implementation-review', '--change', changeDir, '--accept']);
+  out = run(tmp, ['implementation-review', '--change', changeDir, '--accept', '--findings', writeWalkFile(tmp, 'implementation')]);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
   out = run(tmp, ['knowledge-extraction', '--change', changeDir]);

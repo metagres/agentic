@@ -1,0 +1,395 @@
+metadata:
+  id: REQ-001
+  title: "Review rounds carry findings: semantic block, reviewer rationale, open-to-closed rounds"
+  stage: requirements
+  status: accepted
+  version: 0.1.0
+  created: 2026-09-02
+  updated: 2026-09-02
+  request_summary: "Extend the review-kind round contract: rounds record a semantic block (checklist
+    outcome) and reviewer findings supplied via CLI flags (--findings file or --note), so
+    append-only history answers why an artifact was rejected; bare invocations stop appending
+    inspection rounds."
+  clarity: clear
+  assumptions_reviewed: false
+  delta_reviewed: false
+  discovery_reviewed: false
+  scenarios_reviewed: false
+problem_statement: A review round records only a mechanical validation snapshot and a decision
+  token, so the reviewer's substantive findings live only in the session conversation and the
+  append-only history shows that an artifact was rejected, never why. Every verdict also costs two
+  rounds because the stage-opening inspection call appends a content-free round with decision
+  'review'. A fresh session resuming from artifacts cannot reconstruct the rationale for a rejection
+  and the author cannot see what to fix.
+discovery_log:
+  - id: DL-001
+    question: When the reviewer runs --reject but supplies no findings (no --note, no --findings file),
+      what should the CLI do?
+    answer: "Hard error. Rejection without findings is refused with a usage error; the reviewer must
+      re-run with --note or --findings. History can never contain a rationale-less rejection.
+      (Refined in a later answer: this applies only when mechanical checks pass — see the
+      mechanical-failure rule.)"
+    lens: failure
+    resolved: true
+  - id: DL-002
+    question: How should the reviewer supply findings to --reject (and possibly --accept)?
+    answer: 'Both flags: --note "..." for a free-text rationale and --findings <file> for structured
+      input. Reviewer picks per round; long rationales stay out of argv.'
+    lens: interface
+    resolved: true
+  - id: DL-003
+    question: "Bare invocation records decision: review, then the verdict appends a second round — how
+      should inspection and verdict map onto rounds, and how do we know a round is current?"
+    answer: "Open→closed rounds: the bare invocation appends a round with status open and decision
+      review; the verdict completes the LATEST open round in place (decision, semantic, findings,
+      refreshed mechanical) and marks it closed. No open round → the verdict appends a complete
+      closed round directly. Closed rounds are immutable; append-only holds except for completing an
+      open round."
+    lens: data
+    resolved: true
+  - id: DL-004
+    question: Does the review workflow order (mechanical → semantic → verdict) match the implementation,
+      and what must the round record at each stage?
+    answer: "Verified: gate first, then CLI-computed mechanical validation, then agent-walked semantic
+      checks (the CLI cannot evaluate them), then verdict. A mechanical failure records the
+      rejection with the mechanical findings as rationale and no semantic block; a semantic failure
+      records which checks failed, why, and what to fix; a full pass records the all-pass walk. The
+      verdict must be precise so the author knows what to do."
+    lens: failure
+    resolved: true
+  - id: DL-005
+    question: When --reject is issued and mechanical blocking findings exist, must the reviewer still
+      supply --note/--findings?
+    answer: No. Findings are required only when mechanical checks PASS (the rejection rationale is then
+      semantic/holistic and invisible to the CLI). When blocking mechanical findings exist, the CLI
+      records the rejection with those findings as rationale.
+    lens: failure
+    resolved: true
+  - id: DL-006
+    question: Should --accept also accept reviewer findings, or are findings reject-only?
+    answer: "Optional advisories: --accept may carry --note/--findings for advisory observations; the
+      round records decision accepted plus the advisories. Acceptance never requires findings."
+    lens: interface
+    resolved: true
+  - id: DL-007
+    question: What should the CLI do when --note or --findings is passed without --accept/--reject?
+    answer: "Usage error: findings flags require a verdict flag. Findings belong to the verdict call; no
+      amendment path outside the verdict."
+    lens: constraint
+    resolved: true
+  - id: DL-008
+    question: What must each entry in a --findings file contain so the author knows exactly what to do?
+    answer: "Structured + target: each entry requires target (artifact reference, e.g. FR-003 / AC-012 /
+      section anchor) and finding (what is wrong); fix optional. No per-finding severity field: all
+      findings on a rejected round are blocking by definition; findings on an accepted round are
+      advisory (the author may choose not to act because the artifact passed). Any finding arising
+      from a failed semantic check is automatically blocking. Findings must be relevant and usable
+      to improve the target artifact."
+    lens: stakeholder
+    resolved: true
+  - id: DL-009
+    question: What goes in the round's semantic block, and should can_accept/gate data move into it?
+    answer: "Per-item results plus rationale: semantic = { results: [{check_id, status, evidence}]
+      covering EVERY check in the stage's semantic-checks.yaml, plus optional free-text rationale }.
+      can_accept stays at round level where it is today; existing readers are unaffected."
+    lens: data
+    resolved: true
+  - id: DL-010
+    question: When a bare invocation runs while an open round already exists, what should happen?
+    answer: "Refresh the open round in place: same round number, mechanical snapshot refreshed, decision
+      stays review, status stays open. No round proliferation."
+    lens: failure
+    resolved: true
+  - id: DL-011
+    question: How does the reviewer supply the semantic walk results (per-item pass/fail + evidence)?
+    answer: "One file, two sections: --findings carries optional sections semantic: [{check_id, status,
+      evidence}] and findings: [{target, finding, fix?}]. --note stays the free-text rationale. One
+      verdict = one round = one file upload. The semantic section is required (complete walk)
+      whenever mechanical passed and the verdict is accept; ignored when mechanical failed."
+    lens: interface
+    resolved: true
+assumptions:
+  - type: verified
+    text: The review-kind interpreter records a round on every non-dry-run invocation; the round shape
+      is {round, reviewed_at, artifact_version, decision, can_accept, mechanical, warnings} with no
+      semantic block and no reviewer findings.
+    source: src/scripts/lib/kinds/review.ts
+  - type: verified
+    text: "Semantic checks are agent-evaluated: the CLI lists the stage's semantic-checks.yaml questions
+      in the envelope instructions and cannot compute their outcome."
+    source: src/scripts/lib/kinds/review.ts
+  - type: verified
+    text: Review stages bind a dedicated reviewer agent and the CLI owns all writes to the review file.
+    source: src/stages/requirements-review/stage.yaml
+  - type: unverified
+    text: Rounds written before this contract lack a status field; treating them as closed is the
+      backward-compatibility rule.
+    risk: A legacy file whose last round was an inspection could be misread as a completed verdict.
+    question: Confirm during planning that legacy rounds need no migration.
+    impact: "Low: legacy rounds stay readable either way."
+    severity: low
+  - type: unverified
+    text: The --findings file path resolves relative to the process working directory, matching
+      --record-answers behavior.
+    severity: low
+  - type: unverified
+    text: Round numbering increments only when a round is appended (open or complete), never when an
+      open round is refreshed.
+    severity: low
+functional_requirements:
+  - id: FR-001
+    description: When a review invocation without a decision flag runs against a satisfied gate without
+      --dry-run, the system shall append a round with status 'open', decision 'review', and a
+      freshly computed mechanical block.
+    ac_ids:
+      - AC-001
+      - AC-002
+  - id: FR-002
+    description: When a bare invocation runs while an open round exists, the system shall refresh that
+      open round's mechanical snapshot in place, keeping the same round number, decision 'review',
+      and status 'open'.
+    ac_ids:
+      - AC-003
+  - id: FR-003
+    description: When a verdict flag (--accept or --reject) runs, the system shall complete the latest
+      open round in place by setting decision, status 'closed', and rationale and refreshing
+      artifact_version, mechanical, and can_accept as of verdict time, or append a complete closed
+      round when no open round exists.
+    ac_ids:
+      - AC-004
+      - AC-005
+      - AC-006
+  - id: FR-004
+    description: When a round has status 'closed', the system shall never modify it; rounds written
+      before this contract that lack a status field shall be treated as closed and left unmodified.
+    ac_ids:
+      - AC-007
+  - id: FR-005
+    description: When --reject runs and mechanical blocking findings exist, the system shall record the
+      rejection with those findings as rationale without requiring reviewer input; when --reject
+      runs and mechanical blocking findings do not exist, the system shall refuse the rejection with
+      a usage error unless --note or --findings is supplied.
+    ac_ids:
+      - AC-008
+      - AC-009
+  - id: FR-006
+    description: When the reviewer supplies findings, the system shall accept them via --note (free-text
+      rationale stored on the round) or --findings (a YAML file with optional semantic and findings
+      sections); when --note and --findings are both supplied, or either is supplied without
+      --accept or --reject, the system shall fail with a usage error and write nothing.
+    ac_ids:
+      - AC-010
+      - AC-011
+  - id: FR-007
+    description: When a --findings file is supplied, the system shall require each findings entry to
+      carry target and finding, treat fix as optional, refuse the invocation when a required field
+      is missing, and emit a warning rather than an error when an entry target matches no known
+      artifact id.
+    ac_ids:
+      - AC-012
+      - AC-013
+  - id: FR-008
+    description: "The system shall not record a per-finding severity for reviewer findings: when the
+      round decision is 'rejected' every recorded finding is blocking, and when the decision is
+      'accepted' every recorded finding is advisory."
+    ac_ids:
+      - AC-014
+      - AC-015
+  - id: FR-009
+    description: When a verdict completes a round and mechanical blocking findings exist, the system
+      shall record the round without a semantic block.
+    ac_ids:
+      - AC-018
+  - id: FR-010
+    description: When a semantic section is supplied with a verdict, the system shall require its
+      results to cover every check in the target stage's semantic-checks.yaml, each with check_id,
+      status, and evidence, and record them as the round's semantic block.
+    ac_ids:
+      - AC-016
+  - id: FR-011
+    description: When --accept runs and mechanical blocking findings do not exist, the system shall
+      require the semantic section and refuse acceptance when the walk is incomplete or any result
+      status is not 'pass'.
+    ac_ids:
+      - AC-017
+  - id: FR-012
+    description: When a bare invocation opens or refreshes an open round while mechanical checks pass,
+      the system shall name in the envelope instructions that acceptance requires the complete
+      semantic walk and rejection requires --note or --findings.
+    ac_ids:
+      - AC-019
+non_functional_requirements:
+  - id: NFR-001
+    description: The CLI envelope shall keep exactly the frozen top-level fields (workflow, step, state,
+      instructions, data, errors, warnings); findings, semantic results, and rationale shall ride
+      existing structures inside data and the round schema, and no new top-level envelope field
+      shall be introduced.
+    ac_ids:
+      - AC-020
+  - id: NFR-002
+    description: "Review history shall remain append-only: no round shall ever be deleted or rewritten
+      except completing or refreshing an open round, and rounds written before this contract shall
+      remain readable and unmodified."
+    ac_ids:
+      - AC-021
+acceptance_criteria:
+  - id: AC-001
+    statement: Given a tracked artifact with status ready-for-review and no open round, when the
+      reviewer runs the review stage without a decision flag and without --dry-run, then a round is
+      appended with status 'open', decision 'review', and a mechanical block, and the envelope
+      reports the new round number.
+    category: happy
+    parent_id: FR-001
+  - id: AC-002
+    statement: Given a gate-satisfied artifact, when the reviewer runs any review invocation with
+      --dry-run, then no round is written, no artifact status changes, and the envelope reports the
+      decision that would be recorded.
+    category: edge
+    parent_id: FR-001
+  - id: AC-003
+    statement: Given an open round exists, when a bare invocation runs again without a decision flag,
+      then the same round number is kept, its mechanical snapshot is refreshed in place, and
+      decision remains 'review' with status 'open'.
+    category: edge
+    parent_id: FR-002
+  - id: AC-004
+    statement: Given an open round exists and mechanical blocking findings are absent, when the reviewer
+      runs --reject --note with a rationale, then the latest open round is completed in place with
+      decision 'rejected', status 'closed', and the rationale recorded, no additional round is
+      appended, and the artifact status becomes 'rejected'.
+    category: happy
+    parent_id: FR-003
+  - id: AC-005
+    statement: Given an open round exists and mechanical blocking findings are absent, when the reviewer
+      runs --accept with a valid all-pass semantic walk, then the open round is completed in place
+      with decision 'accepted', status 'closed', and the semantic block recorded, and the artifact
+      status becomes 'accepted'.
+    category: happy
+    parent_id: FR-003
+  - id: AC-006
+    statement: Given no open round exists, when the reviewer runs a verdict, then a complete closed
+      round is appended with the decision, a mechanical block, and, when supplied and valid, the
+      semantic block and rationale.
+    category: edge
+    parent_id: FR-003
+  - id: AC-007
+    statement: Given a review file containing rounds written before this contract without a status
+      field, when any new review invocation runs, then legacy rounds are treated as closed, left
+      byte-identical, and the open-to-closed logic applies only to newly written rounds.
+    category: edge
+    parent_id: FR-004
+  - id: AC-008
+    statement: Given a ready-for-review artifact with at least one mechanical blocking finding, when the
+      reviewer runs --reject without --note and without --findings, then the rejection is recorded
+      with the mechanical findings as rationale and the artifact status becomes 'rejected'.
+    category: boundary
+    parent_id: FR-005
+  - id: AC-009
+    statement: Given a ready-for-review artifact with zero mechanical blocking findings, when the
+      reviewer runs --reject without --note and without --findings, then the invocation fails with a
+      usage error, no round is written, and the artifact status is unchanged.
+    category: negative
+    parent_id: FR-005
+  - id: AC-010
+    statement: Given a gate-satisfied artifact, when the reviewer supplies both --note and --findings in
+      one invocation, then the invocation fails with a usage error and nothing is written.
+    category: negative
+    parent_id: FR-006
+  - id: AC-011
+    statement: Given a gate-satisfied artifact, when the reviewer supplies --note or --findings without
+      --accept or --reject, then the invocation fails with a usage error and nothing is written.
+    category: negative
+    parent_id: FR-006
+  - id: AC-012
+    statement: Given a --findings file with an entry missing the finding field, when a verdict runs with
+      that file, then the invocation fails with a validation error naming the offending entry and
+      nothing is written.
+    category: negative
+    parent_id: FR-007
+  - id: AC-013
+    statement: Given a --findings file with an entry whose target matches no known artifact id, when a
+      verdict runs with that file, then the invocation emits a warning naming the unknown target and
+      records the round.
+    category: edge
+    parent_id: FR-007
+  - id: AC-014
+    statement: Given a completed round with decision 'rejected' and recorded reviewer findings, when the
+      round is read, then no finding carries a severity field and every finding is blocking.
+    category: happy
+    parent_id: FR-008
+  - id: AC-015
+    statement: Given a completed round with decision 'accepted' and recorded reviewer findings, when the
+      round is read, then no finding carries a severity field and every finding is advisory.
+    category: boundary
+    parent_id: FR-008
+  - id: AC-016
+    statement: Given mechanical checks pass and a findings file whose semantic section covers every
+      check in the target stage's semantic-checks.yaml with status 'pass', when the reviewer runs
+      --accept, then the round records the semantic block with per-item results and evidence and the
+      artifact status becomes 'accepted'.
+    category: happy
+    parent_id: FR-010
+  - id: AC-017
+    statement: Given mechanical checks pass, when the reviewer runs --accept with a semantic section
+      that omits any check or records a status other than 'pass', then the invocation fails, no
+      round is written, and the artifact status is unchanged.
+    category: negative
+    parent_id: FR-011
+  - id: AC-018
+    statement: Given mechanical blocking findings exist, when the reviewer runs --reject, then the
+      completed round records no semantic block and carries the mechanical findings as rationale.
+    category: boundary
+    parent_id: FR-009
+  - id: AC-019
+    statement: Given a bare invocation that opens or refreshes an open round while mechanical checks
+      pass, when the envelope is returned, then its instructions name that acceptance requires the
+      complete semantic walk and rejection requires --note or --findings.
+    category: happy
+    parent_id: FR-012
+  - id: AC-020
+    statement: Given any review invocation under this contract, when the envelope is returned, then the
+      top-level fields are exactly workflow, step, state, instructions, data, errors, and warnings,
+      and findings, semantic results, and rationale appear only inside data or the round structure.
+    category: boundary
+    parent_id: NFR-001
+  - id: AC-021
+    statement: Given any completed review invocation, when the review file is written, then no round is
+      deleted or rewritten except the open round being completed or refreshed, and all former rounds
+      remain byte-identical.
+    category: edge
+    parent_id: NFR-002
+out_of_scope:
+  - Retroactive edits or migration of existing rounds; append-only history holds and old rounds stay
+    as written.
+  - New top-level envelope fields; findings, semantic results, and rationale ride the existing round
+    structure and data.
+  - Changing who may write rounds; the CLI on behalf of the bound reviewer remains the only writer.
+  - Moving can_accept or gate data into the semantic block; can_accept stays at round level.
+  - CLI-side evaluation of semantic checks; they remain agent-walked, with the CLI validating shape
+    and completeness only.
+failure_paths:
+  - "Reviewer issues --reject with no findings while mechanical checks pass: the CLI refuses with a
+    usage error; no round is written and the artifact status is unchanged (AC-009)."
+  - "A --findings file entry lacks target or finding: the CLI refuses naming the offending entry;
+    nothing is written (AC-012)."
+  - "Acceptance is attempted with an incomplete or failing semantic walk: the CLI refuses; no round
+    is written and the artifact status is unchanged (AC-017)."
+  - "Conflicting or misplaced findings input (both --note and --findings, or findings without a
+    verdict flag): the CLI refuses with a usage error; nothing is written (AC-010, AC-011)."
+risks_and_dependencies:
+  - Reviewer agents must actually supply findings; the CLI enforces the hard error on rationale-less
+    semantic rejections and names the requirement in the envelope instructions (FR-012).
+  - No hard dependencies; same write-time-enforcement theme as the ac-parent-backref-check and
+    update-artifact-dry-run ideas.
+  - Legacy review files must remain readable without migration; the legacy-rounds-are-closed rule is
+    unverified until planning (assumption 4).
+delta:
+  - phase: Requirements
+    target_doc: docs/current/api-contract.md
+    target_anchor: null
+    entity_id: null
+    change: Add
+    reason: Review CLI verdict contract gains --note and --findings flags, the round schema gains
+      status, rationale, and semantic sections, and verdicts complete the latest open round instead
+      of appending a second round.
+    date: 2026-09-02

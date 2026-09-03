@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs';
 
 import type { StageRecord } from '../stage-registry.ts';
 import { getStageById } from '../stage-registry.ts';
@@ -10,6 +11,14 @@ import { today, nowIso } from '../ids.ts';
 import { validateArtifact } from '../validate.ts';
 import { evaluateGate } from '../requires-graph.ts';
 import { makeError } from '../error-catalog.ts';
+import {
+  collectKnownIds,
+  FindingsFileError,
+  parseFindingsFile,
+  resolveFindingTargets,
+  validateSemanticWalk,
+} from '../review-findings.ts';
+import type { ParsedFindingsFile, ValidatedSemanticWalk } from '../review-findings.ts';
 import type { WarningItem, Finding } from '../types.ts';
 
 export interface ReviewRunOptions {
@@ -29,6 +38,36 @@ function semanticChecksFor(stage: StageRecord): string[] {
 
 function blockingFindings(findings: Finding[]): Finding[] {
   return findings.filter((f) => !f.severity || f.severity === 'blocking');
+}
+
+/**
+ * Round store (CMP-001): rounds are classified by status. A round carrying
+ * status 'open' is the only mutable round; every other round — including
+ * legacy rounds written before the open-to-closed contract that lack a status
+ * field — is treated as closed and never modified (FR-004, AC-007).
+ */
+function isOpenRound(round: unknown): boolean {
+  return Boolean(
+    round &&
+      typeof round === 'object' &&
+      (round as Record<string, unknown>).status === 'open'
+  );
+}
+
+function latestOpenRoundIndex(rounds: unknown[]): number {
+  for (let i = rounds.length - 1; i >= 0; i -= 1) {
+    if (isOpenRound(rounds[i])) return i;
+  }
+  return -1;
+}
+
+/**
+ * Deterministic summary of the blocking mechanical findings, used as the
+ * round rationale when the reviewer supplies none (DEC-004 fallback).
+ */
+function mechanicalRationale(blocking: Finding[]): string {
+  const items = blocking.map((f) => f.finding).join('; ');
+  return `${blocking.length} blocking mechanical finding(s): ${items}`;
 }
 
 export async function runReviewStage(
@@ -168,6 +207,124 @@ export async function runReviewStage(
     return;
   }
 
+  // Findings input gate (CMP-002, DEC-005): pre-flight argv validation that
+  // runs ahead of the gate check and ahead of every file mutation. Every
+  // violation exits before any write so the artifact and review file stay
+  // untouched.
+  const note = typeof args.note === 'string' ? String(args.note).trim() : '';
+  const findingsFile =
+    typeof args.findings === 'string' ? String(args.findings).trim() : '';
+  const hasReviewerInput = Boolean(note || findingsFile);
+
+  if (note && findingsFile) {
+    writeJson(
+      {
+        workflow,
+        step: 'review',
+        state: 'blocked',
+        instructions: 'Use either --note or --findings, not both.',
+        data: {
+          target: targetLabel,
+          target_artifact: stage.artifact,
+          change_root: changeRoot,
+        },
+        errors: [
+          makeError('USAGE', { message: 'Use either --note or --findings, not both.' }),
+        ],
+        warnings: [],
+      },
+      EXIT.usage
+    );
+    return;
+  }
+
+  if (hasReviewerInput && !args.accept && !args.reject) {
+    writeJson(
+      {
+        workflow,
+        step: 'review',
+        state: 'blocked',
+        instructions: '--note and --findings require a verdict flag (--accept or --reject).',
+        data: {
+          target: targetLabel,
+          target_artifact: stage.artifact,
+          change_root: changeRoot,
+        },
+        errors: [
+          makeError('USAGE', {
+            message: '--note and --findings require a verdict flag (--accept or --reject).',
+          }),
+        ],
+        warnings: [],
+      },
+      EXIT.usage
+    );
+    return;
+  }
+
+  if (findingsFile && !fs.existsSync(findingsFile)) {
+    // The --findings value resolves relative to the process working
+    // directory, matching --record-answers behavior (assumption 5).
+    writeJson(
+      {
+        workflow,
+        step: 'review',
+        state: 'blocked',
+        instructions: `--findings file not found: ${findingsFile}`,
+        data: {
+          target: targetLabel,
+          target_artifact: stage.artifact,
+          change_root: changeRoot,
+        },
+        errors: [
+          makeError('USAGE', { message: `--findings file not found: ${findingsFile}` }),
+        ],
+        warnings: [],
+      },
+      EXIT.usage
+    );
+    return;
+  }
+
+  // Findings-file shape validation and target resolution (CMP-003, DEC-005):
+  // pre-flight, before the gate result is acted on and before any write. A
+  // shape violation refuses the invocation naming the offending entry
+  // (AC-012); unknown id-shaped targets only warn while the round is still
+  // recorded (AC-013, DEC-001).
+  let parsedFindings: ParsedFindingsFile | null = null;
+  const targetWarnings: WarningItem[] = [];
+
+  if (findingsFile) {
+    try {
+      parsedFindings = parseFindingsFile(findingsFile);
+    } catch (err: unknown) {
+      if (err instanceof FindingsFileError) {
+        writeJson(
+          {
+            workflow,
+            step: 'review',
+            state: 'blocked',
+            instructions: err.message,
+            data: {
+              target: targetLabel,
+              target_artifact: stage.artifact,
+              change_root: changeRoot,
+            },
+            errors: [makeError(err.code, { message: err.message })],
+            warnings: [],
+          },
+          EXIT.usage
+        );
+        return;
+      }
+      throw err;
+    }
+
+    targetWarnings.push(
+      ...resolveFindingTargets(parsedFindings.findings, collectKnownIds(changeRoot))
+    );
+  }
+
   try {
     // Review gate (DEC-008): the tracked artifact must be ready-for-review or
     // accepted.
@@ -241,6 +398,80 @@ export async function runReviewStage(
 
     const canAccept = readyForReview && blocking.length === 0;
 
+    // Input gate, mechanical-dependent rule (AC-008, AC-009): a rejection
+    // with zero mechanical blocking findings requires reviewer input, because
+    // the rationale would otherwise be invisible to the CLI. With blocking
+    // findings the rejection proceeds without reviewer input. This check runs
+    // after mechanical validation but before any write (DEC-005).
+    if (args.reject && !hasReviewerInput && blocking.length === 0) {
+      writeJson(
+        {
+          workflow,
+          step: 'review',
+          state: 'blocked',
+          instructions:
+            '--reject requires --note or --findings when mechanical checks pass (no blocking findings).',
+          data: {
+            target: targetLabel,
+            target_artifact: trackedStage.artifact,
+            artifact: artifactPath,
+            change_root: changeRoot,
+            blocking_count: blocking.length,
+          },
+          errors: [
+            makeError('USAGE', {
+              message:
+                '--reject requires --note or --findings when mechanical checks pass (no blocking findings).',
+            }),
+          ],
+          warnings: [],
+        },
+        EXIT.usage
+      );
+      return;
+    }
+
+    // Semantic walk validation (CMP-004, DEC-003, DEC-005): pre-flight,
+    // before any write. Required and all-pass when accepting with passing
+    // mechanical checks (FR-011, AC-017); validated for completeness and
+    // recorded when supplied with passing mechanicals (FR-010); ignored and
+    // not recorded when mechanical blocking findings exist (FR-009, AC-018).
+    const semanticRequired = Boolean(args.accept) && blocking.length === 0;
+    let semanticWalk: ValidatedSemanticWalk | null = null;
+
+    if (blocking.length === 0 && (parsedFindings?.semantic || semanticRequired)) {
+      try {
+        semanticWalk = validateSemanticWalk(
+          parsedFindings?.semantic ?? null,
+          stageChecks,
+          semanticRequired
+        );
+      } catch (err: unknown) {
+        if (err instanceof FindingsFileError) {
+          writeJson(
+            {
+              workflow,
+              step: 'review',
+              state: 'blocked',
+              instructions: err.message,
+              data: {
+                target: targetLabel,
+                target_artifact: trackedStage.artifact,
+                artifact: artifactPath,
+                change_root: changeRoot,
+                blocking_count: blocking.length,
+              },
+              errors: [makeError(err.code, { message: err.message })],
+              warnings: [],
+            },
+            EXIT.usage
+          );
+          return;
+        }
+        throw err;
+      }
+    }
+
     let decision = 'review';
     let state: string = canAccept ? 'ok' : 'blocked';
     let instructions = '';
@@ -286,7 +517,7 @@ export async function runReviewStage(
       instructions = canAccept
         ? `The ${trackedStage.id} artifact passed structural validation. Please review the following semantic checks:\n\n${stageChecks
             .map((c, i) => `${i + 1}. ${c}`)
-            .join('\n')}\n\nIf all pass, accept with --accept.`
+            .join('\n')}\n\nAcceptance requires the complete semantic walk: run --accept with --findings supplying one {check_id, status, evidence} item per check above, all status 'pass'. Rejection requires --note or --findings.`
         : `The ${trackedStage.id} artifact cannot be accepted yet. Fix the blocking findings and review again.`;
 
       if (dryRun) instructions += ' Dry run: no changes were written.';
@@ -317,15 +548,24 @@ export async function runReviewStage(
       reviewDoc.rounds = [];
     }
 
-    const roundsArr = reviewDoc.rounds as unknown[];
-    const roundNumber = roundsArr.length + 1;
+    const roundsArr = reviewDoc.rounds as Record<string, unknown>[];
+    const isVerdict = Boolean(args.accept || args.reject);
     let recordedRound: number | null = null;
-    const recordRound =
-      shouldRecord &&
-      !(args.reject && errors.some((e) => e.code === 'ILLEGAL_STATUS_TRANSITION'));
 
-    if (recordRound) {
-      const round = {
+    if (shouldRecord) {
+      const mechanicalBlock = {
+        valid: blocking.length === 0,
+        blocking_count: blocking.length,
+        findings,
+      };
+      const roundWarnings = [
+        ...blocking.filter((f) => f.severity !== 'blocking'),
+        // Unknown id-shaped finding targets warn while the round is still
+        // recorded (AC-013, DEC-001).
+        ...targetWarnings,
+      ];
+      const openIdx = latestOpenRoundIndex(roundsArr);
+      const roundBase = (roundNumber: number) => ({
         round: roundNumber,
         reviewed_at: nowIso(),
         artifact_version: metadata.version || null,
@@ -334,28 +574,75 @@ export async function runReviewStage(
               implementation_status: metadata.implementation_status || null,
             }
           : {}),
-        decision,
-        can_accept: canAccept,
-        mechanical: {
-          valid: blocking.length === 0,
-          blocking_count: blocking.length,
-          findings,
-        },
-        warnings: blocking.filter((f) => f.severity !== 'blocking'),
-      };
+      });
 
-      (reviewDoc.rounds as unknown[]).push(round);
+      if (!isVerdict) {
+        // Bare invocation (FR-001, FR-002): open a round, or refresh the
+        // existing open round in place keeping the same round number. Round
+        // numbers increment only when a round is appended, never on refresh.
+        const roundNumber =
+          openIdx >= 0
+            ? Number(roundsArr[openIdx].round)
+            : roundsArr.length + 1;
+        const openRound = {
+          ...roundBase(roundNumber),
+          decision: 'review',
+          status: 'open',
+          can_accept: canAccept,
+          mechanical: mechanicalBlock,
+          warnings: roundWarnings,
+        };
+        if (openIdx >= 0) roundsArr[openIdx] = openRound;
+        else roundsArr.push(openRound);
+        recordedRound = roundNumber;
+      } else {
+        // Verdict (FR-003): complete the latest open round in place, or
+        // append a complete closed round when no open round exists. The
+        // rationale follows DEC-004 precedence: the --note text when
+        // supplied; otherwise the mechanical-findings summary when blocking
+        // findings exist; otherwise omitted.
+        const rationale =
+          note || (blocking.length > 0 ? mechanicalRationale(blocking) : null);
+        const roundNumber =
+          openIdx >= 0
+            ? Number(roundsArr[openIdx].round)
+            : roundsArr.length + 1;
+        const closedRound = {
+          ...roundBase(roundNumber),
+          decision,
+          status: 'closed',
+          can_accept: canAccept,
+          mechanical: mechanicalBlock,
+          // Semantic block recorded only when supplied, valid, and mechanical
+          // checks passed (DM-001, FR-009, AC-018).
+          ...(semanticWalk ? { semantic: { results: semanticWalk.results } } : {}),
+          // Reviewer findings without severity: blocking by definition on a
+          // rejected round, advisory on an accepted one (FR-008, AC-014,
+          // AC-015).
+          ...(parsedFindings && parsedFindings.findings.length > 0
+            ? { findings: parsedFindings.findings }
+            : {}),
+          // DEC-004 precedence: --note text, else the mechanical-findings
+          // summary when blocking findings exist, else omitted — applied
+          // uniformly on the accepted, rejected, and accept_blocked paths.
+          ...(rationale ? { rationale } : {}),
+          warnings: roundWarnings,
+        };
+        if (openIdx >= 0) roundsArr[openIdx] = closedRound;
+        else roundsArr.push(closedRound);
+        recordedRound = roundNumber;
+      }
+
       reviewDoc.metadata = {
         ...(reviewDoc.metadata as Record<string, unknown>),
         artifact: trackedStage.artifact,
         target: trackedStage.id,
-        latest_round: roundNumber,
+        latest_round: recordedRound,
         latest_decision: decision,
         updated: today(),
       };
 
       writeYamlAtomic(reviewPath, reviewDoc);
-      recordedRound = roundNumber;
     }
 
     writeJson(
@@ -379,9 +666,14 @@ export async function runReviewStage(
           round: recordedRound,
         },
         errors,
-        warnings: blocking
-          .filter((f) => f.severity !== 'blocking')
-          .map((f) => ({ code: 'VALIDATION_WARNING', message: f.finding })),
+        warnings: [
+          ...blocking
+            .filter((f) => f.severity !== 'blocking')
+            .map((f) => ({ code: 'VALIDATION_WARNING', message: f.finding })),
+          // Unknown id-shaped finding targets ride the envelope warnings
+          // array while the round is still recorded (AC-013, DEC-001).
+          ...targetWarnings,
+        ],
       },
       EXIT.ok
     );

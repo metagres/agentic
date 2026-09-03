@@ -1,0 +1,97 @@
+metadata:
+  artifact: plan.yaml
+  target: implementation
+  latest_round: 2
+  created: 2026-09-02
+  updated: 2026-09-02
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-02T13:03:42.053Z
+    artifact_version: 0.1.0
+    implementation_status: ready-for-review
+    decision: review
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    warnings: []
+  - round: 2
+    reviewed_at: 2026-09-02T13:10:06.286Z
+    artifact_version: 0.1.0
+    implementation_status: accepted
+    decision: accepted
+    status: closed
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    semantic:
+      results:
+        - check_id: Do the completed tasks plausibly satisfy the acceptance criteria they claim to cover?
+          status: pass
+          evidence: All 8 tasks done with per-task notes mapping to claimed ACs; the 21-test CLI-driven
+            contract suite (test/unit/review-round-contract.test.ts, TASK-007) exercises the
+            acceptance criteria end-to-end, including the AC-less accept_blocked path per DEC-002.
+        - check_id: Have negative and boundary cases required by requirements and plan been implemented or
+            verified?
+          status: pass
+          evidence: "Negative paths implemented and asserted: USAGE refusals in the pre-flight gate,
+            FINDINGS_ENTRY_INVALID (AC-012), SEMANTIC_WALK_INVALID (AC-017), CANNOT_ACCEPT on
+            accept_blocked; boundary cases covered: legacy rounds byte-identical (AC-007), dry-run
+            writes nothing (AC-002), append-only numbering (assumption 6),
+            F-001-classified-as-free-text blind spot (DM-004 note)."
+        - check_id: Are files changed outside the plan either incidental and explained, or does the plan need
+            updating?
+          status: pass
+          evidence: "git status shows exactly the planned surface: src/policies/errors.yaml,
+            src/scripts/lib/kinds/review.ts, three e2e suites, new
+            src/scripts/lib/review-findings.ts, new test/unit/review-round-contract.test.ts.
+            Incidental changes noted per task: dead ILLEGAL_STATUS_TRANSITION predicate removal (no
+            code path pushed it), node:fs import."
+        - check_id: Is there evidence that the work was verified (tests, manual verification notes, CLI
+            output)?
+          status: pass
+          evidence: npm run validate passed (247/247 unit tests, schemas+policies+templates+typecheck); npm
+            run check:all passed at TASK-008 (51/51 e2e, deploy smoke all six agents, bundle
+            invariants verified); manual smokes on temp changes verified accept_blocked,
+            semantic-walk refusals, findings recording, and warning riding.
+        - check_id: Are task implementation notes sufficient to understand what was done and how it was
+            verified?
+          status: pass
+          evidence: Every done task carries an implementation note naming files, behaviors, and verification
+            commands; the TASK-006 note explicitly records the rationale-precedence overlap with
+            TASK-003 and the semantic-block overlap with TASK-005.
+        - check_id: For refactor tasks, is there evidence that behavior was preserved?
+          status: pass
+          evidence: Legacy rounds (no status field) treated as closed and untouched, byte-identity asserted
+            per AC-007; the conditional implementation_status round field (review.ts:332-336) is
+            preserved via the shared roundBase helper (~review.ts:572-574) and visible in live
+            rounds; e2e review-history suite updated in lockstep with the open-to-closed contract.
+        - check_id: Is the implementation complete enough to synchronize docs/current?
+          status: pass
+          evidence: All 8 tasks terminal (8 done, 0 blocked, 0 skipped); implementation_status
+            ready-for-review; delta entries from design and planning phases staged for knowledge
+            extraction; three stale living-docs touchpoints flagged (api-contract.md envelope_sizes
+            parenthetical, glossary.md append-only row, capabilities.md:35 G-07) — none edited
+            directly, per the living-docs invariant.
+    findings:
+      - target: "Verdict rationale: implementation satisfies the accepted plan; all seven semantic checks
+          pass on direct code and test inspection."
+        finding: Acceptance recorded with a complete all-pass semantic walk; mechanical validation passed
+          with zero blocking findings.
+      - target: TASK-007 AC-005
+        finding: "Advisory: the contract suite leaves AC-005 (happy-path in-place completion on --accept
+          with an open round and all-pass walk) with a test-coverage gap relative to the other
+          round-lifecycle paths."
+        fix: Add an explicit AC-005 assertion to test/unit/review-round-contract.test.ts in a follow-up
+          change.
+      - target: TASK-001
+        finding: "Advisory: after TASK-002's incidental removal of the dead ILLEGAL_STATUS_TRANSITION record
+          predicate, the ILLEGAL_STATUS_TRANSITION entry in src/policies/errors.yaml is now an
+          orphaned catalog entry with no code path emitting it."
+        fix: Consider removing the orphaned entry in a follow-up policy-catalog change (catalog edits are a
+          design-review event per AGENTS.md).
+    warnings: []
