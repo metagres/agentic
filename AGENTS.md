@@ -126,9 +126,11 @@ both values.
   `ready`, `complete`, `recovery`), detected from artifact state; discovery/scenarios/assumptions
   guidance is folded into the `authoring` step, and `--finalize --confirm-semantic` evaluates
   gate, mechanical validation, and semantic confirmation in one call (legacy `--complete-step`
-  step names are still accepted). Requirements artifacts carry ONE merged `acceptance_criteria`
-  list (id, Given-When-Then statement, category happy/edge/negative/boundary, parent_id) —
-  there is no separate scenarios list and no promotion pass.
+  step names are still accepted). Requirements artifacts carry acceptance criteria NESTED inside
+  their owning requirement: each FR and NFR entry holds a required `acceptance_criteria` array
+  (minItems 1) of criteria (id, Given-When-Then statement, category happy/edge/negative/boundary)
+  — there is no top-level criteria list, no `ac_ids`, no `parent_id`, no separate scenarios list,
+  and no promotion pass.
 - **review** — resolves its `reviews` target, checks the review gate, runs the unified
   validation, appends rounds to the review file (append-only), and applies
   `--accept`/`--reject`/`--dry-run`.
@@ -168,14 +170,17 @@ produce identical findings.
 
 ### The capped check catalog (DEC-003, DEC-004)
 
-Structural validation runs through a fixed catalog of eleven named generic checks in
+Structural validation runs through a fixed catalog of ten named generic checks in
 `src/scripts/lib/checks/`:
 
-`unique-ids`, `ref-exists`, `referenced-by`, `duplicate-refs`, `given-when-then`,
+`unique-ids`, `ref-exists`, `duplicate-refs`, `given-when-then`,
 `forbidden-words`, `sentence-count`, `required-note-for-status`, `all-tasks-terminal`,
 `dependency-acyclic`, `dependency-order`.
 
-Stages declare checks with parameters in their `structural-checks.yaml`. Adding or changing a
+Stages declare checks with parameters in their `structural-checks.yaml`. Array selections may
+address nested collections through `segment([].segment)*` path selectors resolved against the
+stage schema (for example `functional_requirements[].acceptance_criteria`), and `unique-ids`
+declares cross-path uniqueness through its `unions` parameter. Adding or changing a
 check is a design-review event — this catalog is the single extension path for structural
 validation logic.
 

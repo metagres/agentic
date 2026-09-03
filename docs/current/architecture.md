@@ -34,8 +34,8 @@ graph TD
 | Folder | Claimed (CodeMap) | Actual Exports/Entry | Mismatch? | Evidence |
 |--------|-------------------|----------------------|-----------|----------|
 | src/scripts/ | CLI runtime: dispatch, workflow resolution, envelope | src/scripts/sdlc.ts (npm bin `sdlc`) | No | package.json, src/scripts/sdlc.ts |
-| src/scripts/lib/ | Engine core: discovery, requires-DAG + acceptance gate, validation orchestrator, step machine, delegation-directive composer, agent registry + kind permission contracts + prompt markers | stage-registry.ts, requires-graph.ts, validate.ts, agent-registry.ts, agent-permissions.ts, agent-prompt-marker.ts, delegation.ts | No | src/scripts/lib/ |
-| src/scripts/lib/checks/ | Capped catalog of eleven named generic structural checks | index.ts catalog | No | src/scripts/lib/checks/index.ts |
+| src/scripts/lib/ | Engine core: discovery, requires-DAG + acceptance gate, validation orchestrator, artifact-path resolver, step machine, delegation-directive composer, agent registry + kind permission contracts + prompt markers | stage-registry.ts, requires-graph.ts, validate.ts, artifact-paths.ts, agent-registry.ts, agent-permissions.ts, agent-prompt-marker.ts, delegation.ts | No | src/scripts/lib/ |
+| src/scripts/lib/checks/ | Capped catalog of ten named generic structural checks; array selections address nested collections through segment([].segment)* path selectors resolved by the shared artifact-path resolver | index.ts catalog | No | src/scripts/lib/checks/index.ts, src/scripts/lib/artifact-paths.ts |
 | src/scripts/lib/kinds/ | Four kind interpreters (authoring, review, tasks, aggregator) | authoring.ts, review.ts, tasks.ts, aggregator.ts | No | src/scripts/lib/kinds/ |
 | src/scripts/lib/deploy/platforms/ | Deployment-layer platform renderer registry: platform + version → renderer (directory, naming, frontmatter, permission translation) | index.ts (getRenderer), opencode.ts (v1/v2) | No | src/scripts/lib/deploy/platforms/ |
 | src/scripts/workflows/ | Cross-cutting commands + single skillManifest | index.ts (resolveWorkflow, listWorkflows) | No | src/scripts/workflows/index.ts |
@@ -58,4 +58,5 @@ graph TD
 | Skill source → deploy | bin/deploy-to-agent.ts | src/skills/knowledge-init/SKILL.md | file copy (fail names missing source) | bin/deploy-to-agent.ts |
 | CLI → stage config | kind interpreters | src/stages/<id>/*.yaml | YAML load at startup | src/scripts/lib/stage-registry.ts |
 | Validation layers | validateArtifact | ajv (schema) → named checks → semantic checklist → review gate | function call, single orchestrator | src/scripts/lib/validate.ts |
+| Check declarations → artifact paths | named structural checks + next-id allocation | src/scripts/lib/artifact-paths.ts (shared resolver) | segment([].segment)* path specs resolved against the artifact document; malformed paths abort validation against the stage schema; planning validates tasks[].acceptance_ids through path-addressed ref-exists into the nested per-requirement criteria arrays; next_ids specs accept string or string[] | src/scripts/lib/artifact-paths.ts, src/scripts/lib/checks/, src/scripts/lib/ids.ts |
 | Lint → validation | bin/lint-artifact.ts | validateArtifact | same path as internal finalize | bin/lint-artifact.ts |

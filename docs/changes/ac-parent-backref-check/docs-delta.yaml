@@ -1,0 +1,6 @@
+metadata:
+  stage: knowledge-extraction
+  status: complete
+  updated: 2026-09-03
+  change_root: /home/elton/repos/agentic/docs/changes/ac-parent-backref-check
+deltas_applied: 3

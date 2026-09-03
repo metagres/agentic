@@ -1,0 +1,149 @@
+metadata:
+  artifact: requirements.yaml
+  target: requirements
+  latest_round: 1
+  created: 2026-09-03
+  updated: 2026-09-03
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-03T11:49:27.893Z
+    artifact_version: 0.1.0
+    decision: accepted
+    status: closed
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    semantic:
+      results:
+        - check_id: Does every Then-clause in acceptance_criteria describe an observable external result (HTTP
+            response, persisted file, log line), not an internal function call?
+          status: pass
+          evidence: "Spot-walked all 25 Then-clauses: AC-003..006, AC-009..017, AC-019/020, AC-022..025 state
+            observable outcomes (blocking findings, run abort, persisted file/doc contents, help
+            surface). AC-007's 'evaluates the union' is mechanism-flavored but its observable effect
+            is pinned by AC-010 (cross-requirement duplicate yields one blocking unique-ids finding
+            naming both containing requirements) and AC-011/012 (findings target nested statement
+            paths). Advisory finding recorded on AC-007."
+        - check_id: Does each AC assert system behavior under test, not the existence of tests or a process
+            step?
+          status: pass
+          evidence: No AC asserts test existence or a process step; AC-013/014/024 assert the deliverable's
+            own config/doc state (structural-checks.yaml declarations, check catalog registration,
+            AGENTS.md section 5 content), which is the change's behavior surface, not a test
+            inventory.
+        - check_id: Does at least one acceptance criterion cover a boundary or negative case?
+          status: pass
+          evidence: "Boundary/negative coverage present: AC-005 (empty nested array, boundary), AC-008
+            (zero-entry top-level array, edge), AC-009 (unknown path, boundary), AC-015
+            (referenced-by declared after removal, negative), AC-017 (unresolvable acceptance id,
+            negative), AC-003/004/006 (retired fields and missing properties, negative)."
+        - check_id: Does each FR whose behavior could fail or be misused have at least one AC covering a
+            negative path?
+          status: pass
+          evidence: FR-002 is covered by AC-003/004/006, FR-003 by AC-009, FR-004 by AC-013/015, FR-005 by
+            AC-017; FR-001's misuse (authoring retired fields) is enforced under FR-002's ACs;
+            FR-006 and NFR-002 embed negative assertions (no stale parent_id/ac_ids guidance, no
+            flag additions). No FR lacks a negative path.
+        - check_id: Is no critical assumption left unverified unless explicitly accepted as a residual risk?
+          status: pass
+          evidence: "All three unverified assumptions carry inline risk+question+impact; two are echoed in
+            risks_and_dependencies with mitigations. Reviewer independently tested both optimistic
+            beliefs: both are false (flat-format consumers exist at bin/validate-templates.ts:20 and
+            test/helpers/artifacts.ts:86 plus six test files; AC allocation is shape-aware via
+            nextIdsFromArrays, src/scripts/lib/ids.ts:21, spec AC:'acceptance_criteria') - but the
+            artifact asserts neither belief as fact, labels both unverified, and its prescribed
+            design-stage confirmations remain the correct remedy. Advisory findings recorded on
+            FR-001 and FR-006."
+        - check_id: Does each verified assumption source reference a plausible repo path or evidence location?
+          status: pass
+          evidence: "Verified-assumption sources confirmed: ^AC-[0-9]{3}$ present at
+            src/stages/planning/schema.yaml:158; AGENTS.md section 5 gate semantics read artifact
+            status ('runnable only when every required stage's tracked artifact has status
+            accepted'); AGENTS.md section 2 item 7 and section 10 declare .opencode a regenerated
+            build artifact."
+        - check_id: Does each risk have a corresponding failure_paths entry, and each unverified assumption a
+            corresponding risk entry?
+          status: pass
+          evidence: failure_paths cover the new behavior's failure modes keyed to AC-003/004 (old-format
+            rejection), AC-009 (unknown path abort), AC-008 (empty collection) - the same AC-keyed
+            convention as the accepted review-round-findings artifact; all three unverified
+            assumptions carry inline risk entries, two echoed in risks_and_dependencies (accepted
+            precedent echoed one of three).
+        - check_id: Do any functional requirements contradict the out_of_scope list, another FR, or an NFR?
+          status: pass
+          evidence: "No contradictions: out_of_scope 'no new CLI flag/command/envelope' matches NFR-002;
+            FR-004's catalog removal (11 to 10) pairs with NFR-003/AC-024's AGENTS.md update; FR-003
+            extends the check library without changing the design artifact format that out_of_scope
+            excludes."
+        - check_id: Does the problem statement describe the problem, not a solution?
+          status: pass
+          evidence: "Problem statement is root-cause analysis: dual hand-maintained link fields, no mechanical
+            agreement check, singular parent_id implying exclusively-owned collection; only the
+            closing sentence names the structural fix - a solution-leaning close, consistent with
+            accepted precedent, with the dominant content problem + mechanism."
+        - check_id: Could any requirement or acceptance criterion be read in more than one way by a machine
+            consumer? If so, split it, add precision, or record a discovery question.
+          status: pass
+          evidence: "Potential ambiguity resolved inside the artifact: 'unknown array or field' (declaration
+            bug, abort - AC-009) is distinct from 'artifact lacks the nested arrays' (valid path,
+            empty/absent, empty collection - AC-008 plus failure_path 3: 'schema validation, not the
+            check, guards the required shape'); union semantics are pinned observably by AC-010. No
+            unresolved dual reading."
+        - check_id: Is each requirement description phrased in EARS form (When <trigger>, the system shall
+            <response>) or an equally unambiguous pattern?
+          status: pass
+          evidence: All six FRs are EARS ('When ..., the system shall ...'); NFR-001..003 are bounded 'shall'
+            property statements - an equally unambiguous pattern per the check's own alternative.
+        - check_id: Does each requirement describe exactly one verifiable behavior, with no conjunctions
+            joining unrelated behaviors?
+          status: pass
+          evidence: FR-004 bundles three check reconfigurations plus the catalog removal, but each clause owns
+            a dedicated AC (AC-010..AC-015), giving a machine consumer exactly one verifiable
+            mapping per clause; bundling is precedent-consistent with accepted review-round-findings
+            FR-005..FR-007.
+        - check_id: Does the single categorized acceptance_criteria list cover happy, edge, negative, and
+            boundary cases for the core behaviors, with each criterion's parent_id naming the FR or
+            NFR it verifies?
+          status: pass
+          evidence: "Categories: happy x13, edge x4, negative x6, boundary x2 - all four covered; all 25
+            parent_id values resolve to requirements that list them in ac_ids (FR-001 x2, FR-002 x4,
+            FR-003 x3, FR-004 x6, FR-005 x3, FR-006 x3, NFR-001 x1, NFR-002 x1, NFR-003 x2)."
+        - check_id: Do delta entries plausibly describe the living docs affected by the requirements?
+          status: pass
+          evidence: "Delta targets are plausible living docs: decisions.md (format decision), conventions.md
+            (authoring convention), architecture.md (path-addressed check resolution and planning
+            ref-exists); the AGENTS.md update rides NFR-003/AC-024 outside the delta channel, per
+            invariants 4-5."
+    findings:
+      - target: FR-006
+        finding: "Assumption 4's optimistic belief is false: --next-ids AC allocation is shape-aware -
+          nextIdsFromArrays (src/scripts/lib/ids.ts:21) reads the top-level array named by the
+          AC:'acceptance_criteria' spec (see test/unit/ids.test.ts:31), so the nested shape requires
+          an allocation code change beyond template and guidance updates. The assumption's own risk
+          ('allocation may assume the flat list') and impact ('if shape-aware, allocation learns the
+          nested shape') already prescribe exactly this; design must size it."
+        fix: "Design: specify the allocation change (union nested arrays or path-aware spec) in
+          design.yaml."
+      - target: FR-001
+        finding: "Assumption 3's optimistic belief is false: flat-format consumers exist outside the check
+          library and planning's ref-exists - bin/validate-templates.ts:20 hard-codes
+          'acceptance_criteria' in the required template-key list, and test/helpers/artifacts.ts:86
+          plus test/unit/{validate,stage-checks,ids,review-round-contract,stage-registry}.test.ts
+          build or validate flat fixtures. The design-stage consumer inventory should start from
+          these; the validate-templates required-key list needs an in-scope update."
+        fix: "Design: seed the consumer inventory with these hits; include the validate-templates key-list
+          update in the plan."
+      - target: AC-007
+        finding: Then-clause 'it evaluates the union of both nested lists as one collection' describes
+          mechanism rather than an observable result; the observable union behavior is pinned by
+          AC-010. Advisory only.
+        fix: Consider rewording AC-007's Then-clause to a finding-level outcome at design time.
+      - target: DL-005
+        finding: "'The 3 surviving declarations' is imprecise: the requirements stage declares 10 checks - 3
+          need updating (unique-ids, given-when-then, forbidden-words), 6 are dead, and
+          sentence-count (problem_statement) survives untouched. Correct under the 'declarations
+          needing changes' reading; advisory only."
+    warnings: []

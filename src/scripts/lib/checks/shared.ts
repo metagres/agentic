@@ -1,4 +1,5 @@
 import type { Finding } from '../types.ts';
+import { resolveCollections, resolveLeafValues } from '../artifact-paths.ts';
 
 export interface CheckContext {
   cwd: string;
@@ -26,36 +27,22 @@ export function countSentences(text: string): number {
     .filter((s) => s.length > 0).length;
 }
 
+// Delegates to the artifact path resolver (DEC-001): single-segment specs
+// collapse to the resolver's top-level array resolution with identical items.
 export function getTopArray(
   obj: Record<string, unknown>,
   field: string
 ): Record<string, unknown>[] {
-  return Array.isArray(obj?.[field]) ? (obj[field] as Record<string, unknown>[]) : [];
+  const resolved = resolveCollections(obj, field);
+  return resolved.length > 0 ? resolved[0].items : [];
 }
 
+// Delegates to the artifact path resolver (DEC-001): single-segment and
+// two-segment specs produce byte-identical values and targets; specs with
+// more segments resolve through the full segment([].segment)* grammar.
 export function resolvePath(
   artifact: Record<string, unknown>,
   pathSpec: string
 ): { value: string; target: string }[] {
-  const out: { value: string; target: string }[] = [];
-
-  if (pathSpec.includes('[].')) {
-    const [arrayField, itemField] = pathSpec.split('[].');
-    const items = getTopArray(artifact, arrayField);
-    items.forEach((item, i) => {
-      if (typeof item?.[itemField] === 'string') {
-        out.push({
-          value: item[itemField] as string,
-          target: `${arrayField}[${i}].${itemField}`,
-        });
-      }
-    });
-    return out;
-  }
-
-  if (typeof artifact?.[pathSpec] === 'string') {
-    out.push({ value: artifact[pathSpec] as string, target: pathSpec });
-  }
-
-  return out;
+  return resolveLeafValues(artifact, pathSpec);
 }

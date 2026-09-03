@@ -9,7 +9,9 @@ requires: []
 next_ids:
   FR: functional_requirements
   NFR: non_functional_requirements
-  AC: acceptance_criteria
+  AC:
+    - functional_requirements[].acceptance_criteria
+    - non_functional_requirements[].acceptance_criteria
   DL: discovery_log
   SC: scenarios
 produces_delta: true

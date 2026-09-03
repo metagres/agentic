@@ -6,12 +6,15 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { readYaml } from '../src/scripts/lib/yaml-io.ts';
 import { loadStageRegistry, getStageById } from '../src/scripts/lib/stage-registry.ts';
+import type { StageRecord } from '../src/scripts/lib/stage-registry.ts';
 import { loadAgentRegistry, getAgentById } from '../src/scripts/lib/agent-registry.ts';
 import { checkAgentModelFields } from '../src/scripts/lib/agent-model-fields.ts';
 import { checkAgentCompatibility } from '../src/scripts/lib/agent-permissions.ts';
 import { findPromptMarkers } from '../src/scripts/lib/agent-prompt-marker.ts';
 import { resolveAgentsDir } from '../src/scripts/lib/paths.ts';
 import { CHECK_CATALOG } from '../src/scripts/lib/checks/index.ts';
+import type { StructuralChecksDoc } from '../src/scripts/lib/checks/index.ts';
+import { validateCheckDeclarations } from '../src/scripts/lib/validate.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const policiesDir = path.join(root, 'src', 'policies');
@@ -60,6 +63,20 @@ try {
 
 const metaSchema = readYaml(path.join(root, 'src', 'schemas', 'stage.schema.yaml')) as Record<string, unknown>;
 const compileDescriptor = ajv.compile(metaSchema);
+
+// The stage registry is loaded once and shared by declaration path validation
+// (ref-exists to.file schema resolution) and the requires-graph check below.
+let stageRecords: StageRecord[] = [];
+try {
+  stageRecords = loadStageRegistry(root);
+} catch (err: unknown) {
+  failed = true;
+  results.push({
+    file: 'stage-registry',
+    ok: false,
+    error: err instanceof Error ? err.message : String(err),
+  });
+}
 
 if (!fs.existsSync(stagesDir)) {
   console.error(`Missing stages directory: ${stagesDir}`);
@@ -115,6 +132,15 @@ for (const stageName of fs.readdirSync(stagesDir).sort()) {
         const missing = CHECK_CATALOG[name].requiredParams.filter((p) => params[p] === undefined);
         if (missing.length > 0) {
           throw new Error(`check '${name}' missing parameter(s): ${missing.join(', ')}`);
+        }
+        // Declaration path validation (CMP-003, DEC-003): [].-bearing
+        // parameter strings must sit inside path-bearing slots and resolve
+        // through the governing stage schema. The registry load above already
+        // reports a malformed descriptor, so a missing record here only skips
+        // the schema cross-check for this folder.
+        const stageRecord = stageRecords.find((s) => s.id === stageName) || null;
+        if (stageRecord) {
+          validateCheckDeclarations(stageRecord, doc as StructuralChecksDoc, root);
         }
       }
       results.push({ file: `stages/${stageName}/structural-checks.yaml`, ok: true });

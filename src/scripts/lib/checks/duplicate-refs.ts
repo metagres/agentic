@@ -3,7 +3,7 @@ import type { CheckFn } from './shared.ts';
 import { getTopArray } from './shared.ts';
 
 // duplicate-refs: detect duplicate entries within each item's list field
-// (for example duplicate ac_ids within a single FR).
+// (for example duplicate component_ids within a single traceability entry).
 export const duplicateRefs: CheckFn = (artifact, params) => {
   const findings: Finding[] = [];
   const arrayName = String(params.array || '');

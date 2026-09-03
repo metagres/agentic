@@ -28,7 +28,8 @@ skill.
     `stage.yaml` descriptor: required `version` (const 1), `id`
     (`^[a-z0-9-]+$`), `kind` (enum authoring/review/tasks/aggregator),
     `title`, `artifact` (must end `.yaml`), `status_field`; optional
-    `requires`, `reviews`, `review_file`, `next_ids`, `produces_delta`,
+    `requires`, `reviews`, `review_file`, `next_ids` (each value a string or a
+    non-empty string list of path selectors, DEC-004), `produces_delta`,
     `delta_phase`, `title_prefix`, `title_default`, `agent`,
     `permissions`; `additionalProperties: false`; conditional
     requirements — `kind: review` ⇒ `reviews` + `review_file` required;

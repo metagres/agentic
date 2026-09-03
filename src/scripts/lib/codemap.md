@@ -53,12 +53,33 @@ modules; nothing here reads hardcoded stage or agent lists.
   artifact is `ready-for-review` or `accepted`. Unsatisfied requirements are
   returned as `GateResult.unsatisfied[]` with `{stage, artifact, status, required}`.
 - **Single validation path (CMP-005)**: `validateArtifact(stageId, artifact, cwd,
-  changeRoot)` (`validate.ts:59`) concatenates JSON Schema findings from the
+  changeRoot)` (`validate.ts:66`) concatenates JSON Schema findings from the
   stage's `schema.yaml` (compiled and cached by Ajv with `allErrors`, `strict:
   false`, optional `ajv-formats`) with the named structural checks from the
   stage's `structural-checks.yaml` via `runStageChecks` (checks sub-library).
+  Before the checks run, `validateCheckDeclarations(stage, checksDoc, cwd)`
+  (`validate.ts:100`) validates the declarations themselves (CMP-003, DEC-003):
+  every `[]`-bearing parameter string must sit inside a path-bearing parameter
+  slot of its check (`pathParams` metadata in the catalog) and must resolve
+  through the governing stage schema — the stage's own `schema.yaml`, or for
+  `ref-exists` `to.file` targets the schema of the stage owning that artifact
+  resolved through the registry, with a grammar-only fallback for files no
+  stage owns; violations throw naming the stage folder and the declaration.
   The frozen `Finding` shape is `{check, severity, category, target, finding,
   fix?}` (`types.ts:18`).
+- **Artifact path resolver (CMP-001, DEC-001)**: `artifact-paths.ts` holds the
+  `segment([].segment)*` path grammar and two pure functions —
+  `resolveCollections(doc, spec)` (every non-empty array instance a selector
+  addresses, with its fully indexed location chain) and `resolveLeafValues(doc,
+  spec)` (scalar string values with fully indexed targets such as
+  `functional_requirements[0].acceptance_criteria[1].statement`) — plus
+  `parsePathSpec` for the declaration validator. A `[]`-marked segment iterates
+  the array-valued property it names; a spec without `[]` addresses a top-level
+  node; absent properties and empty arrays yield empty results and never error.
+  No I/O, no ambient state. Consumers: `checks/shared.ts` (`getTopArray`/
+  `resolvePath` delegate, signatures unchanged), `checks/unique-ids.ts`,
+  `checks/ref-exists.ts`, `checks/forbidden-words.ts`, and `ids.ts`
+  (list-valued `next_ids` specs).
 - **Declarative step predicates (DM-003)**: `steps-loader.ts` loads
   `steps.yaml` (`loadStepDefinitions`, `:80`; cached per folder via
   `getStepDefinitions`, `:96`) and evaluates the `complete_when` vocabulary —
@@ -137,7 +158,10 @@ modules; nothing here reads hardcoded stage or agent lists.
   this is how the same code runs from `src/scripts/` in the repo and from
   `scripts/sdlc.js` in the deployed skill.
 - **Utilities**: `ids.ts` — `nextId(existingIds, prefix)` (max+1, zero-padded to
-  3), `nextIdsFromArrays(artifact, specs)`, `today()`, `nowIso()`, `slugify`
+  3), `nextIdsFromArrays(artifact, specs)` (a spec value is a string —
+  top-level field, byte-identical behavior — or a list of path selectors
+  resolved through `artifact-paths.ts` and unioned before `nextId`, DEC-004),
+  `today()`, `nowIso()`, `slugify`
   (word-boundary truncation: whole words dropped to fit the 60-char budget,
   never mid-word, no trailing hyphen; a single overlong word is hard-truncated
   as the only way to stay within budget), `validateChangeSlug` (rejects
@@ -253,12 +277,15 @@ Validation pipeline as executed by `validateArtifact` (and thus by authoring
    `readYaml`); a null/non-object artifact yields no findings.
 3. JSON Schema layer: `schemaFindings` (`validate.ts:23`) runs the stage
    `schema.yaml` through cached Ajv; failures become blocking `schema` findings.
-4. Structural layer: `runStageChecks` runs the named checks declared in the
+4. Declaration layer: `validateCheckDeclarations` validates the stage's check
+   declarations against the stage schema (path-bearing slots, grammar, and
+   schema-typed selectors) and aborts on violation before any check runs.
+5. Structural layer: `runStageChecks` runs the named checks declared in the
    stage's `structural-checks.yaml` (see [checks/](checks/codemap.md)).
-5. Semantic advisory: the kind interpreter separately evaluates the stage's
+6. Semantic advisory: the kind interpreter separately evaluates the stage's
    `semantic-checks.yaml` and folds the `SemanticSummary` into the envelope
    (see [kinds/](kinds/codemap.md)).
-6. Review gate: `evaluateGate` (above) decides runnability before any of the
+7. Review gate: `evaluateGate` (above) decides runnability before any of the
    above runs for a stage command; failure produces a blocked envelope naming
    each unsatisfied requirement and its current status.
 
@@ -274,9 +301,10 @@ required) → `getStageById`/`loadStepDefinitions`/`loadStageHooks` →
   registry, delegation directive), [kinds/](kinds/codemap.md) (step machine,
   gate, validation, context, review findings), [workflows/](workflows/codemap.md)
   (registry, pipeline order, docs index, agent discovery), `bin/lint-artifact.ts`,
-  `bin/validate-policies.ts` (agent meta-schema, model-field cross-checks,
-  prompt markers, stage-reference resolution, permission compatibility),
-  `bin/deploy-to-agent.ts` (platform renderers under `deploy/platforms/`).
+  `bin/validate-policies.ts` (declaration path validation, agent meta-schema,
+  model-field cross-checks, prompt markers, stage-reference resolution,
+  permission compatibility), `bin/deploy-to-agent.ts` (platform renderers
+  under `deploy/platforms/`).
 - **Depends on**: [../stages/](../stages/codemap.md) and [../agents/](../agents/codemap.md)
   folders discovered at runtime (descriptors + config files),
   `src/schemas/stage.schema.yaml` and `src/schemas/agent.schema.yaml`

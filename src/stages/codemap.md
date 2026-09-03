@@ -13,11 +13,11 @@ directory is copied next to the CLI and `hooks.ts` is compiled to `hooks.js`
 ## Stage Inventory
 | Stage (folder) | Kind | Agent | Artifact / status field | requires | reviews / review file | Declared structural checks | Steps (steps.yaml) | Hooks | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| `requirements/` | authoring | requirements-analyst | requirements.yaml / `status` | — | — | unique-ids, ref-exists ×3, referenced-by, duplicate-refs ×2, given-when-then, forbidden-words, sentence-count | needs_input, init, authoring, recovery, ready, complete | yes | Also carries `requirements-policy.yaml` (discovery gate policy); ONE merged `acceptance_criteria` list (id, Given-When-Then statement, category happy/edge/negative/boundary, parent_id) — no scenarios array; delta phase `Requirements`; next ids FR/NFR/AC/DL/SC |
+| `requirements/` | authoring | requirements-analyst | requirements.yaml / `status` | — | — | unique-ids (plain-name scopes + one unions group), given-when-then, forbidden-words, sentence-count | needs_input, init, authoring, recovery, ready, complete | yes | Also carries `requirements-policy.yaml` (discovery gate policy); acceptance criteria NESTED inside each FR/NFR entry (required `acceptance_criteria` array, minItems 1; criterion = id `^AC-[0-9]{3}$` + Given-When-Then statement + category happy/edge/negative/boundary, declared once under `definitions` and `$ref`d) — no top-level criteria list, no `ac_ids`, no `parent_id` (retired fields rejected by boolean-false property schemas in addition to `additionalProperties: false`); no scenarios array; delta phase `Requirements`; next ids FR/NFR (plain) + AC (two-path list over both nested criteria arrays)/DL/SC |
 | `requirements-review/` | review | stage-reviewer | requirements.yaml / `status` | — | requirements → requirements-review.yaml | — (no structural checks of its own; runs the target stage's) | needs_input, review, accept, reject | no | |
 | `design/` | authoring | systems-architect | design.yaml / `status` | requirements-review | — | sentence-count, ref-exists, duplicate-refs | needs_input, init, authoring, recovery, ready, complete | yes | Cross-file `ref-exists` into requirements.yaml; delta phase `Design`; next ids CMP/DM/API/DEC |
 | `design-review/` | review | stage-reviewer | design.yaml / `status` | — | design → design-review.yaml | — | needs_input, review, accept, reject | no | |
-| `planning/` | authoring | task-planner | plan.yaml / `status` | requirements-review, design-review | — | unique-ids, ref-exists ×4, dependency-acyclic, dependency-order | needs_input, init, authoring, recovery, ready, complete | yes | Cross-file refs into requirements.yaml (covers, acceptance_ids) + design.yaml (design_refs); tasks array is the main body; milestones/risks required (milestone id/title/tasks/done_when; risk id/description/mitigation; empty arrays legal); milestone `tasks` refs checked against `tasks[].id`; delta phase `Planning`; next id TASK |
+| `planning/` | authoring | task-planner | plan.yaml / `status` | requirements-review, design-review | — | unique-ids, ref-exists ×4, dependency-acyclic, dependency-order | needs_input, init, authoring, recovery, ready, complete | yes | Cross-file refs into requirements.yaml (covers; acceptance_ids via path-addressed `to.arrays` — the two nested criteria paths `functional_requirements[].acceptance_criteria` and `non_functional_requirements[].acceptance_criteria`) + design.yaml (design_refs); tasks array is the main body; milestones/risks required (milestone id/title/tasks/done_when; risk id/description/mitigation; empty arrays legal); milestone `tasks` refs checked against `tasks[].id`; delta phase `Planning`; next id TASK |
 | `planning-review/` | review | stage-reviewer | plan.yaml / `status` | — | planning → **plan-review.yaml** (note: not `planning-review.yaml`) | — | needs_input, review, accept, reject | no | |
 | `implementation/` | tasks | implementation-engineer | plan.yaml / `implementation_status` | planning-review | — | required-note-for-status, all-tasks-terminal | needs_input, progress, complete | no | Shares plan.yaml with planning; validates against planning's schema via `schema_from: planning` (no local schema.yaml); no template (not authoring); drives the task state machine |
 | `implementation-review/` | review | stage-reviewer | plan.yaml / `implementation_status` | — | implementation → implementation-review.yaml | — | needs_input, review, accept, reject | no | |
@@ -109,11 +109,23 @@ this for the shared `plan.yaml` (`schema_from: planning`).
 - **Semantic advisory checklists**: each validating stage's
   `semantic-checks.yaml` lists natural-language review questions (e.g.
   requirements: observable AC results, negative paths, assumption evidence,
-  scope contradictions; design: FR/NFR traceability coverage, decision
-  rationale; planning: task granularity/verifiability/completeness;
-  implementation: AC satisfaction, evidence of verification, refactor
-  preservation). These are surfaced as a checklist during `--finalize`
-  (requiring `--confirm-semantic`) and in review — advisory, not mechanical.
+  scope contradictions, nested per-requirement criteria coverage; design:
+  FR/NFR traceability coverage, decision rationale; planning: task
+  granularity/verifiability/completeness; implementation: AC satisfaction,
+  evidence of verification, refactor preservation). These are surfaced as a
+  checklist during `--finalize` (requiring `--confirm-semantic`) and in
+  review — advisory, not mechanical.
+- **Path-addressed structural-check declarations**: array selections in
+  `structural-checks.yaml` may address nested collections through
+  `segment([].segment)*` selectors (for example
+  `functional_requirements[].acceptance_criteria`), and `unique-ids` declares
+  cross-path uniqueness through `unions` groups. Every `[]`-bearing parameter
+  string must sit inside a path-bearing parameter slot of its check and must
+  resolve against the governing stage schema — `validateCheckDeclarations`
+  (`src/scripts/lib/validate.ts`) enforces this inside `validateArtifact`
+  before the checks run and inside `bin/validate-policies.ts` at startup;
+  a malformed or unsupported path aborts naming the stage folder and the
+  declaration.
 - **Delta production**: authoring stages with `produces_delta: true`
   (requirements, design, planning) accumulate `delta` entries (Add/Modify/
   Remove against `docs/current/` docs listed in `docs/current/index.md`)

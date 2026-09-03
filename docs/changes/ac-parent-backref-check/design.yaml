@@ -1,0 +1,440 @@
+metadata:
+  id: DES-001
+  title: "Design: ac-parent-backref-check"
+  stage: design
+  status: accepted
+  version: 0.1.2
+  created: 2026-09-03
+  updated: 2026-09-03
+  based_on_requirements: 0.1.0
+  delta_reviewed: true
+context_summary: This change restructures the requirements artifact so each functional and
+  non-functional requirement carries its own nested acceptance_criteria array, retiring the
+  top-level criteria list, ac_ids, and parent_id. The check library gains multi-segment path
+  addressing through a shared resolver module, so structural checks evaluate the union of nested
+  collections while existing single-segment declarations keep byte-identical findings. Unique-ids
+  enforces artifact-global AC uniqueness through an explicit unions scope spanning the functional
+  and non-functional nested arrays. Malformed paths abort validation with an error naming the stage
+  folder and declaration, judged against the stage schema rather than artifact content. Planning
+  keeps validating task acceptance id references against the union of nested criteria in the
+  requirements artifact, with its own schema unchanged. Next-id allocation learns the nested shape
+  through list-valued next_ids specs resolved by the same resolver. Archived changes are never
+  migrated or re-validated, and no CLI flag, command, or envelope surface is added. Test fixtures
+  migrate helper-first, with pinning tests guarding existing declaration behavior.
+components:
+  - id: CMP-001
+    name: Artifact path resolver
+    responsibility: "Resolve multi-segment array path specifications against an artifact document.
+      Exposes two pure functions: resolveCollections(doc, spec) returning every array instance the
+      spec addresses together with its location chain, and resolveLeafValues(doc, spec) returning
+      scalar string values with fully indexed targets. Grammar: dot-separated segments where a
+      segment followed by [] iterates the array-valued property it names across every current item;
+      a spec without [] addresses a top-level node. Single-segment specs resolve exactly as the
+      existing getTopArray and resolvePath helpers, preserving byte-identical targets. A spec
+      traversing an absent property or an empty array yields an empty collection and never an error.
+      No I/O, no ambient state."
+    files:
+      - src/scripts/lib/artifact-paths.ts (new)
+  - id: CMP-002
+    name: Check-library path adoption and catalog reduction
+    responsibility: Route array selection in unique-ids, given-when-then, forbidden-words, and
+      ref-exists through the resolver module. unique-ids keeps its arrays parameter (each entry one
+      uniqueness scope; plain names keep today's per-array behavior and finding text) and gains a
+      unions parameter whose groups each enforce uniqueness across the union of the listed
+      path-resolved collections, with the duplicate finding naming the id and every containing entry
+      location. given-when-then renames its parameter to arrays (string or string list; a list
+      evaluates the union) and targets findings at the full nested statement path. forbidden-words
+      resolves multi-segment leaf paths through the resolver. ref-exists resolves path entries in
+      to.arrays against the target document; its valid-id set already unions. Delete
+      referenced-by.ts and its catalog entry, leaving ten named checks. shared.ts delegates
+      getTopArray and resolvePath to the resolver module and keeps its exported signatures. Update
+      the stale ac_ids example in the duplicate-refs header comment.
+    files:
+      - src/scripts/lib/checks/unique-ids.ts
+      - src/scripts/lib/checks/given-when-then.ts
+      - src/scripts/lib/checks/forbidden-words.ts
+      - src/scripts/lib/checks/ref-exists.ts
+      - src/scripts/lib/checks/shared.ts
+      - src/scripts/lib/checks/index.ts
+      - src/scripts/lib/checks/referenced-by.ts (deleted)
+  - id: CMP-003
+    name: Declaration path validation
+    responsibility: "Before declared checks run, validate every parameter string containing []. that
+      lies within a path-bearing parameter subtree: each segment must be a property declared in the
+      stage schema at its nesting depth, a segment followed by [] must be array-typed there, a
+      collection selector must end at an array-typed property, and a leaf selector must end at a
+      string-typed property. Catalog entries declare which parameters bear paths (unique-ids: arrays
+      and unions; given-when-then: arrays; forbidden-words: fields including the path key of object
+      entries; ref-exists: to.arrays); a []. string anywhere else aborts as an unsupported path. For
+      ref-exists to.file targets, validation runs against the schema of the stage owning that
+      artifact file, resolved through the stage registry; a file no stage owns falls back to grammar
+      checks only. Violations abort with a thrown Error naming the stage folder and the declaration,
+      mirroring the unknown-check abort. Runs inside validateArtifact ahead of runStageChecks on
+      every validation run and inside bin/validate-policies.ts at startup."
+    files:
+      - src/scripts/lib/validate.ts
+      - src/scripts/lib/checks/index.ts (pathParams metadata)
+      - bin/validate-policies.ts
+  - id: CMP-004
+    name: Requirements stage reconfiguration
+    responsibility: "Reshape the requirements contract in the stage folder. schema.yaml: remove the
+      top-level acceptance_criteria property and requirement, remove ac_ids from FR and NFR entries,
+      and nest a required acceptance_criteria array (minItems 1) inside each FR and NFR entry;
+      declare the criterion item once under definitions (id matching ^AC-[0-9]{3}$, statement,
+      category enum happy/edge/negative/boundary) and reference it from both entry types; reject the
+      retired fields by name through boolean-false property schemas — acceptance_criteria: false at
+      the root, ac_ids: false on FR and NFR entries, parent_id: false on criterion items — declared
+      in addition to additionalProperties false, so the rendered findings carry the retired field in
+      the instance path with no engine change (pinned against the repository's Ajv 8.20.0 with the
+      validate.ts rendering rule: '/acceptance_criteria boolean schema is false' for the top-level
+      list, '/functional_requirements/0/ac_ids boolean schema is false' for an entry ac_ids,
+      '/functional_requirements/0/acceptance_criteria/0/parent_id boolean schema is false' for a
+      criterion parent_id through the definitions reference). template.yaml: drop the top-level
+      acceptance_criteria key and seed functional_requirements with one scaffold entry carrying id
+      FR-001, a replace-me description, and a nested acceptance_criteria array holding one example
+      criterion entry (id AC-001, a Given-When-Then statement, category happy), so the parsed
+      scaffold itself — the deep-cloned parsed template that init writes (instantiateArtifact,
+      deepClone(readYaml(template))) — shows the nested shape; the scaffold entry conforms to the
+      new schema and passes the given-when-then and forbidden-word checks, and steps.yaml instructs
+      the authoring agent to replace the scaffold entry with real requirements and criteria.
+      structural-checks.yaml: rewrite unique-ids with plain-name scopes for functional_requirements,
+      non_functional_requirements, and discovery_log plus one unions group over both nested criteria
+      paths; rewrite given-when-then with the two-path arrays list; rewrite forbidden-words fields
+      to problem_statement, both description paths, and both nested statement paths; delete the six
+      dead declarations (ref-exists x3, referenced-by, duplicate-refs x2 on ac_ids); keep
+      sentence-count untouched. semantic-checks.yaml: rewrite the one question (line 15) that
+      references the single flat list and parent_id to name the nested per-requirement arrays.
+      steps.yaml: replace the authoring guidance paragraph with nested-criteria instruction and drop
+      the parent_id authoring language (line 46). stage.yaml: change the next_ids AC spec to the
+      two-path list."
+    files:
+      - src/stages/requirements/schema.yaml
+      - src/stages/requirements/template.yaml
+      - src/stages/requirements/structural-checks.yaml
+      - src/stages/requirements/semantic-checks.yaml
+      - src/stages/requirements/steps.yaml
+      - src/stages/requirements/stage.yaml
+  - id: CMP-005
+    name: Planning cross-artifact reconfiguration
+    responsibility: "Point the planning ref-exists declaration for tasks[].acceptance_ids at the union
+      of nested criteria: to.file stays requirements.yaml and to.arrays becomes the two path entries
+      functional_requirements[].acceptance_criteria and
+      non_functional_requirements[].acceptance_criteria with field id. planning schema.yaml, the
+      ^AC-[0-9]{3}$ pattern, and every other planning declaration stay untouched."
+    files:
+      - src/stages/planning/structural-checks.yaml
+  - id: CMP-006
+    name: Next-id allocation for the nested shape
+    responsibility: "Widen nextIdsFromArrays in ids.ts to accept a spec value of string or string list:
+      a string keeps today's top-level field behavior byte-identically, a list resolves each entry
+      as a path through the resolver module and unions the collected ids before nextId. Widen the
+      stage-registry nextIds typing and the stage meta-schema next_ids additionalProperties to
+      match. The requirements stage.yaml AC spec carries the two-path list, so allocation continues
+      the artifact-global AC-NNN sequence across criteria nested under FR and NFR entries."
+    files:
+      - src/scripts/lib/ids.ts
+      - src/scripts/lib/stage-registry.ts
+      - src/schemas/stage.schema.yaml
+  - id: CMP-007
+    name: Flat-format consumer migration and test coverage
+    responsibility: "Migrate the shared validRequirements builder in test/helpers/artifacts.ts to the
+      nested shape first, then the five unit files that build flat fixtures directly (stage-checks,
+      ids, review-round-contract, stage-registry, validate); helper-only consumers
+      (requirements-stage, envelope-state-flags, and the seven e2e files) inherit the migrated
+      builder without edits beyond assertions that reference retired fields. Remove the top-level
+      acceptance_criteria key from the two fixture artifacts under test/fixtures/agentic-project
+      (both carry empty requirement lists and are unreferenced by tests today).
+      bin/validate-templates.ts drops acceptance_criteria from the requirements required-key list
+      and asserts that the template seeds at least one requirement entry carrying a non-empty nested
+      acceptance_criteria array, pinning the scaffold example at the fast gate; e2e authoring flows
+      overwrite the scaffold entry through --update-artifact, so no assertion depends on scaffold
+      content surviving. Add unit coverage for: resolver grammar and union resolution, cross-FR/NFR
+      duplicate detection naming both containing requirements, nested given-when-then and
+      forbidden-word targets, the malformed-path abort naming stage folder and declaration, the
+      ten-check catalog with referenced-by absent, nested next-id allocation, the rendered
+      retired-field schema findings pinning AC-003 and AC-004 (the three boolean-schema finding
+      strings from DEC-005), and path-addressed ref-exists target resolution pinning AC-016, AC-017,
+      and AC-018 (an FR-nested reference resolves, an NFR-nested reference resolves through the
+      union, a missing reference produces the blocking finding). Pin byte-identical findings for the
+      unchanged design and planning declarations against their existing fixtures."
+    files:
+      - bin/validate-templates.ts
+      - test/helpers/artifacts.ts
+      - test/unit/stage-checks.test.ts
+      - test/unit/ids.test.ts
+      - test/unit/review-round-contract.test.ts
+      - test/unit/stage-registry.test.ts
+      - test/unit/validate.test.ts
+      - test/fixtures/agentic-project/docs/changes/add-a-health-endpoint/requirements.yaml
+      - test/fixtures/agentic-project/docs/changes/add-a-health-endpoint-2/requirements.yaml
+  - id: CMP-008
+    name: Governing documentation consistency
+    responsibility: Update AGENTS.md section 5 to describe the nested per-requirement criteria shape and
+      the ten-check catalog, replacing the merged-list wording. Regenerate codemap.md and
+      src/stages/codemap.md through the codemap skill rather than hand edits. The design delta
+      entries below feed knowledge extraction so decisions.md, conventions.md, and architecture.md
+      record the format decision, the path-addressing mechanism, and the declaration conventions.
+    files:
+      - AGENTS.md (section 5)
+      - codemap.md and src/stages/codemap.md (regenerated via codemap skill)
+data_models:
+  - id: DM-001
+    name: Nested requirements artifact contract
+    shape: "FR and NFR entries carry exactly id (^FR-/^NFR-[0-9]{3}$), description, and
+      acceptance_criteria: a required array with minItems 1 whose items carry exactly id
+      (^AC-[0-9]{3}$), statement (string), and category (happy|edge|negative|boundary). The retired
+      fields are rejected by name through boolean-false property schemas — acceptance_criteria:
+      false at the root, ac_ids: false on FR and NFR entries, parent_id: false on criterion items —
+      declared in addition to additionalProperties false; the rendered findings carry the retired
+      field in the instance path (for example '/functional_requirements/0/ac_ids boolean schema is
+      false'), satisfying AC-003 and AC-004 with no engine change. AC ids stay artifact-globally
+      unique across the union of all nested arrays; the planning-side pattern ^AC-[0-9]{3}$ is
+      untouched. The stage template seeds one scaffold FR entry conforming to this contract so the
+      parsed scaffold shows the nested shape."
+  - id: DM-002
+    name: Path-spec grammar and resolution semantics
+    shape: A selector is segment([].segment)* over dot-separated names. Resolution starts at the
+      document root; a segment followed by [] iterates the array-valued property it names across
+      every current item; the final segment addresses either an array (collection selectors) or a
+      string scalar (leaf selectors). Targets carry full index chains, for example
+      functional_requirements[0].acceptance_criteria[1].statement. A spec traversing an absent
+      property or an empty array resolves to an empty collection and reports no findings; schema
+      validation, not the check, guards the required shape. Single-segment specs collapse to today's
+      getTopArray and resolvePath behavior with identical target strings.
+  - id: DM-003
+    name: unique-ids scope parameters
+    shape: "arrays: a list of selectors, each one uniqueness scope; a plain name keeps today's per-array
+      scope and finding text (Duplicate ID '<id>' in '<name>'). unions: a list of groups, each group
+      carrying arrays (a list of path selectors) and enforcing one uniqueness scope across the union
+      of all resolved collections; the duplicate finding names the duplicated id and every
+      containing entry location, satisfying the cross-requirement duplicate criterion. A declaration
+      may combine both parameters; both absent or empty yields no findings, as today."
+  - id: DM-004
+    name: next_ids spec values
+    shape: A next_ids value is a string (top-level field name, unchanged behavior) or a list of path
+      selectors (union of the resolved collections). Declared per prefix in stage.yaml; the stage
+      registry carries Record<string, string | string[]> and the stage meta-schema widens next_ids
+      additionalProperties to string or string-array. The requirements AC spec becomes the two-path
+      list over functional_requirements[].acceptance_criteria and
+      non_functional_requirements[].acceptance_criteria.
+apis: []
+flows:
+  - name: Requirements artifact validation
+    trigger: requirements --finalize, requirements-review, or bin/lint-artifact.ts
+    steps:
+      - Parse the artifact YAML.
+      - "Validate against the requirements schema: retired fields (top-level acceptance_criteria,
+        ac_ids, parent_id) rejected by named-path boolean-false schema findings (for example
+        '/functional_requirements/0/ac_ids boolean schema is false'); each FR and NFR entry required
+        to carry a non-empty nested acceptance_criteria array with id, statement, and category."
+      - "Validate check declarations: every [].-bearing parameter string must resolve through the
+        stage schema; a malformed or unsupported path aborts the run with an error naming the stage
+        folder and the declaration."
+      - "Run structural checks: unique-ids over the FR, NFR, and discovery_log scopes plus the AC
+        unions group; given-when-then over the union of both nested criteria collections;
+        forbidden-words over problem_statement, both description paths, and both nested statement
+        paths; sentence-count on problem_statement."
+      - Evaluate the semantic advisory checklist, then the review gate.
+  - name: Planning acceptance-id validation
+    trigger: planning --finalize or planning-review validation of plan.yaml
+    steps:
+      - Load plan.yaml and resolve the ref-exists declaration from tasks[].acceptance_ids.
+      - Read to.file requirements.yaml under the change root.
+      - Resolve to.arrays path entries to the union of nested criteria collections across FR and NFR
+        entries; collect their id values into the valid set.
+      - Report a blocking ref-exists finding for each referenced id absent from the union;
+        references into FR-nested or NFR-nested criteria both resolve.
+  - name: AC id allocation
+    trigger: requirements --next-ids during authoring
+    steps:
+      - Read the stage next_ids spec from stage.yaml.
+      - For the AC prefix, resolve both list entries as paths and union the criteria entries of all
+        FR and NFR items; the scaffold's example criterion participates in the union, so allocation
+        on a freshly initialized artifact continues past AC-001.
+      - Compute the next id with nextId over the union, continuing the artifact-global AC-NNN
+        sequence without collision.
+      - Present the allocation in data.next_ids; the envelope shape is unchanged.
+decisions:
+  - id: DEC-001
+    title: Dedicated resolver module over in-place helper extension
+    context: Multi-segment resolution is required by four checks and by next-id allocation in ids.ts.
+      Extending resolvePath inside src/scripts/lib/checks/shared.ts in place would force ids.ts, a
+      generic utility, to import from the checks folder, inverting the layering; keeping two
+      implementations would drift.
+    decision: "Put the grammar and both resolution functions in a new src/scripts/lib/artifact-paths.ts.
+      checks/shared.ts delegates getTopArray and resolvePath to it and keeps its exported
+      signatures; ids.ts imports the same module. The extension is purely additive: single-segment
+      specs produce byte-identical targets and findings."
+    status: accepted
+  - id: DEC-002
+    title: Explicit unions parameter over implicit union semantics
+    context: AC ids must be unique across the union of FR-nested and NFR-nested criteria, while existing
+      plain-name arrays (planning milestones and risks, requirements FR/NFR/DL) must keep per-array
+      uniqueness with byte-identical findings. Implicitly unioning every path entry would blur the
+      two semantics and risk altering existing behavior.
+    decision: unique-ids keeps arrays (each entry one scope) and gains unions (each group one scope
+      across the listed paths). given-when-then renames its parameter to arrays and accepts a string
+      or a list whose members resolve to one union; it is declared only by the requirements stage,
+      which is rewritten in this change. ref-exists resolves path entries in to.arrays, where the
+      valid-id set already unions. from.array stays a top-level selector; nested from-specs are out
+      of scope.
+    status: accepted
+  - id: DEC-003
+    title: Schema-based declaration validation for the malformed-path abort
+    context: An artifact instance cannot distinguish an unknown array named by a declaration from an
+      artifact that legitimately lacks the arrays, and an artifact-based abort would swallow schema
+      findings for old-format artifacts. The existing unknown-check abort is a thrown Error naming
+      the stage folder and the entry; errors.yaml codes serve CLI envelopes, not the check layer.
+    decision: Validate [].-bearing parameter strings against the stage schema (and the target stage
+      schema for ref-exists to.file, resolved through the registry, with a grammar-only fallback for
+      files no stage owns) inside validateArtifact before runStageChecks and inside
+      bin/validate-policies.ts at startup. Abort with a thrown Error naming the stage folder and the
+      declaration. No new errors.yaml codes are needed; the thrown-Error pattern is reused.
+    status: accepted
+  - id: DEC-004
+    title: List-valued next_ids specs resolved by the shared resolver
+    context: AC allocation must scan criteria nested under both FR and NFR entries. nextIdsFromArrays is
+      shape-aware today through the AC spec reading the top-level array; hard-coding the nesting
+      inside ids.ts would make the allocator stage-aware and duplicate the path logic.
+    decision: Widen next_ids values to string or string list; list entries resolve as paths through the
+      shared resolver and the collected ids union before nextId. stage.yaml remains the single
+      declaration point; the registry typing and the stage meta-schema widen to match. String specs
+      behave exactly as today.
+    status: accepted
+  - id: DEC-005
+    title: Per-property false schemas for retired-field rejection
+    context: "FR-002, AC-003, AC-004, and requirements failure_paths[0] demand schema findings that name
+      the retired field. The first design round specified additionalProperties false as the
+      rejection mechanism; design-review round 2 falsified this empirically with the repository's
+      own Ajv (allErrors: true, the proposed schema shape including definitions/$ref): validate.ts
+      renders findings as instancePath plus message, Ajv's additionalProperties message is the
+      static 'must NOT have additional properties', and the property name appears only in
+      err.params.additionalProperty, which validate.ts never renders — no finding names the retired
+      field. Two schema-layer-compatible options were verified: (a) boolean-false property schemas
+      for the retired fields, contained entirely in the stage folder with no engine change; (b) a
+      validate.ts rendering change appending err.params.additionalProperty to the finding text,
+      which touches the shared engine and alters every schema finding's shape, requiring re-pinning
+      of schema-finding tests across all stages."
+    decision: "Choose (a): declare the retired fields explicitly with boolean-false schemas in the
+      requirements schema properties — acceptance_criteria: false at the root, ac_ids: false on FR
+      and NFR entries, parent_id: false on criterion items — in addition to additionalProperties
+      false. The rendered findings name the retired field in the instance path with no engine
+      change, keeping the change contained in the stage folder; pinned against the repository's Ajv
+      8.20.0 with the validate.ts rendering rule: '/acceptance_criteria boolean schema is false'
+      (top-level acceptance_criteria), '/functional_requirements/0/ac_ids boolean schema is false'
+      (entry ac_ids), and '/functional_requirements/0/acceptance_criteria/0/parent_id boolean schema
+      is false' (criterion parent_id through the definitions $ref)."
+    status: accepted
+  - id: DEC-006
+    title: No migration or dual format for archived artifacts
+    context: Fifteen accepted old-format changes exist. The acceptance gate reads artifact status, not
+      schema, and archived changes are never re-validated by any pipeline flow.
+    decision: No migration, no dual-format support, no dedicated retired-format error. Git history
+      preserves old artifacts; hand re-validation of an archived artifact fails schema validation by
+      design and is out of contract.
+    status: accepted
+  - id: DEC-007
+    title: Deployed bundle is a regenerated build artifact
+    context: The bundled stages, schemas, and policies under .opencode are build artifacts regenerated
+      by deployment, and repository rules forbid manual edits there.
+    decision: All stage-folder, schema, and check-library changes land under src/ and bin/. npm run
+      deploy:smoke regenerates the bundle; no manual edits under .opencode are part of this change.
+    status: accepted
+  - id: DEC-008
+    title: Helper-first fixture migration with byte-identical pinning
+    context: Six files build flat-format fixtures (the shared builder plus five unit files) and seven
+      e2e files consume the shared builder. The change must not alter findings for existing
+      single-segment declarations in design and planning.
+    decision: Migrate validRequirements first, then the five direct builders; helper-only consumers
+      inherit without edits. Add pinning tests that record the exact findings of the unchanged
+      design and planning declarations against their existing fixtures and assert them
+      byte-identically after the change; add new unit coverage for the resolver, union uniqueness,
+      nested finding targets, the malformed-path abort, the ten-check catalog, and nested
+      allocation.
+    status: accepted
+  - id: DEC-009
+    title: Literal nested scaffold example in the requirements template
+    context: "Requirements AC-019 requires the scaffold to show acceptance_criteria nested inside each
+      requirement entry. The scaffold is the parsed template: instantiateArtifact deep-clones the
+      parsed template.yaml and substitutes only metadata fields, so guidance text never enters it
+      and YAML comments do not survive init. The first design round delegated the demonstration to
+      steps.yaml guidance and was rejected on this finding; the stakeholder resolved the earlier
+      residual question by requiring the literal example despite seeding example content into fresh
+      artifacts."
+    decision: template.yaml drops the top-level acceptance_criteria key and seeds
+      functional_requirements with one scaffold entry carrying id FR-001, a replace-me description,
+      and a nested acceptance_criteria array holding one example criterion (id AC-001, a
+      Given-When-Then statement, category happy), so the parsed scaffold itself shows the nested
+      shape. steps.yaml instructs the authoring agent to replace the scaffold entry with real
+      requirements and criteria. bin/validate-templates.ts asserts the seeded example, pinning
+      AC-019 at the fast gate.
+    status: accepted
+traceability:
+  - requirement_id: FR-001
+    component_ids:
+      - CMP-004
+      - CMP-007
+  - requirement_id: FR-002
+    component_ids:
+      - CMP-004
+  - requirement_id: FR-003
+    component_ids:
+      - CMP-001
+      - CMP-002
+      - CMP-003
+  - requirement_id: FR-004
+    component_ids:
+      - CMP-002
+      - CMP-004
+  - requirement_id: FR-005
+    component_ids:
+      - CMP-001
+      - CMP-005
+  - requirement_id: FR-006
+    component_ids:
+      - CMP-004
+      - CMP-006
+      - CMP-007
+  - requirement_id: NFR-001
+    component_ids:
+      - CMP-001
+      - CMP-002
+  - requirement_id: NFR-002
+    component_ids:
+      - CMP-004
+      - CMP-006
+  - requirement_id: NFR-003
+    component_ids:
+      - CMP-008
+delta:
+  - phase: Design
+    target_doc: docs/current/architecture.md
+    target_anchor: null
+    entity_id: null
+    change: Modify
+    reason: The check library resolves multi-segment array paths through a dedicated artifact-path
+      resolver module shared with next-id allocation; declaration path validation against stage
+      schemas aborts malformed check declarations inside validateArtifact and the startup policy
+      gate.
+    date: 2026-09-03
+  - phase: Design
+    target_doc: docs/current/decisions.md
+    target_anchor: null
+    entity_id: null
+    change: Modify
+    reason: "Record the design decisions: a dedicated path-resolver module, explicit unions scopes for
+      artifact-global AC uniqueness, schema-based malformed-path abort reusing the thrown-Error
+      pattern without new error codes, list-valued next_ids specs, per-property false schemas as the
+      retired-field guard with named-path findings, and the literal nested scaffold example in the
+      requirements template."
+    date: 2026-09-03
+  - phase: Design
+    target_doc: docs/current/conventions.md
+    target_anchor: null
+    entity_id: null
+    change: Modify
+    reason: "Structural-checks declaration convention: array selector parameters accept plain names or
+      multi-segment paths; cross-path uniqueness scopes are declared through the unions parameter;
+      path support is declared per check through pathParams catalog metadata; retired requirements
+      fields must not appear in artifacts or declarations."
+    date: 2026-09-03

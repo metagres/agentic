@@ -1,0 +1,109 @@
+metadata:
+  artifact: plan.yaml
+  target: implementation
+  latest_round: 1
+  created: 2026-09-03
+  updated: 2026-09-03
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-03T13:00:38.561Z
+    artifact_version: 0.1.0
+    implementation_status: accepted
+    decision: accepted
+    status: closed
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    semantic:
+      results:
+        - check_id: Do the completed tasks plausibly satisfy the acceptance criteria they claim to cover?
+          status: pass
+          evidence: "All 9 tasks done with AC-pinned tests green: AC-003..006 strings verbatim at
+            test/unit/validate.test.ts:446-455, AC-014/015 catalog tests at
+            stage-checks.test.ts:884,901, AC-016..018 ref-exists triple, AC-020 allocation test.
+            293/293 unit pass."
+        - check_id: Have negative and boundary cases required by requirements and plan been implemented or
+            verified?
+          status: pass
+          evidence: "Explicit tests verified: boolean-false rejections (AC-003/004), empty nested array
+            minItems (AC-005), missing criterion property (AC-006), malformed-path abort naming
+            stage folder+declaration (AC-009, 9 tests in validate.test.ts), referenced-by startup
+            error (AC-015), missing reference blocking (AC-017)."
+        - check_id: Are files changed outside the plan either incidental and explained, or does the plan need
+            updating?
+          status: pass
+          evidence: "Git-status surface audited: artifact-paths.test.ts, parsePathSpec export, pinning-fixture
+            update, extra codemaps all explained in per-task notes and in-scope. Only blemish:
+            TASK-008 files_changed lists unmodified src/scripts/codemap.md — advisory,
+            non-blocking."
+        - check_id: Is there evidence that the work was verified (tests, manual verification notes, CLI
+            output)?
+          status: pass
+          evidence: "Reviewer reproduced all gates: npm run validate exit 0 (293/293), check:all exit 0
+            (293+51 e2e), deploy:smoke exit 0 (six agents passed), validate-policies standalone ok.
+            Task notes record matching gate outputs."
+        - check_id: Are task implementation notes sufficient to understand what was done and how it was
+            verified?
+          status: pass
+          evidence: Notes carry TASK-001 baselines (exact finding strings, help capture), pinned-string
+            locations, per-task files_changed, deviation rationales (empty-array skip, .opencode
+            regeneration, RISK-004 discipline), and AC-023 comparison method.
+        - check_id: For refactor tasks, is there evidence that behavior was preserved?
+          status: pass
+          evidence: Six pinning tests load live planning/design declarations and assert verbatim baseline
+            findings (stage-checks.test.ts:375-486); reviewer diffed old shared.ts against the
+            resolver — getTopArray/resolvePath byte-identical for absent/empty/non-array and
+            two-segment targets; 13 resolver tests incl. run-twice determinism.
+        - check_id: Is the implementation complete enough to synchronize docs/current?
+          status: pass
+          evidence: Delta entries coherent across requirements.yaml (decisions/conventions/architecture),
+            design.yaml (resolver, unions, declaration conventions), plan.yaml
+            (architecture+conventions); AGENTS.md section 5 names nested shape and ten-check
+            catalog; codemaps regenerated via codemap skill.
+    findings:
+      - target: Verdict rationale
+        finding: "ACCEPT — implementation satisfies the accepted plan (9/9 tasks done); all gates reproduced
+          by the reviewer: npm run validate exit 0 (293/293 unit), npm run check:all exit 0 (293
+          unit + 51 e2e), npm run deploy:smoke exit 0 (all six rendered agents); the three pinned
+          boolean-false finding strings verified verbatim at test/unit/validate.test.ts:446,450,455;
+          AC-023 flag surface byte-equal against the TASK-001 baseline."
+        fix: No action.
+      - target: "Deviation: empty-array resolver semantics (TASK-002)"
+        finding: ACCEPT-DEVIATION — every consumer (getTopArray, unique-ids unions, ref-exists,
+          given-when-then, ids.ts) treats absent and empty identically (both collapse to no
+          findings/no ids); no consumer reads the location of an empty collection, so byte-identity
+          holds.
+        fix: No action; recorded as review evidence.
+      - target: "Deviation: unplanned files (TASK-002/004/006/008)"
+        finding: ACCEPT-DEVIATION — test/unit/artifact-paths.test.ts (TASK-002 done-when requires unit
+          tests), parsePathSpec export (TASK-004 shared grammar), stage-checks.test.ts
+          pinning-fixture update (TASK-006 changed the live planning declaration the pinning tests
+          load), and extra codemap files (codemap-skill outputs, repo rule 11) are all in-scope and
+          noted in implementation notes.
+        fix: No action; recorded as review evidence.
+      - target: "Deviation: .opencode regeneration path (TASK-009)"
+        finding: ACCEPT-DEVIATION — verified all six requirements stage files and
+          planning/structural-checks.yaml in .opencode are byte-identical to src/, referenced-by
+          absent, unions group and boolean-false entries present; regeneration via
+          bin/deploy-to-agent.ts --dest .opencode --clean is the AGENTS.md section 10 sanctioned
+          path.
+        fix: No action; recorded as review evidence.
+      - target: "Deviation: orphan-AC test removal (TASK-007)"
+        finding: "ACCEPT-DEVIATION — the removed test exercised the deleted referenced-by check; in the
+          nested shape a criterion can only exist inside an FR/NFR acceptance_criteria array (root
+          acceptance_criteria: false, additionalProperties: false at every level), so orphan
+          criteria are structurally inexpressible."
+        fix: No action; recorded as review evidence.
+      - target: plan.yaml TASK-008 files_changed
+        finding: ADVISORY — files_changed lists src/scripts/codemap.md but git shows it unmodified;
+          bookkeeping overstatement; the codemap skill correctly left it untouched since no
+          src/scripts/*.ts file changed directly.
+        fix: Note for knowledge extraction; no rework required.
+      - target: .codemap/state.json
+        finding: ADVISORY — modified in the working tree but not listed in any files_changed; generated
+          codemap-skill state, benign.
+        fix: No action.
+    warnings: []

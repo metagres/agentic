@@ -33,7 +33,8 @@ checks:
       to:
         file: requirements.yaml
         arrays:
-          - acceptance_criteria
+          - functional_requirements[].acceptance_criteria
+          - non_functional_requirements[].acceptance_criteria
         field: id
   - check: ref-exists
     params:
