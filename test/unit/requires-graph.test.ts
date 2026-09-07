@@ -159,7 +159,7 @@ test('evaluateGate: authoring stage is blocked until the required artifact is ac
   assert.deepEqual(gate.unsatisfied, []);
 });
 
-test('evaluateGate: a review stage is runnable when the tracked artifact is ready-for-review or accepted', () => {
+test('evaluateGate: a review stage is runnable only when the tracked artifact is ready-for-review', () => {
   const { tmp, stagesDir } = makeFixture({
     a: { kind: 'authoring' },
     'a-review': { kind: 'review', reviews: 'a' },
@@ -172,15 +172,26 @@ test('evaluateGate: a review stage is runnable when the tracked artifact is read
   writeArtifact(changeRoot, 'a.yaml', 'draft');
   let gate = evaluateGate(review, changeRoot, tmp, stagesDir);
   assert.equal(gate.satisfied, false);
-  assert.equal(gate.unsatisfied[0].required, 'ready-for-review or accepted');
+  assert.equal(gate.unsatisfied[0].required, 'ready-for-review');
 
   writeArtifact(changeRoot, 'a.yaml', 'ready-for-review');
   gate = evaluateGate(review, changeRoot, tmp, stagesDir);
   assert.equal(gate.satisfied, true);
+  assert.deepEqual(gate.unsatisfied, []);
 
+  // Accepted and rejected are both unsatisfied: an accepted artifact is
+  // already through the gate and a rejected one must be repaired first.
   writeArtifact(changeRoot, 'a.yaml', 'accepted');
   gate = evaluateGate(review, changeRoot, tmp, stagesDir);
-  assert.equal(gate.satisfied, true);
+  assert.equal(gate.satisfied, false);
+  assert.equal(gate.unsatisfied[0].required, 'ready-for-review');
+  assert.equal(gate.unsatisfied[0].status, 'accepted');
+
+  writeArtifact(changeRoot, 'a.yaml', 'rejected');
+  gate = evaluateGate(review, changeRoot, tmp, stagesDir);
+  assert.equal(gate.satisfied, false);
+  assert.equal(gate.unsatisfied[0].required, 'ready-for-review');
+  assert.equal(gate.unsatisfied[0].status, 'rejected');
 });
 
 test('evaluateGate: missing tracked artifact is reported as missing status', () => {

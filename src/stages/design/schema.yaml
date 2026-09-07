@@ -75,6 +75,7 @@
       "items": {
         "type": "object",
         "additionalProperties": true,
+        "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
         "required": [
           "id",
           "name",
@@ -99,6 +100,7 @@
       "items": {
         "type": "object",
         "additionalProperties": true,
+        "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
         "required": [
           "id",
           "name"
@@ -119,6 +121,7 @@
       "items": {
         "type": "object",
         "additionalProperties": true,
+        "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
         "required": [
           "id",
           "path",
@@ -146,6 +149,7 @@
       "items": {
         "type": "object",
         "additionalProperties": true,
+        "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
         "required": [
           "id",
           "title",
@@ -184,6 +188,7 @@
       "items": {
         "type": "object",
         "additionalProperties": true,
+        "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
         "required": [
           "requirement_id",
           "component_ids"
@@ -209,6 +214,7 @@
       "items": {
         "type": "object",
         "additionalProperties": true,
+        "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
         "required": [
           "phase",
           "target_doc",

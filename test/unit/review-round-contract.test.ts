@@ -14,7 +14,7 @@ const root = path.resolve(__dirname, '../..');
 const cli = path.join(root, 'src', 'scripts', 'sdlc.ts');
 
 // The requirements stage's semantic-checks.yaml check list (DEC-003): the
-// semantic walk universe for requirements-review verdicts.
+// declared-check universe for requirements-review semantic failures.
 const REQUIREMENTS_CHECKS = readYaml(
   path.join(root, 'src', 'stages', 'requirements', 'semantic-checks.yaml')
 ).checks as string[];
@@ -89,6 +89,11 @@ function readRounds(rc: ReadyChange): Record<string, unknown>[] {
   return doc?.rounds ?? [];
 }
 
+function readMeta(rc: ReadyChange): Record<string, unknown> {
+  const doc = readYaml(reviewFile(rc)) as { metadata: Record<string, unknown> } | null;
+  return doc?.metadata ?? {};
+}
+
 function artifactStatus(rc: ReadyChange): string {
   const artifact = readYaml(path.join(rc.changeRoot, 'requirements.yaml')) as {
     metadata: { status: string };
@@ -97,26 +102,31 @@ function artifactStatus(rc: ReadyChange): string {
 }
 
 /**
- * Writes a findings file with a complete all-pass semantic walk (one item per
- * check of the requirements stage's semantic-checks.yaml) plus optional
- * extra findings entries. Returns the ABSOLUTE path; callers pass it as-is
- * (assumption 5: the --findings value resolves relative to the process
- * working directory, and the CLI runs with cwd = tmp).
+ * Writes a --failures file with the given semantic failures. Entries are
+ * {check, evidence} pairs; the check must be a declared check of the
+ * requirements stage's semantic-checks.yaml. Returns the ABSOLUTE path;
+ * callers pass it as-is (the --failures value resolves relative to the
+ * process working directory, and the CLI runs with cwd = tmp).
  */
-function writeWalkFile(
+function writeFailuresFile(
   rc: ReadyChange,
   name: string,
-  opts: { statuses?: string[]; omitLast?: boolean; findings?: string } = {}
+  entries: { check: string; evidence: string }[],
+  extra = ''
 ): string {
-  const checks = opts.omitLast ? REQUIREMENTS_CHECKS.slice(0, -1) : REQUIREMENTS_CHECKS;
-  const statuses = opts.statuses || checks.map(() => 'pass');
-  const items = checks
-    .map((c, i) => `  - check_id: ${JSON.stringify(c)}\n    status: ${statuses[i]}\n    evidence: "Verified in session."\n`)
-    .join('');
-  const doc = `semantic:\n${items}${opts.findings ? `findings:\n${opts.findings}` : ''}`;
+  const body =
+    entries.length === 0
+      ? '[]\n'
+      : entries
+          .map((e) => `- check: ${JSON.stringify(e.check)}\n  evidence: ${JSON.stringify(e.evidence)}\n`)
+          .join('');
   const file = path.join(rc.tmp, name);
-  fs.writeFileSync(file, doc, 'utf8');
+  fs.writeFileSync(file, `${body}${extra}`, 'utf8');
   return file;
+}
+
+function semanticFailure(rc: ReadyChange, i = 0, evidence = 'The statement proposes a solution, not the operator pain.'): { check: string; evidence: string } {
+  return { check: REQUIREMENTS_CHECKS[i], evidence };
 }
 
 /** Introduces a blocking mechanical finding by duplicating an AC id on disk. */
@@ -132,24 +142,35 @@ function breakArtifact(rc: ReadyChange): void {
   fs.writeFileSync(artifactPath, JSON.stringify(artifact), 'utf8');
 }
 
-test('bare invocation opens a round with status open, decision review, and a mechanical block (AC-001)', () => {
+// ---------------------------------------------------------------------------
+// Lifecycle: open / refresh / complete-in-place / append / legacy tolerance
+// ---------------------------------------------------------------------------
+
+test('bare invocation opens a round with merged status open and a mechanical block', () => {
   const rc = setupReadyChange('Add device registration');
 
   const out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
   assert.equal(out.state, 'ok');
   assert.equal(out.data.round, 1);
-  assert.equal(out.data.decision, 'review');
+  assert.equal(out.data.status, 'open');
+  assert.deepEqual(out.data.failures, []);
 
   const rounds = readRounds(rc);
   assert.equal(rounds.length, 1);
   assert.equal(rounds[0].round, 1);
   assert.equal(rounds[0].status, 'open');
-  assert.equal(rounds[0].decision, 'review');
-  assert.ok(rounds[0].mechanical && typeof rounds[0].mechanical === 'object');
-  assert.equal((rounds[0].mechanical as Record<string, unknown>).valid, true);
+  assert.equal(rounds[0].mechanical_checks_passed, true);
+  assert.deepEqual(rounds[0].failures, []);
+  // The semantic checklist is not dispositioned by a bare invocation.
+  assert.equal('semantic_checks_passed' in rounds[0], false);
+  // The merged contract deletes decision, can_accept, rationale, and warnings.
+  assert.equal('decision' in rounds[0], false);
+  assert.equal('can_accept' in rounds[0], false);
+  assert.equal('rationale' in rounds[0], false);
+  assert.equal('warnings' in rounds[0], false);
 });
 
-test('a second bare invocation refreshes the open round in place keeping the same round number (AC-003, assumption 6)', () => {
+test('a second bare invocation refreshes the open round in place keeping the same round number', () => {
   const rc = setupReadyChange('Add device registration');
 
   runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
@@ -157,14 +178,12 @@ test('a second bare invocation refreshes the open round in place keeping the sam
   assert.equal(out.data.round, 1);
 
   const rounds = readRounds(rc);
-  // Round numbering increments only when a round is appended, never on refresh.
   assert.equal(rounds.length, 1);
   assert.equal(rounds[0].round, 1);
   assert.equal(rounds[0].status, 'open');
-  assert.equal(rounds[0].decision, 'review');
 });
 
-test('a verdict completes the latest open round in place with no additional round (AC-004)', () => {
+test('a verdict completes the latest open round in place with no additional round', () => {
   const rc = setupReadyChange('Add device registration');
 
   runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
@@ -173,8 +192,8 @@ test('a verdict completes the latest open round in place with no additional roun
     '--change',
     rc.changeDir,
     '--reject',
-    '--note',
-    'The failure paths are not specified.',
+    '--failures',
+    writeFailuresFile(rc, 'failures.yaml', [semanticFailure(rc)]),
   ]);
   assert.equal(out.state, 'blocked');
   assert.equal(out.data.round, 1);
@@ -183,12 +202,10 @@ test('a verdict completes the latest open round in place with no additional roun
   const rounds = readRounds(rc);
   assert.equal(rounds.length, 1);
   assert.equal(rounds[0].round, 1);
-  assert.equal(rounds[0].decision, 'rejected');
-  assert.equal(rounds[0].status, 'closed');
-  assert.equal(rounds[0].rationale, 'The failure paths are not specified.');
+  assert.equal(rounds[0].status, 'rejected');
 });
 
-test('a verdict with no open round appends a complete closed round (AC-006)', () => {
+test('a verdict with no open round appends a complete round', () => {
   const rc = setupReadyChange('Add device registration');
 
   // Verdict without a prior bare invocation: no open round exists.
@@ -197,8 +214,8 @@ test('a verdict with no open round appends a complete closed round (AC-006)', ()
     '--change',
     rc.changeDir,
     '--reject',
-    '--note',
-    'Needs a narrower scope.',
+    '--failures',
+    writeFailuresFile(rc, 'failures.yaml', [semanticFailure(rc)]),
   ]);
   assert.equal(out.data.round, 1);
   assert.equal(readRounds(rc).length, 1);
@@ -213,24 +230,15 @@ test('a verdict with no open round appends a complete closed round (AC-006)', ()
   out = runCli(rc.tmp, ['requirements', '--change', rc.changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete');
 
-  const walk = writeWalkFile(rc, 'walk.yaml');
-  out = runCli(rc.tmp, [
-    'requirements-review',
-    '--change',
-    rc.changeDir,
-    '--accept',
-    '--findings',
-    walk,
-  ]);
+  out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--accept']);
   assert.equal(out.state, 'complete');
 
   const rounds = readRounds(rc);
-  assert.deepEqual(rounds.map((r) => r.decision), ['rejected', 'accepted']);
-  assert.deepEqual(rounds.map((r) => r.status), ['closed', 'closed']);
+  assert.deepEqual(rounds.map((r) => r.status), ['rejected', 'accepted']);
   assert.deepEqual(rounds.map((r) => r.round), [1, 2]);
 });
 
-test('legacy rounds without a status field are treated as closed and left unmodified (AC-007)', () => {
+test('legacy rounds without a status field are treated as closed and left unmodified', () => {
   const rc = setupReadyChange('Add device registration');
 
   // Hand-write a legacy review file whose round lacks a status field.
@@ -266,13 +274,310 @@ test('legacy rounds without a status field are treated as closed and left unmodi
   // The legacy round is byte-identical: treated as closed, never modified.
   assert.deepEqual(rounds[0], legacyBefore);
   assert.equal(rounds[0].status, undefined);
-  // The open-to-closed logic applies only to the newly written round.
+  // The merged-status logic applies only to the newly written round.
   assert.equal(rounds[1].status, 'open');
 });
 
-test('--note and --findings are mutually exclusive and write nothing (AC-010)', () => {
+// ---------------------------------------------------------------------------
+// Merged status, valid flags, and metadata
+// ---------------------------------------------------------------------------
+
+test('bare --accept records the accepted round with failures [], both valid flags true, and latest_status', () => {
   const rc = setupReadyChange('Add device registration');
-  const walk = writeWalkFile(rc, 'walk.yaml');
+
+  const out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--accept']);
+  assert.equal(out.state, 'complete');
+  assert.equal(out.data.status, 'accepted');
+  assert.deepEqual(out.data.failures, []);
+  assert.equal(out.data.artifact_status, 'accepted');
+
+  const round = readRounds(rc)[0];
+  assert.equal(round.status, 'accepted');
+  assert.equal(round.mechanical_checks_passed, true);
+  assert.equal(round.semantic_checks_passed, true);
+  assert.deepEqual(round.failures, []);
+  assert.equal(readMeta(rc).latest_status, 'accepted');
+  assert.equal('latest_decision' in readMeta(rc), false);
+});
+
+test('a semantic rejection records semantic.valid false and the failed checks', () => {
+  const rc = setupReadyChange('Add device registration');
+  const failure = semanticFailure(rc);
+
+  const out = runCli(rc.tmp, [
+    'requirements-review',
+    '--change',
+    rc.changeDir,
+    '--reject',
+    '--failures',
+    writeFailuresFile(rc, 'failures.yaml', [failure]),
+  ]);
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.data.status, 'rejected');
+
+  const round = readRounds(rc)[0];
+  assert.equal(round.status, 'rejected');
+  assert.equal(round.mechanical_checks_passed, true);
+  assert.equal(round.semantic_checks_passed, false);
+  assert.deepEqual(round.failures, [failure]);
+  assert.equal(readMeta(rc).latest_status, 'rejected');
+});
+
+test('a mechanical rejection records mechanical.valid false, no semantic block, and CLI-computed failures', () => {
+  const rc = setupReadyChange('Add device registration');
+  breakArtifact(rc);
+
+  const out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--reject']);
+  assert.equal(out.data.status, 'rejected');
+  assert.equal(out.data.artifact_status, 'rejected');
+
+  const round = readRounds(rc)[0];
+  assert.equal(round.status, 'rejected');
+  assert.equal(round.mechanical_checks_passed, false);
+  assert.equal('semantic_checks_passed' in round, false);
+  const failures = round.failures as { check: string; evidence: string }[];
+  assert.equal(failures.length > 0, true);
+  for (const failure of failures) {
+    assert.equal(typeof failure.check, 'string');
+    assert.equal(typeof failure.evidence, 'string');
+    assert.equal('severity' in failure, false);
+    assert.equal('category' in failure, false);
+    assert.equal('fix' in failure, false);
+  }
+  // The fix is folded into the evidence text.
+  assert.ok(failures.some((f) => f.evidence.includes('Fix:')));
+});
+
+// ---------------------------------------------------------------------------
+// Forced rejection on accept with mechanical failures
+// ---------------------------------------------------------------------------
+
+test('--accept with mechanical failures forces rejection: round rejected, artifact flipped, blocked envelope', () => {
+  const rc = setupReadyChange('Add device registration');
+  breakArtifact(rc);
+
+  const out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--accept']);
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.data.status, 'rejected');
+  assert.equal(out.data.artifact_status, 'rejected');
+  assert.equal(out.errors[0].code, 'REVIEW_NOT_PASSING');
+  assert.match(out.instructions, /Acceptance is impossible/);
+  assert.match(out.instructions, /Fix the recorded failures/);
+
+  const round = readRounds(rc)[0];
+  assert.equal(round.status, 'rejected');
+  assert.equal(round.mechanical_checks_passed, false);
+  assert.equal('semantic_checks_passed' in round, false);
+  assert.equal((round.failures as unknown[]).length > 0, true);
+  assert.equal(artifactStatus(rc), 'rejected');
+  assert.equal(readMeta(rc).latest_status, 'rejected');
+});
+
+// ---------------------------------------------------------------------------
+// Any finding is a failure: minor-severity findings reject too
+// ---------------------------------------------------------------------------
+
+/** Introduces a minor-severity mechanical finding (sentence-count) on disk. */
+function breakArtifactMinor(rc: ReadyChange): void {
+  const artifactPath = path.join(rc.changeRoot, 'requirements.yaml');
+  const artifact = readYaml(artifactPath) as Record<string, unknown> & {
+    metadata: { status: string; request_summary?: string };
+  };
+  (artifact as { problem_statement?: string }).problem_statement =
+    'One. Two. Three. Four. Five. Six. Seven. Eight.';
+  artifact.metadata.status = 'ready-for-review';
+  fs.writeFileSync(artifactPath, JSON.stringify(artifact), 'utf8');
+}
+
+test('a minor-severity finding is a failure: bare invocation reports mechanical invalid and --accept forces rejection', () => {
+  const rc = setupReadyChange('Add device registration');
+  breakArtifactMinor(rc);
+
+  // Bare invocation: the minor finding is listed as a failure, mechanical.valid false.
+  let out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.data.status, 'open');
+  assert.deepEqual(out.data.failures.map((f: { check: string }) => f.check), ['sentence-count']);
+  assert.equal(out.warnings.length, 0);
+
+  let round = readRounds(rc)[0];
+  assert.equal(round.mechanical_checks_passed, false);
+  assert.equal((round.failures as { check: string }[])[0].check, 'sentence-count');
+  assert.equal('severity' in (round.failures as unknown[])[0], false);
+
+  // --accept with a minor finding forces rejection exactly like a blocking one.
+  out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--accept']);
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.data.status, 'rejected');
+  assert.equal(out.errors[0].code, 'REVIEW_NOT_PASSING');
+  assert.equal(artifactStatus(rc), 'rejected');
+
+  round = readRounds(rc)[0];
+  assert.equal(round.status, 'rejected');
+  assert.equal(round.mechanical_checks_passed, false);
+});
+
+// ---------------------------------------------------------------------------
+// Refusals: nothing written
+// ---------------------------------------------------------------------------
+
+function assertNothingWritten(rc: ReadyChange, out: Record<string, unknown>): void {
+  assert.equal(fs.existsSync(reviewFile(rc)), false, 'no review file written');
+  assert.equal(artifactStatus(rc), 'ready-for-review', 'artifact untouched');
+}
+
+test('bare --reject with passing mechanicals is refused with nothing written', () => {
+  const rc = setupReadyChange('Add device registration');
+
+  const out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--reject']);
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.errors[0].code, 'USAGE');
+  assert.match(String(out.errors[0].message), /--reject requires --failures/);
+  assertNothingWritten(rc, out);
+});
+
+test('--failures with --accept is refused with nothing written', () => {
+  const rc = setupReadyChange('Add device registration');
+  const file = writeFailuresFile(rc, 'failures.yaml', [semanticFailure(rc)]);
+
+  const out = runCli(rc.tmp, [
+    'requirements-review',
+    '--change',
+    rc.changeDir,
+    '--accept',
+    '--failures',
+    file,
+  ]);
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.errors[0].code, 'USAGE');
+  assertNothingWritten(rc, out);
+});
+
+test('--failures without --reject is refused with nothing written', () => {
+  const rc = setupReadyChange('Add device registration');
+  const file = writeFailuresFile(rc, 'failures.yaml', [semanticFailure(rc)]);
+
+  const out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--failures', file]);
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.errors[0].code, 'USAGE');
+  assertNothingWritten(rc, out);
+});
+
+test('--failures while mechanical checks fail is refused with nothing written', () => {
+  const rc = setupReadyChange('Add device registration');
+  breakArtifact(rc);
+  const file = writeFailuresFile(rc, 'failures.yaml', [semanticFailure(rc)]);
+
+  const out = runCli(rc.tmp, [
+    'requirements-review',
+    '--change',
+    rc.changeDir,
+    '--reject',
+    '--failures',
+    file,
+  ]);
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.errors[0].code, 'USAGE');
+  assert.match(String(out.errors[0].message), /mechanical failures are CLI-computed/);
+  assertNothingWritten(rc, out);
+});
+
+test('a malformed --failures file refuses the invocation naming the entry with nothing written', () => {
+  const rc = setupReadyChange('Add device registration');
+
+  const cases: { name: string; body: string; code: string }[] = [
+    { name: 'not-a-list.yaml', body: 'check: x\nevidence: y\n', code: 'FAILURE_ENTRY_INVALID' },
+    { name: 'empty-list.yaml', body: '[]\n', code: 'FAILURE_ENTRY_INVALID' },
+    { name: 'missing-evidence.yaml', body: '- check: "x"\n', code: 'FAILURE_ENTRY_INVALID' },
+    {
+      name: 'status-field.yaml',
+      body: '- check: "x"\n  status: fail\n  evidence: "y"\n',
+      code: 'FAILURE_ENTRY_INVALID',
+    },
+    {
+      name: 'unknown-check.yaml',
+      body: `- check: "Not a declared check"\n  evidence: "y"\n`,
+      code: 'SEMANTIC_FAILURE_INVALID',
+    },
+  ];
+
+  for (const c of cases) {
+    const file = path.join(rc.tmp, c.name);
+    fs.writeFileSync(file, c.body, 'utf8');
+    const out = runCli(rc.tmp, [
+      'requirements-review',
+      '--change',
+      rc.changeDir,
+      '--reject',
+      '--failures',
+      file,
+    ]);
+    assert.equal(out.state, 'blocked', c.name);
+    assert.equal(out.errors[0].code, c.code, c.name);
+    assertNothingWritten(rc, out);
+  }
+});
+
+test('a duplicate semantic failure entry is refused with nothing written', () => {
+  const rc = setupReadyChange('Add device registration');
+  const failure = semanticFailure(rc);
+  const file = writeFailuresFile(rc, 'dup.yaml', [failure, failure]);
+
+  const out = runCli(rc.tmp, [
+    'requirements-review',
+    '--change',
+    rc.changeDir,
+    '--reject',
+    '--failures',
+    file,
+  ]);
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.errors[0].code, 'SEMANTIC_FAILURE_INVALID');
+  assertNothingWritten(rc, out);
+});
+
+test('a tracked artifact already accepted refuses any invocation with nothing written', () => {
+  const rc = setupReadyChange('Add device registration');
+  runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--accept']);
+  assert.equal(artifactStatus(rc), 'accepted');
+
+  for (const extra of [[], ['--accept'], ['--reject']]) {
+    const out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, ...extra]);
+    assert.equal(out.state, 'blocked');
+    assert.equal(out.errors[0].code, 'STAGE_GATE_BLOCKED');
+    assert.match(String(out.errors[0].message), /already accepted/);
+    assert.match(out.instructions, /already accepted; re-review requires the author to update and re-finalize/);
+  }
+
+  // The accepted round store is untouched by the refused invocations.
+  assert.equal(readRounds(rc).length, 1);
+  assert.equal(readRounds(rc)[0].status, 'accepted');
+});
+
+test('a tracked artifact rejected is gate-blocked with required ready-for-review', () => {
+  const rc = setupReadyChange('Add device registration');
+  runCli(rc.tmp, [
+    'requirements-review',
+    '--change',
+    rc.changeDir,
+    '--reject',
+    '--failures',
+    writeFailuresFile(rc, 'failures.yaml', [semanticFailure(rc)]),
+  ]);
+  assert.equal(artifactStatus(rc), 'rejected');
+
+  const out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.errors[0].code, 'STAGE_GATE_BLOCKED');
+  assert.equal(out.data.unsatisfied_requirements[0].required, 'ready-for-review');
+  assert.equal(out.data.unsatisfied_requirements[0].status, 'rejected');
+  // The refused invocation appends no round and leaves the artifact rejected.
+  assert.equal(readRounds(rc).length, 1);
+  assert.equal(artifactStatus(rc), 'rejected');
+});
+
+test('the removed --note flag is refused with a migration message and nothing written', () => {
+  const rc = setupReadyChange('Add device registration');
 
   const out = runCli(rc.tmp, [
     'requirements-review',
@@ -281,347 +586,140 @@ test('--note and --findings are mutually exclusive and write nothing (AC-010)', 
     '--reject',
     '--note',
     'A note.',
-    '--findings',
-    walk,
   ]);
   assert.equal(out.state, 'blocked');
   assert.equal(out.errors[0].code, 'USAGE');
-  assert.equal(fs.existsSync(reviewFile(rc)), false);
-  assert.equal(artifactStatus(rc), 'ready-for-review');
+  assert.match(String(out.errors[0].message), /--note was removed/);
+  assertNothingWritten(rc, out);
 });
 
-test('--note or --findings without a verdict flag is a usage error writing nothing (AC-011)', () => {
+test('the removed --findings flag is refused with a rename hint and nothing written', () => {
   const rc = setupReadyChange('Add device registration');
-  const walk = writeWalkFile(rc, 'walk.yaml');
+  const file = writeFailuresFile(rc, 'failures.yaml', [semanticFailure(rc)]);
 
-  for (const flag of ['--note', '--findings']) {
-    const args = flag === '--note' ? [flag, 'A note.'] : [flag, walk];
-    const out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, ...args]);
-    assert.equal(out.state, 'blocked', flag);
-    assert.equal(out.errors[0].code, 'USAGE', flag);
-    assert.equal(fs.existsSync(reviewFile(rc)), false, flag);
-  }
-  assert.equal(artifactStatus(rc), 'ready-for-review');
-});
-
-test('--reject with passing mechanical checks requires --note or --findings (AC-009)', () => {
-  const rc = setupReadyChange('Add device registration');
-
-  const out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--reject']);
+  const out = runCli(rc.tmp, [
+    'requirements-review',
+    '--change',
+    rc.changeDir,
+    '--reject',
+    '--findings',
+    file,
+  ]);
   assert.equal(out.state, 'blocked');
   assert.equal(out.errors[0].code, 'USAGE');
-  assert.equal(fs.existsSync(reviewFile(rc)), false);
-  assert.equal(artifactStatus(rc), 'ready-for-review');
+  assert.match(String(out.errors[0].message), /--findings was renamed to --failures/);
+  assertNothingWritten(rc, out);
 });
 
-test('--reject with blocking mechanical findings proceeds without reviewer input (AC-008)', () => {
+test('--accept together with --reject is refused with nothing written', () => {
   const rc = setupReadyChange('Add device registration');
-  breakArtifact(rc);
-
-  const out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--reject']);
-  assert.equal(out.data.artifact_status, 'rejected');
-
-  const rounds = readRounds(rc);
-  assert.equal(rounds.length, 1);
-  assert.equal(rounds[0].decision, 'rejected');
-  assert.equal(rounds[0].status, 'closed');
-  // The mechanical findings are the rationale (DEC-004 fallback).
-  assert.match(String(rounds[0].rationale), /blocking mechanical finding/);
-});
-
-test('a findings entry missing its required field refuses naming the entry with nothing written (AC-012)', () => {
-  const rc = setupReadyChange('Add device registration');
-  const bad = path.join(rc.tmp, 'bad.yaml');
-  fs.writeFileSync(bad, 'findings:\n  - target: REQ-001\n', 'utf8');
 
   const out = runCli(rc.tmp, [
     'requirements-review',
     '--change',
     rc.changeDir,
+    '--accept',
     '--reject',
-    '--findings',
-    bad,
   ]);
   assert.equal(out.state, 'blocked');
-  assert.equal(out.errors[0].code, 'FINDINGS_ENTRY_INVALID');
-  assert.match(String(out.errors[0].message), /entry 0/);
-  assert.equal(fs.existsSync(reviewFile(rc)), false);
-  assert.equal(artifactStatus(rc), 'ready-for-review');
+  assert.equal(out.errors[0].code, 'CONFLICTING_DECISION');
+  assertNothingWritten(rc, out);
 });
 
-test('recorded reviewer findings never carry a severity field (AC-014, AC-015)', () => {
-  const rc = setupReadyChange('Add device registration');
-  const findings = [
-    '  - target: REQ-001',
-    '    finding: "Advisory observation."',
-    '    severity: blocking',
-    '',
-  ].join('\n');
-  const walk = writeWalkFile(rc, 'walk.yaml', { findings });
+// ---------------------------------------------------------------------------
+// Envelope shape and instructions
+// ---------------------------------------------------------------------------
 
-  const out = runCli(rc.tmp, [
-    'requirements-review',
-    '--change',
-    rc.changeDir,
-    '--accept',
-    '--findings',
-    walk,
-  ]);
-  assert.equal(out.state, 'complete');
-
-  const rounds = readRounds(rc);
-  const recorded = rounds[0].findings as Record<string, unknown>[];
-  assert.equal(recorded.length, 1);
-  assert.equal(recorded[0].target, 'REQ-001');
-  assert.equal(recorded[0].finding, 'Advisory observation.');
-  assert.equal('severity' in recorded[0], false);
-});
-
-test('an unknown id-shaped target warns while the round is still recorded (AC-013)', () => {
-  const rc = setupReadyChange('Add device registration');
-  const findings = [
-    '  - target: FR-999',
-    '    finding: "Unknown id target."',
-    '  - target: "Free text: the login section"',
-    '    finding: "Free text anchor."',
-    '',
-  ].join('\n');
-  const walk = writeWalkFile(rc, 'walk.yaml', { findings });
-
-  const out = runCli(rc.tmp, [
-    'requirements-review',
-    '--change',
-    rc.changeDir,
-    '--reject',
-    '--findings',
-    walk,
-  ]);
-  const warning = out.warnings.find((w: { code: string }) => w.code === 'UNKNOWN_FINDING_TARGET');
-  assert.ok(warning, 'envelope warning expected');
-  assert.match(String(warning.message), /FR-999/);
-  assert.equal(out.data.round, 1);
-  assert.equal(readRounds(rc).length, 1);
-
-  const round = readRounds(rc)[0];
-  const roundWarnings = round.warnings as { code: string }[];
-  assert.ok(roundWarnings.some((w) => w.code === 'UNKNOWN_FINDING_TARGET'));
-});
-
-test('test note (follow-up note 5): the DM-004 id pattern excludes single-letter-prefixed ids such as F-001, so such targets are free text and never warn', () => {
-  const rc = setupReadyChange('Add device registration');
-  const findings = [
-    '  - target: F-001',
-    '    finding: "Single-letter-prefixed id target."',
-    '',
-  ].join('\n');
-  const walk = writeWalkFile(rc, 'walk.yaml', { findings });
-
-  const out = runCli(rc.tmp, [
-    'requirements-review',
-    '--change',
-    rc.changeDir,
-    '--reject',
-    '--findings',
-    walk,
-  ]);
-  // Documented blind spot (design-review round-2 follow-up note 5): pinned as
-  // asserted behavior; widening the pattern is a design-review event.
-  assert.equal(out.warnings.filter((w: { code: string }) => w.code === 'UNKNOWN_FINDING_TARGET').length, 0);
-  assert.equal(readRounds(rc).length, 1);
-});
-
-test('a complete all-pass walk is accepted and the semantic block is recorded (AC-016)', () => {
-  const rc = setupReadyChange('Add device registration');
-  const walk = writeWalkFile(rc, 'walk.yaml');
-
-  const out = runCli(rc.tmp, [
-    'requirements-review',
-    '--change',
-    rc.changeDir,
-    '--accept',
-    '--findings',
-    walk,
-  ]);
-  assert.equal(out.state, 'complete');
-  assert.equal(out.data.artifact_status, 'accepted');
-
-  const round = readRounds(rc)[0];
-  assert.equal(round.decision, 'accepted');
-  assert.equal(round.status, 'closed');
-  const semantic = round.semantic as { results: Record<string, unknown>[] };
-  assert.equal(semantic.results.length, REQUIREMENTS_CHECKS.length);
-  for (const result of semantic.results) {
-    assert.equal(result.status, 'pass');
-    assert.ok(String(result.evidence).length > 0);
-  }
-});
-
-test('an incomplete or failing walk refuses acceptance with nothing written (AC-017)', () => {
-  const rc = setupReadyChange('Add device registration');
-
-  const incomplete = writeWalkFile(rc, 'incomplete.yaml', { omitLast: true });
-  let out = runCli(rc.tmp, [
-    'requirements-review',
-    '--change',
-    rc.changeDir,
-    '--accept',
-    '--findings',
-    incomplete,
-  ]);
-  assert.equal(out.errors[0].code, 'SEMANTIC_WALK_INVALID');
-  assert.equal(fs.existsSync(reviewFile(rc)), false);
-  assert.equal(artifactStatus(rc), 'ready-for-review');
-
-  const failing = writeWalkFile(rc, 'failing.yaml', { statuses: REQUIREMENTS_CHECKS.map((_, i) => (i === 0 ? 'fail' : 'pass')) });
-  out = runCli(rc.tmp, [
-    'requirements-review',
-    '--change',
-    rc.changeDir,
-    '--accept',
-    '--findings',
-    failing,
-  ]);
-  assert.equal(out.errors[0].code, 'SEMANTIC_WALK_INVALID');
-  assert.equal(fs.existsSync(reviewFile(rc)), false);
-  assert.equal(artifactStatus(rc), 'ready-for-review');
-
-  // A missing walk is refused too.
-  out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--accept']);
-  assert.equal(out.errors[0].code, 'SEMANTIC_WALK_INVALID');
-  assert.equal(fs.existsSync(reviewFile(rc)), false);
-});
-
-test('rounds completed with mechanical blocking findings carry no semantic block (AC-018)', () => {
-  const rc = setupReadyChange('Add device registration');
-  breakArtifact(rc);
-  const walk = writeWalkFile(rc, 'walk.yaml');
-
-  const out = runCli(rc.tmp, [
-    'requirements-review',
-    '--change',
-    rc.changeDir,
-    '--reject',
-    '--findings',
-    walk,
-  ]);
-  assert.equal(out.data.artifact_status, 'rejected');
-
-  const round = readRounds(rc)[0];
-  assert.equal(round.decision, 'rejected');
-  assert.equal(round.semantic, undefined);
-});
-
-test('accept_blocked completes the round with the explicit token, leaves the artifact untouched, and reports CANNOT_ACCEPT (DEC-002)', () => {
-  const rc = setupReadyChange('Add device registration');
-  runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
-  breakArtifact(rc);
-
-  const out = runCli(rc.tmp, [
-    'requirements-review',
-    '--change',
-    rc.changeDir,
-    '--accept',
-    '--note',
-    'Reviewer observed the duplicate id.',
-  ]);
-  assert.equal(out.state, 'blocked');
-  assert.equal(out.data.decision, 'accept_blocked');
-  assert.equal(out.errors[0].code, 'CANNOT_ACCEPT');
-  assert.equal(artifactStatus(rc), 'ready-for-review');
-
-  const rounds = readRounds(rc);
-  assert.equal(rounds.length, 1);
-  assert.equal(rounds[0].decision, 'accept_blocked');
-  assert.equal(rounds[0].status, 'closed');
-  // DEC-004 on the blocked path (follow-up note 2): the note is the rationale.
-  assert.equal(rounds[0].rationale, 'Reviewer observed the duplicate id.');
-  assert.equal(rounds[0].semantic, undefined);
-});
-
-test('the envelope keeps exactly the seven frozen top-level fields (AC-020)', () => {
+test('the envelope keeps exactly the seven frozen top-level fields', () => {
   const rc = setupReadyChange('Add device registration');
 
   const bare = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
   assert.deepEqual(Object.keys(bare), ['workflow', 'step', 'state', 'instructions', 'data', 'errors', 'warnings']);
 
-  const walk = writeWalkFile(rc, 'walk.yaml');
-  const verdict = runCli(rc.tmp, [
-    'requirements-review',
-    '--change',
-    rc.changeDir,
-    '--accept',
-    '--findings',
-    walk,
-  ]);
+  const verdict = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--accept']);
   assert.deepEqual(Object.keys(verdict), ['workflow', 'step', 'state', 'instructions', 'data', 'errors', 'warnings']);
 });
 
-test('bare instructions name the semantic walk requirement and the rejection input requirement (AC-019)', () => {
+test('the review envelope data carries status and failures and no decision surface', () => {
+  const rc = setupReadyChange('Add device registration');
+
+  const bare = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
+  assert.equal('decision' in bare.data, false);
+  assert.equal('can_accept' in bare.data, false);
+  assert.equal('blocking_count' in bare.data, false);
+  assert.equal('blocking_findings' in bare.data, false);
+  assert.equal(bare.data.status, 'open');
+  assert.deepEqual(bare.data.failures, []);
+});
+
+test('bare-passing instructions list all semantic checks and the verdict guidance', () => {
   const rc = setupReadyChange('Add device registration');
 
   const out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
-  assert.match(out.instructions, /Acceptance requires the complete semantic walk/);
-  assert.match(out.instructions, /Rejection requires --note or --findings/);
+  assert.match(out.instructions, /Review the semantic checklist/);
+  assert.match(out.instructions, /--accept accepts the artifact/);
+  assert.match(out.instructions, /--reject --failures <file>/);
   for (const check of REQUIREMENTS_CHECKS) {
     assert.ok(out.instructions.includes(check), `instructions list the check: ${check.slice(0, 40)}`);
   }
 });
 
-test('dry-run bare and verdict invocations write nothing while reporting the decision that would be recorded (AC-002)', () => {
+test('bare-with-failures instructions say mechanical checks failed and list the failures', () => {
+  const rc = setupReadyChange('Add device registration');
+  breakArtifact(rc);
+
+  const out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
+  assert.equal(out.state, 'blocked');
+  assert.match(out.instructions, /Mechanical checks failed/);
+  for (const failure of out.data.failures as { check: string; evidence: string }[]) {
+    assert.ok(out.instructions.includes(failure.check));
+    assert.ok(out.instructions.includes(failure.evidence));
+  }
+});
+
+test('dry-run bare and verdict invocations write nothing while reporting the status that would be recorded', () => {
   const rc = setupReadyChange('Add device registration');
 
   // Dry-run bare: no round written.
   let out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--dry-run']);
   assert.equal(out.data.dry_run, true);
   assert.equal(out.data.round, null);
-  assert.equal(out.data.decision, 'review');
+  assert.equal(out.data.status, 'open');
   assert.equal(fs.existsSync(reviewFile(rc)), false);
 
-  // Dry-run verdict: no round, no artifact status change, decision reported.
-  out = runCli(rc.tmp, [
-    'requirements-review',
-    '--change',
-    rc.changeDir,
-    '--reject',
-    '--note',
-    'Dry-run rejection.',
-    '--dry-run',
-  ]);
+  // Dry-run forced rejection: no round, no artifact status change.
+  breakArtifact(rc);
+  out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--accept', '--dry-run']);
   assert.equal(out.data.dry_run, true);
   assert.equal(out.data.round, null);
-  assert.equal(out.data.decision, 'rejected');
+  assert.equal(out.data.status, 'rejected');
   assert.equal(fs.existsSync(reviewFile(rc)), false);
   assert.equal(artifactStatus(rc), 'ready-for-review');
 
   // A later non-dry-run verdict still completes round 1: the dry runs wrote nothing.
-  out = runCli(rc.tmp, [
-    'requirements-review',
-    '--change',
-    rc.changeDir,
-    '--reject',
-    '--note',
-    'Real rejection.',
-  ]);
+  out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--reject']);
   assert.equal(out.data.round, 1);
   assert.equal(readRounds(rc).length, 1);
 });
 
-test('the --findings path resolves relative to the process working directory (assumption 5)', () => {
+test('the --failures path resolves relative to the process working directory', () => {
   const rc = setupReadyChange('Add device registration');
-  const findings = ['  - target: REQ-001', '    finding: "Cwd-relative file."', ''].join('\n');
-  // Written into the CLI's cwd (rc.tmp) and referenced by bare relative path:
-  // the CLI process runs with cwd rc.tmp, so the raw argv path resolves there.
-  fs.writeFileSync(path.join(rc.tmp, 'relative.yaml'), `findings:\n${findings}`, 'utf8');
+  const failure = semanticFailure(rc);
+  // Written into the CLI's cwd (rc.tmp) and referenced by bare relative path.
+  fs.writeFileSync(
+    path.join(rc.tmp, 'relative.yaml'),
+    `  - check: ${JSON.stringify(failure.check)}\n    evidence: ${JSON.stringify(failure.evidence)}\n`,
+    'utf8'
+  );
 
   const out = runCli(rc.tmp, [
     'requirements-review',
     '--change',
     rc.changeDir,
     '--reject',
-    '--findings',
+    '--failures',
     'relative.yaml',
   ]);
-  assert.equal(out.data.round, 1);
-  const round = readRounds(rc)[0];
-  assert.equal((round.findings as Record<string, unknown>[])[0].finding, 'Cwd-relative file.');
+  assert.equal(out.data.status, 'rejected');
+  assert.deepEqual((readRounds(rc)[0].failures as unknown[])[0], failure);
 });

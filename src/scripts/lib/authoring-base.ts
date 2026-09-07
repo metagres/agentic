@@ -29,7 +29,6 @@ export interface AuthorEnv {
   readYaml: (file: string) => unknown;
   findings?: Finding[];
   blocking?: Finding[];
-  semantic?: { complete: boolean; missing: string[]; failed: string[]; results: unknown[] };
 }
 
 export function stepPredicate(
@@ -93,10 +92,6 @@ export function isReadyForReview(env: AuthorEnv): { ready: boolean; reasons: str
   const blockingCount = (env.blocking as unknown[])?.length || 0;
   if (blockingCount > 0) {
     reasons.push(`${blockingCount} blocking mechanical finding(s)`);
-  }
-  const semantic = env.semantic as { complete?: boolean } | undefined;
-  if (!semantic?.complete) {
-    reasons.push('semantic validation incomplete');
   }
   if (!deltaComplete(artifact)) {
     reasons.push('delta is not complete');

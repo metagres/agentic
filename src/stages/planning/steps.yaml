@@ -42,7 +42,7 @@ steps:
     markdown: |
       The plan artifact was rejected by review.
 
-      Read `data.review_report`, fix blocking findings, update the artifact, and finalize again.
+      Fix each failure listed in `data.review_failures` ({check, evidence}), update the artifact, and finalize again.
     commands:
       - "{{SDLC}} planning --change {{change_name}} --update-artifact < plan.yaml"
       - "{{SDLC}} planning --change {{change_name}} --finalize"

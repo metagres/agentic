@@ -56,9 +56,3 @@ export function makeCtx(cwd: string, changeRoot: string | null): { loadFile: (re
     },
   };
 }
-
-export function loadReviewReport(changeRoot: string | null): unknown {
-  if (!changeRoot) return null;
-
-  return safeReadYaml(path.join(changeRoot, 'review-report.yaml'));
-}

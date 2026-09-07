@@ -32,15 +32,14 @@ npm run check:all
 1. Stage folders are the structural source of truth; stage schemas and the capped check catalog enforce traceability and shape. Cross-file + lint checks enforce consistency.
 2. The CLI owns lifecycle state transitions.
 3. Review history is append-only; rounds are never deleted.
-4. Living docs (`docs/current/`) are updated only through knowledge extraction.
-5. Authoring stages produce delta entries; they never edit `docs/current/` directly.
-6. The toolkit is agent-agnostic — no hardcoded agent paths.
-7. The deployed skills and agents deployed in `.opencode` folder are build artifacts. They must never be treated as, or confused with, this repository's own source/config.
-8. Stages are discovered by directory: every stage is one folder under `src/stages/<stage-id>/` and no central file enumerates stages.
-9. Validation logic is declarative: stages declare named checks from the capped catalog; stage-specific validation scripts are prohibited.
-10. A stage is runnable only when every required stage's tracked artifact has status `accepted`; a review stage is runnable when its tracked artifact is `ready-for-review` or `accepted`.
-11. Codemap files (`codemap.md` in the project root and per-folder codemaps) are generated documentation: update them only by running the codemap skill — never edit them by hand.
-12. `.opencode/` is the production runtime; `src/` and `bin/` are development source. Stage lifecycle commands (`sdlc <stage>`) must execute through the deployed production CLI at `.opencode/skills/agentic-sdlc/scripts/sdlc.js` — never by invoking `src/` scripts directly. Execute through `.opencode/`; understand the toolkit from `src/`. After any change to stage, agent, schema, or policy sources, refresh the production runtime with the real deploy (see §8) before continuing lifecycle work — envelopes enforce the deployed bundle, so a stale `.opencode/` silently enforces stale contracts.
+4. Authoring stages produce delta entries; they never edit `docs/current/` directly.
+5. The toolkit is agent-agnostic — no hardcoded agent paths.
+6. The deployed skills and agents deployed in `.opencode` folder are build artifacts. They must never be treated as, or confused with, this repository's own source/config.
+7. Stages are discovered by directory: every stage is one folder under `src/stages/<stage-id>/` and no central file enumerates stages.
+8. Validation logic is declarative: stages declare named checks from the capped catalog; stage-specific validation scripts are prohibited.
+9. A stage is runnable only when every required stage's tracked artifact has status `accepted`; a review stage is runnable when its tracked artifact is `ready-for-review`.
+10. Codemap files (`codemap.md` in the project root and per-folder codemaps) are generated documentation: update them only by running the codemap skill — never edit them by hand.
+11. `.opencode/` is the production runtime; `src/` and `bin/` are development source. Stage lifecycle commands (`sdlc <stage>`) must execute through the deployed production CLI at `.opencode/skills/agentic-sdlc/scripts/sdlc.js` — never by invoking `src/` scripts directly. Execute through `.opencode/`; understand the toolkit from `src/`. After any change to stage, agent, schema, or policy sources, refresh the production runtime with the real deploy (see §8) before continuing lifecycle work — envelopes enforce the deployed bundle, so a stale `.opencode/` silently enforces stale contracts.
 
 ---
 
@@ -134,7 +133,9 @@ both values.
   and no promotion pass.
 - **review** — resolves its `reviews` target, checks the review gate, runs the unified
   validation, appends rounds to the review file (append-only), and applies
-  `--accept`/`--reject`/`--dry-run`.
+  `--accept`/`--reject` with evidence-backed failures: mechanical failures are
+  CLI-computed, rejections with passing mechanicals require `--failures`, and acceptance
+  with mechanical findings is a forced rejection.
 - **tasks** — task state machine over `plan.yaml` for the implementation stage.
 - **aggregator** — collects delta arrays from delta-producing stages for knowledge-extraction.
 
@@ -165,7 +166,7 @@ requirements
 
 A stage is runnable only when every required stage's tracked artifact has status `accepted`
 (where the tracked artifact of a review stage is the artifact of the stage it reviews). A
-review stage is runnable when its tracked artifact is `ready-for-review` or `accepted`. Gate
+review stage is runnable when its tracked artifact is `ready-for-review`. Gate
 failures produce a blocked envelope naming each unsatisfied requirement and its current
 status. A requires cycle or a missing reference is a hard startup error.
 

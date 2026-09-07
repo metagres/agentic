@@ -5,27 +5,27 @@ steps:
     markdown: |
       Ask the user which change to review and which decision to apply.
 
-      The review gate requires the requirements artifact to be ready-for-review or accepted.
+      The review gate requires the requirements artifact to be ready-for-review.
     commands:
-      - "{{SDLC}} requirements-review --change <change-name> [--accept|--reject]"
+      - "{{SDLC}} requirements-review --change <change-name> [--accept|--reject] [--failures <file>]"
 
   review:
     title: Review
     markdown: |
       Run the requirements review against the tracked artifact.
 
-      Report schema and structural findings plus the requirements semantic checklist.
-      Report only blocking and advisory findings, each naming its exact location (artifact, section, clause, or missing link) and quoting the evidence rather than paraphrasing it; never list passed checks; with zero findings report one line stating no blocking findings plus the verdict.
-      Accept only when the artifact is ready-for-review and has no blocking findings.
-      Always finish the session by issuing the verdict through the CLI — --accept with a --findings file, or --reject with a note; a review without a recorded verdict is incomplete, and a bare invocation only opens or refreshes the round.
+      Report only failures, never passed checks: each failure as {check, evidence} with the check named, the evidence quoted rather than paraphrased, and the exact location (artifact, section, clause, or missing link). Mechanical failures are CLI-computed and listed in `data.failures`; walk the semantic checklist yourself and report its failures the same way. With zero failures report one line stating no failures plus the verdict.
+      Issue the verdict through the CLI in this session: bare `--accept` accepts when mechanical checks pass; `--reject --failures <file>` records the failed semantic checks as a top-level YAML list of {check, evidence}. A bare invocation without a verdict flag only opens or refreshes the round — a review without a recorded verdict is incomplete.
     commands:
       - "{{SDLC}} requirements-review --change {{change_name}}"
 
   accept:
     title: Accept
     markdown: |
-      Accept the requirements artifact after all blocking findings are resolved.
-      Supply the complete semantic walk via --findings <file> (one {check_id, status, evidence} item per semantic check, all status 'pass').
+      Accept the requirements artifact when mechanical checks pass and the semantic checklist raised no failures.
+
+      Run bare `--accept` — no findings file: the round is recorded accepted with `failures: []` and both valid flags true.
+      If mechanical checks fail, acceptance is impossible: the round is forced rejected and the artifact is flipped to rejected — fix the recorded failures first.
     commands:
       - "{{SDLC}} requirements-review --change {{change_name}} --accept"
 
@@ -33,5 +33,8 @@ steps:
     title: Reject
     markdown: |
       Reject the requirements artifact to send it back for corrections.
+
+      When mechanical checks fail, bare `--reject` records the CLI-computed mechanical failures — no input needed.
+      When mechanical checks pass, rejections are evidence-backed: `--reject --failures <file>` with a top-level YAML list of the failed semantic checks as {check, evidence}.
     commands:
-      - "{{SDLC}} requirements-review --change {{change_name}} --reject"
+      - "{{SDLC}} requirements-review --change {{change_name}} --reject --failures <file>"

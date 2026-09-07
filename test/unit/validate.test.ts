@@ -24,6 +24,30 @@ test('a valid requirements artifact produces no findings', () => {
   assert.deepEqual(findings, []);
 });
 
+test('a mis-cased key in a free-form section is a blocking schema finding (snake_case guard)', () => {
+  const changeRoot = makeChangeRoot();
+  const artifact = validRequirements();
+  // discovery_log items are free-form objects: additionalProperties true, but
+  // the propertyNames pattern enforces snake_case keys.
+  (artifact as Record<string, unknown>).discovery_log = [
+    { id: 'DL-001', question: 'Q?', answer: 'A.', resolved: true, someKey: 'camel' },
+  ];
+  const findings = validateArtifact('requirements', artifact, root, changeRoot);
+  const schema = findings.filter((f) => f.check === 'schema');
+  assert.ok(schema.length > 0, JSON.stringify(findings));
+  assert.match(schema[0].finding, /must match pattern/);
+  assert.equal(schema[0].severity, 'blocking');
+
+  // The same entry with the snake_case key produces no schema finding.
+  (artifact as Record<string, unknown>).discovery_log = [
+    { id: 'DL-001', question: 'Q?', answer: 'A.', resolved: true, some_key: 'snake' },
+  ];
+  assert.deepEqual(
+    validateArtifact('requirements', artifact, root, changeRoot).filter((f) => f.check === 'schema'),
+    []
+  );
+});
+
 test('a schema violation produces a schema finding first (AC-019)', () => {
   const changeRoot = makeChangeRoot();
   const artifact = validRequirements();

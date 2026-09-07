@@ -36,7 +36,7 @@ Rows are appended only through a change's knowledge extraction; improvement-revi
 - `npm run validate`: ~2 s, unit-only; e2e lives in `check:all`.
 - Authoring stages: six steps (`needs_input/init/authoring/ready/complete/recovery`); `--finalize --confirm-semantic` completes in one call.
 - Requirements: one merged `acceptance_criteria` list (id / GWT / category / parent_id).
-- Implementation review: zero blocking findings expected when notes are given at done-time.
+- Implementation review: zero mechanical failures expected when notes are given at done-time.
 - Deltas presented to knowledge-extraction: deduplicated per doc+change.
 - Envelope: seven frozen top-level fields; `step_help` only behind `--help-step`.
 

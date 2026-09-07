@@ -52,20 +52,6 @@ function run(tmp, args, input) {
   return JSON.parse(res.stdout);
 }
 
-// Writes a findings file whose semantic section covers every check of the
-// target stage's semantic-checks.yaml with status 'pass' (AC-017). Inline
-// YAML built at runtime — no fixture files.
-function writeWalkFile(tmp, stageId) {
-  const checksPath = path.join(root, 'src', 'stages', stageId, 'semantic-checks.yaml');
-  const checks = readYaml(checksPath).checks;
-  const items = checks
-    .map((c) => `  - check_id: ${JSON.stringify(c)}\n    status: pass\n    evidence: "Verified in session."\n`)
-    .join('');
-  const file = path.join(tmp, `${stageId}-walk.yaml`);
-  fs.writeFileSync(file, `semantic:\n${items}`, 'utf8');
-  return file;
-}
-
 test('full pipeline requirements -> knowledge extraction complete', () => {
   const tmp = makeTmpProject();
 
@@ -84,8 +70,16 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['requirements-review', '--change', changeDir, '--accept', '--findings', writeWalkFile(tmp, 'requirements')]);
+  // Bare accepts: the round records failures [] with both valid flags true.
+  out = run(tmp, ['requirements-review', '--change', changeDir, '--accept']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
+  assert.equal(out.data.status, 'accepted');
+  assert.deepEqual(out.data.failures, []);
+
+  const reqReview = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
+  assert.equal(reqReview.rounds[0].mechanical_checks_passed, true);
+  assert.equal(reqReview.rounds[0].semantic_checks_passed, true);
+  assert.deepEqual(reqReview.rounds[0].failures, []);
 
   const req = readYaml(path.join(changeRoot, 'requirements.yaml'));
   const reqVersion = req.metadata.version;
@@ -100,8 +94,15 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   out = run(tmp, ['design', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['design-review', '--change', changeDir, '--accept', '--findings', writeWalkFile(tmp, 'design')]);
+  out = run(tmp, ['design-review', '--change', changeDir, '--accept']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
+  assert.equal(out.data.status, 'accepted');
+  assert.deepEqual(out.data.failures, []);
+
+  const desReview = readYaml(path.join(changeRoot, 'design-review.yaml'));
+  assert.equal(desReview.rounds[0].mechanical_checks_passed, true);
+  assert.equal(desReview.rounds[0].semantic_checks_passed, true);
+  assert.deepEqual(desReview.rounds[0].failures, []);
 
   const des = readYaml(path.join(changeRoot, 'design.yaml'));
   const desVersion = des.metadata.version;
@@ -116,8 +117,15 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   out = run(tmp, ['planning', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  out = run(tmp, ['planning-review', '--change', changeDir, '--accept', '--findings', writeWalkFile(tmp, 'planning')]);
+  out = run(tmp, ['planning-review', '--change', changeDir, '--accept']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
+  assert.equal(out.data.status, 'accepted');
+  assert.deepEqual(out.data.failures, []);
+
+  const planReview = readYaml(path.join(changeRoot, 'plan-review.yaml'));
+  assert.equal(planReview.rounds[0].mechanical_checks_passed, true);
+  assert.equal(planReview.rounds[0].semantic_checks_passed, true);
+  assert.deepEqual(planReview.rounds[0].failures, []);
 
   out = run(
     tmp,
@@ -125,8 +133,15 @@ test('full pipeline requirements -> knowledge extraction complete', () => {
   );
   assert.notEqual(out.state, 'blocked', JSON.stringify(out));
 
-  out = run(tmp, ['implementation-review', '--change', changeDir, '--accept', '--findings', writeWalkFile(tmp, 'implementation')]);
+  out = run(tmp, ['implementation-review', '--change', changeDir, '--accept']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
+  assert.equal(out.data.status, 'accepted');
+  assert.deepEqual(out.data.failures, []);
+
+  const implReview = readYaml(path.join(changeRoot, 'implementation-review.yaml'));
+  assert.equal(implReview.rounds[0].mechanical_checks_passed, true);
+  assert.equal(implReview.rounds[0].semantic_checks_passed, true);
+  assert.deepEqual(implReview.rounds[0].failures, []);
 
   out = run(tmp, ['knowledge-extraction', '--change', changeDir]);
   assert.ok(out.data.deltas_to_apply.length >= 1, JSON.stringify(out));

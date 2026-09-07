@@ -4,20 +4,21 @@ import path from 'node:path';
 import { parseArgs, writeJson, EXIT, CWD_FLAG_DOC } from '../cli.ts';
 import { changesDirFor, resolveRootOrError, ResolveRootError } from '../resolve-root.ts';
 import { writeYamlAtomic, readStdin, parseYamlString, readYaml } from '../yaml-io.ts';
-import { safeReadYaml, loadReviewReport } from '../context.ts';
+import { safeReadYaml } from '../context.ts';
 import { loadDocsIndex, headingExists } from '../docs-index.ts';
 import { today, slugify, uniqueSlug, nextIdsFromArrays, validateChangeSlug } from '../ids.ts';
 import { bumpVersion } from '../semver.ts';
 import { titleFromRequest, normalizeDeltaEntries } from '../stage-helpers.ts';
 import { loadStepDefinitions, evaluatePredicate } from '../steps-loader.ts';
 import { buildStepVars, cliInvocation, renderStepHelp } from '../step-render.ts';
-import { detectStep, isReadyForReview, getData } from '../authoring-base.ts';
+import { detectStep, getData } from '../authoring-base.ts';
 import type { AuthorEnv } from '../authoring-base.ts';
-import { loadStageHooks, stagePreconditionWarnings } from '../stage-registry.ts';
+import { loadStageHooks, loadStageRegistry, stagePreconditionWarnings } from '../stage-registry.ts';
 import { validateArtifact } from '../validate.ts';
 import { evaluateGate } from '../requires-graph.ts';
 import type { GateResult } from '../requires-graph.ts';
 import { makeError } from '../error-catalog.ts';
+import type { Failure } from '../review-findings.ts';
 import type { StageRecord } from '../stage-registry.ts';
 import type { ParseArgsResult, WarningItem, Finding } from '../types.ts';
 
@@ -500,6 +501,40 @@ function semanticChecksFor(env: AuthorEnv): string[] {
   return Array.isArray(doc?.checks) ? (doc.checks as unknown[]).filter((c) => typeof c === 'string') as string[] : [];
 }
 
+/**
+ * Feedback-loop repair data (failure-only review rounds): the failures of the
+ * latest rejected round, read from the review stage's round store. The review
+ * stage is found by registry reverse-lookup on `reviews === stage.id` — no
+ * stage-id or filename literal participates. Returns null when no review
+ * stage, no review file, or no rejected round exists.
+ */
+function loadReviewFailures(
+  stage: StageRecord,
+  changeRoot: string | null,
+  cwd: string
+): Failure[] | null {
+  if (!changeRoot) return null;
+
+  const reviewStage = loadStageRegistry(cwd).find(
+    (s) => s.kind === 'review' && s.reviews === stage.id
+  );
+  if (!reviewStage?.reviewFile) return null;
+
+  const doc = safeReadYaml(path.join(changeRoot, reviewStage.reviewFile)) as {
+    rounds?: unknown[];
+  } | null;
+  const rounds = Array.isArray(doc?.rounds) ? (doc?.rounds as unknown[]) : [];
+
+  for (let i = rounds.length - 1; i >= 0; i -= 1) {
+    const round = rounds[i] as Record<string, unknown> | null;
+    if (round && typeof round === 'object' && round.status === 'rejected') {
+      return Array.isArray(round.failures) ? (round.failures as Failure[]) : [];
+    }
+  }
+
+  return null;
+}
+
 function blockingFindings(findings: Finding[]): Finding[] {
   return findings.filter((f) => !f.severity || f.severity === 'blocking');
 }
@@ -961,7 +996,6 @@ export async function runAuthoringStage(
     const stepHelp = renderStepHelp(step, stepDefinitions?.[step], templateVars);
     const renderedMarkdown = stepHelp.markdown;
 
-    const reviewReport = loadReviewReport(changeRoot);
     const hookWarnings = await stagePreconditionWarnings(stage, stepEnv);
     const allWarnings: WarningItem[] = [...warnings, ...hookWarnings];
 
@@ -986,6 +1020,10 @@ export async function runAuthoringStage(
       data.delta_allowed_target_docs = loadDocsIndex(cwd).map((doc) => doc.file);
     } else if (step === 'recovery') {
       data.errors = blocking;
+      // Feedback-loop repair (failure-only review rounds): the latest
+      // rejected round's failures from the review stage's round store.
+      const reviewFailures = loadReviewFailures(stage, changeRoot, cwd);
+      if (reviewFailures) data.review_failures = reviewFailures;
     }
 
     Object.assign(data, getData(stepEnv));
@@ -1027,7 +1065,6 @@ export async function runAuthoringStage(
           // Opt-in step guidance (DEC-003): step_help dominates the payload
           // and is only included when the invocation carries --help-step.
           ...(args['help-step'] ? { step_help: stepHelp } : {}),
-          review_report: reviewReport,
         },
         errors: [],
         warnings: allWarnings,

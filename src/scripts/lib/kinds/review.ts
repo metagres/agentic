@@ -14,13 +14,11 @@ import { validateArtifact } from '../validate.ts';
 import { evaluateGate } from '../requires-graph.ts';
 import { makeError } from '../error-catalog.ts';
 import {
-  collectKnownIds,
-  FindingsFileError,
-  parseFindingsFile,
-  resolveFindingTargets,
-  validateSemanticWalk,
+  FailureFileError,
+  parseFailuresFile,
+  validateSemanticFailures,
 } from '../review-findings.ts';
-import type { ParsedFindingsFile, ValidatedSemanticWalk } from '../review-findings.ts';
+import type { Failure } from '../review-findings.ts';
 import type { WarningItem, Finding } from '../types.ts';
 
 export interface ReviewRunOptions {
@@ -38,15 +36,25 @@ function semanticChecksFor(stage: StageRecord): string[] {
     : [];
 }
 
-function blockingFindings(findings: Finding[]): Finding[] {
-  return findings.filter((f) => !f.severity || f.severity === 'blocking');
+/**
+ * Maps a CLI-computed mechanical finding to the uniform {check, evidence}
+ * failure shape: severity and category are stripped and the fix hint is
+ * folded into the evidence text (check messages are self-locating — each
+ * names its target). Every finding is a failure regardless of severity — a
+ * finding is automatically a failure. Mechanical failures are always
+ * CLI-computed — never reviewer-supplied.
+ */
+function toFailure(finding: Finding): Failure {
+  const parts = [finding.finding.trim()];
+  if (finding.fix && finding.fix.trim()) parts.push(`Fix: ${finding.fix.trim()}`);
+  return { check: finding.check, evidence: parts.join(' ') };
 }
 
 /**
- * Round store (CMP-001): rounds are classified by status. A round carrying
- * status 'open' is the only mutable round; every other round — including
- * legacy rounds written before the open-to-closed contract that lack a status
- * field — is treated as closed and never modified (FR-004, AC-007).
+ * Round store (CMP-001): rounds are classified by their merged status —
+ * 'open' is the only mutable round; every other round ('accepted',
+ * 'rejected', and legacy rounds written before the merged-status contract
+ * that lack a status field) is treated as closed and never modified.
  */
 function isOpenRound(round: unknown): boolean {
   return Boolean(
@@ -63,13 +71,8 @@ function latestOpenRoundIndex(rounds: unknown[]): number {
   return -1;
 }
 
-/**
- * Deterministic summary of the blocking mechanical findings, used as the
- * round rationale when the reviewer supplies none (DEC-004 fallback).
- */
-function mechanicalRationale(blocking: Finding[]): string {
-  const items = blocking.map((f) => f.finding).join('; ');
-  return `${blocking.length} blocking mechanical finding(s): ${items}`;
+function failureLines(failures: Failure[]): string {
+  return failures.map((f) => ` - ${f.check}: ${f.evidence}`).join('\n');
 }
 
 export async function runReviewStage(
@@ -104,9 +107,9 @@ export async function runReviewStage(
   const usage = (code: number, message: string | null = null) => {
     const instructions =
       options.workflowLabel === 'review'
-        ? 'Usage: sdlc review --target <requirements|design|plan|implementation> --change <change-name> [--accept|--reject] [--dry-run] ' +
+        ? 'Usage: sdlc review --target <requirements|design|plan|implementation> --change <change-name> [--accept|--reject] [--failures <file>] [--dry-run] ' +
           CWD_FLAG_DOC
-        : `Usage: sdlc ${stage.id} --change <change-name> [--accept|--reject] [--dry-run] ` +
+        : `Usage: sdlc ${stage.id} --change <change-name> [--accept|--reject] [--failures <file>] [--dry-run] ` +
           CWD_FLAG_DOC;
     writeJson(
       {
@@ -236,44 +239,19 @@ export async function runReviewStage(
     return;
   }
 
-  // Findings input gate (CMP-002, DEC-005): pre-flight argv validation that
-  // runs ahead of the gate check and ahead of every file mutation. Every
-  // violation exits before any write so the artifact and review file stay
-  // untouched.
-  const note = typeof args.note === 'string' ? String(args.note).trim() : '';
-  const findingsFile =
-    typeof args.findings === 'string' ? String(args.findings).trim() : '';
-  const hasReviewerInput = Boolean(note || findingsFile);
+  // Pre-flight argv validation: every violation exits before any file
+  // mutation so the artifact and review file stay untouched.
+  const failuresFile =
+    typeof args.failures === 'string' ? String(args.failures).trim() : '';
 
-  if (note && findingsFile) {
+  if (args.note !== undefined) {
     writeJson(
       {
         workflow,
         step: stepId,
         state: 'blocked',
-        instructions: 'Use either --note or --findings, not both.',
-        data: {
-          target: targetLabel,
-          target_artifact: stage.artifact,
-          change_root: changeRoot,
-        },
-        errors: [
-          makeError('USAGE', { message: 'Use either --note or --findings, not both.' }),
-        ],
-        warnings: [],
-      },
-      EXIT.usage
-    );
-    return;
-  }
-
-  if (hasReviewerInput && !args.accept && !args.reject) {
-    writeJson(
-      {
-        workflow,
-        step: stepId,
-        state: 'blocked',
-        instructions: '--note and --findings require a verdict flag (--accept or --reject).',
+        instructions:
+          '--note was removed. Rejections are evidence-backed: run --reject --failures <file> with a top-level YAML list of the failed semantic checks as {check, evidence}; mechanical failures are CLI-computed and need no input.',
         data: {
           target: targetLabel,
           target_artifact: stage.artifact,
@@ -281,7 +259,8 @@ export async function runReviewStage(
         },
         errors: [
           makeError('USAGE', {
-            message: '--note and --findings require a verdict flag (--accept or --reject).',
+            message:
+              '--note was removed. Rejections are evidence-backed: use --reject --failures <file> ({check, evidence} entries).',
           }),
         ],
         warnings: [],
@@ -291,22 +270,23 @@ export async function runReviewStage(
     return;
   }
 
-  if (findingsFile && !fs.existsSync(findingsFile)) {
-    // The --findings value resolves relative to the process working
-    // directory, matching --record-answers behavior (assumption 5).
+  if (args.findings !== undefined) {
     writeJson(
       {
         workflow,
         step: stepId,
         state: 'blocked',
-        instructions: `--findings file not found: ${findingsFile}`,
+        instructions:
+          '--findings was renamed to --failures. Supply a top-level YAML list of the failed semantic checks as {check, evidence} entries.',
         data: {
           target: targetLabel,
           target_artifact: stage.artifact,
           change_root: changeRoot,
         },
         errors: [
-          makeError('USAGE', { message: `--findings file not found: ${findingsFile}` }),
+          makeError('USAGE', {
+            message: '--findings was renamed to --failures ({check, evidence} entries).',
+          }),
         ],
         warnings: [],
       },
@@ -315,19 +295,87 @@ export async function runReviewStage(
     return;
   }
 
-  // Findings-file shape validation and target resolution (CMP-003, DEC-005):
-  // pre-flight, before the gate result is acted on and before any write. A
-  // shape violation refuses the invocation naming the offending entry
-  // (AC-012); unknown id-shaped targets only warn while the round is still
-  // recorded (AC-013, DEC-001).
-  let parsedFindings: ParsedFindingsFile | null = null;
-  const targetWarnings: WarningItem[] = [];
+  if (failuresFile && args.accept) {
+    writeJson(
+      {
+        workflow,
+        step: stepId,
+        state: 'blocked',
+        instructions:
+          '--failures is not valid with --accept: mechanical failures are CLI-computed and an accepted round records failures [].',
+        data: {
+          target: targetLabel,
+          target_artifact: stage.artifact,
+          change_root: changeRoot,
+        },
+        errors: [
+          makeError('USAGE', {
+            message: '--failures is not valid with --accept.',
+          }),
+        ],
+        warnings: [],
+      },
+      EXIT.usage
+    );
+    return;
+  }
 
-  if (findingsFile) {
+  if (failuresFile && !args.reject) {
+    writeJson(
+      {
+        workflow,
+        step: stepId,
+        state: 'blocked',
+        instructions: '--failures requires --reject.',
+        data: {
+          target: targetLabel,
+          target_artifact: stage.artifact,
+          change_root: changeRoot,
+        },
+        errors: [
+          makeError('USAGE', { message: '--failures requires --reject.' }),
+        ],
+        warnings: [],
+      },
+      EXIT.usage
+    );
+    return;
+  }
+
+  if (failuresFile && !fs.existsSync(failuresFile)) {
+    // The --failures value resolves relative to the process working
+    // directory, matching --record-answers behavior (assumption 5).
+    writeJson(
+      {
+        workflow,
+        step: stepId,
+        state: 'blocked',
+        instructions: `--failures file not found: ${failuresFile}`,
+        data: {
+          target: targetLabel,
+          target_artifact: stage.artifact,
+          change_root: changeRoot,
+        },
+        errors: [
+          makeError('USAGE', { message: `--failures file not found: ${failuresFile}` }),
+        ],
+        warnings: [],
+      },
+      EXIT.usage
+    );
+    return;
+  }
+
+  // Failures-file shape validation: pre-flight, before the gate result is
+  // acted on and before any write. A shape violation refuses the invocation
+  // naming the offending entry and nothing is written.
+  let semanticFailures: Failure[] | null = null;
+
+  if (failuresFile) {
     try {
-      parsedFindings = parseFindingsFile(findingsFile);
+      semanticFailures = parseFailuresFile(failuresFile);
     } catch (err: unknown) {
-      if (err instanceof FindingsFileError) {
+      if (err instanceof FailureFileError) {
         writeJson(
           {
             workflow,
@@ -348,34 +396,39 @@ export async function runReviewStage(
       }
       throw err;
     }
-
-    targetWarnings.push(
-      ...resolveFindingTargets(parsedFindings.findings, collectKnownIds(changeRoot))
-    );
   }
 
   try {
-    // Review gate (DEC-008): the tracked artifact must be ready-for-review or
-    // accepted.
+    // Review gate (DEC-008): the tracked artifact must be ready-for-review.
+    // An accepted artifact is already through the gate — re-review requires
+    // the author to update and re-finalize; a rejected one is gate-blocked.
     const gate = evaluateGate(stage, changeRoot, cwd);
     if (!gate.satisfied) {
+      const alreadyAccepted = gate.unsatisfied.some((u) => u.status === 'accepted');
       writeJson(
         {
           workflow,
           step: stepId,
           state: 'blocked',
-          instructions:
-            'The review gate is not satisfied:\n - ' +
-            gate.unsatisfied
-              .map((u) => `${u.stage} (${u.artifact} status '${u.status}', required ${u.required})`)
-              .join('\n - '),
+          instructions: alreadyAccepted
+            ? `The ${targetLabel} artifact is already accepted; re-review requires the author to update and re-finalize.`
+            : 'The review gate is not satisfied:\n - ' +
+              gate.unsatisfied
+                .map((u) => `${u.stage} (${u.artifact} status '${u.status}', required ${u.required})`)
+                .join('\n - '),
           data: {
             target: targetLabel,
             target_artifact: stage.artifact,
             change_root: changeRoot,
             unsatisfied_requirements: gate.unsatisfied,
           },
-          errors: [makeError('STAGE_GATE_BLOCKED', { message: 'Tracked artifact is not ready for review.' })],
+          errors: [
+            makeError('STAGE_GATE_BLOCKED', {
+              message: alreadyAccepted
+                ? `The ${targetLabel} artifact is already accepted; re-review requires the author to update and re-finalize.`
+                : 'Tracked artifact is not ready for review.',
+            }),
+          ],
           warnings: [],
         },
         EXIT.actionFailed
@@ -412,47 +465,36 @@ export async function runReviewStage(
       return;
     }
 
-    const warnings: WarningItem[] = [];
-
     // Unified validation path: identical findings to internal finalize (FR-006).
+    // Every finding is a failure regardless of severity — a finding is
+    // automatically a failure (failure-only contract).
     const findings = validateArtifact(trackedStage.id, artifact, cwd, changeRoot);
-    const blocking = blockingFindings(findings);
+    const mechanicalFailures = findings.map(toFailure);
+    const mechanicalValid = findings.length === 0;
 
-    const metadata = (artifact.metadata as Record<string, unknown>) || {};
-    const currentStatus = String(metadata[trackedStage.statusField] || '');
-    const readyForReview =
-      currentStatus === 'ready-for-review' || currentStatus === 'accepted';
-
-    const stageChecks = semanticChecksFor(trackedStage);
-
-    const canAccept = readyForReview && blocking.length === 0;
-
-    // Input gate, mechanical-dependent rule (AC-008, AC-009): a rejection
-    // with zero mechanical blocking findings requires reviewer input, because
-    // the rationale would otherwise be invisible to the CLI. With blocking
-    // findings the rejection proceeds without reviewer input. This check runs
-    // after mechanical validation but before any write (DEC-005).
-    if (args.reject && !hasReviewerInput && blocking.length === 0) {
+    // Mechanical-dependent refusals (failure-only contract): a rejection with
+    // passing mechanical checks requires the failed semantic checks as
+    // evidence, and a --failures file is refused when mechanical failures
+    // exist because mechanical failures are CLI-computed, never
+    // reviewer-supplied. Both run after mechanical validation but before any
+    // write.
+    if (args.reject && mechanicalValid && !semanticFailures) {
+      const message =
+        '--reject requires --failures <file> when mechanical checks pass: supply the failed semantic checks as a top-level YAML list of {check, evidence}.';
       writeJson(
         {
           workflow,
           step: stepId,
           state: 'blocked',
-          instructions:
-            '--reject requires --note or --findings when mechanical checks pass (no blocking findings).',
+          instructions: message,
           data: {
             target: targetLabel,
             target_artifact: trackedStage.artifact,
             artifact: artifactPath,
             change_root: changeRoot,
-            blocking_count: blocking.length,
+            failures: [],
           },
-          errors: [
-            makeError('USAGE', {
-              message:
-                '--reject requires --note or --findings when mechanical checks pass (no blocking findings).',
-            }),
-          ],
+          errors: [makeError('USAGE', { message })],
           warnings: [],
         },
         EXIT.usage
@@ -460,23 +502,38 @@ export async function runReviewStage(
       return;
     }
 
-    // Semantic walk validation (CMP-004, DEC-003, DEC-005): pre-flight,
-    // before any write. Required and all-pass when accepting with passing
-    // mechanical checks (FR-011, AC-017); validated for completeness and
-    // recorded when supplied with passing mechanicals (FR-010); ignored and
-    // not recorded when mechanical blocking findings exist (FR-009, AC-018).
-    const semanticRequired = Boolean(args.accept) && blocking.length === 0;
-    let semanticWalk: ValidatedSemanticWalk | null = null;
+    if (semanticFailures && !mechanicalValid) {
+      const message =
+        '--failures is not valid while mechanical checks fail: mechanical failures are CLI-computed and recorded automatically. Drop --failures or fix the mechanical failures first.';
+      writeJson(
+        {
+          workflow,
+          step: stepId,
+          state: 'blocked',
+          instructions: compose(message, `Mechanical failures:\n${failureLines(mechanicalFailures)}`),
+          data: {
+            target: targetLabel,
+            target_artifact: trackedStage.artifact,
+            artifact: artifactPath,
+            change_root: changeRoot,
+            failures: mechanicalFailures,
+          },
+          errors: [makeError('USAGE', { message })],
+          warnings: [],
+        },
+        EXIT.usage
+      );
+      return;
+    }
 
-    if (blocking.length === 0 && (parsedFindings?.semantic || semanticRequired)) {
+    // Semantic failures validation against the target stage's declared checks
+    // (CMP-003): pre-flight, before any write. Only the reject-with-failures
+    // path dispositioned the semantic checklist.
+    if (semanticFailures) {
       try {
-        semanticWalk = validateSemanticWalk(
-          parsedFindings?.semantic ?? null,
-          stageChecks,
-          semanticRequired
-        );
+        validateSemanticFailures(semanticFailures, semanticChecksFor(trackedStage));
       } catch (err: unknown) {
-        if (err instanceof FindingsFileError) {
+        if (err instanceof FailureFileError) {
           writeJson(
             {
               workflow,
@@ -488,7 +545,7 @@ export async function runReviewStage(
                 target_artifact: trackedStage.artifact,
                 artifact: artifactPath,
                 change_root: changeRoot,
-                blocking_count: blocking.length,
+                failures: [],
               },
               errors: [makeError(err.code, { message: err.message })],
               warnings: [],
@@ -501,43 +558,68 @@ export async function runReviewStage(
       }
     }
 
-    let decision = 'review';
-    let state: string = canAccept ? 'ok' : 'blocked';
-    let instructions = '';
-    const errors: { code: string; message: string }[] = [];
+    const metadata = (artifact.metadata as Record<string, unknown>) || {};
     const dryRun = Boolean(args['dry-run']);
     const shouldRecord = !dryRun;
 
-    if (args.accept) {
-      decision = canAccept ? 'accepted' : 'accept_blocked';
+    // Round status vocabulary (merged field): open | accepted | rejected.
+    let roundStatus: 'open' | 'accepted' | 'rejected';
+    let state: string;
+    let instructions = '';
+    const errors: { code: string; message: string }[] = [];
+    // The semantic checklist is dispositioned only on the accepted path and
+    // the reject-with-semantic-failures path.
+    let semanticValid: boolean | null = null;
+    let roundFailures: Failure[];
 
-      if (canAccept) {
+    if (args.accept) {
+      if (mechanicalValid) {
+        // Accepted: failures [] and both valid flags true.
+        roundStatus = 'accepted';
+        semanticValid = true;
+        state = 'complete';
+        roundFailures = [];
+
         if (!dryRun) {
           metadata[trackedStage.statusField] = 'accepted';
           metadata.updated = today();
           writeYamlAtomic(artifactPath, artifact);
         }
 
-        state = 'complete';
         instructions = compose(
           markdownFor('accept', changeRoot),
           `The ${trackedStage.id} review was accepted. The artifact status is now 'accepted'.` +
             (dryRun ? ' Dry run: no changes were written.' : '')
         );
       } else {
+        // FORCED REJECTED: acceptance is impossible while mechanical checks
+        // fail. The round is recorded rejected and the artifact is flipped to
+        // rejected so the author fixes the recorded failures first.
+        roundStatus = 'rejected';
+        semanticValid = null;
         state = 'blocked';
+        roundFailures = mechanicalFailures;
+
+        if (!dryRun) {
+          metadata[trackedStage.statusField] = 'rejected';
+          metadata.updated = today();
+          writeYamlAtomic(artifactPath, artifact);
+        }
+
         instructions = compose(
           markdownFor('accept', changeRoot),
-          `The ${trackedStage.id} artifact cannot be accepted yet. It must be ready-for-review and have no blocking structural/reference findings.`
+          `Acceptance is impossible while mechanical checks fail: the round was recorded as rejected and the artifact status was flipped to rejected. Fix the recorded failures, re-finalize the artifact, then run the review again.\n\nMechanical failures:\n${failureLines(mechanicalFailures)}` +
+            (dryRun ? '\n\nDry run: no changes were written.' : '')
         );
         errors.push(
-          makeError('CANNOT_ACCEPT', {
-            message: `ready_for_review=${readyForReview}, blocking=${blocking.length}`,
+          makeError('REVIEW_NOT_PASSING', {
+            message: `Acceptance is impossible while mechanical checks fail (${mechanicalFailures.length} mechanical finding(s)).`,
           })
         );
       }
     } else if (args.reject) {
-      decision = 'rejected';
+      roundStatus = 'rejected';
+      state = 'blocked';
 
       if (!dryRun) {
         metadata[trackedStage.statusField] = 'rejected';
@@ -545,31 +627,55 @@ export async function runReviewStage(
         writeYamlAtomic(artifactPath, artifact);
       }
 
-      state = 'blocked';
-      instructions = compose(
-        markdownFor('reject', changeRoot),
-        `The ${trackedStage.id} review was rejected. Run the corresponding authoring or implementation workflow to fix the findings, then review again.` +
-          (dryRun ? ' Dry run: no changes were written.' : '')
-      );
+      if (!mechanicalValid) {
+        // Rejection with mechanical failures: CLI-computed evidence, no input
+        // needed; the semantic checklist was not dispositioned.
+        roundFailures = mechanicalFailures;
+        instructions = compose(
+          markdownFor('reject', changeRoot),
+          `The ${trackedStage.id} review was rejected. Mechanical checks failed:\n${failureLines(mechanicalFailures)}\n\nFix the recorded failures, re-finalize the artifact, then run the review again.` +
+            (dryRun ? '\n\nDry run: no changes were written.' : '')
+        );
+      } else {
+        // Rejection with failed semantic checks supplied via --failures: the
+        // semantic checklist was dispositioned and did not pass.
+        semanticValid = false;
+        roundFailures = semanticFailures as Failure[];
+        instructions = compose(
+          markdownFor('reject', changeRoot),
+          `The ${trackedStage.id} review was rejected. Failed semantic checks recorded from --failures:\n${failureLines(semanticFailures || [])}\n\nFix the recorded failures, re-finalize the artifact, then run the review again.` +
+            (dryRun ? '\n\nDry run: no changes were written.' : '')
+        );
+      }
     } else {
-      instructions = compose(
-        markdownFor('review', changeRoot),
-        canAccept
-          ? `The ${trackedStage.id} artifact passed structural validation. Please review the following semantic checks:\n\n${stageChecks
-              .map((c, i) => `${i + 1}. ${c}`)
-              .join('\n')}\n\nAcceptance requires the complete semantic walk: run --accept with --findings supplying one {check_id, status, evidence} item per check above, all status 'pass'. Rejection requires --note or --findings. Complete the verdict in this session: write the findings file and run the accept or reject command — a review without a recorded verdict is an incomplete review, and a bare re-invocation only refreshes the open round.`
-          : `The ${trackedStage.id} artifact cannot be accepted yet. Fix the blocking findings and review again.`
-      );
+      // Bare invocation: open or refresh the round; mechanical failures are
+      // listed when present.
+      roundStatus = 'open';
+      roundFailures = mechanicalFailures;
 
-      if (dryRun) instructions += ' Dry run: no changes were written.';
-
-      if (!canAccept) {
+      if (mechanicalValid) {
+        state = 'ok';
+        const stageChecks = semanticChecksFor(trackedStage);
+        instructions = compose(
+          markdownFor('review', changeRoot),
+          `The ${trackedStage.id} artifact passed mechanical validation. Review the semantic checklist:\n\n${stageChecks
+            .map((c, i) => `${i + 1}. ${c}`)
+            .join('\n')}\n\nVerdict guidance: --accept accepts the artifact (failures recorded as []); --reject --failures <file> records the failed semantic checks as a top-level YAML list of {check, evidence}. Complete the verdict in this session — a review without a recorded verdict is an incomplete review, and a bare re-invocation only refreshes the open round.`
+        );
+      } else {
+        state = 'blocked';
+        instructions = compose(
+          markdownFor('review', changeRoot),
+          `Mechanical checks failed:\n${failureLines(mechanicalFailures)}\n\nFix the recorded failures in the artifact, re-finalize, and run the review again.`
+        );
         errors.push(
           makeError('REVIEW_NOT_PASSING', {
-            message: `ready_for_review=${readyForReview}, blocking=${blocking.length}`,
+            message: `Mechanical checks failed (${mechanicalFailures.length} mechanical finding(s)).`,
           })
         );
       }
+
+      if (dryRun) instructions += ' Dry run: no changes were written.';
     }
 
     const reviewPath = path.join(changeRoot, stage.reviewFile || `${stage.id}.yaml`);
@@ -590,23 +696,13 @@ export async function runReviewStage(
     }
 
     const roundsArr = reviewDoc.rounds as Record<string, unknown>[];
-    const isVerdict = Boolean(args.accept || args.reject);
     let recordedRound: number | null = null;
 
     if (shouldRecord) {
-      const mechanicalBlock = {
-        valid: blocking.length === 0,
-        blocking_count: blocking.length,
-        findings,
-      };
-      const roundWarnings = [
-        ...blocking.filter((f) => f.severity !== 'blocking'),
-        // Unknown id-shaped finding targets warn while the round is still
-        // recorded (AC-013, DEC-001).
-        ...targetWarnings,
-      ];
       const openIdx = latestOpenRoundIndex(roundsArr);
-      const roundBase = (roundNumber: number) => ({
+      const roundNumber =
+        openIdx >= 0 ? Number(roundsArr[openIdx].round) : roundsArr.length + 1;
+      const round: Record<string, unknown> = {
         round: roundNumber,
         reviewed_at: nowIso(),
         artifact_version: metadata.version || null,
@@ -615,71 +711,27 @@ export async function runReviewStage(
               implementation_status: metadata.implementation_status || null,
             }
           : {}),
-      });
+        status: roundStatus,
+        mechanical_checks_passed: mechanicalValid,
+        // Semantic flag recorded only when the semantic checklist was
+        // dispositioned (accepted, or rejected with failed semantic checks).
+        ...(semanticValid !== null ? { semantic_checks_passed: semanticValid } : {}),
+        failures: roundFailures,
+      };
 
-      if (!isVerdict) {
-        // Bare invocation (FR-001, FR-002): open a round, or refresh the
-        // existing open round in place keeping the same round number. Round
-        // numbers increment only when a round is appended, never on refresh.
-        const roundNumber =
-          openIdx >= 0
-            ? Number(roundsArr[openIdx].round)
-            : roundsArr.length + 1;
-        const openRound = {
-          ...roundBase(roundNumber),
-          decision: 'review',
-          status: 'open',
-          can_accept: canAccept,
-          mechanical: mechanicalBlock,
-          warnings: roundWarnings,
-        };
-        if (openIdx >= 0) roundsArr[openIdx] = openRound;
-        else roundsArr.push(openRound);
-        recordedRound = roundNumber;
-      } else {
-        // Verdict (FR-003): complete the latest open round in place, or
-        // append a complete closed round when no open round exists. The
-        // rationale follows DEC-004 precedence: the --note text when
-        // supplied; otherwise the mechanical-findings summary when blocking
-        // findings exist; otherwise omitted.
-        const rationale =
-          note || (blocking.length > 0 ? mechanicalRationale(blocking) : null);
-        const roundNumber =
-          openIdx >= 0
-            ? Number(roundsArr[openIdx].round)
-            : roundsArr.length + 1;
-        const closedRound = {
-          ...roundBase(roundNumber),
-          decision,
-          status: 'closed',
-          can_accept: canAccept,
-          mechanical: mechanicalBlock,
-          // Semantic block recorded only when supplied, valid, and mechanical
-          // checks passed (DM-001, FR-009, AC-018).
-          ...(semanticWalk ? { semantic: { results: semanticWalk.results } } : {}),
-          // Reviewer findings without severity: blocking by definition on a
-          // rejected round, advisory on an accepted one (FR-008, AC-014,
-          // AC-015).
-          ...(parsedFindings && parsedFindings.findings.length > 0
-            ? { findings: parsedFindings.findings }
-            : {}),
-          // DEC-004 precedence: --note text, else the mechanical-findings
-          // summary when blocking findings exist, else omitted — applied
-          // uniformly on the accepted, rejected, and accept_blocked paths.
-          ...(rationale ? { rationale } : {}),
-          warnings: roundWarnings,
-        };
-        if (openIdx >= 0) roundsArr[openIdx] = closedRound;
-        else roundsArr.push(closedRound);
-        recordedRound = roundNumber;
-      }
+      // A verdict completes the latest open round in place; a round is
+      // appended only when no open round exists (round numbers increment only
+      // on append, never on refresh).
+      if (openIdx >= 0) roundsArr[openIdx] = round;
+      else roundsArr.push(round);
+      recordedRound = roundNumber;
 
       reviewDoc.metadata = {
         ...(reviewDoc.metadata as Record<string, unknown>),
         artifact: trackedStage.artifact,
         target: trackedStage.id,
         latest_round: recordedRound,
-        latest_decision: decision,
+        latest_status: roundStatus,
         updated: today(),
       };
 
@@ -698,26 +750,19 @@ export async function runReviewStage(
           artifact: artifactPath,
           change_root: changeRoot,
           review_file: reviewPath,
-          decision,
-          can_accept: canAccept,
+          status: roundStatus,
+          failures: roundFailures,
           dry_run: dryRun,
           artifact_status: metadata[trackedStage.statusField] as string | null || null,
-          blocking_count: blocking.length,
-          blocking_findings: blocking,
           round: recordedRound,
           // Opt-in step guidance (DEC-003): rendered from the stage's
           // steps.yaml, included only with --help-step.
           ...(helpStep ? { step_help: helpFor(stepId, changeRoot) } : {}),
         },
         errors,
-        warnings: [
-          ...blocking
-            .filter((f) => f.severity !== 'blocking')
-            .map((f) => ({ code: 'VALIDATION_WARNING', message: f.finding })),
-          // Unknown id-shaped finding targets ride the envelope warnings
-          // array while the round is still recorded (AC-013, DEC-001).
-          ...targetWarnings,
-        ],
+        // Failure-only contract: every finding is a failure recorded in
+        // data.failures — no advisory warnings remain.
+        warnings: [],
       },
       EXIT.ok
     );

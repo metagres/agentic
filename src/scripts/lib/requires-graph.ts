@@ -141,8 +141,10 @@ function readTrackedStatus(
  * API-002 evaluateGate(stage, changeRoot): a stage is runnable only when every
  * required stage's tracked artifact has status accepted (DEC-008). The tracked
  * artifact of a review stage is the artifact of the stage it reviews. A review
- * stage itself is runnable when its tracked artifact is ready-for-review or
- * accepted, because it is the mechanism that produces acceptance.
+ * stage itself is runnable only when its tracked artifact is ready-for-review:
+ * an accepted artifact is already through the gate (re-review requires the
+ * author to update and re-finalize) and a rejected one must be repaired and
+ * re-finalized first.
  */
 export function evaluateGate(
   stage: StageRecord,
@@ -160,15 +162,14 @@ export function evaluateGate(
             stage: stage.reviews || stage.id,
             artifact: stage.artifact,
             status: 'missing',
-            required: 'ready-for-review or accepted',
+            required: 'ready-for-review',
           },
         ],
       };
     }
 
     const status = readTrackedStatus(changeRoot, target);
-    const satisfied =
-      status === 'ready-for-review' || status === 'accepted';
+    const satisfied = status === 'ready-for-review';
 
     return {
       satisfied,
@@ -179,7 +180,7 @@ export function evaluateGate(
               stage: target.id,
               artifact: target.artifact,
               status,
-              required: 'ready-for-review or accepted',
+              required: 'ready-for-review',
             },
           ],
     };

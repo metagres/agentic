@@ -21,12 +21,9 @@ errors:
   ARTIFACT_PARSE_FAILED:
     message: Artifact YAML could not be parsed.
     fix: Fix the YAML syntax.
-  CANNOT_ACCEPT:
-    message: The artifact cannot be accepted yet.
-    fix: Resolve blocking findings and complete semantic validation.
   REVIEW_NOT_PASSING:
-    message: Review is not passing.
-    fix: Resolve blocking findings and complete semantic validation.
+    message: Mechanical checks are not passing.
+    fix: Fix the recorded failures, re-finalize the artifact, and run the review again.
   CONFLICTING_DECISION:
     message: Conflicting review decision flags.
     fix: Use either --accept or --reject, not both.
@@ -66,12 +63,6 @@ errors:
   ILLEGAL_STATUS_TRANSITION:
     message: Illegal lifecycle status transition.
     fix: Follow the lifecycle defined in src/policies/lifecycle.yaml.
-  SEMANTIC_NOT_COMPLETE:
-    message: Semantic validation is not complete.
-    fix: Record semantic validation results with sufficient evidence.
-  STRICT_FINDING:
-    message: Strict mode converted an advisory finding into a blocking error.
-    fix: Resolve the advisory finding or rerun without --strict.
   POLICY_INVALID:
     message: A policy file is invalid.
     fix: Fix the policy file and rerun validation.
@@ -185,12 +176,9 @@ errors:
   PLATFORM_UNKNOWN:
     message: Deployment platform or version selection does not resolve.
     fix: Use a known platform and version for the deployment target.
-  UNKNOWN_FINDING_TARGET:
-    message: A findings entry target contains an id-shaped token matching no known artifact id.
-    fix: Correct the target id or use a free-text anchor.
-  FINDINGS_ENTRY_INVALID:
-    message: A --findings entry is missing its required target or finding field.
-    fix: Supply both fields on every entry.
-  SEMANTIC_WALK_INVALID:
-    message: The reviewer-supplied semantic walk is missing, incomplete, or carries a non-pass status on the accept path.
-    fix: Supply one {check_id, status, evidence} item per check of the target stage's semantic-checks.yaml, all status 'pass' when accepting.
+  FAILURE_ENTRY_INVALID:
+    message: A --failures entry is not a {check, evidence} object with non-empty check and evidence.
+    fix: Supply both fields on every entry as a top-level YAML list; no other fields are accepted.
+  SEMANTIC_FAILURE_INVALID:
+    message: A --failures entry names a check that is not declared in the target stage's semantic-checks.yaml or duplicates another entry.
+    fix: Name only declared semantic checks, one entry per failed check, with non-empty evidence.

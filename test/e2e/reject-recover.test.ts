@@ -47,21 +47,36 @@ function run(tmp, args, input) {
   return JSON.parse(res.stdout);
 }
 
-// Writes a findings file whose semantic section covers every check of the
-// named stage's semantic-checks.yaml with status 'pass' (AC-017). Inline YAML
-// built at runtime — no fixture files.
-function writeWalkFile(tmp, stageId) {
+function semanticFailureFile(tmp, stageId, index, evidence) {
   const checksPath = path.join(root, 'src', 'stages', stageId, 'semantic-checks.yaml');
   const checks = readYaml(checksPath).checks;
-  const items = checks
-    .map((c) => `  - check_id: ${JSON.stringify(c)}\n    status: pass\n    evidence: "Verified in session."\n`)
-    .join('');
-  const file = path.join(tmp, `${stageId}-walk.yaml`);
-  fs.writeFileSync(file, `semantic:\n${items}`, 'utf8');
+  const file = path.join(tmp, `${stageId}-semantic-failure.yaml`);
+  fs.writeFileSync(
+    file,
+    `- check: ${JSON.stringify(checks[index])}\n  evidence: ${JSON.stringify(evidence)}\n`,
+    'utf8'
+  );
   return file;
 }
 
-test('reject then recover preserves history and bumps version', () => {
+/** Introduces a blocking mechanical finding by duplicating an AC id on disk. */
+function breakArtifact(changeRoot) {
+  const artifactPath = path.join(changeRoot, 'requirements.yaml');
+  const artifact = readYaml(artifactPath);
+  const criteria = artifact.functional_requirements[0].acceptance_criteria;
+  criteria.push({ ...criteria[0] });
+  artifact.metadata.status = 'ready-for-review';
+  fs.writeFileSync(artifactPath, JSON.stringify(artifact), 'utf8');
+}
+
+function fixArtifact(changeRoot) {
+  const artifactPath = path.join(changeRoot, 'requirements.yaml');
+  const artifact = readYaml(artifactPath);
+  artifact.functional_requirements[0].acceptance_criteria.pop();
+  fs.writeFileSync(artifactPath, JSON.stringify(artifact), 'utf8');
+}
+
+test('mechanical rejection loop: CLI-computed failures, recovery exposure, re-finalize, re-review accepted', () => {
   const tmp = makeTmpProject();
   let out = run(tmp, ['requirements', '--request', 'Add login']);
   const changeRoot = out.data.change_root;
@@ -77,42 +92,120 @@ test('reject then recover preserves history and bumps version', () => {
   out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  // Rejections with passing mechanical checks require --note or --findings
-  // (AC-009); the note is recorded as the round rationale.
-  out = run(tmp, ['requirements-review', '--change', changeDir, '--reject', '--note', 'The failure paths are missing.']);
+  // Break the artifact, then reject: mechanical failures are CLI-computed and
+  // the rejection needs no reviewer input.
+  breakArtifact(changeRoot);
+  out = run(tmp, ['requirements-review', '--change', changeDir, '--reject']);
   assert.equal(out.state, 'blocked', JSON.stringify(out));
+  assert.equal(out.data.status, 'rejected');
+  assert.equal(out.data.artifact_status, 'rejected');
+  assert.ok(out.data.failures.length > 0);
+  assert.equal(out.data.failures[0].check, 'unique-ids');
+  assert.match(out.data.failures[0].evidence, /Fix: /);
 
-  let req = readYaml(path.join(changeRoot, 'requirements.yaml'));
+  const req = readYaml(path.join(changeRoot, 'requirements.yaml'));
   assert.equal(req.metadata.status, 'rejected');
   const v1 = req.metadata.version;
 
   let rev = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
   assert.equal(rev.rounds.length, 1);
-  assert.equal(rev.rounds[0].decision, 'rejected');
-  assert.equal(rev.rounds[0].status, 'closed');
-  assert.equal(rev.rounds[0].rationale, 'The failure paths are missing.');
+  assert.equal(rev.rounds[0].status, 'rejected');
+  assert.equal(rev.rounds[0].mechanical_checks_passed, false);
+  assert.equal('semantic' in rev.rounds[0], false);
+  assert.equal(rev.metadata.latest_status, 'rejected');
+
+  // The authoring recovery envelope exposes the recorded failures.
+  out = run(tmp, ['requirements', '--change', changeDir]);
+  assert.equal(out.step, 'recovery');
+  assert.equal(out.state, 'blocked');
+  assert.deepEqual(out.data.review_failures, rev.rounds[0].failures);
+
+  // Fix the artifact and re-finalize: the patch bump is automatic.
+  fixArtifact(changeRoot);
+  out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
+  assert.equal(out.state, 'complete', JSON.stringify(out));
+
+  const recovered = readYaml(path.join(changeRoot, 'requirements.yaml'));
+  assert.equal(recovered.metadata.status, 'ready-for-review');
+  assert.notEqual(recovered.metadata.version, v1);
+
+  // Re-review accepts with a bare --accept: failures [] and both flags true.
+  out = run(tmp, ['requirements-review', '--change', changeDir, '--accept']);
+  assert.equal(out.state, 'complete', JSON.stringify(out));
+  assert.equal(out.data.status, 'accepted');
+  assert.deepEqual(out.data.failures, []);
+
+  const accepted = readYaml(path.join(changeRoot, 'requirements.yaml'));
+  assert.equal(accepted.metadata.status, 'accepted');
+
+  const revAfter = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
+  assert.equal(revAfter.rounds.length, 2);
+  assert.deepEqual(revAfter.rounds.map((r) => r.status), ['rejected', 'accepted']);
+  assert.equal(revAfter.rounds[1].mechanical_checks_passed, true);
+  assert.equal(revAfter.rounds[1].semantic_checks_passed, true);
+  assert.deepEqual(revAfter.rounds[1].failures, []);
+});
+
+test('semantic rejection loop: --reject --failures records the failed checks and the loop closes', () => {
+  const tmp = makeTmpProject();
+  let out = run(tmp, ['requirements', '--request', 'Add logout']);
+  const changeRoot = out.data.change_root;
+  const changeDir = path.basename(changeRoot);
 
   out = run(
     tmp,
     ['requirements', '--change', changeDir, '--update-artifact'],
-    JSON.stringify(validRequirements({ title: 'Add login recovered', request: 'Add login' }))
+    JSON.stringify(validRequirements({ request: 'Add logout' }))
   );
   assert.notEqual(out.state, 'blocked');
 
   out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  // Acceptance requires the complete all-pass semantic walk (AC-017).
-  const walk = writeWalkFile(tmp, 'requirements');
-  out = run(tmp, ['requirements-review', '--change', changeDir, '--accept', '--findings', walk]);
+  // Bare --reject with passing mechanicals is refused: rejections are
+  // evidence-backed.
+  out = run(tmp, ['requirements-review', '--change', changeDir, '--reject']);
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.errors[0].code, 'USAGE');
+  assert.equal(fs.existsSync(path.join(changeRoot, 'requirements-review.yaml')), false);
+
+  // --reject --failures records the failed semantic checks.
+  const failures = semanticFailureFile(tmp, 'requirements', 0, 'The problem statement proposes a solution.');
+  out = run(tmp, ['requirements-review', '--change', changeDir, '--reject', '--failures', failures]);
+  assert.equal(out.state, 'blocked', JSON.stringify(out));
+  assert.equal(out.data.status, 'rejected');
+  assert.equal(out.data.artifact_status, 'rejected');
+
+  const rev = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
+  assert.equal(rev.rounds[0].status, 'rejected');
+  assert.equal(rev.rounds[0].mechanical_checks_passed, true);
+  assert.equal(rev.rounds[0].semantic_checks_passed, false);
+  assert.equal(rev.rounds[0].failures[0].check, readYaml(
+    path.join(root, 'src', 'stages', 'requirements', 'semantic-checks.yaml')
+  ).checks[0]);
+
+  // The recovery envelope exposes the semantic failures for repair.
+  out = run(tmp, ['requirements', '--change', changeDir]);
+  assert.equal(out.step, 'recovery');
+  assert.deepEqual(out.data.review_failures, rev.rounds[0].failures);
+
+  // Re-finalize (patch bump) and re-review accepted.
+  out = run(
+    tmp,
+    ['requirements', '--change', changeDir, '--update-artifact'],
+    JSON.stringify(validRequirements({ title: 'Add logout recovered', request: 'Add logout' }))
+  );
+  assert.notEqual(out.state, 'blocked');
+  out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  req = readYaml(path.join(changeRoot, 'requirements.yaml'));
-  assert.equal(req.metadata.status, 'accepted');
-  assert.notEqual(req.metadata.version, v1);
+  out = run(tmp, ['requirements-review', '--change', changeDir, '--accept']);
+  assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  rev = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
-  assert.equal(rev.rounds.length, 2);
-  assert.deepEqual(rev.rounds.map((r) => r.decision), ['rejected', 'accepted']);
-  assert.deepEqual(rev.rounds.map((r) => r.status), ['closed', 'closed']);
+  const req = readYaml(path.join(changeRoot, 'requirements.yaml'));
+  assert.equal(req.metadata.status, 'accepted');
+
+  const revAfter = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
+  assert.equal(revAfter.rounds.length, 2);
+  assert.deepEqual(revAfter.rounds.map((r) => r.status), ['rejected', 'accepted']);
 });

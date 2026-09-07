@@ -66,14 +66,16 @@ test('plain review records by default and dry-run does not', () => {
   out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
   assert.equal(out.state, 'complete');
 
-  // Bare invocation appends an open round (open-to-closed lifecycle).
+  // Bare invocation appends an open round (merged status lifecycle).
   out = run(tmp, ['requirements-review', '--change', changeDir]);
   assert.equal(out.data.round, 1);
+  assert.equal(out.data.status, 'open');
 
   let rev = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
   assert.equal(rev.rounds.length, 1);
   assert.equal(rev.rounds[0].status, 'open');
-  assert.equal(rev.rounds[0].decision, 'review');
+  assert.equal(rev.rounds[0].mechanical_checks_passed, true);
+  assert.deepEqual(rev.rounds[0].failures, []);
 
   // A second bare invocation refreshes the same round number in place.
   out = run(tmp, ['requirements-review', '--change', changeDir]);
@@ -96,20 +98,32 @@ test('plain review records by default and dry-run does not', () => {
   assert.equal(rev.rounds.length, 1);
 
   // A verdict completes the open round in place instead of appending.
+  const checks = readYaml(
+    path.join(root, 'src', 'stages', 'requirements', 'semantic-checks.yaml')
+  ).checks;
+  const failures = path.join(tmp, 'failures.yaml');
+  fs.writeFileSync(
+    failures,
+    `- check: ${JSON.stringify(checks[0])}\n  evidence: "The failure paths are not specified."\n`,
+    'utf8'
+  );
   out = run(tmp, [
     'requirements-review',
     '--change',
     changeDir,
     '--reject',
-    '--note',
-    'Needs a narrower scope.',
+    '--failures',
+    failures,
   ]);
   assert.equal(out.data.round, 1);
+  assert.equal(out.data.status, 'rejected');
 
   rev = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
   assert.equal(rev.rounds.length, 1);
   assert.equal(rev.rounds[0].round, 1);
-  assert.equal(rev.rounds[0].decision, 'rejected');
-  assert.equal(rev.rounds[0].status, 'closed');
-  assert.equal(rev.rounds[0].rationale, 'Needs a narrower scope.');
+  assert.equal(rev.rounds[0].status, 'rejected');
+  assert.equal(rev.metadata.latest_status, 'rejected');
+  assert.equal(rev.rounds[0].semantic_checks_passed, false);
+  assert.equal(rev.rounds[0].failures.length, 1);
+  assert.equal(rev.rounds[0].failures[0].check, checks[0]);
 });

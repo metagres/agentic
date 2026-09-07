@@ -133,7 +133,7 @@ export function runStatus(argv: string[]): void {
   if (rejectedStage) {
     currentWorkflow = rejectedStage;
     state = 'blocked';
-    instructions = `The ${rejectedStage} workflow has a rejected artifact. Fix the findings and review again.`;
+    instructions = `The ${rejectedStage} workflow has a rejected artifact. Fix the recorded failures and re-finalize.`;
     suggestedCommand = `sdlc ${rejectedStage} --change ${changeDir}`;
   } else {
     // 2. Find the first incomplete stage whose gate is satisfied.

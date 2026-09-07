@@ -64,23 +64,20 @@
 | reviewed_at | ISO timestamp | No | src/scripts/lib/kinds/review.ts |
 | artifact_version | string \| null | Yes | src/scripts/lib/kinds/review.ts |
 | implementation_status | string \| null | implementation-stage rounds only (roundBase) | src/scripts/lib/kinds/review.ts |
-| decision | review \| accepted \| rejected \| accept_blocked | No | src/scripts/lib/kinds/review.ts |
-| status | open \| closed | No (legacy rounds without the field are treated as closed) | src/scripts/lib/kinds/review.ts |
-| can_accept | bool | No | src/scripts/lib/kinds/review.ts |
-| mechanical | {valid, blocking_count, findings} | No | src/scripts/lib/kinds/review.ts |
-| rationale | string | Yes (--note text, else the mechanical-findings summary when blocking findings exist, else omitted) | src/scripts/lib/kinds/review.ts |
-| semantic | {results: [{check_id, status, evidence}]} | Yes (recorded only when supplied, valid, and mechanical checks passed) | src/scripts/lib/kinds/review.ts |
-| findings | array of {target, finding, fix?} — never a severity field | Yes | src/scripts/lib/review-findings.ts |
-| warnings | array of {code, message} | No | src/scripts/lib/kinds/review.ts |
+| status | open \| accepted \| rejected (merged field; legacy rounds without the field are treated as closed) | No | src/scripts/lib/kinds/review.ts |
+| mechanical_checks_passed | bool (true = zero mechanical failures) | No | src/scripts/lib/kinds/review.ts |
+| semantic_checks_passed | bool (true = the declared semantic checklist passed) | Yes (recorded only when the semantic checklist was dispositioned: accepted rounds carry true, rejections with --failures carry false) | src/scripts/lib/kinds/review.ts |
+| failures | array of {check, evidence} — uniform shape for CLI-computed mechanical failures and reviewer-supplied semantic failures; [] when accepted | No | src/scripts/lib/kinds/review.ts, src/scripts/lib/review-findings.ts |
 
 | Business Rules | Rule | Location |
 |----------------|------|----------|
-| Open-to-closed lifecycle | bare invocations open an inspection round or refresh the existing open round in place (round number frozen); verdicts (--accept/--reject) complete the latest open round in place, appending a closed round only when no open round exists | src/scripts/lib/kinds/review.ts |
+| Round lifecycle | bare invocations open an inspection round or refresh the existing open round in place (round number frozen); verdicts (--accept/--reject) complete the latest open round in place, appending a round only when no open round exists | src/scripts/lib/kinds/review.ts |
 | Legacy rounds | rounds without a status field are treated as closed and never modified | src/scripts/lib/kinds/review.ts (isOpenRound) |
-| accept_blocked | --accept with blocking findings: the round completes closed, the artifact is untouched, and the envelope is blocked with CANNOT_ACCEPT | src/scripts/lib/kinds/review.ts, src/policies/errors.yaml |
-| Reviewer input | --note (rationale) and --findings (file) are verdict-scoped and mutually exclusive; violations are refused with nothing written | src/scripts/lib/kinds/review.ts |
-| Semantic walk | per-check {check_id, status, evidence} results validated against the target stage's semantic-checks.yaml; required and all-pass to accept with passing mechanicals (SEMANTIC_WALK_INVALID) | src/scripts/lib/kinds/review.ts, src/policies/errors.yaml |
-| Finding targets | id-shaped targets matching no known artifact id warn (UNKNOWN_FINDING_TARGET) while the round is still recorded; free-text targets never warn; malformed entries refuse the invocation (FINDINGS_ENTRY_INVALID) | src/scripts/lib/review-findings.ts, src/policies/errors.yaml |
+| Failure-only rounds | rounds record failures only — never passed checks; mechanical failures are always CLI-computed from validateArtifact output (severity/category stripped, fix folded into evidence) and never reviewer-supplied | src/scripts/lib/kinds/review.ts, src/scripts/lib/validate.ts |
+| Forced rejection | --accept with any mechanical finding is impossible: the round is recorded rejected, the artifact status is flipped to rejected, and the envelope is blocked explaining the fix-first requirement (REVIEW_NOT_PASSING) | src/scripts/lib/kinds/review.ts, src/policies/errors.yaml |
+| Evidence-backed rejections | --reject with passing mechanical checks requires --failures <file>: a top-level YAML list of failed semantic checks {check, evidence}, each check declared in the target stage's semantic-checks.yaml, non-empty evidence, no duplicates, no completeness requirement; violations refuse the invocation with nothing written | src/scripts/lib/review-findings.ts, src/policies/errors.yaml |
+| Verdict scoping | --failures is valid only with --reject and only while mechanical checks pass; --accept and bare invocations refuse it; the removed --note and --findings flags are refused with migration messages | src/scripts/lib/kinds/review.ts |
+| Terminal artifacts | an accepted tracked artifact refuses any invocation (already accepted; re-review requires the author to update and re-finalize); a rejected one is gate-blocked — the review gate admits ready-for-review only | src/scripts/lib/kinds/review.ts, src/scripts/lib/requires-graph.ts |
 
 ## Entity: Docs Delta (docs-delta.yaml)
 

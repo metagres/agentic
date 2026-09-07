@@ -24,20 +24,6 @@ export interface Finding {
   fix?: string;
 }
 
-export interface SemanticResult {
-  check_id: string;
-  status: string;
-  evidence: string;
-  evaluated_at: string;
-}
-
-export interface SemanticSummary {
-  complete: boolean;
-  missing: string[];
-  failed: string[];
-  results: SemanticResult[];
-}
-
 export interface StepDefinition {
   title?: string;
   markdown?: string;
@@ -77,7 +63,6 @@ export interface RunEnv {
   warnings: WarningItem[];
   findings?: Finding[];
   blocking?: Finding[];
-  semantic?: SemanticSummary;
 }
 
 export interface WorkflowDef {

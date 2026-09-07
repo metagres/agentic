@@ -139,48 +139,40 @@ test('review envelopes carry the detected steps.yaml step id', () => {
   assert.equal(bare.step, 'review');
   assert.match(bare.instructions, /Run the requirements review against the tracked artifact\./);
 
-  // Rejection verdict: the reject step.
+  // Rejection verdict with failed semantic checks: the reject step.
+  const checks = readYaml(
+    path.join(root, 'src', 'stages', 'requirements', 'semantic-checks.yaml')
+  ).checks as string[];
+  const failures = path.join(tmp, 'failures.yaml');
+  fs.writeFileSync(
+    failures,
+    `- check: ${JSON.stringify(checks[0])}\n  evidence: "The statement proposes a solution."\n`,
+    'utf8'
+  );
   const rejected = runCli(tmp, [
     'requirements-review',
     '--change',
     changeDir,
     '--reject',
-    '--note',
-    'Not ready.',
+    '--failures',
+    failures,
   ]);
   assertEnvelopeShape(rejected);
   assert.equal(rejected.step, 'reject');
   assert.match(rejected.instructions, /Reject the requirements artifact/);
 });
 
-test('an accepting verdict renders the accept step over a complete semantic walk', () => {
+test('an accepting verdict renders the accept step over a bare --accept', () => {
   const { tmp, changeDir } = setupReadyChange('Add device registration');
 
-  const checks = readYaml(
-    path.join(root, 'src', 'stages', 'requirements', 'semantic-checks.yaml')
-  ).checks as string[];
-  const items = checks
-    .map(
-      (c) =>
-        `  - check_id: ${JSON.stringify(c)}\n    status: pass\n    evidence: "Verified in session."\n`
-    )
-    .join('');
-  const walk = path.join(tmp, 'walk.yaml');
-  fs.writeFileSync(walk, `semantic:\n${items}`, 'utf8');
-
-  const out = runCli(tmp, [
-    'requirements-review',
-    '--change',
-    changeDir,
-    '--accept',
-    '--findings',
-    walk,
-  ]);
+  const out = runCli(tmp, ['requirements-review', '--change', changeDir, '--accept']);
   assertEnvelopeShape(out);
   assert.equal(out.step, 'accept');
   assert.equal(out.state, 'complete');
   assert.match(out.instructions, /Accept the requirements artifact/);
   assert.match(out.instructions, /review was accepted/);
+  assert.equal(out.data.status, 'accepted');
+  assert.deepEqual(out.data.failures, []);
 });
 
 test('review --help-step renders the detected step definition with substituted commands', () => {

@@ -98,6 +98,7 @@
       "items": {
         "type": "object",
         "additionalProperties": true,
+        "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
         "required": [
           "id",
           "question",
@@ -140,6 +141,7 @@
       "items": {
         "type": "object",
         "additionalProperties": true,
+        "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
         "required": [
           "type",
           "text"
@@ -262,6 +264,7 @@
       "items": {
         "type": "object",
         "additionalProperties": true,
+        "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
         "required": [
           "phase",
           "target_doc",

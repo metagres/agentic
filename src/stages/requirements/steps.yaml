@@ -72,11 +72,11 @@ steps:
     markdown: |
       The artifact was rejected by review.
 
-      Read `data.review_report` and fix each blocking finding.
+      Fix each failure listed in `data.review_failures` ({check, evidence}).
 
       Update the artifact through the script, then finalize again.
 
-      If the artifact was rejected, finalizing automatically applies a patch version bump unless you pass --bump-version.
+      Finalizing a rejected artifact automatically applies a patch version bump unless you pass --bump-version.
     commands:
       - "{{SDLC}} requirements --change {{change_name}} --update-artifact < requirements.yaml"
       - "{{SDLC}} requirements --change {{change_name}} --finalize"
