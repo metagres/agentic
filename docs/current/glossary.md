@@ -248,6 +248,33 @@
 | Landing move duty | the implementing change's plan carries a documentation task that sets the Status and moves the file unmodified into docs/changes/<change-slug>/ during its implementation stage; implementation-review verifies the landing | docs/current/conventions.md (File Organization) |
 | Hosted-file freeze | once the change completes, the hosted idea file is a frozen change artifact; later work references it read-only and never modifies it | docs/current/conventions.md (File Organization) |
 
+## Entity: Output-Discipline Fragment
+
+| Field | Type | Nullable | Source |
+|-------|------|----------|--------|
+| OUTPUT_DISCIPLINE_FRAGMENT | string constant: one header clause (plain English sentences, no token cap), five reply-rule bullets, one reasoning line carrying the three reasoning rules | No | src/scripts/lib/agent-output-discipline.ts |
+| OUTPUT_DISCIPLINE_MARKER | stable marker phrase required in every rendered agent body by the deploy smoke | No | src/scripts/lib/agent-output-discipline.ts |
+| FRAGMENT_MARKERS | readonly string[] of distinctive phrases derived from the fragment's own lines | No | src/scripts/lib/agent-output-discipline.ts |
+
+| Business Rules | Rule | Location |
+|----------------|------|----------|
+| Single source | the exported constant is the only definition — registry, renderers, deploy smoke, and startup validation import the same text; no YAML include mechanism | src/scripts/lib/agent-output-discipline.ts |
+| Content constraints | rules only — no worked examples, no role content, no repetition of stage instructions; at most twelve lines; no token cap; no telegraphic rules; reasoning rules phrased as guidance with no enforcement claim and no numeric cap | src/scripts/lib/agent-output-discipline.ts |
+| Deliberate rewording | markers live beside the text and cannot drift from it — rewording the fragment updates OUTPUT_DISCIPLINE_MARKER and FRAGMENT_MARKERS deliberately | src/scripts/lib/agent-output-discipline.ts |
+| Unauthorized copy | a descriptor system_prompt containing any marker phrase fails validation naming the file and marker (AGENT_FRAGMENT_COPY) | bin/validate-policies.ts, src/policies/errors.yaml |
+
+## Entity: Effective Prompt (AgentRecord.effectivePrompt)
+
+| Field | Type | Nullable | Source |
+|-------|------|----------|--------|
+| effectivePrompt | string = system_prompt verbatim + blank line + the output-discipline fragment | No | src/scripts/lib/agent-registry.ts |
+
+| Business Rules | Rule | Location |
+|----------------|------|----------|
+| Composition | composed once at registry load by composeEffectivePrompt; the source YAML system_prompt is never mutated | src/scripts/lib/agent-registry.ts |
+| Consumption | both opencode renderer versions write it as the rendered agent file body; absent from source YAML by construction | src/scripts/lib/deploy/platforms/opencode.ts |
+| Precedent | mirrors effectiveModel — the derived value wins at deploy/surface time while the source keeps the original | src/scripts/lib/agent-registry.ts |
+
 ## Naming Cross-Check
 
 | Backend Term | Frontend Term | Same Concept? | Action |

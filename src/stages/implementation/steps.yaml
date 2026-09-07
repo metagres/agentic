@@ -15,6 +15,8 @@ steps:
       Update task execution state in plan.yaml as work proceeds.
 
       Use `data.progress.next_task_ids` to choose the next task, then update its status.
+
+      Every done, blocked, or skipped task must have an implementation note: one sentence stating what changed and how it was verified (test, lint, or manual check; the command when applicable).
     commands:
       - "{{SDLC}} implementation --change {{change_name}} --task-id <TASK-NNN> --status <pending|in_progress|done|blocked|skipped> --note \"...\""
       - "{{SDLC}} implementation --change {{change_name}} --task-id <TASK-NNN> --status done --files \"create:src/a.ts,modify:src/b.ts\""

@@ -1,0 +1,82 @@
+metadata:
+  artifact: design.yaml
+  target: design
+  latest_round: 1
+  created: 2026-09-07
+  updated: 2026-09-07
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-07T09:56:14.555Z
+    artifact_version: 0.1.0
+    decision: accepted
+    status: closed
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    semantic:
+      results:
+        - check_id: Is every FR and NFR from requirements.yaml covered by at least one traceability entry and
+            design element?
+          status: pass
+          evidence: "All 8 requirement ids (FR-001..FR-006, NFR-001, NFR-002) appear in design.yaml
+            traceability (lines 268-297) and each maps to components whose responsibility text
+            covers it: FR-001's render path CMP-001 (fragment constant) -> CMP-002 (effectivePrompt
+            composition) -> CMP-003 (renderer body emission) -> CMP-004 (smoke gate); FR-002 CMP-001
+            single source + CMP-005 copy gate (AC-006); FR-003/FR-004 CMP-001 with DM-001 carrying
+            all five reply rules and all three reasoning rules; FR-005 CMP-006/DM-003; FR-006
+            CMP-007/DM-004; NFR-001 CMP-001 with DM-001 counting seven lines within the twelve-line
+            cap; NFR-002 CMP-003 (both renderer versions) + CMP-004 (registry-scan smoke loop, zero
+            per-agent registration)."
+        - check_id: Are component responsibilities clear, non-overlapping, and testable?
+          status: pass
+          evidence: "Every component names files verified on disk: src/scripts/lib/agent-prompt-marker.ts
+            (PROMPT_MARKERS + findPromptMarkers - the claimed pattern for CMP-001/API-002),
+            src/scripts/lib/agent-registry.ts AgentRecord.effectiveModel (lines 20-21, 72 - the
+            pattern CMP-002 mirrors), src/scripts/lib/deploy/platforms/opencode.ts
+            renderOpenCodeAgent v1/v2 (lines 77-103; body = systemPrompt verbatim at line 95),
+            bin/deploy-to-agent.ts per-agent smoke loop (lines 459-484) iterating registry-scan
+            renderedAgents (lines 390-395), bin/validate-policies.ts prompt-purity check (lines
+            327-334), the four review steps.yaml + src/agents/stage-reviewer.yaml,
+            src/scripts/lib/kinds/tasks.ts GUARDRAILS (line 21) + implementation steps.yaml progress
+            step (line 11). Boundaries are non-overlapping (fragment ownership vs composition vs
+            rendering vs smoke vs startup validation vs text retargets) and CMP-001 is declared
+            pure/deterministic/unit-testable."
+        - check_id: Are data models consistent with the requirements and APIs?
+          status: pass
+          evidence: DM-001 fragment text contains all five FR-003 reply rules and the three FR-004 reasoning
+            rules in seven lines (within NFR-001's twelve-line cap), rules-only with no examples or
+            role content; DM-002's composition rule (role prompt verbatim + blank line + fragment,
+            never persisted to source YAML) matches API-003 AgentRecord.effectivePrompt and CMP-002
+            exactly; API-002 findFragmentMarkers matches the verified findPromptMarkers pattern
+            (case-insensitive, marker-list order, no duplicates, [] when clean); DM-003/DM-004
+            constrain reviewer/note prose only with no schema change, matching FR-005/FR-006 scope.
+        - check_id: Does the design address the failure paths identified in requirements?
+          status: pass
+          evidence: "All four requirements failure_paths are addressed: wording-mistake propagation to all six
+            agents -> CMP-001 gates (startup validation, deploy smoke, unit tests, one-edit
+            rollback); reasoning rules failing to shift behavior -> AC-010 guidance-only phrasing in
+            DM-001 with no enforcement claim; compression eating unblock details -> DM-001 blocked
+            rule binding what/why/what-unblocks; smoke failure after renderer changes halting
+            .opencode refresh -> FLW-001 step 4 per invariant 12."
+        - check_id: Do design decisions include enough context and rationale to be reviewed?
+          status: pass
+          evidence: "DEC-001..DEC-006 each carry context + decision + accepted status, and their factual
+            references verify: \"agent-layer DEC-004\" exists in docs/current/decisions.md
+            (effectiveModel = modelOverride ?? model rendered at deploy) and \"agent-layer DEC-009\"
+            exists (agent checks in validate-policies beside requires-graph, engine-level config
+            validation, capped catalog untouched); the DELEGATION_RULE_MARKER precedent is verified
+            at bin/deploy-to-agent.ts lines 162-165; the requirements touch list does name the agent
+            meta-schema as DEC-004's context claims."
+        - check_id: Do delta entries plausibly describe the living docs affected by the design?
+          status: pass
+          evidence: 'All six delta targets exist with the named anchors verified: docs/current/decisions.md
+            "## Living: Cycle Decisions" (line 7), architecture.md "## Component Boundaries" (line
+            14), conventions.md "## Patterns" (line 3), operations.md "## Deployment" (line 74),
+            api-contract.md "## Internal APIs" (line 49), glossary.md exists (Add, no anchor
+            needed); each reason plausibly describes what the design introduces (decision records,
+            deploy-path fragment module and copy gate, convention anchors, new glossary entities,
+            smoke behavior, module exports).'
+    warnings: []

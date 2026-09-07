@@ -144,7 +144,8 @@
     },
     "system_prompt": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Role voice only. The shared output-discipline fragment is composed at deploy time by the agent registry; embedding fragment text here fails startup validation (AGENT_FRAGMENT_COPY)."
     }
   }
 }

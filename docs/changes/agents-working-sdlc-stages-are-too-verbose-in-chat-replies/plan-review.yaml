@@ -1,0 +1,72 @@
+metadata:
+  artifact: plan.yaml
+  target: planning
+  latest_round: 1
+  created: 2026-09-07
+  updated: 2026-09-07
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-07T10:03:20.140Z
+    artifact_version: 0.1.0
+    decision: accepted
+    status: closed
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    semantic:
+      results:
+        - check_id: Is task granularity consistent? No task should be so broad it hides sub-decisions, and
+            none so narrow it's pseudocode.
+          status: pass
+          evidence: Nine tasks each own one coherent unit (TASK-001 one module plus its test; TASK-006 one
+            rule carried verbatim into five texts per DEC-005); fragment text fully pre-specified by
+            design DM-001, so no hidden sub-decisions and none pseudocode.
+        - check_id: Does task order reflect real-world constraints (e.g., schema creation before queries,
+            characterization tests before refactoring)?
+          status: pass
+          evidence: depends_on chains module before consumers (TASK-001 to 002 to 003 to 004), copy-gate
+            before new reviewer text (TASK-005 to 006, RISK-005), smoke before real deploy (TASK-008
+            to 009 per invariant 12); verified loadAgentFile, renderOpenCodeAgent, and the per-agent
+            smoke loop are the real touchpoints.
+        - check_id: Are each task's acceptance criteria actually verifiable with clear pass/fail conditions?
+          status: pass
+          evidence: Every task embeds concrete pass/fail verification, e.g. TASK-004 'confirm the fail path
+            names the offending agent file', TASK-007 'test/unit/write-time-enforcement.test.ts must
+            still pass unchanged', TASK-008 'both exit 0 and the smoke output shows the fragment
+            presence check'.
+        - check_id: Does completing 100% of the listed tasks actually satisfy 100% of the requirements?
+          status: pass
+          evidence: All 20 ACs map to tasks (AC-004 to T002; AC-001/002/005 to T003/T009; AC-003/019/020 to
+            T004/T008; AC-006 to T005; AC-011..013 to T006; AC-014..016 to T007; AC-007..010/017/018
+            to T001) and all six FRs plus both NFRs are covered.
+        - check_id: Does any task assume a design decision that was never made explicit in the design phase?
+          status: pass
+          evidence: Every task cites explicit design anchors (DM-001..004, API-001..003, CMP-001..007,
+            DEC-001..006); verified DELEGATION_RULE_MARKER at bin/deploy-to-agent.ts:165, GUARDRAILS
+            at kinds/tasks.ts:21, prompt-purity check at validate-policies.ts:330.
+        - check_id: Are complexity estimates plausible given the task description and files touched?
+          status: pass
+          evidence: Medium only where scope is multi-file with new logic (TASK-001 module plus test suite;
+            TASK-005 four files plus new error code and check); one-line renderer swap TASK-003 and
+            text retargets TASK-006/007 low - estimates match scope.
+        - check_id: For refactor tasks, are there tasks ensuring behavior-preserving tests exist before the
+            tasks that change the code?
+          status: pass
+          evidence: No pure refactor tasks; TASK-007's enforcement-untouched claim is guarded by the
+            pre-existing test/unit/write-time-enforcement.test.ts (verified on disk) and
+            TASK_DONE_REQUIRES_NOTE at tasks.ts:291, required to pass unchanged.
+        - check_id: Do any two tasks touch the same component or logical area in a way that could conflict?
+          status: pass
+          evidence: File lists are disjoint across tasks (verified); consumers reach the fragment module only
+            via depends_on; TASK-006 after TASK-005 orders the new reviewer text after the gate that
+            will police it.
+        - check_id: Do delta entries plausibly describe the living docs affected by the plan?
+          status: pass
+          evidence: Aggregator collects deltas per producing stage (kinds/aggregator.ts:170-185), so the
+            design's six delta entries flow to knowledge-extraction independently; plan tasks map
+            1:1 to CMP-001..007 adding no new docs surface; empty plan delta precedented in four
+            prior plans.
+    warnings: []

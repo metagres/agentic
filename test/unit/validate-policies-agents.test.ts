@@ -1,11 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 import {
   checkAgentModelFields,
   AGENT_MODEL_OVERRIDE_EMPTY,
   AGENT_MODEL_OUTSIDE_CATALOG,
 } from '../../src/scripts/lib/agent-model-fields.ts';
+import {
+  OUTPUT_DISCIPLINE_FRAGMENT,
+  findFragmentMarkers,
+} from '../../src/scripts/lib/agent-output-discipline.ts';
+import { readYaml } from '../../src/scripts/lib/yaml-io.ts';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(__dirname, '../..');
 
 const CATALOG = ['opencode/grok-4.5', 'opencode/kimi-k3'];
 
@@ -58,4 +70,44 @@ test('a descriptor with a catalog model and no override produces no findings', (
   const findings = checkAgentModelFields(descriptor({}), 'agents/sample.yaml', CATALOG);
 
   assert.deepEqual(findings, []);
+});
+
+// --- Unauthorized fragment-copy gate (AGENT_FRAGMENT_COPY, DEC-003) ----------
+
+test('a descriptor embedding fragment text trips the marker detection that drives AGENT_FRAGMENT_COPY', () => {
+  const embedding = descriptor({
+    system_prompt: `You are a neutral agent.\n\n${OUTPUT_DISCIPLINE_FRAGMENT}`,
+  });
+
+  const markers = findFragmentMarkers(String(embedding.system_prompt));
+  assert.ok(markers.length > 0, 'fragment text is detected');
+  assert.ok(markers.includes('No preamble, acknowledgments, or self-introduction'));
+});
+
+test('a near-copy of a fragment line also trips the detection', () => {
+  const markers = findFragmentMarkers(
+    'Remember: never recap CLI envelope or tool output the user can already see.'
+  );
+  assert.deepEqual(markers, ['Never recap CLI envelope']);
+});
+
+test('the shipped agent roster is clean of fragment text (the gate passes)', () => {
+  const agentsDir = path.join(root, 'src', 'agents');
+  const files = fs.readdirSync(agentsDir).filter((name) => name.endsWith('.yaml'));
+  assert.ok(files.length > 0, 'the roster is non-empty');
+
+  for (const name of files) {
+    const doc = readYaml(path.join(agentsDir, name)) as Record<string, unknown>;
+    const markers = findFragmentMarkers(String(doc.system_prompt || ''));
+    assert.deepEqual(markers, [], `${name} carries no fragment text`);
+  }
+});
+
+test('validate-policies passes the clean roster with no AGENT_FRAGMENT_COPY findings', () => {
+  const res = spawnSync(process.execPath, [path.join(root, 'bin', 'validate-policies.ts')], {
+    encoding: 'utf8',
+  });
+
+  assert.equal(res.status, 0, `validate-policies exits 0:\n${res.stdout}\n${res.stderr}`);
+  assert.ok(!res.stdout.includes('AGENT_FRAGMENT_COPY'), 'no fragment-copy findings');
 });

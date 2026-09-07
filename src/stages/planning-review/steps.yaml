@@ -17,6 +17,7 @@ steps:
       Run the planning review against the tracked artifact.
 
       Report schema and structural findings plus the planning semantic checklist.
+      Report only blocking and advisory findings, each naming its exact location (artifact, section, clause, or missing link) and quoting the evidence rather than paraphrasing it; never list passed checks; with zero findings report one line stating no blocking findings plus the verdict.
       Accept only when the artifact is ready-for-review and has no blocking findings.
     commands:
       - "{{SDLC}} planning-review --change {{change_name}}"

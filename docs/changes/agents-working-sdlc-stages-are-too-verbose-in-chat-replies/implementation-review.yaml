@@ -1,0 +1,73 @@
+metadata:
+  artifact: plan.yaml
+  target: implementation
+  latest_round: 1
+  created: 2026-09-07
+  updated: 2026-09-07
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-07T10:15:00.063Z
+    artifact_version: 0.1.0
+    implementation_status: accepted
+    decision: accepted
+    status: closed
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    semantic:
+      results:
+        - check_id: Do the completed tasks plausibly satisfy the acceptance criteria they claim to cover?
+          status: pass
+          evidence: agent-output-discipline.ts:22-30 carries DM-001 verbatim (7 lines) with 12 unit tests;
+            opencode.ts:98 writes agent.effectivePrompt for both v1/v2; deploy-to-agent.ts:493-496
+            gates the marker naming rendered.path; validate-policies.ts:353-367 fails
+            AGENT_FRAGMENT_COPY; failures-only rule verbatim in all four review steps.yaml:20 and
+            stage-reviewer.yaml:31; one-sentence note rule in tasks.ts:31 and
+            implementation/steps.yaml:19.
+        - check_id: Have negative and boundary cases required by requirements and plan been implemented or
+            verified?
+          status: pass
+          evidence: AC-003 fail path interpolates rendered.path (deploy-to-agent.ts:495); AC-006 detection
+            tested on embedded and near-copy text with clean-roster pass; AC-015 test 'a done
+            transition without a note is rejected at write time naming the task' passed in my
+            validate run; AC-004 byte-identical systemPrompt asserted; AC-008
+            no-token-cap/no-telegraphic regex tests; AC-018 asserts 7 lines <= 12; AC-020 smoke loop
+            iterates the registry-scan renderedAgents list with zero per-agent registration.
+        - check_id: Are files changed outside the plan either incidental and explained, or does the plan need
+            updating?
+          status: pass
+          evidence: "git status maps 1:1 to plan task file lists (16 modified + 2 created, all planned); the
+            two test adjustments are the deploy-platforms body assertion that encoded pre-change
+            behavior (old: body === SYSTEM_PROMPT) and the fixture gaining the now-required
+            effectivePrompt field; OUTPUT_DISCIPLINE_MARKER lives in the planned TASK-001 file and
+            is required by TASK-004's own description; write-time-enforcement.test.ts is absent from
+            git status (unchanged)."
+        - check_id: Is there evidence that the work was verified (tests, manual verification notes, CLI
+            output)?
+          status: pass
+          evidence: "I ran npm run validate myself: 316 tests pass, 0 fail (matches TASK-008 note); npm run
+            deploy:smoke passes with all six agents smoke:passed; all six .opencode/agents/*.md
+            bodies carry the marker with role prompt + blank line + fragment shape verified on
+            disk."
+        - check_id: Are task implementation notes sufficient to understand what was done and how it was
+            verified?
+          status: pass
+          evidence: "Each of the nine task notes states what changed plus the verification command and result,
+            e.g. TASK-004: 'verified with npm run deploy:smoke (all six agents pass) plus a
+            temporary renderer-regression run confirming the fail path names
+            agents/implementation-engineer.md'."
+        - check_id: For refactor tasks, is there evidence that behavior was preserved?
+          status: pass
+          evidence: write-time-enforcement.test.ts unchanged on disk and passing; the renderer body test
+            retarget replaced an assertion encoding pre-change behavior (body === SYSTEM_PROMPT)
+            while still asserting the role prompt is preserved additively before the fragment.
+        - check_id: Is the implementation complete enough to synchronize docs/current?
+          status: pass
+          evidence: All design deltas are backed by real code verified on disk (fragment module, registry
+            composition, both renderers, smoke gate, AGENT_FRAGMENT_COPY, review retarget, note
+            retarget); .opencode/ refreshed by the real deploy with all six agent files carrying the
+            fragment; docs/current untouched pending knowledge-extraction.
+    warnings: []

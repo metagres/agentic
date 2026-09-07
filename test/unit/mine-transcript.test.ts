@@ -221,3 +221,93 @@ test('the delegateion form is not counted, pinning the four-form stem scope (DEC
     assert.equal(run.status, 1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Failure events (envelope error signature): raw and escaped-JSON forms are
+// counted per code; source-reading shapes (errors.yaml keys, makeError calls)
+// never match.
+// ---------------------------------------------------------------------------
+
+test('an escaped-JSON envelope error signature is counted as a failure event', () => {
+  // The session-embedded form: a tool result string inside a JSON transcript
+  // carries escaped quotes around the envelope's code field.
+  withTempTranscript(
+    [
+      'node src/scripts/sdlc.ts requirements --change demo',
+      'tool result: \\n  \\\"state\\\": \\\"blocked\\\", \\n  \\\"errors\\\": [ { \\\"code\\\": \\\"CHANGE_DIR_NOT_FOUND\\\" } ]',
+    ],
+    (file) => {
+      const run = runMiner([file]);
+
+      assertResultOk(run.stdout);
+      assert.equal(rowValue(run.stdout, 'invocations'), 1);
+      assert.equal(rowValue(run.stdout, 'failures'), 1);
+      assert.equal(run.status, 0);
+    }
+  );
+});
+
+test('a raw-JSON envelope error signature is counted as a failure event', () => {
+  withTempTranscript(
+    [
+      'node src/scripts/sdlc.ts design --change demo',
+      '{"state": "blocked", "errors": [{"code": "STAGE_GATE_BLOCKED"}]}',
+    ],
+    (file) => {
+      const run = runMiner([file, '--verbose']);
+
+      assert.equal(rowValue(run.stdout, 'failures'), 1);
+      assertVerboseRow(run.stdout, 'label=transcript.txt:failure_code:STAGE_GATE_BLOCKED', 1);
+    }
+  );
+});
+
+test('source-reading shapes never match the failure signature', () => {
+  withTempTranscript(
+    [
+      'node src/scripts/sdlc.ts status --change demo',
+      'CHANGE_DIR_NOT_FOUND:',
+      'message: No matching change was found.',
+      "errors: [makeError('STAGE_GATE_BLOCKED', { message: 'not ready' })]",
+    ],
+    (file) => {
+      const run = runMiner([file]);
+
+      // errors.yaml keys (CODE:) and engine makeError('CODE') calls are source
+      // text, not emitted envelopes — the signature must stay silent on them.
+      assert.equal(rowValue(run.stdout, 'invocations'), 1);
+      assert.equal(rowValue(run.stdout, 'failures'), 0);
+      assert.equal(run.status, 0);
+    }
+  );
+});
+
+test('a failure-only transcript counts as event-ful (no zero-extraction report)', () => {
+  withTempTranscript(['{"errors": [{"code": "MISSING_CHANGE_DIR"}]}'], (file) => {
+    const run = runMiner([file]);
+
+    assertResultOk(run.stdout);
+    assert.equal(rowValue(run.stdout, 'invocations'), 0);
+    assert.equal(rowValue(run.stdout, 'failures'), 1);
+    assert.equal(run.status, 0);
+  });
+});
+
+test('envelope warning codes are not failures (errors-array window only)', () => {
+  withTempTranscript(
+    [
+      'node src/scripts/sdlc.ts design --change demo',
+      '{"data": {}, "errors": [], "warnings": [{"code": "ARTIFACT_INITIALIZED", "message": "Created design.yaml"}]}',
+    ],
+    (file) => {
+      const run = runMiner([file]);
+
+      // ARTIFACT_INITIALIZED rides the warnings array — informational, never
+      // a failure. The errors anchor opens the window; the warnings anchor
+      // closes it before the code is reached.
+      assert.equal(rowValue(run.stdout, 'invocations'), 1);
+      assert.equal(rowValue(run.stdout, 'failures'), 0);
+      assert.equal(run.status, 0);
+    }
+  );
+});

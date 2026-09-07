@@ -179,6 +179,9 @@ errors:
   AGENT_MODEL_OUTSIDE_CATALOG:
     message: An agent definition's model is not a member of the current catalog enum.
     fix: Set model to a qualified id from the current catalog enum in agent.schema.yaml.
+  AGENT_FRAGMENT_COPY:
+    message: An agent system prompt embeds the shared output-discipline fragment.
+    fix: Remove the fragment text from the system prompt; the fragment is composed automatically at deploy time from its single source in src/scripts/lib/agent-output-discipline.ts.
   PLATFORM_UNKNOWN:
     message: Deployment platform or version selection does not resolve.
     fix: Use a known platform and version for the deployment target.

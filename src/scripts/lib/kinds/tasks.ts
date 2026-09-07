@@ -28,7 +28,7 @@ Before and during implementation:
 - For refactoring, ensure behavior-preserving tests exist before changing code.
 - If implementation requires unplanned architectural or behavioral changes, stop and update the plan.
 - Incidental changes such as imports, formatting, or test helpers are acceptable with a clear note.
-- Every done, blocked, or skipped task must have an implementation note.
+- Every done, blocked, or skipped task must have an implementation note: one sentence stating what changed and how it was verified (test, lint, or manual check; the command when applicable).
 `.trim();
 
 function usage(stage: StageRecord, code = EXIT.ok) {

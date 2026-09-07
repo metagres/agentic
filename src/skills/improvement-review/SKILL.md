@@ -73,12 +73,20 @@ hold either a recorded value or an explicit **none-observed** marker — an empt
 allowed to pass silently:
 
 1. Invocation counts per stage (and per artifact) of the sdlc CLI.
-2. Zero-change round-trips (re-reads, repeated finalize attempts, error-and-fix loops).
+2. Zero-change round-trips (re-reads, repeated finalize attempts, error-and-fix loops), including
+   CLI invocation failures followed by retries — for example calls made from a working directory
+   the CLI does not resolve — and redundant re-delegation of a stage whose completion a `status`
+   call would have shown.
 3. Findings that surfaced later than they could have (review-time discoveries of write-time
    mistakes).
 4. Output blocks trimmed, piped, or skipped because they were too large.
 5. Delegation outcomes, each recorded with its three sub-fields: the delegation type used, model
-   resolution success/failure, and whether the delegated agent's output needed rework.
+   resolution success/failure, and whether the delegated agent's output needed rework. Record also
+   two orchestration-overhead observations read from transcripts: discovery work the delegating
+   agent performs before delegating that the delegated agent could have performed itself (the
+   delegated agent can invoke the CLI and read the envelope), and re-delegation of a stage whose
+   completion a `status` call would have confirmed. These two are judgment classifications made by
+   the reviewing agent from session context — the miner does not detect them (§5).
 
 Cycles without notes are marked **reconstructed-or-missing** in the proposal carrying the
 affected finding; with zero proposals the mark is reported in the run's output only. Where
@@ -132,6 +140,15 @@ The generic line-oriented event grammar it applies (document here if it ever cha
 - **Delegation event**: a line mentioning delegation that carries sub-field tokens — `type=`
   (delegation type used), `model=` (model resolution success/failure), `rework=` (whether the
   delegated output needed rework). Missing sub-fields are reported as `unrecorded`.
+- **Failure event**: a line carrying a CLI envelope error signature — `"code": "<UPPER_SNAKE>"`
+  in raw or escaped-JSON form — counted per code, first match per line. The signature matches
+  tool-result envelopes only: errors.yaml codes (`CODE:` YAML keys) and engine
+  `makeError('CODE')` calls do not match. Wrong-location invocation failures
+  (`CHANGE_DIR_NOT_FOUND`, `MISSING_CHANGE_DIR`, `AMBIGUOUS_CHANGE_DIR`) surface here.
+- **Judgment classes (not miner events)**: redundant re-delegation of an already-complete stage
+  and pre-delegation discovery duplication are classified by the reviewing agent from the
+  invocation map (per-command counts, including `status` state-checks) and session context —
+  deterministic extraction stays with the miner, classification stays at the call site.
 
 The source filename is printed beside every extracted number. A supplied file with zero
 parseable events yields an explicit zero-extraction report naming the file and a non-zero exit —

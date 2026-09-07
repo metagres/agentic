@@ -34,6 +34,37 @@ const INVOCATION_RE = /(?:^|[\s`(])(?:node\s+\S*sdlc\.(?:ts|js)|\bsdlc)\s+(\S+)/
 const DELEGATION_RE = /\bdelegat(?:e|ed|es|ion)\b/i;
 const DELEGATION_SUBFIELD_RE = /\b(type|model|rework)=/i;
 
+/**
+ * Failure event: a CLI envelope error signature — `"code": "<UPPER_SNAKE>"` in
+ * raw or escaped JSON — counted only inside the envelope's `errors` array
+ * (codes inside `warnings`, such as ARTIFACT_INITIALIZED, are not failures).
+ * The window runs from the last `errors:[` anchor on the line to the first
+ * `warnings:[` anchor after it, or end of line. Source reading does not match:
+ * errors.yaml spells codes as YAML keys (`CODE:`) and engine code spells them
+ * as single-quoted makeError('CODE') arguments. First match per line.
+ * Documented in SKILL.md §5.
+ */
+const FAILURE_RE = /\\?"code\\?"\s*:\s*\\?"([A-Z][A-Z_]{3,})\\?"/;
+const ERRORS_ANCHOR_RE = /\\?"errors\\?"\s*:\s*\[/g;
+const WARNINGS_ANCHOR_RE = /\\?"warnings\\?"\s*:\s*\[/g;
+
+function matchFailureCode(line: string): string | null {
+  let lastErrorsAnchor = -1;
+  for (const match of line.matchAll(ERRORS_ANCHOR_RE)) lastErrorsAnchor = match.index;
+  if (lastErrorsAnchor === -1) return null;
+
+  let windowEnd = line.length;
+  for (const match of line.matchAll(WARNINGS_ANCHOR_RE)) {
+    if (match.index > lastErrorsAnchor) {
+      windowEnd = match.index;
+      break;
+    }
+  }
+
+  const failure = line.slice(lastErrorsAnchor, windowEnd).match(FAILURE_RE);
+  return failure ? failure[1] : null;
+}
+
 interface DelegationEvent {
   type: string | null;
   model: string | null;
@@ -46,6 +77,8 @@ interface FileStats {
   totalInvocations: number;
   wasted: Map<string, number>;
   wastedTotal: number;
+  failures: Map<string, number>;
+  failuresTotal: number;
   delegations: DelegationEvent[];
 }
 
@@ -61,6 +94,8 @@ function mineFile(file: string, text: string): FileStats {
     totalInvocations: 0,
     wasted: new Map(),
     wastedTotal: 0,
+    failures: new Map(),
+    failuresTotal: 0,
     delegations: [],
   };
 
@@ -99,6 +134,12 @@ function mineFile(file: string, text: string): FileStats {
         model: extractSubField(line, 'model'),
         rework: extractSubField(line, 'rework'),
       });
+    }
+
+    const failureCode = matchFailureCode(line);
+    if (failureCode) {
+      stats.failures.set(failureCode, (stats.failures.get(failureCode) ?? 0) + 1);
+      stats.failuresTotal += 1;
     }
   }
 
@@ -154,18 +195,22 @@ function main(): void {
     const stats = mineFile(file, text);
     allStats.push(stats);
 
-    if (stats.totalInvocations === 0 && stats.delegations.length === 0) {
+    if (
+      stats.totalInvocations === 0 &&
+      stats.delegations.length === 0 &&
+      stats.failuresTotal === 0
+    ) {
       zeroExtractionFiles.push(file);
     }
   }
 
   const hasEvents = (stats: FileStats): boolean =>
-    stats.totalInvocations > 0 || stats.delegations.length > 0;
+    stats.totalInvocations > 0 || stats.delegations.length > 0 || stats.failuresTotal > 0;
 
   lines.push(allStats.every(hasEvents) ? 'result: ok' : 'result: zero-extraction');
   lines.push('rows:');
 
-  let totals = { invocations: 0, wasted: 0, delegations: 0 };
+  let totals = { invocations: 0, wasted: 0, failures: 0, delegations: 0 };
 
   for (const stats of allStats) {
     lines.push(
@@ -175,11 +220,15 @@ function main(): void {
       `label=wasted_round_candidates value=${stats.wastedTotal} unit=events source=file:${stats.file}`
     );
     lines.push(
+      `label=failures value=${stats.failuresTotal} unit=events source=file:${stats.file}`
+    );
+    lines.push(
       `label=delegations value=${stats.delegations.length} unit=events source=file:${stats.file}`
     );
 
     totals.invocations += stats.totalInvocations;
     totals.wasted += stats.wastedTotal;
+    totals.failures += stats.failuresTotal;
     totals.delegations += stats.delegations.length;
 
     if (verbose) {
@@ -196,6 +245,14 @@ function main(): void {
         lines.push(
           `label=${path.basename(stats.file)}:wasted_line ` +
             `value=${stats.wasted.get(wastedLine)} unit=events source=line:${wastedLine}`
+        );
+      }
+
+      const failureCodes = [...stats.failures.keys()].sort(compareStrings);
+      for (const code of failureCodes) {
+        lines.push(
+          `label=${path.basename(stats.file)}:failure_code:${code} ` +
+            `value=${stats.failures.get(code)} unit=events source=file:${stats.file}`
         );
       }
 
@@ -230,6 +287,7 @@ function main(): void {
     lines.push(
       `label=total value=${totals.wasted} unit=events source=files:wasted_round_candidates`
     );
+    lines.push(`label=total value=${totals.failures} unit=events source=files:failures`);
     lines.push(`label=total value=${totals.delegations} unit=events source=files:delegations`);
   }
 

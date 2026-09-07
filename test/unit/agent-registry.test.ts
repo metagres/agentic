@@ -8,6 +8,7 @@ import {
   loadAgentRegistry,
   getAgentById,
 } from '../../src/scripts/lib/agent-registry.ts';
+import { OUTPUT_DISCIPLINE_FRAGMENT } from '../../src/scripts/lib/agent-output-discipline.ts';
 
 function makeAgentsFixture(agents: Record<string, string>): string {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-agents-'));
@@ -257,4 +258,59 @@ test('getAgentById resolves a known id and returns null for unknown ids', () => 
   assert.equal(found.id, 'code-reviewer');
 
   assert.equal(getAgentById(tmp, 'does-not-exist', agentsDir), null);
+});
+
+test('every loaded record exposes effectivePrompt as systemPrompt plus blank line plus fragment (AC-004)', () => {
+  const tmp = makeAgentsFixture({
+    'code-reviewer.yaml': validAgent('code-reviewer', 'Reviews code changes'),
+    'task-planner.yaml': validAgent('task-planner', 'Plans implementation tasks'),
+  });
+
+  const registry = loadAgentRegistry(tmp, path.join(tmp, 'agents'));
+  assert.ok(registry.length > 0);
+  for (const agent of registry) {
+    assert.equal(
+      agent.effectivePrompt,
+      `${agent.systemPrompt}\n\n${OUTPUT_DISCIPLINE_FRAGMENT}`,
+      `effectivePrompt composition for '${agent.id}'`
+    );
+  }
+});
+
+test('the source systemPrompt stays byte-identical while effectivePrompt is additive (AC-004)', () => {
+  const rolePrompt = [
+    'You are an interviewer who questions stakeholders.',
+    'Probe every vague requirement until it is testable.',
+  ].join('\n');
+  const tmp = makeAgentsFixture({
+    'requirements-analyst.yaml': [
+      'version: 1',
+      'id: requirements-analyst',
+      'description: Elicits requirements through questioning.',
+      'model: opencode-go/grok-4.5',
+      'temperature: 0.2',
+      'permissions:',
+      '  file_read: allow',
+      '  search: allow',
+      '  file_write: deny',
+      '  shell: deny',
+      '  subagent: deny',
+      '  web: deny',
+      '  question: allow',
+      'system_prompt: |-',
+      ...rolePrompt.split('\n').map((line) => `  ${line}`),
+      '',
+    ].join('\n'),
+  });
+
+  const agent = getAgentById(tmp, 'requirements-analyst', path.join(tmp, 'agents'));
+  assert.ok(agent);
+
+  // The role voice is unchanged; the fragment appears additively after it.
+  assert.equal(agent.systemPrompt, rolePrompt);
+  assert.equal(
+    agent.effectivePrompt,
+    `${rolePrompt}\n\n${OUTPUT_DISCIPLINE_FRAGMENT}`
+  );
+  assert.ok(agent.effectivePrompt.startsWith(`${rolePrompt}\n\n`));
 });
