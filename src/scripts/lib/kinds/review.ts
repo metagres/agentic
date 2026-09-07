@@ -8,6 +8,8 @@ import { writeYamlAtomic, readYaml } from '../yaml-io.ts';
 import { safeReadYaml } from '../context.ts';
 import { resolveRootOrError, ResolveRootError } from '../resolve-root.ts';
 import { today, nowIso } from '../ids.ts';
+import { loadStepDefinitions } from '../steps-loader.ts';
+import { buildStepVars, renderStepHelp, renderTemplate } from '../step-render.ts';
 import { validateArtifact } from '../validate.ts';
 import { evaluateGate } from '../requires-graph.ts';
 import { makeError } from '../error-catalog.ts';
@@ -81,6 +83,24 @@ export async function runReviewStage(
   const targetStage = stage.reviews ? getStageById(cwd, stage.reviews) : null;
   const targetLabel = options.targetLabel || stage.reviews || stage.id;
 
+  // Step-data-driven surface (DM-003): the envelope step id, the instruction
+  // base markdown, and the opt-in step_help payload all come from the stage's
+  // steps.yaml. Failure paths keep computed instructions — runtime state, not
+  // definitions.
+  const stepDefinitions = loadStepDefinitions(stage);
+  const stepVars = (changeRoot: string | null) =>
+    buildStepVars(stage.id, changeRoot, cwd, { target: targetLabel });
+  const markdownFor = (stepId: string, changeRoot: string | null) => {
+    const step = stepDefinitions[stepId];
+    return step ? renderTemplate(step.markdown || '', stepVars(changeRoot)).trim() : '';
+  };
+  const helpFor = (stepId: string, changeRoot: string | null) =>
+    renderStepHelp(stepId, stepDefinitions[stepId], stepVars(changeRoot));
+  const compose = (markdown: string, annex: string) =>
+    [markdown, annex.trim()].filter(Boolean).join('\n\n');
+  const helpStep = Boolean(args['help-step']);
+  let stepId = 'review';
+
   const usage = (code: number, message: string | null = null) => {
     const instructions =
       options.workflowLabel === 'review'
@@ -131,12 +151,16 @@ export async function runReviewStage(
     writeJson(
       {
         workflow,
-        step: 'review',
+        step: 'needs_input',
         state: 'blocked',
-        instructions: 'Provide --change <change-name>.',
+        instructions: compose(
+          markdownFor('needs_input', null),
+          'Provide --change <change-name>.'
+        ),
         data: {
           target: targetLabel,
           target_artifact: stage.artifact,
+          ...(helpStep ? { step_help: helpFor('needs_input', null) } : {}),
         },
         errors: [makeError('MISSING_CHANGE_DIR')],
         warnings: [],
@@ -154,15 +178,16 @@ export async function runReviewStage(
       writeJson(
         {
           workflow,
-          step: 'review',
+          step: 'needs_input',
           state: 'blocked',
-          instructions: err.message,
+          instructions: compose(markdownFor('needs_input', null), err.message),
           data: {
             target: targetLabel,
             target_artifact: stage.artifact,
             candidates: err.candidates || [],
             available_changes: err.available || [],
             searched: err.searched || undefined,
+            ...(helpStep ? { step_help: helpFor('needs_input', null) } : {}),
           },
           errors: [
             makeError(
@@ -187,11 +212,15 @@ export async function runReviewStage(
     throw err;
   }
 
+  // Detected step (DM-003): the verdict flags select the accept/reject steps;
+  // everything else is the review step.
+  stepId = args.accept ? 'accept' : args.reject ? 'reject' : 'review';
+
   if (args.accept && args.reject) {
     writeJson(
       {
         workflow,
-        step: 'review',
+        step: stepId,
         state: 'blocked',
         instructions: 'Use either --accept or --reject, not both.',
         data: {
@@ -220,7 +249,7 @@ export async function runReviewStage(
     writeJson(
       {
         workflow,
-        step: 'review',
+        step: stepId,
         state: 'blocked',
         instructions: 'Use either --note or --findings, not both.',
         data: {
@@ -242,7 +271,7 @@ export async function runReviewStage(
     writeJson(
       {
         workflow,
-        step: 'review',
+        step: stepId,
         state: 'blocked',
         instructions: '--note and --findings require a verdict flag (--accept or --reject).',
         data: {
@@ -268,7 +297,7 @@ export async function runReviewStage(
     writeJson(
       {
         workflow,
-        step: 'review',
+        step: stepId,
         state: 'blocked',
         instructions: `--findings file not found: ${findingsFile}`,
         data: {
@@ -302,7 +331,7 @@ export async function runReviewStage(
         writeJson(
           {
             workflow,
-            step: 'review',
+            step: stepId,
             state: 'blocked',
             instructions: err.message,
             data: {
@@ -333,7 +362,7 @@ export async function runReviewStage(
       writeJson(
         {
           workflow,
-          step: 'review',
+          step: stepId,
           state: 'blocked',
           instructions:
             'The review gate is not satisfied:\n - ' +
@@ -362,7 +391,7 @@ export async function runReviewStage(
       writeJson(
         {
           workflow,
-          step: 'review',
+          step: stepId,
           state: 'blocked',
           instructions: `No ${trackedStage.artifact} found in ${changeRoot}. Run the relevant stage first.`,
           data: {
@@ -407,7 +436,7 @@ export async function runReviewStage(
       writeJson(
         {
           workflow,
-          step: 'review',
+          step: stepId,
           state: 'blocked',
           instructions:
             '--reject requires --note or --findings when mechanical checks pass (no blocking findings).',
@@ -451,7 +480,7 @@ export async function runReviewStage(
           writeJson(
             {
               workflow,
-              step: 'review',
+              step: stepId,
               state: 'blocked',
               instructions: err.message,
               data: {
@@ -490,11 +519,17 @@ export async function runReviewStage(
         }
 
         state = 'complete';
-        instructions = `The ${trackedStage.id} review was accepted. The artifact status is now 'accepted'.`;
-        if (dryRun) instructions += ' Dry run: no changes were written.';
+        instructions = compose(
+          markdownFor('accept', changeRoot),
+          `The ${trackedStage.id} review was accepted. The artifact status is now 'accepted'.` +
+            (dryRun ? ' Dry run: no changes were written.' : '')
+        );
       } else {
         state = 'blocked';
-        instructions = `The ${trackedStage.id} artifact cannot be accepted yet. It must be ready-for-review and have no blocking structural/reference findings.`;
+        instructions = compose(
+          markdownFor('accept', changeRoot),
+          `The ${trackedStage.id} artifact cannot be accepted yet. It must be ready-for-review and have no blocking structural/reference findings.`
+        );
         errors.push(
           makeError('CANNOT_ACCEPT', {
             message: `ready_for_review=${readyForReview}, blocking=${blocking.length}`,
@@ -511,14 +546,20 @@ export async function runReviewStage(
       }
 
       state = 'blocked';
-      instructions = `The ${trackedStage.id} review was rejected. Run the corresponding authoring or implementation workflow to fix the findings, then review again.`;
-      if (dryRun) instructions += ' Dry run: no changes were written.';
+      instructions = compose(
+        markdownFor('reject', changeRoot),
+        `The ${trackedStage.id} review was rejected. Run the corresponding authoring or implementation workflow to fix the findings, then review again.` +
+          (dryRun ? ' Dry run: no changes were written.' : '')
+      );
     } else {
-      instructions = canAccept
-        ? `The ${trackedStage.id} artifact passed structural validation. Please review the following semantic checks:\n\n${stageChecks
-            .map((c, i) => `${i + 1}. ${c}`)
-            .join('\n')}\n\nAcceptance requires the complete semantic walk: run --accept with --findings supplying one {check_id, status, evidence} item per check above, all status 'pass'. Rejection requires --note or --findings.`
-        : `The ${trackedStage.id} artifact cannot be accepted yet. Fix the blocking findings and review again.`;
+      instructions = compose(
+        markdownFor('review', changeRoot),
+        canAccept
+          ? `The ${trackedStage.id} artifact passed structural validation. Please review the following semantic checks:\n\n${stageChecks
+              .map((c, i) => `${i + 1}. ${c}`)
+              .join('\n')}\n\nAcceptance requires the complete semantic walk: run --accept with --findings supplying one {check_id, status, evidence} item per check above, all status 'pass'. Rejection requires --note or --findings. Complete the verdict in this session: write the findings file and run the accept or reject command — a review without a recorded verdict is an incomplete review, and a bare re-invocation only refreshes the open round.`
+          : `The ${trackedStage.id} artifact cannot be accepted yet. Fix the blocking findings and review again.`
+      );
 
       if (dryRun) instructions += ' Dry run: no changes were written.';
 
@@ -648,7 +689,7 @@ export async function runReviewStage(
     writeJson(
       {
         workflow,
-        step: 'review',
+        step: stepId,
         state,
         instructions,
         data: {
@@ -664,6 +705,9 @@ export async function runReviewStage(
           blocking_count: blocking.length,
           blocking_findings: blocking,
           round: recordedRound,
+          // Opt-in step guidance (DEC-003): rendered from the stage's
+          // steps.yaml, included only with --help-step.
+          ...(helpStep ? { step_help: helpFor(stepId, changeRoot) } : {}),
         },
         errors,
         warnings: [
@@ -681,7 +725,7 @@ export async function runReviewStage(
     writeJson(
       {
         workflow,
-        step: 'review',
+        step: stepId,
         state: 'blocked',
         instructions: err instanceof Error ? err.message : String(err),
         data: {

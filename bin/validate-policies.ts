@@ -155,13 +155,35 @@ for (const stageName of fs.readdirSync(stagesDir).sort()) {
     }
   }
 
-  // steps.yaml shape.
+  // steps.yaml shape. The kind interpreters are step-data-driven (DM-003):
+  // the steps a kind's interpreter detects must exist and carry non-empty
+  // markdown, so a missing definition can never render empty instructions.
+  const REQUIRED_STEPS_BY_KIND: Record<string, string[]> = {
+    authoring: [],
+    review: ['needs_input', 'review', 'accept', 'reject'],
+    tasks: ['needs_input', 'progress', 'complete'],
+    aggregator: ['needs_input', 'docs_delta', 'complete'],
+  };
   const stepsPath = path.join(folder, 'steps.yaml');
   if (fs.existsSync(stepsPath)) {
     try {
-      const doc = readYaml(stepsPath) as { steps?: Record<string, unknown> } | null;
+      const doc = readYaml(stepsPath) as {
+        steps?: Record<string, { markdown?: unknown } | unknown>;
+      } | null;
       if (!doc || typeof doc.steps !== 'object' || doc.steps === null) {
         throw new Error('steps.yaml must define a steps map');
+      }
+      const kind = typeof descriptor.kind === 'string' ? descriptor.kind : '';
+      const required = REQUIRED_STEPS_BY_KIND[kind] || [];
+      for (const stepId of required) {
+        const step = (doc.steps as Record<string, unknown>)[stepId];
+        if (!step || typeof step !== 'object') {
+          throw new Error(`kind '${kind}' requires step '${stepId}' in steps.yaml`);
+        }
+        const markdown = (step as { markdown?: unknown }).markdown;
+        if (typeof markdown !== 'string' || markdown.trim() === '') {
+          throw new Error(`step '${stepId}' must declare non-empty markdown`);
+        }
       }
       results.push({ file: `stages/${stageName}/steps.yaml`, ok: true });
     } catch (err: unknown) {

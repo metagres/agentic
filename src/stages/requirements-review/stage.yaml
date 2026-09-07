@@ -8,3 +8,5 @@ status_field: status
 requires: []
 reviews: requirements
 review_file: requirements-review.yaml
+permissions:
+  file_write: allow

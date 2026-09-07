@@ -2,7 +2,6 @@ version: 1
 steps:
   needs_input:
     title: Needs input
-    next_action: provide_change_or_request
     markdown: |
       Ask the user whether this is an existing change or a new request.
 
@@ -15,7 +14,6 @@ steps:
 
   init:
     title: Initialization
-    next_action: initialize_context
     markdown: |
       The script created the initial requirements artifact.
 
@@ -32,7 +30,6 @@ steps:
 
   authoring:
     title: Authoring
-    next_action: update_artifact
     markdown: |
       Draft the full requirements artifact, recording as you go:
 
@@ -72,7 +69,6 @@ steps:
 
   recovery:
     title: Recovery
-    next_action: fix_review_findings
     markdown: |
       The artifact was rejected by review.
 
@@ -87,7 +83,6 @@ steps:
 
   ready:
     title: Ready
-    next_action: finalize
     markdown: |
       All gates passed.
 
@@ -97,7 +92,6 @@ steps:
 
   complete:
     title: Complete
-    next_action: invoke_review
     markdown: |
       The requirements artifact is ready for the review gate.
     commands:

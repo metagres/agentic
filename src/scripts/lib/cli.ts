@@ -60,9 +60,6 @@ export function normalizeEnvelope(payload: Record<string, unknown> = {}, stagesD
     ...(payload.data && typeof payload.data === 'object' ? payload.data as Record<string, unknown> : {}),
   };
 
-  delete data.next;
-  delete data.next_action;
-
   if (payload._debug !== undefined) {
     data._debug = payload._debug;
   }

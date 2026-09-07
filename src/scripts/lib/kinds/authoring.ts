@@ -10,6 +10,7 @@ import { today, slugify, uniqueSlug, nextIdsFromArrays, validateChangeSlug } fro
 import { bumpVersion } from '../semver.ts';
 import { titleFromRequest, normalizeDeltaEntries } from '../stage-helpers.ts';
 import { loadStepDefinitions, evaluatePredicate } from '../steps-loader.ts';
+import { buildStepVars, cliInvocation, renderStepHelp } from '../step-render.ts';
 import { detectStep, isReadyForReview, getData } from '../authoring-base.ts';
 import type { AuthorEnv } from '../authoring-base.ts';
 import { loadStageHooks, stagePreconditionWarnings } from '../stage-registry.ts';
@@ -19,21 +20,6 @@ import type { GateResult } from '../requires-graph.ts';
 import { makeError } from '../error-catalog.ts';
 import type { StageRecord } from '../stage-registry.ts';
 import type { ParseArgsResult, WarningItem, Finding } from '../types.ts';
-
-function renderTemplate(text: string, vars: Record<string, string>): string {
-  return String(text || '').replace(/{{(\w+)}}/g, (_, key) =>
-    vars[key] !== undefined ? vars[key] : `{{${key}}}`
-  );
-}
-
-function cliInvocation(cwd: string): string {
-  const scriptPath = path.resolve(process.argv[1] || '');
-  if (!scriptPath) {
-    return 'node src/scripts/sdlc.ts';
-  }
-  const rel = path.relative(cwd, scriptPath);
-  return `node ${rel || scriptPath}`;
-}
 
 function listExistingChanges(cwd: string) {
   const changesDir = changesDirFor(cwd);
@@ -600,24 +586,16 @@ function describeStep(stage: StageRecord, stepId: string, cwd: string) {
     };
   }
 
-  const title = step.title || stepId;
-  const markdown = renderTemplate(step.markdown || '', vars);
-  const commands = (step.commands || []).map((command) => renderTemplate(command, vars));
-  const exitCriteria = step.exit_criteria || null;
+  const help = renderStepHelp(stepId, step, vars);
 
   return {
     workflow: stage.id,
     step: 'describe_step',
     state: 'ok',
-    instructions: markdown || `Step description for ${stepId}.`,
+    instructions: help.markdown || `Step description for ${stepId}.`,
     data: {
       requested_step: stepId,
-      step_definition: {
-        title,
-        markdown,
-        commands,
-        exit_criteria: exitCriteria,
-      },
+      step_definition: help,
     },
     errors: [],
     warnings: [],
@@ -976,28 +954,12 @@ export async function runAuthoringStage(
 
     const stepDefinitions = loadStepDefinitions(stage) || {};
     const step = changeRoot ? detectStep(stepEnv) : 'needs_input';
-    const stepDef = stepDefinitions?.[step] || {};
 
     const cli = cliInvocation(cwd);
-    const changeDir = changeRoot ? path.basename(changeRoot) : '<change-name>';
+    const templateVars = buildStepVars(stage.id, changeRoot, cwd);
 
-    const templateVars = {
-      SDLC: cli,
-      change_name: changeDir,
-      stage: stage.id,
-    };
-
-    const renderedMarkdown = renderTemplate(stepDef.markdown || '', templateVars);
-    const renderedCommands = (stepDef.commands || []).map((command: string) =>
-      renderTemplate(command, templateVars)
-    );
-
-    const stepHelp = {
-      title: stepDef.title || step,
-      markdown: renderedMarkdown,
-      commands: renderedCommands,
-      exit_criteria: stepDef.exit_criteria || null,
-    };
+    const stepHelp = renderStepHelp(step, stepDefinitions?.[step], templateVars);
+    const renderedMarkdown = stepHelp.markdown;
 
     const reviewReport = loadReviewReport(changeRoot);
     const hookWarnings = await stagePreconditionWarnings(stage, stepEnv);

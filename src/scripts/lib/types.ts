@@ -40,7 +40,6 @@ export interface SemanticSummary {
 
 export interface StepDefinition {
   title?: string;
-  next_action?: string;
   markdown?: string;
   commands?: string[];
   exit_criteria?: string | null | Record<string, unknown>;

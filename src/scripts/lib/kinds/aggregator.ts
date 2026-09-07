@@ -10,6 +10,8 @@ import { requireChangeRoot } from '../change-root.ts';
 import { today } from '../ids.ts';
 import { makeError } from '../error-catalog.ts';
 import { evaluateGate } from '../requires-graph.ts';
+import { loadStepDefinitions } from '../steps-loader.ts';
+import { buildStepVars, renderStepHelp, renderTemplate } from '../step-render.ts';
 import type { ParseArgsResult, WarningItem } from '../types.ts';
 
 /**
@@ -121,13 +123,36 @@ export async function runAggregatorStage(
     return;
   }
 
+  // Step-data-driven surface (DM-003): the envelope step id, the instruction
+  // base markdown, and the opt-in step_help payload all come from the stage's
+  // steps.yaml. Failure paths keep computed instructions — runtime state, not
+  // definitions.
+  const stepDefinitions = loadStepDefinitions(stage);
+  const stepVars = (changeRoot: string | null) => buildStepVars(stage.id, changeRoot, cwd);
+  const markdownFor = (stepId: string, changeRoot: string | null) => {
+    const step = stepDefinitions[stepId];
+    return step ? renderTemplate(step.markdown || '', stepVars(changeRoot)).trim() : '';
+  };
+  const helpFor = (stepId: string, changeRoot: string | null) =>
+    renderStepHelp(stepId, stepDefinitions[stepId], stepVars(changeRoot));
+  const compose = (markdown: string, annex: string) =>
+    [markdown, annex.trim()].filter(Boolean).join('\n\n');
+  const helpStep = Boolean(args['help-step']);
+
   const base: Record<string, unknown> = {
     workflow: stage.id,
-    step: 'docs_delta',
+    step: 'needs_input',
   };
 
-  const changeRoot = requireChangeRoot(args, cwd, base);
+  const changeRoot = requireChangeRoot(args, cwd, base, {
+    markdown: markdownFor('needs_input', null),
+    ...(helpStep ? { stepHelp: helpFor('needs_input', null) } : {}),
+  });
   if (!changeRoot) return;
+
+  // Detected step: the --complete verdict closes the stage; the default
+  // invocation is the docs_delta step (DM-003).
+  base.step = 'docs_delta';
 
   try {
     // Acceptance gate (DEC-008): knowledge extraction is runnable only when the
@@ -235,15 +260,23 @@ export async function runAggregatorStage(
 
       writeYamlAtomic(docsDeltaPath, doc);
 
+      base.step = 'complete';
+
       writeJson(
         {
           ...base,
           state: 'complete',
-          instructions: 'Documentation synchronization is complete.',
+          instructions: compose(
+            markdownFor('complete', changeRoot),
+            'Documentation synchronization is complete.'
+          ),
           data: {
             change_root: changeRoot,
             docs_delta: docsDeltaPath,
             status: 'complete',
+            // Opt-in step guidance (DEC-003): rendered from the stage's
+            // steps.yaml, included only with --help-step.
+            ...(helpStep ? { step_help: helpFor('complete', changeRoot) } : {}),
           },
           errors: [],
           warnings,
@@ -258,13 +291,14 @@ export async function runAggregatorStage(
       {
         ...base,
         state: deltasToApply.length > 0 ? 'in_progress' : 'complete',
-        instructions:
-          'Update docs/current according to the deltas listed in data.deltas_to_apply. ' +
-          `After updating the docs, run: sdlc ${stage.id} --change <change-name> --complete`,
+        instructions: markdownFor('docs_delta', changeRoot),
         data: {
           change_root: changeRoot,
           deltas_to_apply: deltasToApply,
           implementation_status: implementationStatus,
+          // Opt-in step guidance (DEC-003): rendered from the stage's
+          // steps.yaml, included only with --help-step.
+          ...(helpStep ? { step_help: helpFor('docs_delta', changeRoot) } : {}),
         },
         errors: [],
         warnings,

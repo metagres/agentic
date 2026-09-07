@@ -138,6 +138,14 @@ both values.
 - **tasks** — task state machine over `plan.yaml` for the implementation stage.
 - **aggregator** — collects delta arrays from delta-producing stages for knowledge-extraction.
 
+All four kinds are step-data-driven (DM-003): the envelope `step` field is a step id
+detected from the stage's `steps.yaml`, primary-path `instructions` are the rendered step
+markdown plus a computed state annex, and `--help-step` opt-in renders `data.step_help`
+(title, markdown, commands) through the shared renderer (`src/scripts/lib/step-render.ts`).
+Failure paths keep computed instructions — runtime state, not definitions. `validate-policies`
+enforces the per-kind required step ids and non-empty markdown, and the unused `next_action`
+field has been removed from the step vocabulary.
+
 ### The requires DAG and the acceptance gate (DEC-007, DEC-008)
 
 Pipeline order is a topological sort of the requires graph with an alphabetical stage-id

@@ -8,6 +8,8 @@ import { requireChangeRoot } from '../change-root.ts';
 import { today } from '../ids.ts';
 import { makeError } from '../error-catalog.ts';
 import { evaluateGate } from '../requires-graph.ts';
+import { loadStepDefinitions } from '../steps-loader.ts';
+import { buildStepVars, renderStepHelp, renderTemplate } from '../step-render.ts';
 import type { ParseArgsResult, WarningItem } from '../types.ts';
 
 const ALLOWED_TASK_STATUS = [
@@ -17,19 +19,6 @@ const ALLOWED_TASK_STATUS = [
   'blocked',
   'skipped',
 ];
-
-const GUARDRAILS = `
-## Planning quality guardrails
-
-Before and during implementation:
-
-- A task should be one coherent unit of work, not a whole feature and not pseudocode.
-- Do not mix refactoring and new behavior in the same task if avoidable.
-- For refactoring, ensure behavior-preserving tests exist before changing code.
-- If implementation requires unplanned architectural or behavioral changes, stop and update the plan.
-- Incidental changes such as imports, formatting, or test helpers are acceptable with a clear note.
-- Every done, blocked, or skipped task must have an implementation note: one sentence stating what changed and how it was verified (test, lint, or manual check; the command when applicable).
-`.trim();
 
 function usage(stage: StageRecord, code = EXIT.ok) {
   writeJson(
@@ -133,13 +122,36 @@ export async function runTasksStage(
     return;
   }
 
+  // Step-data-driven surface (DM-003): the envelope step id, the instruction
+  // base markdown, and the opt-in step_help payload all come from the stage's
+  // steps.yaml. Failure paths keep computed instructions — runtime state, not
+  // definitions.
+  const stepDefinitions = loadStepDefinitions(stage);
+  const stepVars = (changeRoot: string | null) => buildStepVars(stage.id, changeRoot, cwd);
+  const markdownFor = (stepId: string, changeRoot: string | null) => {
+    const step = stepDefinitions[stepId];
+    return step ? renderTemplate(step.markdown || '', stepVars(changeRoot)).trim() : '';
+  };
+  const helpFor = (stepId: string, changeRoot: string | null) =>
+    renderStepHelp(stepId, stepDefinitions[stepId], stepVars(changeRoot));
+  const compose = (markdown: string, annex: string) =>
+    [markdown, annex.trim()].filter(Boolean).join('\n\n');
+  const helpStep = Boolean(args['help-step']);
+
   const base: Record<string, unknown> = {
     workflow: stage.id,
-    step: args['task-id'] ? 'task_update' : 'progress',
+    step: 'needs_input',
   };
 
-  const changeRoot = requireChangeRoot(args as ParseArgsResult, cwd, base);
+  const changeRoot = requireChangeRoot(args as ParseArgsResult, cwd, base, {
+    markdown: markdownFor('needs_input', null),
+    ...(helpStep ? { stepHelp: helpFor('needs_input', null) } : {}),
+  });
   if (!changeRoot) return;
+
+  // Detected step: complete only when implementation reaches its terminal
+  // status; every working invocation is the progress step (DM-003).
+  base.step = 'progress';
 
   try {
     // Acceptance gate (DEC-008): implementation is runnable only when the
@@ -387,22 +399,34 @@ export async function runTasksStage(
         ? 'complete'
         : 'in_progress';
 
-    let instructions = GUARDRAILS;
+    if (state === 'complete') {
+      base.step = 'complete';
+    }
+
+    const stepId = base.step as string;
+
+    let instructions = '';
 
     if (state === 'complete') {
-      instructions =
+      instructions = compose(
+        markdownFor('complete', changeRoot),
         'All tasks are complete or skipped. ' +
-        'Run implementation review with:\n\n' +
-        `sdlc implementation-review --change <change-name>`;
+          'Run implementation review with:\n\n' +
+          `sdlc implementation-review --change <change-name>`
+      );
     } else if (updatedTaskId) {
       const tasks = (Array.isArray(plan.tasks) ? plan.tasks : []) as Record<string, unknown>[];
       const found = tasks.find((t: Record<string, unknown>) => t.id === updatedTaskId);
-      instructions =
+      instructions = compose(
+        markdownFor('progress', changeRoot),
         `Task ${updatedTaskId} is now ${(found?.status as string) || 'unknown'}. ` +
-        'Continue implementation and update task state as work proceeds.\n\n' +
-        GUARDRAILS;
+          'Continue implementation and update task state as work proceeds.'
+      );
     } else {
-      instructions = 'Implementation progress summary.\n\n' + GUARDRAILS;
+      instructions = compose(
+        markdownFor('progress', changeRoot),
+        'Implementation progress summary.'
+      );
     }
 
     writeJson(
@@ -417,6 +441,9 @@ export async function runTasksStage(
           implementation_status: implementationStatus,
           allowed_task_status: ALLOWED_TASK_STATUS,
           progress,
+          // Opt-in step guidance (DEC-003): rendered from the stage's
+          // steps.yaml, included only with --help-step.
+          ...(helpStep ? { step_help: helpFor(stepId, changeRoot) } : {}),
         },
         errors,
         warnings,

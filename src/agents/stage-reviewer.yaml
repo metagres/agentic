@@ -10,7 +10,7 @@ temperature: 0.1
 permissions:
   file_read: allow
   search: allow
-  file_write: deny
+  file_write: allow
   shell: allow
   subagent: deny
   web: deny
