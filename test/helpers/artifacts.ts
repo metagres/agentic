@@ -126,6 +126,7 @@ export function validDesign({
         id: 'CMP-001',
         name: 'Device Registration API',
         responsibility: 'Accept registration requests and persist device records.',
+        satisfies: ['FR-001', 'NFR-001'],
       },
     ],
     data_models: [{ id: 'DM-001', name: 'Device' }],
@@ -140,7 +141,6 @@ export function validDesign({
         status: 'accepted',
       },
     ],
-    traceability: [{ requirement_id: 'FR-001', component_ids: ['CMP-001'] }],
     delta: Array.isArray(delta) ? delta : defaultDelta('Design'),
   };
 }

@@ -310,6 +310,23 @@ test('the shipped YAML system_prompt ends with the output-discipline fragment fi
       );
       continue;
     }
+    if (agent.id === 'systems-architect') {
+      assert.ok(
+        agent.systemPrompt.includes(
+          'Discipline — these rules govern style and cross-step behavior only'
+        ),
+        `'${agent.id}' system_prompt carries the discipline block`
+      );
+      assert.ok(
+        agent.systemPrompt
+          .trimEnd()
+          .endsWith(
+            '- Reasoning and artifact prose have no token cap: reason in fragments of facts, options, and decisions, no audience-addressed filler. Step reports stay one line.'
+          ),
+        `'${agent.id}' system_prompt ends with the discipline block`
+      );
+      continue;
+    }
     assert.ok(
       agent.systemPrompt.includes(
         'Output discipline for every reply and every reasoning step'

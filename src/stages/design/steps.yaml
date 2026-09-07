@@ -3,7 +3,8 @@ steps:
   needs_input:
     title: Needs input
     markdown: |
-      Ask the user which change to design.
+      Ask the user which change to design. Run the matching command.
+      Report one line: which command ran.
     commands:
       - "{{SDLC}} design --change <change-name>"
 
@@ -13,22 +14,64 @@ steps:
       The script created the initial design artifact.
 
       The required predecessor stages must be accepted before authoring begins.
+      Report one line: artifact initialized (path).
     commands:
       - "{{SDLC}} design --change {{change_name}}"
 
   authoring:
     title: Authoring
     markdown: |
-      Draft the full design artifact.
+      Draft the full design artifact. Chain script calls silently.
 
-      Use `data.next_ids` to choose the next CMP/DM/API/DEC ids.
+      As you author:
+      - context_summary frames the design in 1-12 sentences (mechanically
+        checked).
+      - Components: every component owns one responsibility behind a narrow,
+        named interface, with explicit data flow across its boundary. Where a
+        responsibility lives is a decision, not an accident — ambiguity is a
+        defect. Use `data.next_ids` for the next CMP/DM/API/DEC ids.
+      - Data models and APIs: consistent with each other and with the
+        requirements; every API entry carries path and method.
+      - Flows: cover the failure paths identified in the requirements, not
+        only happy paths.
+      - Decisions: every consequential trade-off gets a DEC entry with
+        context (what forced the choice), decision (what was chosen), and
+        status. Choose and record; never defer by assuming a conflict
+        resolves itself.
+      - Satisfies: every component lists the requirement ids it carries in its
+        satisfies list. Every FR and NFR from requirements.yaml must be
+        covered by at least one component — the mechanical coverage check
+        rejects uncovered ids.
+      - Spillover: a requirements-level gap surfaced during design becomes a
+        DEC entry (context: the gap; status: proposed) — never silently
+        resolved.
 
-      While drafting, determine which living docs are affected by the design and
-      append delta entries via --append-delta (allowed targets:
-      `data.delta_allowed_target_docs`) or include them in --update-artifact.
-      Knowledge extraction dedupes.
+      Example component entry:
+        - id: CMP-001
+          name: Report Exporter
+          responsibility: Renders accepted report queries to exported files
+            and owns the export format contract; does not parse queries.
+          satisfies: [FR-001]
 
-      Write the artifact through the script.
+      Example decision entry:
+        - id: DEC-001
+          title: Polling over webhooks for status updates
+          context: Consumers sit behind firewalls that cannot receive callbacks.
+          decision: Expose GET /status with cursor pagination; consumers poll.
+          status: accepted
+
+      Example delta entry (via --append-delta):
+        - target_doc: docs/current/architecture.md
+          target_anchor: Components
+          change: Add
+          reason: New Report Exporter component owns query rendering.
+
+      Delta: determine which living docs the design affects and append delta
+      entries via --append-delta (allowed targets:
+      `data.delta_allowed_target_docs`). Knowledge extraction dedupes.
+
+      Write the artifact through the script. Report one line: design authored
+      (N components, M decisions, K delta entries).
     commands:
       - "{{SDLC}} design --change {{change_name}} --next-ids"
       - "{{SDLC}} design --change {{change_name}} --update-artifact < design.yaml"
@@ -40,9 +83,16 @@ steps:
   recovery:
     title: Recovery
     markdown: |
-      The design artifact was rejected by review.
+      The design artifact was rejected by review. Fix exactly the failures
+      listed in `data.review_failures` ({check, evidence}) and `data.errors`
+      (blocking findings) — nothing else. Unaffected sections are not
+      rewritten or re-emitted.
 
-      Fix each failure listed in `data.review_failures` ({check, evidence}), update the artifact, and finalize again.
+      One line per fix in chat: `<check> -> <what changed>`. Then update
+      through the script and finalize again.
+
+      Finalizing a rejected artifact bumps the version (patch by default;
+      --bump-version major|minor|patch overrides).
     commands:
       - "{{SDLC}} design --change {{change_name}} --update-artifact < design.yaml"
       - "{{SDLC}} design --change {{change_name}} --finalize"
@@ -50,9 +100,8 @@ steps:
   ready:
     title: Ready
     markdown: |
-      All gates passed.
-
-      Finalize with --finalize --confirm-semantic.
+      All gates passed. Finalize with --finalize --confirm-semantic.
+      Report one line: artifact finalized (version).
     commands:
       - "{{SDLC}} design --change {{change_name}} --finalize --confirm-semantic"
 

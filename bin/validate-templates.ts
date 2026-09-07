@@ -31,7 +31,6 @@ const expectedKeys = {
     'apis',
     'flows',
     'decisions',
-    'traceability',
     'delta',
   ],
 

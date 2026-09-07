@@ -2,6 +2,7 @@ import type { Finding } from '../types.ts';
 import type { CheckContext, CheckFn } from './shared.ts';
 import { uniqueIds } from './unique-ids.ts';
 import { refExists } from './ref-exists.ts';
+import { refCovers } from './ref-covers.ts';
 import { duplicateRefs } from './duplicate-refs.ts';
 import { givenWhenThen } from './given-when-then.ts';
 import { forbiddenWords } from './forbidden-words.ts';
@@ -25,7 +26,7 @@ export interface PathParamSpec {
 }
 
 /**
- * The capped catalog of ten named structural checks (CMP-002 part 2, AC-014;
+ * The capped catalog of eleven named structural checks (CMP-002 part 2, AC-014;
  * referenced-by was removed with the nested acceptance-criteria format).
  * Adding or changing a check is a design-review event; this catalog is the
  * single extension path for structural validation logic.
@@ -44,6 +45,11 @@ export const CHECK_CATALOG: Record<
   },
   'ref-exists': {
     fn: refExists,
+    requiredParams: ['from', 'to'],
+    pathParams: [{ spec: 'to.arrays', kind: 'collection' }],
+  },
+  'ref-covers': {
+    fn: refCovers,
     requiredParams: ['from', 'to'],
     pathParams: [{ spec: 'to.arrays', kind: 'collection' }],
   },

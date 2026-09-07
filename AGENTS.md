@@ -179,10 +179,10 @@ produce identical findings.
 
 ### The capped check catalog (DEC-003, DEC-004)
 
-Structural validation runs through a fixed catalog of ten named generic checks in
+Structural validation runs through a fixed catalog of eleven named generic checks in
 `src/scripts/lib/checks/`:
 
-`unique-ids`, `ref-exists`, `duplicate-refs`, `given-when-then`,
+`unique-ids`, `ref-exists`, `ref-covers`, `duplicate-refs`, `given-when-then`,
 `forbidden-words`, `sentence-count`, `required-note-for-status`, `all-tasks-terminal`,
 `dependency-acyclic`, `dependency-order`.
 

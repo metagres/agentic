@@ -508,7 +508,14 @@ test('pinning: design declarations pass a valid design with zero findings', () =
     const artifact = {
       metadata: { id: 'DES-001', stage: 'design', status: 'draft' },
       context_summary: 'The design adds a registration endpoint backed by a device repository.',
-      traceability: [{ requirement_id: 'FR-001', component_ids: ['CMP-001'] }],
+      components: [
+        {
+          id: 'CMP-001',
+          name: 'Registration API',
+          responsibility: 'Accepts registrations.',
+          satisfies: ['FR-001', 'NFR-001'],
+        },
+      ],
     };
     const findings = runStageChecks(
       'design',
@@ -523,14 +530,19 @@ test('pinning: design declarations pass a valid design with zero findings', () =
   }
 });
 
-test('pinning: design ref-exists and duplicate-refs findings are verbatim', () => {
+test('pinning: design ref-exists, ref-covers, and duplicate-refs findings are verbatim', () => {
   const root = pinningChangeRoot();
   try {
     const artifact = {
       metadata: { id: 'DES-001', stage: 'design', status: 'draft' },
       context_summary: 'The design adds a registration endpoint backed by a device repository.',
-      traceability: [
-        { requirement_id: 'FR-999', component_ids: ['CMP-001', 'CMP-001'] },
+      components: [
+        {
+          id: 'CMP-001',
+          name: 'Registration API',
+          responsibility: 'Accepts registrations.',
+          satisfies: ['FR-001', 'FR-001', 'FR-999'],
+        },
       ],
     };
     const findings = runStageChecks(
@@ -543,8 +555,9 @@ test('pinning: design ref-exists and duplicate-refs findings are verbatim', () =
     assert.deepEqual(
       findings.map((f) => f.finding),
       [
-        "an entry references missing requirement_id value 'FR-999' in requirements.yaml",
-        "Duplicate CMP reference 'CMP-001' in entry",
+        "CMP-001 references missing satisfies value 'FR-999' in requirements.yaml",
+        "'NFR-001' in 'non_functional_requirements' is not covered by any components.satisfies entry",
+        "Duplicate FR reference 'FR-001' in CMP-001",
       ]
     );
   } finally {
@@ -881,7 +894,7 @@ test('path-addressed ref-exists: an NFR-nested reference resolves through the un
   }
 });
 
-test('the catalog registers exactly ten named checks with referenced-by absent (AC-014)', () => {
+test('the catalog registers exactly eleven named checks with referenced-by absent (AC-014)', () => {
   const catalog = Object.keys(CHECK_CATALOG).sort();
   assert.deepEqual(catalog, [
     'all-tasks-terminal',
@@ -890,12 +903,13 @@ test('the catalog registers exactly ten named checks with referenced-by absent (
     'duplicate-refs',
     'forbidden-words',
     'given-when-then',
+    'ref-covers',
     'ref-exists',
     'required-note-for-status',
     'sentence-count',
     'unique-ids',
   ]);
-  assert.equal(catalog.length, 10);
+  assert.equal(catalog.length, 11);
 });
 
 test('a stage still declaring referenced-by fails startup with the unknown-check error (AC-015)', () => {
@@ -958,4 +972,210 @@ test('forbidden-words resolves multi-segment leaf paths through the resolver', (
   assert.equal(fw[0].severity, 'blocking');
   assert.equal(fw[0].target, 'functional_requirements[0].acceptance_criteria[0].statement');
   assert.match(fw[0].finding, /fast/);
+});
+
+// ---------------------------------------------------------------------------
+// ref-covers (reverse of ref-exists): every id in the target document's arrays
+// must be referenced by at least one entry of this artifact's from array/field.
+// ---------------------------------------------------------------------------
+
+const REF_COVERS_CHECKS: StructuralChecksDoc = {
+  version: 1,
+  checks: [
+    {
+      check: 'ref-covers',
+      params: {
+        from: { array: 'components', field: 'satisfies' },
+        to: {
+          file: 'requirements.yaml',
+          arrays: ['functional_requirements', 'non_functional_requirements'],
+          field: 'id',
+        },
+      },
+    },
+  ],
+};
+
+function refCoversRequirementsYaml(): string {
+  return [
+    'functional_requirements:',
+    '  - id: FR-001',
+    '    description: The system shall create a device record.',
+    '  - id: FR-002',
+    '    description: The system shall reject unknown devices.',
+    'non_functional_requirements:',
+    '  - id: NFR-001',
+    '    description: The endpoint shall respond within 500 ms.',
+    '',
+  ].join('\n');
+}
+
+test('ref-covers: full coverage across both target arrays yields no findings', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-refcovers-'));
+  try {
+    fs.writeFileSync(path.join(root, 'requirements.yaml'), refCoversRequirementsYaml(), 'utf8');
+    const artifact = {
+      components: [{ id: 'CMP-001', satisfies: ['FR-001', 'FR-002', 'NFR-001'] }],
+    };
+    assert.deepEqual(
+      runStageChecks('design', 'src/stages/design', artifact, context(root), REF_COVERS_CHECKS),
+      []
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('ref-covers: same-artifact target (to.file \'.\') resolves coverage against the artifact itself', () => {
+    const checks: StructuralChecksDoc = {
+      version: 1,
+      checks: [
+        {
+          check: 'ref-covers',
+          params: {
+            from: { array: 'components', field: 'satisfies' },
+            to: {
+              file: '.',
+              arrays: ['functional_requirements', 'non_functional_requirements'],
+              field: 'id',
+            },
+          },
+        },
+      ],
+    };
+    const artifact = {
+      functional_requirements: [{ id: 'FR-001', description: 'Shall create a record.' }],
+      non_functional_requirements: [],
+      components: [{ id: 'CMP-001', satisfies: ['FR-001'] }],
+    };
+  assert.deepEqual(
+    runStageChecks('design', 'src/stages/design', artifact, context(), checks),
+    []
+  );
+});
+
+test('ref-covers: one uncovered FR produces exactly one blocking finding', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-refcovers-'));
+  try {
+    fs.writeFileSync(path.join(root, 'requirements.yaml'), refCoversRequirementsYaml(), 'utf8');
+    const artifact = {
+      components: [{ id: 'CMP-001', satisfies: ['FR-001', 'NFR-001'] }],
+    };
+    const findings = runStageChecks('design', 'src/stages/design', artifact, context(root), REF_COVERS_CHECKS);
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].check, 'ref-covers');
+    assert.equal(findings[0].severity, 'blocking');
+    assert.equal(findings[0].category, 'traceability');
+    assert.equal(
+      findings[0].finding,
+      "'FR-002' in 'functional_requirements' is not covered by any components.satisfies entry"
+    );
+    assert.equal(findings[0].target, 'requirements.yaml:functional_requirements.id');
+    assert.equal(findings[0].fix, "Add 'FR-002' to a 'components' entry's 'satisfies'");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('ref-covers: multiple uncovered ids produce one finding each', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-refcovers-'));
+  try {
+    fs.writeFileSync(path.join(root, 'requirements.yaml'), refCoversRequirementsYaml(), 'utf8');
+    const artifact = {
+      components: [{ id: 'CMP-001', satisfies: ['FR-001'] }],
+    };
+    const findings = runStageChecks('design', 'src/stages/design', artifact, context(root), REF_COVERS_CHECKS);
+    assert.deepEqual(
+      findings.map((f) => f.finding),
+      [
+        "'FR-002' in 'functional_requirements' is not covered by any components.satisfies entry",
+        "'NFR-001' in 'non_functional_requirements' is not covered by any components.satisfies entry",
+      ]
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('ref-covers: a missing target file yields no findings (ref-exists precedent)', () => {
+  const artifact = {
+    components: [{ id: 'CMP-001', satisfies: ['FR-001'] }],
+  };
+  const findings = runStageChecks(
+    'design',
+    'src/stages/design',
+    artifact,
+    context('/tmp/nonexistent-change-root'),
+    REF_COVERS_CHECKS
+  );
+  assert.deepEqual(findings, []);
+});
+
+test('ref-covers: non-string ids are skipped in both directions', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-refcovers-'));
+  try {
+    fs.writeFileSync(
+      path.join(root, 'requirements.yaml'),
+      [
+        'functional_requirements:',
+        '  - id: FR-001',
+        '    description: The system shall create a device record.',
+        '  - id: 42',
+        '    description: A non-string id is skipped.',
+        'non_functional_requirements:',
+        '  - id: NFR-001',
+        '    description: The endpoint shall respond within 500 ms.',
+        '',
+      ].join('\n'),
+      'utf8'
+    );
+    const artifact = {
+      components: [{ id: 'CMP-001', satisfies: ['FR-001', 'NFR-001', 7] }],
+    };
+    assert.deepEqual(
+      runStageChecks('design', 'src/stages/design', artifact, context(root), REF_COVERS_CHECKS),
+      []
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('design declarations: unique-ids flags a duplicate component id; duplicate-refs flags a repeated satisfies entry', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-refcovers-'));
+  try {
+    fs.writeFileSync(path.join(root, 'requirements.yaml'), refCoversRequirementsYaml(), 'utf8');
+    const artifact = {
+      metadata: { id: 'DES-001', stage: 'design', status: 'draft' },
+      context_summary: 'The design adds a registration endpoint backed by a device repository.',
+      components: [
+        {
+          id: 'CMP-001',
+          name: 'Registration API',
+          responsibility: 'Accepts registrations.',
+          satisfies: ['FR-001'],
+        },
+        {
+          id: 'CMP-001',
+          name: 'Duplicate API',
+          responsibility: 'Duplicates the id.',
+          satisfies: ['FR-001', 'FR-001'],
+        },
+      ],
+    };
+    const findings = runStageChecks(
+      'design',
+      'src/stages/design',
+      artifact,
+      context(root),
+      DESIGN_CHECKS
+    );
+    const dups = findings.filter((f) => f.check === 'unique-ids');
+    assert.deepEqual(dups.map((f) => f.finding), ["Duplicate ID 'CMP-001' in 'components'"]);
+    assert.equal(dups[0].severity, 'blocking');
+    const dupRefs = findings.filter((f) => f.check === 'duplicate-refs');
+    assert.deepEqual(dupRefs.map((f) => f.finding), ["Duplicate FR reference 'FR-001' in CMP-001"]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });

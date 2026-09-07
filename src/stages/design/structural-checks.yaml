@@ -5,11 +5,29 @@ checks:
       field: context_summary
       min: 1
       max: 12
+  - check: unique-ids
+    params:
+      arrays:
+        - components
+        - data_models
+        - apis
+        - decisions
   - check: ref-exists
     params:
       from:
-        array: traceability
-        field: requirement_id
+        array: components
+        field: satisfies
+      to:
+        file: requirements.yaml
+        arrays:
+          - functional_requirements
+          - non_functional_requirements
+        field: id
+  - check: ref-covers
+    params:
+      from:
+        array: components
+        field: satisfies
       to:
         file: requirements.yaml
         arrays:
@@ -18,5 +36,5 @@ checks:
         field: id
   - check: duplicate-refs
     params:
-      array: traceability
-      list_field: component_ids
+      array: components
+      list_field: satisfies

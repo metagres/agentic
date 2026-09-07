@@ -1,6 +1,6 @@
 version: 1
 checks:
-  - "Is every FR and NFR from requirements.yaml covered by at least one traceability entry and design element?"
+  - "Is every FR and NFR from requirements.yaml covered by at least one component's satisfies entry and design element?"
   - "Are component responsibilities clear, non-overlapping, and testable?"
   - "Are data models consistent with the requirements and APIs?"
   - "Does the design address the failure paths identified in requirements?"

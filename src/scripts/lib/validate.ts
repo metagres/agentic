@@ -284,7 +284,8 @@ function stageOwningArtifact(cwd: string, file: string): StageRecord | null {
  * every [].-bearing parameter string must sit inside a path-bearing parameter
  * slot of its check and must resolve through the governing stage schema —
  * the stage's own schema.yaml, or the schema of the stage owning a ref-exists
- * to.file target; a file no stage owns falls back to grammar checks only.
+ * or ref-covers to.file target; a file no stage owns falls back to grammar
+ * checks only.
  * Violations abort with a thrown Error naming the stage folder and the
  * declaration, mirroring the unknown-check abort. No new errors.yaml codes.
  */
@@ -338,10 +339,10 @@ export function validateCheckDeclarations(
         );
       }
 
-      // ref-exists to.file targets validate against the owning stage's schema;
-      // a file no stage owns falls back to grammar checks only.
+      // ref-exists and ref-covers to.file targets validate against the owning
+      // stage's schema; a file no stage owns falls back to grammar checks only.
       let schema = ownSchema;
-      if (name === 'ref-exists') {
+      if (name === 'ref-exists' || name === 'ref-covers') {
         const to = (params.to && typeof params.to === 'object' ? params.to : {}) as {
           file?: unknown;
         };

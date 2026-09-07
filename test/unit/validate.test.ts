@@ -92,7 +92,7 @@ test('design ref-exists resolves against requirements.yaml in the change root', 
   );
 
   const design = validDesign();
-  design.traceability.push({ requirement_id: 'FR-099', component_ids: ['CMP-001'] });
+  design.components[0].satisfies.push('FR-099');
 
   const findings = validateArtifact('design', design, root, changeRoot);
   const ref = findings.filter((f) => f.check === 'ref-exists');
@@ -427,6 +427,53 @@ test('a ref-exists to.arrays path resolving through the owning stage schema pass
     ],
   };
   assert.doesNotThrow(() => validateCheckDeclarations(REQUIREMENTS_STAGE, checksDoc, root));
+});
+
+// ---------------------------------------------------------------------------
+// ref-covers declaration validation (coverage check, reverse of ref-exists)
+// ---------------------------------------------------------------------------
+
+const DESIGN_STAGE = getStageById(root, 'design') as NonNullable<
+  ReturnType<typeof getStageById>
+>;
+
+test('the current design declarations pass declaration path validation', () => {
+  const checksDoc = readYaml(
+    path.join(root, 'src', 'stages', 'design', 'structural-checks.yaml')
+  ) as StructuralChecksDoc;
+  assert.doesNotThrow(() => validateCheckDeclarations(DESIGN_STAGE, checksDoc, root));
+});
+
+test('a ref-covers to.file owned by a stage validates to.arrays against the owning schema', () => {
+  // requirements.yaml is owned by the requirements stage: a [].-bearing
+  // selector naming an undeclared property aborts against that schema, exactly
+  // as it does for ref-exists.
+  const checksDoc: StructuralChecksDoc = {
+    version: 1,
+    checks: [
+      {
+        check: 'ref-covers',
+        params: {
+          from: { array: 'components', field: 'satisfies' },
+          to: {
+            file: 'requirements.yaml',
+            arrays: ['missing_property[].whatever'],
+            field: 'id',
+          },
+        },
+      },
+    ],
+  };
+  assert.throws(
+    () => validateCheckDeclarations(DESIGN_STAGE, checksDoc, root),
+    (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      return (
+        message.includes("check 'ref-covers'") &&
+        message.includes("property 'missing_property' is not declared")
+      );
+    }
+  );
 });
 
 // ---------------------------------------------------------------------------
