@@ -8,13 +8,14 @@ import { safeReadYaml, loadReviewReport } from '../context.ts';
 import { loadDocsIndex, headingExists } from '../docs-index.ts';
 import { today, slugify, uniqueSlug, nextIdsFromArrays, validateChangeSlug } from '../ids.ts';
 import { bumpVersion } from '../semver.ts';
-import { titleFromRequest, baseVersion, normalizeDeltaEntries } from '../stage-helpers.ts';
+import { titleFromRequest, normalizeDeltaEntries } from '../stage-helpers.ts';
 import { loadStepDefinitions, evaluatePredicate } from '../steps-loader.ts';
 import { detectStep, isReadyForReview, getData } from '../authoring-base.ts';
 import type { AuthorEnv } from '../authoring-base.ts';
 import { loadStageHooks, stagePreconditionWarnings } from '../stage-registry.ts';
 import { validateArtifact } from '../validate.ts';
 import { evaluateGate } from '../requires-graph.ts';
+import type { GateResult } from '../requires-graph.ts';
 import { makeError } from '../error-catalog.ts';
 import type { StageRecord } from '../stage-registry.ts';
 import type { ParseArgsResult, WarningItem, Finding } from '../types.ts';
@@ -68,8 +69,7 @@ function deepClone<T>(value: T): T {
 
 /**
  * Instantiates an artifact from the stage's template.yaml with variable
- * substitution (FLW-002): title, dates, request summary, and predecessor
- * version tokens (based_on_requirements / based_on_design).
+ * substitution (FLW-002): title, dates, and request summary.
  */
 function instantiateArtifact(
   stage: StageRecord,
@@ -88,12 +88,6 @@ function instantiateArtifact(
 
   if ('request_summary' in metadata) {
     metadata.request_summary = String(request || '').trim();
-  }
-  if ('based_on_requirements' in metadata) {
-    metadata.based_on_requirements = baseVersion(changeRoot, 'requirements.yaml');
-  }
-  if ('based_on_design' in metadata) {
-    metadata.based_on_design = baseVersion(changeRoot, 'design.yaml');
   }
   if (metadata.created === 'YYYY-MM-DD') metadata.created = today();
   if (metadata.updated === 'YYYY-MM-DD') metadata.updated = today();
@@ -129,6 +123,52 @@ export class ChangeSlugError extends Error {
     this.candidates = details.candidates || [];
     this.available = details.available || [];
     this.searched = details.searched || '';
+  }
+}
+
+/**
+ * Creation gate failure (DEC-002): a non-root authoring stage attempted to
+ * create its artifact while the acceptance gate was unsatisfied. Carries the
+ * GateResult so the blocked envelope can name every unsatisfied requirement
+ * with its current and required status.
+ */
+export class CreationBlockedError extends Error {
+  gate: GateResult;
+
+  constructor(gate: GateResult) {
+    super(
+      'This stage cannot create its artifact until every required stage is accepted:\n - ' +
+        gate.unsatisfied
+          .map((u) => `${u.stage} (${u.artifact} status '${u.status}', required ${u.required})`)
+          .join('\n - ')
+    );
+    this.name = 'CreationBlockedError';
+    this.gate = gate;
+  }
+}
+
+/**
+ * Creation gate (DEC-002): guards first creation of a stage artifact. Fully
+ * data-driven from the stage descriptor (FR-003) — no stage id or artifact
+ * filename literal participates in the decision. No-ops for root stages
+ * (empty requires list) and when the artifact file already exists, because
+ * the gate guards first creation only; otherwise evaluates the acceptance
+ * gate through evaluateGate unchanged and throws CreationBlockedError when
+ * unsatisfied.
+ */
+function assertCreationAllowed(stage: StageRecord, changeRoot: string, cwd: string): void {
+  if (!stage.requires || stage.requires.length === 0) return;
+
+  const artifactPath = path.join(changeRoot, stage.artifact);
+  if (fs.existsSync(artifactPath)) return;
+
+  // The gate resolves the requires graph against the registry the stage
+  // record itself came from (DEC-003): identical to the default resolution in
+  // production, and self-consistent when a stage record is loaded from an
+  // injected stages directory.
+  const gate = evaluateGate(stage, changeRoot, cwd, path.dirname(stage.folder));
+  if (!gate.satisfied) {
+    throw new CreationBlockedError(gate);
   }
 }
 
@@ -176,6 +216,12 @@ export function createChangeDir(
   }
 
   const root = path.join(changesDir, slug);
+
+  // Creation gate (DEC-002): evaluated after the root path is computed and
+  // before any mkdir/artifact write, covering both the plain --request path
+  // and the --change+--request explicit-slug path.
+  assertCreationAllowed(stage, root, cwd);
+
   fs.mkdirSync(root, { recursive: true });
 
   const artifact = instantiateArtifact(stage, request, root);
@@ -195,6 +241,11 @@ function ensureArtifact(env: AuthorEnv): void {
   }
 
   if (!env.artifact) {
+    // Creation gate (DEC-002): covers --update-artifact, --append-delta,
+    // --record-answer(s), --set-clarity, --complete-step, and --finalize on a
+    // missing artifact.
+    assertCreationAllowed(env.stage, env.changeRoot, env.cwd);
+
     env.artifact = instantiateArtifact(
       env.stage,
       (env.args.request as string) || path.basename(env.changeRoot),
@@ -727,6 +778,10 @@ export async function runAuthoringStage(
       : null;
 
     if (changeRoot && !artifact) {
+      // Creation gate (DEC-002): lazy instantiation into an existing change
+      // directory is a first creation and is gated like every other path.
+      assertCreationAllowed(stage, changeRoot, cwd);
+
       artifact = instantiateArtifact(
         stage,
         (args.request as string) || path.basename(changeRoot),
@@ -973,7 +1028,7 @@ export async function runAuthoringStage(
 
     Object.assign(data, getData(stepEnv));
 
-    // Expose artifact metadata (e.g. based_on_design) in the envelope.
+    // Expose artifact metadata in the envelope.
     data.metadata = (env.artifact?.metadata as Record<string, unknown>) || {};
 
     const state =
@@ -1018,6 +1073,28 @@ export async function runAuthoringStage(
       EXIT.ok
     );
   } catch (err: unknown) {
+    // Creation gate (DEC-002): a blocked first creation emits the same
+    // envelope shape as the finalize-time gate — step blocked, state blocked,
+    // STAGE_GATE_BLOCKED, data.unsatisfied_requirements.
+    if (err instanceof CreationBlockedError) {
+      writeJson(
+        {
+          workflow: stage.id,
+          step: 'blocked',
+          state: 'blocked',
+          instructions: err.message,
+          data: {
+            change_root: changeRoot,
+            unsatisfied_requirements: err.gate.unsatisfied,
+          },
+          errors: [makeError('STAGE_GATE_BLOCKED', { message: 'Required stage is not accepted.' })],
+          warnings,
+        },
+        EXIT.actionFailed
+      );
+      return;
+    }
+
     const errMsg = err instanceof Error ? err.message : String(err);
     writeJson(
       {

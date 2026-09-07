@@ -48,7 +48,7 @@ test('requirements --request creates change and enters authoring', () => {
   assert.ok(fs.existsSync(artifactPath));
 });
 
-test('planning enters init when design is missing', () => {
+test('planning creation is blocked while the required predecessor is not accepted', () => {
   const tmp = makeTmpProject();
 
   const req = runCli([
@@ -72,13 +72,18 @@ test('planning enters init when design is missing', () => {
     changeDir,
   ]);
 
-  assert.equal(plan.status, 0, plan.stderr);
+  assert.equal(plan.status, 1, plan.stderr);
 
   const planJson = JSON.parse(plan.stdout);
 
   assert.equal(planJson.workflow, 'planning');
-  assert.equal(planJson.step, 'init');
-  assert.equal(planJson.data.based_on_design, null);
+  assert.equal(planJson.step, 'blocked');
+  assert.equal(planJson.state, 'blocked');
+  assert.equal(planJson.errors[0].code, 'STAGE_GATE_BLOCKED');
+  assert.ok(
+    !fs.existsSync(path.join(reqJson.data.change_root, 'plan.yaml')),
+    'no plan artifact may be created while the gate is unsatisfied'
+  );
 });
 
 test('envelope data reports the revalued semantic_complete across the authoring tour', () => {

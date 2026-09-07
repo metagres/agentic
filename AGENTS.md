@@ -40,6 +40,7 @@ npm run check:all
 9. Validation logic is declarative: stages declare named checks from the capped catalog; stage-specific validation scripts are prohibited.
 10. A stage is runnable only when every required stage's tracked artifact has status `accepted`; a review stage is runnable when its tracked artifact is `ready-for-review` or `accepted`.
 11. Codemap files (`codemap.md` in the project root and per-folder codemaps) are generated documentation: update them only by running the codemap skill — never edit them by hand.
+12. `.opencode/` is the production runtime; `src/` and `bin/` are development source. Stage lifecycle commands (`sdlc <stage>`) must execute through the deployed production CLI at `.opencode/skills/agentic-sdlc/scripts/sdlc.js` — never by invoking `src/` scripts directly. Execute through `.opencode/`; understand the toolkit from `src/`. After any change to stage, agent, schema, or policy sources, refresh the production runtime with the real deploy (see §8) before continuing lifecycle work — envelopes enforce the deployed bundle, so a stale `.opencode/` silently enforces stale contracts.
 
 ---
 
@@ -190,6 +191,9 @@ validation logic.
 
 Do not memorize file paths or internal APIs. Discover them:
 
+(These paths are for understanding and developing the toolkit — see invariant 12 for the
+execution rule: lifecycle stages run through the deployed CLI in `.opencode/`, not here.)
+
 | Need | Where to look |
 |---|---|
 | Stage descriptors & topology (requires/reviews) | `src/stages/<stage-id>/stage.yaml` |
@@ -239,7 +243,10 @@ npm run validate          # fast gate: schemas + policies + templates + typechec
 npm run check:all         # full coverage: validate + unit + e2e tests + deploy smoke
 npm run test:unit         # unit tests only
 npm run test:e2e          # end-to-end tests only
-npm run deploy:smoke      # bundled deploy + CLI smoke test
+npm run deploy            # real deploy: requires --dest (e.g. npm run deploy -- --dest .opencode --clean);
+                          # writes the production runtime and smoke-tests the deployed CLI at the target
+npm run deploy:smoke      # testing deploy ONLY: builds to the throwaway .tmp/agent and smoke-tests it;
+                          # never touches .opencode/ — it must not be used to refresh the production runtime
 ```
 
 The `validate:schemas`, `validate:policies`, and `validate:templates` script entry points are
@@ -279,7 +286,7 @@ If a new check type, error code, or ID prefix is added, update the corresponding
 | `src/agents/` | Neutral agent definitions — one `<agent-id>.yaml` per agent (six shipped), discovered by directory scan, validated by `src/schemas/agent.schema.yaml`, and referenced optionally from `stage.yaml`. Details are in `codemap.md`. |
 | `src/skills/agent-audit/` | Development-only agent audit skill — refreshes the model catalog enum from the live opencode endpoint, reassigns agent models with web-grounded justification (never touching an existing `model_override`), realigns parameters and permissions with stage purpose, and dedupes/adds/removes agents with `stage.yaml` rebinding. Invoked manually by the maintainer; never deployed. Details are in `src/skills/agent-audit/SKILL.md`. |
 | `src/skills/improvement-review/` | Development-only improvement-review skill — re-runs the six-step SDLC improvement review against live dogfooding evidence: instruments sessions, measures artifacts/envelopes/fast-gate duration with four bundled deterministic TypeScript helper scripts under `scripts/` (the first dev-only skill to bundle scripts), mines caller-supplied transcripts, classifies gates, inventories unused surface, and writes `docs/ideas/` proposals with a governance test. A pure advisor: it reads the goals canon (`docs/current/capabilities.md`, `## SDLC Goals`) and the baselines (`docs/current/operations.md`, `## Baselines`) read-only and writes only `docs/ideas/` proposals. Invoked manually by the maintainer; never deployed. Details are in `src/skills/improvement-review/SKILL.md`. |
-| `.opencode/` | Deployed agent runtime — created by `npm run deploy:smoke` / `bin/deploy-to-agent.ts --dest .opencode`. Gitignored (see `.gitignore`, `.contextignore`). Contains exactly two self-contained skills: `.opencode/skills/agentic-sdlc/` (SKILL.md + bundled `scripts/sdlc.js` + `stages/` + `schemas/`/`policies/`) and `.opencode/skills/knowledge-init/` (SKILL.md + `manifest.json`), plus `.opencode/agents/` (one rendered `<agent-id>.md` per source definition). **This is a build artifact, not source** — never edit it directly, never read it to understand "how the toolkit works," and never confuse it with this repository's own development code under `src/`, `bin/`, `test/`. |
+| `.opencode/` | Deployed agent runtime — the production skill and agent definitions. Created/refreshed only by the real deploy (`npm run deploy -- --dest .opencode --clean`); `deploy:smoke` deploys to `.tmp/agent` and never touches it. Gitignored (see `.gitignore`, `.contextignore`). Contains exactly two self-contained skills: `.opencode/skills/agentic-sdlc/` (SKILL.md + bundled `scripts/sdlc.js` + `stages/` + `schemas/`/`policies/`) and `.opencode/skills/knowledge-init/` (SKILL.md + `manifest.json`), plus `.opencode/agents/` (one rendered `<agent-id>.md` per source definition). **This is a build artifact, not source** — never edit it directly, never read it to understand "how the toolkit works," and never confuse it with this repository's own development code under `src/`, `bin/`, `test/`. Lifecycle stages execute through it (invariant 12); the toolkit's internals are understood from `src/`. |
 
 ---
 

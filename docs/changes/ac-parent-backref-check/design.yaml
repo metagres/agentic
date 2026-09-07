@@ -6,7 +6,6 @@ metadata:
   version: 0.1.2
   created: 2026-09-03
   updated: 2026-09-03
-  based_on_requirements: 0.1.0
   delta_reviewed: true
 context_summary: This change restructures the requirements artifact so each functional and
   non-functional requirement carries its own nested acceptance_criteria array, retiring the

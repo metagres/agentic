@@ -6,7 +6,6 @@ metadata:
   version: 0.1.0
   created: 2026-08-29
   updated: 2026-08-29
-  based_on_requirements: 0.1.0
   delta_reviewed: true
 context_summary: "Two flags in authoring envelopes misrepresent the step machine: a metadata step
   flag frozen at the value written at initialization, and a semantic-complete flag hardcoded to true

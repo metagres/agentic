@@ -26,7 +26,6 @@
         "version",
         "created",
         "updated",
-        "based_on_requirements",
         "delta_reviewed"
       ],
       "properties": {
@@ -62,12 +61,6 @@
         "updated": {
           "type": "string",
           "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
-        },
-        "based_on_requirements": {
-          "type": [
-            "string",
-            "null"
-          ]
         },
         "delta_reviewed": {
           "type": "boolean"

@@ -1,0 +1,49 @@
+metadata:
+  artifact: design.yaml
+  target: design
+  latest_round: 1
+  created: 2026-09-03
+  updated: 2026-09-03
+  latest_decision: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-03T15:48:22.128Z
+    artifact_version: 0.1.0
+    decision: accepted
+    status: closed
+    can_accept: true
+    mechanical:
+      valid: true
+      blocking_count: 0
+      findings: []
+    semantic:
+      results:
+        - check_id: Is every FR and NFR from requirements.yaml covered by at least one traceability entry and
+            design element?
+          status: pass
+          evidence: Traceability covers FR-001..FR-006 and NFR-001, each mapped to components
+            (CMP-001..CMP-006); every component responsibility cites the FR/NFR ids it serves.
+        - check_id: Are component responsibilities clear, non-overlapping, and testable?
+          status: pass
+          evidence: CMP-001/002 stage contracts, CMP-003 engine gate, CMP-004 helper cleanup, CMP-005 tests,
+            CMP-006 migration partition the surface without overlap; each names concrete files and
+            verifiable operations.
+        - check_id: Are data models consistent with the requirements and APIs?
+          status: pass
+          evidence: DM-001 matches FR-001/AC-002 (additionalProperties:false triggers the finding); DM-002
+            matches FR-002 (GateResult reuse, STAGE_GATE_BLOCKED envelope identical to finalize-time
+            at authoring.ts:829-856).
+        - check_id: Does the design address the failure paths identified in requirements?
+          status: pass
+          evidence: "FLOW-001 failure path mirrors requirements failure_paths: out-of-order start returns the
+            blocked envelope naming unsatisfied requirements and writes no artifact file."
+        - check_id: Do design decisions include enough context and rationale to be reviewed?
+          status: pass
+          evidence: DEC-001..DEC-004 each carry context citing discovery answers (DL-001, DL-003) and
+            rationale, including the supersession of the DEC-010 provenance-only rationale and the
+            rejection of a based_on descriptor field.
+        - check_id: Do delta entries plausibly describe the living docs affected by the design?
+          status: pass
+          evidence: Three entries target existing docs/current/ files (architecture.md, api-contract.md,
+            decisions.md) matching the engine, envelope, and decision surfaces the design touches.
+    warnings: []

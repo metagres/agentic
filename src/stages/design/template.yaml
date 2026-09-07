@@ -7,7 +7,6 @@ metadata:
   version: 0.1.0
   created: YYYY-MM-DD
   updated: YYYY-MM-DD
-  based_on_requirements: null
   delta_reviewed: false
 
 context_summary: ""

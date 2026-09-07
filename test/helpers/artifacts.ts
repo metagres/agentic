@@ -106,7 +106,6 @@ export function validRequirements({
 
 export function validDesign({
   title = 'Device registration design',
-  reqVersion = '0.1.0',
   delta,
 } = {}) {
   return {
@@ -118,7 +117,6 @@ export function validDesign({
       version: '0.1.0',
       created: today(),
       updated: today(),
-      based_on_requirements: reqVersion,
       delta_reviewed: true,
     },
     context_summary:
@@ -149,8 +147,6 @@ export function validDesign({
 
 export function validPlan({
   title = 'Device registration plan',
-  reqVersion = '0.1.0',
-  designVersion = '0.1.0',
   delta,
 } = {}) {
   return {
@@ -162,8 +158,6 @@ export function validPlan({
       version: '0.1.0',
       created: today(),
       updated: today(),
-      based_on_design: designVersion,
-      based_on_requirements: reqVersion,
       implementation_status: 'pending',
       delta_reviewed: true,
     },

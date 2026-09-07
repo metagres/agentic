@@ -14,12 +14,9 @@ steps:
     markdown: |
       The script created the initial design artifact.
 
-      Ensure requirements.yaml exists and has a version.
+      The required predecessor stages must be accepted before authoring begins.
     commands:
       - "{{SDLC}} design --change {{change_name}}"
-    complete_when:
-      field: metadata.based_on_requirements
-      non_empty: true
 
   authoring:
     title: Authoring

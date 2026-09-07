@@ -6,7 +6,6 @@ metadata:
   version: 0.1.0
   created: 2026-08-25
   updated: 2026-08-25
-  based_on_requirements: 0.1.0
   delta_reviewed: false
 context_summary: "The engine discovers stages as folders and deploys two self-contained skills, but
   defines no agents: stage execution inherits whatever coding agent drives the CLI, and deployment

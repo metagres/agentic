@@ -6,7 +6,6 @@ metadata:
   version: 0.1.1
   created: 2026-08-27
   updated: 2026-08-27
-  based_on_requirements: 0.1.2
   delta_reviewed: false
 context_summary: "This design dissolves docs/ideas/sdlc-improvement-review-playbook.md by rehoming
   its canon into the governed living docs and shrinking the improvement-review skill to a pure

@@ -7,15 +7,6 @@ interface HookEnv {
 }
 
 export default {
-  getExtraData(env: HookEnv) {
-    const artifact = (env.artifact || {}) as Record<string, unknown>;
-    const metadata = (artifact.metadata || {}) as Record<string, unknown>;
-    return {
-      based_on_design: (metadata.based_on_design as string) || null,
-      based_on_requirements: (metadata.based_on_requirements as string) || null,
-    };
-  },
-
   preconditionWarnings(env: HookEnv) {
     const warnings: { code: string; message: string }[] = [];
     if (!env.changeRoot) return warnings;

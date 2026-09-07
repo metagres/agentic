@@ -6,7 +6,6 @@ metadata:
   version: 0.1.0
   created: 2026-08-24
   updated: 2026-08-24
-  based_on_requirements: 0.1.0
   delta_reviewed: true
 context_summary: The requirements stage currently exits discovery on question counts alone, silently
   falls back to hardcoded thresholds when requirements-policy.yaml is missing or unreadable, and

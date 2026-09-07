@@ -6,7 +6,6 @@ metadata:
   version: 0.1.0
   created: 2026-08-25
   updated: 2026-08-25
-  based_on_requirements: 0.1.0
   delta_reviewed: false
 context_summary: "The agent layer shipped in the previous change renders every definition as
   delegation-only (subagent) and knows six neutral permission keys. This design extends both axes

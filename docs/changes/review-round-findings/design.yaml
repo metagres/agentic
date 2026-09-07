@@ -7,7 +7,6 @@ metadata:
   version: 0.1.0
   created: 2026-09-02
   updated: 2026-09-02
-  based_on_requirements: 0.1.0
   delta_reviewed: false
 context_summary: "The review interpreter records a round on every non-dry-run invocation, but the
   round carries only a mechanical snapshot and a decision token, so reviewer rationale lives in

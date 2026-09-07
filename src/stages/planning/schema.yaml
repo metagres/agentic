@@ -21,9 +21,7 @@
         "status",
         "version",
         "created",
-        "updated",
-        "based_on_design",
-        "based_on_requirements"
+        "updated"
       ],
       "properties": {
         "id": {
@@ -58,18 +56,6 @@
         "updated": {
           "type": "string",
           "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
-        },
-        "based_on_design": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "based_on_requirements": {
-          "type": [
-            "string",
-            "null"
-          ]
         },
         "implementation_status": {
           "type": "string",

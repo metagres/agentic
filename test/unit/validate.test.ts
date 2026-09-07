@@ -52,24 +52,6 @@ test('a lint violation produces a named-check finding after schema findings (AC-
   );
 });
 
-test('no cross-artifact version equality findings (AC-015, DEC-010)', () => {
-  const changeRoot = makeChangeRoot();
-  fs.writeFileSync(
-    path.join(changeRoot, 'requirements.yaml'),
-    'metadata:\n  version: 9.9.9\nfunctional_requirements: []\nnon_functional_requirements: []\nacceptance_criteria: []\n',
-    'utf8'
-  );
-
-  // based_on_requirements deliberately mismatches requirements.yaml's version;
-  // the metadata field is provenance only and must not produce a finding.
-  const design = validDesign({ reqVersion: '0.0.1' });
-  const findings = validateArtifact('design', design, root, changeRoot);
-  assert.ok(
-    !findings.some((f) => /based_on_requirements/.test(f.finding)),
-    JSON.stringify(findings)
-  );
-});
-
 test('design ref-exists resolves against requirements.yaml in the change root', () => {
   const changeRoot = makeChangeRoot();
   fs.writeFileSync(

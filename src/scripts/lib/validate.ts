@@ -56,7 +56,8 @@ function schemaFindings(schemaPath: string, data: unknown): Finding[] {
  * authoring --finalize, the review stages, and bin/lint-artifact.ts so internal
  * finalization and external review produce identical findings for the same
  * artifact content. Cross-artifact version equality checks are removed; the
- * based_on_* metadata fields remain as provenance only (DEC-010).
+ * based_on_* metadata fields no longer exist anywhere, superseding the
+ * DEC-010 provenance-only rationale (DEC-001).
  *
  * Before the named checks run, the check declarations themselves are validated
  * (CMP-003, DEC-003): every [].-bearing parameter string must sit inside a
