@@ -3,12 +3,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   loadAgentRegistry,
   getAgentById,
 } from '../../src/scripts/lib/agent-registry.ts';
-import { OUTPUT_DISCIPLINE_FRAGMENT } from '../../src/scripts/lib/agent-output-discipline.ts';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, '../..');
 
 function makeAgentsFixture(agents: Record<string, string>): string {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-agents-'));
@@ -260,7 +263,7 @@ test('getAgentById resolves a known id and returns null for unknown ids', () => 
   assert.equal(getAgentById(tmp, 'does-not-exist', agentsDir), null);
 });
 
-test('every loaded record exposes effectivePrompt as systemPrompt plus blank line plus fragment (AC-004)', () => {
+test('every loaded record exposes systemPrompt as the full deploy-time prompt (passthrough, no composition)', () => {
   const tmp = makeAgentsFixture({
     'code-reviewer.yaml': validAgent('code-reviewer', 'Reviews code changes'),
     'task-planner.yaml': validAgent('task-planner', 'Plans implementation tasks'),
@@ -270,47 +273,41 @@ test('every loaded record exposes effectivePrompt as systemPrompt plus blank lin
   assert.ok(registry.length > 0);
   for (const agent of registry) {
     assert.equal(
-      agent.effectivePrompt,
-      `${agent.systemPrompt}\n\n${OUTPUT_DISCIPLINE_FRAGMENT}`,
-      `effectivePrompt composition for '${agent.id}'`
+      agent.systemPrompt,
+      'You are a neutral agent.',
+      `systemPrompt passthrough for '${agent.id}'`
+    );
+    assert.ok(
+      !agent.systemPrompt.includes('Output discipline for every reply'),
+      `no deploy-time composition for '${agent.id}'`
     );
   }
 });
 
-test('the source systemPrompt stays byte-identical while effectivePrompt is additive (AC-004)', () => {
-  const rolePrompt = [
-    'You are an interviewer who questions stakeholders.',
-    'Probe every vague requirement until it is testable.',
-  ].join('\n');
-  const tmp = makeAgentsFixture({
-    'requirements-analyst.yaml': [
-      'version: 1',
-      'id: requirements-analyst',
-      'description: Elicits requirements through questioning.',
-      'model: opencode-go/grok-4.5',
-      'temperature: 0.2',
-      'permissions:',
-      '  file_read: allow',
-      '  search: allow',
-      '  file_write: deny',
-      '  shell: deny',
-      '  subagent: deny',
-      '  web: deny',
-      '  question: allow',
-      'system_prompt: |-',
-      ...rolePrompt.split('\n').map((line) => `  ${line}`),
-      '',
-    ].join('\n'),
-  });
+test('the shipped YAML system_prompt ends with the output-discipline fragment first line', () => {
+  const roster = loadAgentRegistry(repoRoot);
+  assert.equal(roster.length, 6, 'the six-agent roster loads');
 
-  const agent = getAgentById(tmp, 'requirements-analyst', path.join(tmp, 'agents'));
-  assert.ok(agent);
-
-  // The role voice is unchanged; the fragment appears additively after it.
-  assert.equal(agent.systemPrompt, rolePrompt);
-  assert.equal(
-    agent.effectivePrompt,
-    `${rolePrompt}\n\n${OUTPUT_DISCIPLINE_FRAGMENT}`
-  );
-  assert.ok(agent.effectivePrompt.startsWith(`${rolePrompt}\n\n`));
+  for (const agent of roster) {
+    assert.ok(
+      agent.systemPrompt.includes(
+        'Output discipline for every reply and every reasoning step'
+      ),
+      `'${agent.id}' system_prompt carries the fragment first line`
+    );
+    assert.ok(
+      agent.systemPrompt.endsWith(
+        [
+          'Output discipline for every reply and every reasoning step - plain English sentences, no token cap:',
+          '- No preamble, acknowledgments, or self-introduction; start with the substance.',
+          "- Never restate the user's request or the step instructions you were given.",
+          '- Never recap CLI envelope or tool output the user can already see.',
+          '- A finished step is reported in one line: what is done and the artifact path.',
+          '- When blocked, state what is blocked, why, and what unblocks it.',
+          'When reasoning: do not restate the request or instructions; no audience-addressed filler; reason in fragments of facts, options, and decisions.',
+        ].join('\n')
+      ),
+      `'${agent.id}' system_prompt ends with the fragment`
+    );
+  }
 });

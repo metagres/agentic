@@ -26,9 +26,7 @@ graph TD
   BIN[developer bins: bin/] --> ENGINE
   BIN --> DEPLOY[bin/deploy-to-agent.ts]
   SKILLSRC[skill sources: src/skills/] --> DEPLOY
-  DEPLOY -->|rendered agents carry composed effective prompts| AGREG[agent registry: src/scripts/lib/agent-registry.ts]
-  AGREG --> FRAG[output-discipline fragment single source: src/scripts/lib/agent-output-discipline.ts]
-  BIN -->|AGENT_FRAGMENT_COPY unauthorized-copy gate on agent descriptors| FRAG
+  DEPLOY -->|rendered agents carry the system prompt verbatim| AGREG[agent registry: src/scripts/lib/agent-registry.ts]
   DEPLOY -->|two self-contained skills| RUNTIME[.opencode/skills/ build artifact]
 ```
 
@@ -58,7 +56,7 @@ graph TD
 | Agent ↔ CLI | AI agent | sdlc CLI | argv in; frozen 7-field JSON envelope out | src/schemas/cli-envelope.schema.yaml, src/scripts/sdlc.ts |
 | Deploy → runtime | bin/deploy-to-agent.ts | .opencode/skills/ | file copy + manifest.json per skill | bin/deploy-to-agent.ts |
 | Deploy → agents | bin/deploy-to-agent.ts | <dest>/agents/<agent-id>.md | renderer per platform/version; skills stay platform-uniform | bin/deploy-to-agent.ts, src/scripts/lib/deploy/platforms/ |
-| Deploy → agent prompts | loadAgentRegistry (composition) | rendered agent file body | composed once at load: system_prompt verbatim + blank line + the shared output-discipline fragment, defined once in src/scripts/lib/agent-output-discipline.ts; renderers emit it verbatim with no per-agent registration | src/scripts/lib/agent-output-discipline.ts, src/scripts/lib/agent-registry.ts, src/scripts/lib/deploy/platforms/opencode.ts |
+| Deploy → agent prompts | loadAgentRegistry | rendered agent file body | no composition — renderers emit the agent's system_prompt verbatim from the YAML, with the output-discipline text carried inline per agent | src/scripts/lib/agent-registry.ts, src/scripts/lib/deploy/platforms/opencode.ts |
 | Skill source → deploy | bin/deploy-to-agent.ts | src/skills/knowledge-init/SKILL.md | file copy (fail names missing source) | bin/deploy-to-agent.ts |
 | CLI → stage config | kind interpreters | src/stages/<id>/*.yaml | YAML load at startup | src/scripts/lib/stage-registry.ts |
 | Validation layers | validateArtifact | ajv (schema) → named checks → semantic checklist → review gate | function call, single orchestrator | src/scripts/lib/validate.ts |

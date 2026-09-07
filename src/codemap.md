@@ -43,7 +43,9 @@ skill.
     (`^[a-z0-9-]+$`), `description`, `model` (enum — the current model
     catalog), `temperature` (0–1), `permissions` (the seven neutral keys
     `file_read`, `search`, `file_write`, `shell`, `subagent`, `web`,
-    `question`, each `allow`/`ask`/`deny`), `system_prompt`; optional
+    `question`, each `allow`/`ask`/`deny`), `system_prompt` (role voice plus
+    the agent's own inline output-discipline instructions — no shared
+    deploy-time composition); optional
     `model_override` (non-empty free-form string, deliberately not
     enum-checked — DEC-003) and `mode` (subagent/primary/all);
     `additionalProperties: false`. Enforced at startup by
@@ -75,8 +77,10 @@ skill.
   - `scripts/lib/agent-registry.ts` — `loadAgentRegistry` (discovers
     `src/agents/*.yaml`, compiles each descriptor against
     `agent.schema.yaml`, surfaces `effectiveModel = model_override ?? model`
-    plus `modelOverride` separately for deploy), `getAgentById`,
-    `getAgentModelFields`.
+    plus `modelOverride` separately for deploy, and carries `systemPrompt`
+    verbatim as the full deploy-time prompt — output-discipline text is
+    inline per agent, with no fragment module or prompt composition),
+    `getAgentById`, `getAgentModelFields`.
   - `scripts/lib/agent-permissions.ts` — kind permission contracts
     (one neutral profile per `StageKind` with `allow` floors and `deny`
     ceilings), `computeEffectivePermissions` (folds descriptor
@@ -113,23 +117,23 @@ skill.
     `.opencode/` (build artifact, gitignored).
 - **Single central policy**: `policies/errors.yaml` is the only central
   policy (everything else moved into per-stage folders, DEC-011). A flat
-  `errors` map of code → `{message, fix}` (now ~55 codes: change-dir
+  `errors` map of code → `{message, fix}` (now ~59 codes: change-dir
   `MISSING_CHANGE_DIR`/`AMBIGUOUS_CHANGE_DIR`/`CHANGE_DIR_NOT_FOUND`,
   artifact `ARTIFACT_NOT_FOUND`/`ARTIFACT_PARSE_FAILED`/`ARTIFACT_INITIALIZED`,
-  review `CANNOT_ACCEPT`/`REVIEW_NOT_PASSING`/`CONFLICTING_DECISION`,
+  review `REVIEW_NOT_PASSING`/`CONFLICTING_DECISION`,
   lifecycle `ILLEGAL_STATUS_TRANSITION`/`STAGE_GATE_BLOCKED`,
    task-machine `PLAN_NOT_FOUND`/`TASK_NOT_FOUND`/`INVALID_TASK_STATUS`/
    `MISSING_TASK_UPDATE_FIELDS`/`TASK_DONE_REQUIRES_NOTE`, knowledge-extraction
-  `IMPLEMENTATION_NOT_ACCEPTED`/`DOCS_INDEX_MISSING`/`DOCS_INDEX_EXISTS`/
+  `IMPLEMENTATION_NOT_ACCEPTED`/`DOCS_INDEX_MISSING`/
   `MISSING_EXTRACTION_NOTE`/`MISSING_MARK_TARGET`/`ENTRY_ID_NOT_FOUND`/
   `TARGET_DOC_NOT_FOUND`, stage discovery `STAGE_MISSING_DESCRIPTOR`/
   `STAGE_INVALID_DESCRIPTOR`/`STAGE_UNKNOWN_KIND`/`STAGE_ID_MISMATCH`/
   `STAGE_CYCLE`/`STAGE_MISSING_REFERENCE`, checks `CHECK_UNKNOWN`/
-  `CHECK_INVALID_PARAMS`, agent `AGENT_PROMPT_MARKER`/
+  `CHECK_INVALID_PARAMS`, agent `AGENT_SCHEMA_INVALID`/`AGENT_PROMPT_MARKER`/
   `AGENT_REF_UNRESOLVED`/`AGENT_PERMISSION_INCOMPATIBLE`/
   `AGENT_MODEL_OVERRIDE_EMPTY`/`AGENT_MODEL_OUTSIDE_CATALOG`, runtime
   `NODE_VERSION_UNSUPPORTED`/`MANIFEST_INVALID`/`SCHEMAS_MISSING`/
-  `POLICIES_MISSING`/`TEMPLATES_MISSING`, misc `USAGE`/`UNKNOWN_COMMAND`/
+  `POLICIES_MISSING`, misc `USAGE`/`UNKNOWN_COMMAND`/
   `UNKNOWN_STAGE`/`UNKNOWN_STEP`/`INTERNAL_ERROR`). Loaded through
   `loadErrorCatalog` (`scripts/lib/policy-loader.ts:21`, per-path cache) and
   rendered by `makeError(code, details)` (`scripts/lib/error-catalog.ts:3`),

@@ -66,7 +66,7 @@ this for the shared `plan.yaml` (`schema_from: planning`).
   naming each unsatisfied requirement and its current status. A requires cycle
   or missing reference is a hard startup error.
 - **Step machine from steps.yaml**: `steps.yaml` defines the per-stage steps
-  with `title`, `next_action`, `markdown` (LLM instructions, templated with
+  with `title`, `markdown` (LLM instructions, templated with
   `{{SDLC}}`, `{{change_name}}`, `{{stage}}`), `commands`, and declarative
   `complete_when` predicates (DM-003). Every authoring stage declares the
   same canonical six-step tour (needs_input, init, authoring, ready,
@@ -100,12 +100,10 @@ this for the shared `plan.yaml` (`schema_from: planning`).
     purely from artifact state, with discovery/assumptions guidance folded
     into the `authoring` step.
   - `design/hooks.ts` — advisory `preconditionWarnings` (`PREVIOUS_STAGE_NOT_READY`
-    when requirements.yaml is not ready-for-review/accepted) and
-    `getExtraData` (`based_on_requirements`).
+    when requirements.yaml is not ready-for-review/accepted).
   - `planning/hooks.ts` — advisory `preconditionWarnings`
     (`PREVIOUS_STAGE_NOT_READY` for design.yaml, `REQUIREMENTS_NOT_READY` for
-    requirements.yaml) and `getExtraData` (`based_on_design`,
-    `based_on_requirements`).
+    requirements.yaml).
 - **Semantic advisory checklists**: each validating stage's
   `semantic-checks.yaml` lists natural-language review questions (e.g.
   requirements: observable AC results, negative paths, assumption evidence,

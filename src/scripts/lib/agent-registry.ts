@@ -4,7 +4,6 @@ import path from 'node:path';
 import { resolveAgentsDir } from './paths.ts';
 import { readYaml } from './yaml-io.ts';
 import { validateWithSchema } from './schema.ts';
-import { composeEffectivePrompt } from './agent-output-discipline.ts';
 
 /**
  * Runtime registry entry (DEC-001): the parsed agent descriptor. The source is
@@ -24,10 +23,6 @@ export interface AgentRecord {
   mode: string;
   permissions: Record<string, string>;
   systemPrompt: string;
-  /** Composed deploy-time prompt (DM-002): systemPrompt verbatim, a blank
-   *  line, then the output-discipline fragment. Composed once at load; the
-   *  source YAML system_prompt is never mutated (DEC-001). */
-  effectivePrompt: string;
 }
 
 function loadAgentFile(file: string, cwd: string): AgentRecord {
@@ -81,7 +76,6 @@ function loadAgentFile(file: string, cwd: string): AgentRecord {
     mode: typeof descriptor.mode === 'string' ? descriptor.mode : 'all',
     permissions: (descriptor.permissions as Record<string, string>) || {},
     systemPrompt,
-    effectivePrompt: composeEffectivePrompt(systemPrompt),
   };
 }
 

@@ -144,8 +144,7 @@ detected from the stage's `steps.yaml`, primary-path `instructions` are the rend
 markdown plus a computed state annex, and `--help-step` opt-in renders `data.step_help`
 (title, markdown, commands) through the shared renderer (`src/scripts/lib/step-render.ts`).
 Failure paths keep computed instructions — runtime state, not definitions. `validate-policies`
-enforces the per-kind required step ids and non-empty markdown, and the unused `next_action`
-field has been removed from the step vocabulary.
+enforces the per-kind required step ids and non-empty markdown.
 
 ### The requires DAG and the acceptance gate (DEC-007, DEC-008)
 

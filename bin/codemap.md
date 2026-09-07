@@ -63,7 +63,7 @@ self-contained skill bundles plus per-platform rendered agent files.
    `readYaml`, builds a context with `makeCtx(cwd, changeRoot)`, runs
    `validateArtifact(stageId, artifact, cwd, changeRoot)`, prints blocking findings, and
    exits 1 on any finding unless `--no-fail`.
-5. `deploy-to-agent.ts` — `main()` (`:247`) resolves `--dest` (or first positional),
+5. `deploy-to-agent.ts` — `main()` (`:248`) resolves `--dest` (or first positional),
    optional `--platform`/`--platform-version` (renderer via `getRenderer`, default
    `opencode`/latest), `--clean` (removes both skill dirs, the legacy `sdlc/` runtime
    dir, `LEGACY_SKILL_IDS`, and stale rendered agent files whose source definitions no

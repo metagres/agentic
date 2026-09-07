@@ -10,11 +10,6 @@ import {
   listPlatforms,
 } from '../../src/scripts/lib/deploy/platforms/index.ts';
 import { parseYamlString } from '../../src/scripts/lib/yaml-io.ts';
-import {
-  OUTPUT_DISCIPLINE_FRAGMENT,
-  OUTPUT_DISCIPLINE_MARKER,
-  composeEffectivePrompt,
-} from '../../src/scripts/lib/agent-output-discipline.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -51,7 +46,6 @@ function makeAgent(overrides: Partial<AgentRecord> = {}): AgentRecord {
       question: 'allow',
     },
     systemPrompt: SYSTEM_PROMPT,
-    effectivePrompt: composeEffectivePrompt(SYSTEM_PROMPT),
     ...overrides,
   };
 }
@@ -238,25 +232,20 @@ test('mode is carried through verbatim (all and subagent)', () => {
 
 // --- body -------------------------------------------------------------------
 
-test('the composed effective prompt is the body: role prompt verbatim, blank line, fragment', () => {
+test('the agent system prompt is the body verbatim', () => {
   const agent = makeAgent();
   for (const version of [1, 2]) {
     const rendered = getRenderer('opencode', version).renderAgent(agent);
     const { body } = parseRendered(rendered.content);
-    // The file terminates with a trailing newline; the composed prompt is
-    // byte-for-byte the body content (DM-002).
-    assert.equal(body, `${agent.effectivePrompt}\n`);
-    assert.equal(
-      body,
-      `${SYSTEM_PROMPT}\n\n${OUTPUT_DISCIPLINE_FRAGMENT}\n`,
-      `v${version} role prompt preserved additively before the fragment`
-    );
+    // The file terminates with a trailing newline; the system prompt is
+    // byte-for-byte the body content.
+    assert.equal(body, `${agent.systemPrompt}\n`);
   }
 });
 
-// --- roster fragment emission (AC-001, AC-002, AC-005, NFR-002) --------------
+// --- roster body emission ----------------------------------------------------
 
-test('every roster agent renders the fragment marker into its body across both renderer versions', () => {
+test('every roster agent renders its system prompt as the body across both renderer versions', () => {
   const roster = loadAgentRegistry(repoRoot);
   assert.equal(roster.length, 6, 'the six-agent roster loads');
 
@@ -265,20 +254,13 @@ test('every roster agent renders the fragment marker into its body across both r
       const rendered = getRenderer('opencode', version).renderAgent(agent);
       const { frontmatter, body } = parseRendered(rendered.content);
 
-      assert.ok(
-        body.includes(OUTPUT_DISCIPLINE_MARKER),
-        `v${version} body of '${agent.id}' carries the fragment marker`
-      );
-      assert.ok(
-        body.includes(OUTPUT_DISCIPLINE_FRAGMENT),
-        `v${version} body of '${agent.id}' matches the single-source fragment (AC-005)`
-      );
-      assert.ok(
-        body.startsWith(`${agent.systemPrompt}\n\n`),
-        `v${version} body of '${agent.id}' keeps the role prompt verbatim (AC-004)`
+      assert.equal(
+        body,
+        `${agent.systemPrompt}\n`,
+        `v${version} body of '${agent.id}' is the system prompt verbatim`
       );
 
-      // Frontmatter fields are unchanged by fragment emission.
+      // Frontmatter fields are unchanged.
       assert.equal(frontmatter.description, agent.description, `v${version} ${agent.id} description`);
       assert.equal(frontmatter.mode, agent.mode, `v${version} ${agent.id} mode`);
       assert.equal(frontmatter.model, agent.effectiveModel, `v${version} ${agent.id} model`);
@@ -287,7 +269,7 @@ test('every roster agent renders the fragment marker into its body across both r
   }
 });
 
-test('roster agents across all modes (subagent, primary, all) carry the fragment with no exemption (AC-002)', () => {
+test('roster agents across all modes (subagent, primary, all) render the body with no exemption', () => {
   const roster = loadAgentRegistry(repoRoot);
   assert.equal(roster.length, 6, 'the six-agent roster loads');
 
@@ -303,9 +285,10 @@ test('roster agents across all modes (subagent, primary, all) carry the fragment
   for (const agent of acrossModes) {
     const rendered = getRenderer('opencode').renderAgent(agent);
     const { body } = parseRendered(rendered.content);
-    assert.ok(
-      body.includes(OUTPUT_DISCIPLINE_MARKER),
-      `'${agent.id}' (mode ${agent.mode}) carries the fragment`
+    assert.equal(
+      body,
+      `${agent.systemPrompt}\n`,
+      `'${agent.id}' (mode ${agent.mode}) renders the system prompt verbatim`
     );
   }
 });

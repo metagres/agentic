@@ -14,10 +14,10 @@
  *
  * The frontmatter follows the style of the generated SKILL.md (see
  * bin/deploy-to-agent.ts SKILL_TEMPLATE): `---`, `key: value` lines, closing
- * `---`, a blank line, then the body — the composed effective prompt
- * (AgentRecord.effectivePrompt: the role prompt verbatim, a blank line, then
- * the shared output-discipline fragment, DEC-001). The renderer holds no
- * fragment text of its own and no per-agent registration.
+ * `---`, a blank line, then the body — the agent's system prompt verbatim
+ * (AgentRecord.systemPrompt, carried inline in the source YAML including the
+ * agent's own output-discipline instructions). The renderer holds no prompt
+ * text of its own and no per-agent registration.
  */
 import YAML from 'yaml';
 
@@ -95,7 +95,7 @@ function renderOpenCodeAgent(agent: AgentRecord, format: 'v1' | 'v2'): RenderedA
     fields.tools = tools;
   }
 
-  const content = `${renderFrontmatter(fields)}${agent.effectivePrompt}\n`;
+  const content = `${renderFrontmatter(fields)}${agent.systemPrompt}\n`;
   return { path: `agents/${agent.id}.md`, content };
 }
 

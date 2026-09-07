@@ -19,17 +19,18 @@ separately: [lib/](lib/codemap.md) (engine core) and [workflows/](workflows/code
   `blocked` envelope with error code `UNKNOWN_COMMAND` and exit code `EXIT.usage` (2).
   `listWorkflows()` (`workflows/index.ts:76`) enriches each stage entry with
   `agent` plus the `model`/`effectiveModel` pair via `getAgentModelFields`
-  (`src/scripts/lib/agent-registry.ts:132`).
+  (`src/scripts/lib/agent-registry.ts:134`).
 - **Kind dispatch**: a resolved stage is executed by `runStage(stage, argv, cwd)` from
   `src/scripts/lib/kinds/index.ts` — the kind interpreter selected by the stage's
   `kind` field. `runAuthoringStage` in `src/scripts/lib/runner.ts:10` is the same
   path factored for direct stage invocation (parse args → `getStageById` →
   `runStage`), emitting `UNKNOWN_STAGE` for unresolvable ids.
 - **Frozen envelope normalization**: `writeJson(payload, code, stagesDir?)`
-  (`src/scripts/lib/cli.ts:144`) routes every payload through
+  (`src/scripts/lib/cli.ts:141`) routes every payload through
   `normalizeEnvelope` (`cli.ts:58`), which guarantees the seven-field shape
-  `{workflow, step, state, instructions, data, errors, warnings}`, strips legacy
-  `data.next`/`data.next_action`, derives `instructions` from `instructions` →
+  `{workflow, step, state, instructions, data, errors, warnings}`, copies
+  `data` through untouched (no legacy-field stripping), derives `instructions`
+  from `instructions` →
   `instructions_for_llm` → `skill_instructions.markdown` → first error message, and
   coerces `state` into the four valid states (`ok`, `in_progress`, `blocked`,
   `complete`), mapping `pass`/`accepted` → `complete` and `fail`/`rejected` →
@@ -84,9 +85,9 @@ separately: [lib/](lib/codemap.md) (engine core) and [workflows/](workflows/code
   `requires-graph.ts` (pipeline order + acceptance gate), `kinds/`
   (interpreters), `version.ts`. Also in lib/ (used by bins, not the CLI):
   `agent-permissions.ts` (kind permission contracts + stage↔agent compatibility),
-  `agent-model-fields.ts` and `agent-prompt-marker.ts` (descriptor cross-checks
-  for `bin/validate-policies.ts`), `review-findings.ts` (reviewer `--findings`
-  validation for review stages), and `deploy/platforms/` (neutral→opencode
+  `agent-model-fields.ts` and   `agent-prompt-marker.ts` (descriptor cross-checks
+  for `bin/validate-policies.ts`), `review-findings.ts` (reviewer
+  `--failures` validation for review stages), and `deploy/platforms/` (neutral→opencode
   agent-file renderers for `bin/deploy-to-agent.ts`); and
   [workflows/](workflows/codemap.md) — `resolveWorkflow`, `listWorkflows`,
   cross-cutting commands, `skillManifest`.

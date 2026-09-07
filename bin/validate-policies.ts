@@ -11,7 +11,6 @@ import { loadAgentRegistry, getAgentById } from '../src/scripts/lib/agent-regist
 import { checkAgentModelFields } from '../src/scripts/lib/agent-model-fields.ts';
 import { checkAgentCompatibility } from '../src/scripts/lib/agent-permissions.ts';
 import { findPromptMarkers } from '../src/scripts/lib/agent-prompt-marker.ts';
-import { findFragmentMarkers } from '../src/scripts/lib/agent-output-discipline.ts';
 import { resolveAgentsDir } from '../src/scripts/lib/paths.ts';
 import { CHECK_CATALOG } from '../src/scripts/lib/checks/index.ts';
 import type { StructuralChecksDoc } from '../src/scripts/lib/checks/index.ts';
@@ -367,28 +366,6 @@ if (agentFiles.length > 0 && agentsDir) {
       });
     }
 
-    // Unauthorized fragment copy (DEC-003): the output-discipline fragment is
-    // composed at deploy time from its single source, so a descriptor whose
-    // system_prompt embeds fragment text fails naming the file and the marker.
-    try {
-      const prompt = typeof doc.system_prompt === 'string' ? doc.system_prompt : '';
-      const markers = findFragmentMarkers(prompt);
-      if (markers.length > 0) {
-        throw new Error(
-          `${label} system prompt embeds the output-discipline fragment marker(s): ${markers
-            .map((m) => `'${m}'`)
-            .join(', ')}`
-        );
-      }
-      results.push({ file: `${label}#system_prompt_fragment`, ok: true });
-    } catch (err: unknown) {
-      failed = true;
-      results.push({
-        file: `${label}#system_prompt_fragment`,
-        ok: false,
-        error: `AGENT_FRAGMENT_COPY: ${err instanceof Error ? err.message : String(err)}`,
-      });
-    }
   }
 
   // Every stage.yaml agent reference must resolve against the agents registry.

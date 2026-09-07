@@ -10,7 +10,6 @@ import { getStageDescriptions } from '../src/scripts/lib/stage-registry.ts';
 import { parseYamlString } from '../src/scripts/lib/yaml-io.ts';
 import { loadAgentRegistry } from '../src/scripts/lib/agent-registry.ts';
 import type { AgentRecord } from '../src/scripts/lib/agent-registry.ts';
-import { OUTPUT_DISCIPLINE_MARKER } from '../src/scripts/lib/agent-output-discipline.ts';
 import {
   getRenderer,
   type AgentRenderer,
@@ -479,20 +478,6 @@ function main() {
       if (frontmatter.model !== agent.effectiveModel) {
         fail(
           `Agent smoke test failed: rendered model '${String(frontmatter.model)}' does not match the effective model '${agent.effectiveModel}' for '${agent.id}'.`
-        );
-      }
-
-      // Output-discipline fragment gate (CMP-004, AC-003): the rendered body
-      // must carry the shared fragment through its stable marker phrase; a
-      // missing fragment fails the deploy naming the agent file. The loop
-      // iterates the registry-scan rendered list, so a newly added descriptor
-      // is covered with zero per-agent registration (AC-020).
-      const bodyLines = rendered.content.split('\n');
-      const bodyStart = bodyLines.indexOf('---', 1) + 2;
-      const agentBody = bodyLines.slice(bodyStart).join('\n');
-      if (!agentBody.includes(OUTPUT_DISCIPLINE_MARKER)) {
-        fail(
-          `Agent smoke test failed: rendered agent file '${rendered.path}' lacks the output-discipline fragment marker phrase '${OUTPUT_DISCIPLINE_MARKER}'.`
         );
       }
 

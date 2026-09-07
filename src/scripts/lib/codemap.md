@@ -7,7 +7,7 @@ acceptance-gate evaluation, the unified artifact validation orchestrator, the
 declarative step machine, the deployment-layer platform renderers, and the
 shared plumbing (envelope emission, change-dir resolution, policy/schema
 loading, ID and path utilities, permission contract compatibility, prompt
-purity markers, review findings parsing). Everything above this directory (the
+purity markers, review failure parsing, step rendering). Everything above this directory (the
 CLI entry, kind interpreters, workflows, and the `bin/` tools) composes these
 modules; nothing here reads hardcoded stage or agent lists.
 
@@ -29,36 +29,39 @@ modules; nothing here reads hardcoded stage or agent lists.
   of validation), and `stagePreconditionWarnings` (`:283`) invokes its
   `preconditionWarnings(env)` export.
 - **Agent layer (mirror of stage discovery)**: `loadAgentRegistry(cwd, agentsDir?)`
-  (`agent-registry.ts:91`) scans `resolveAgentsDir(cwd)` (`paths.ts:46`) the same
+  (`agent-registry.ts:93`) scans `resolveAgentsDir(cwd)` (`paths.ts:46`) the same
   way stages are resolved, builds a cached `AgentRecord[]`, validates each
   descriptor against `agent.schema.yaml`, and enforces that the descriptor `id`
   equals the filename stem. A missing or empty agents directory yields `[]` (not
   an error), so projects without agents keep working. Each `AgentRecord` carries
   the neutral fields (`id`, `file`, `description`, `model`, `modelOverride`,
   `effectiveModel = modelOverride ?? model`, `temperature`, `mode`, `permissions`,
-  `systemPrompt`); `getAgentById` (`:117`) is the accessor and
-  `getAgentModelFields` (`:132`) returns the `{model, effectiveModel}` pair for
+  `systemPrompt` — the full deploy-time prompt, emitted verbatim by the
+  renderers); `getAgentById` (`:119`) is the accessor and
+  `getAgentModelFields` (`:134`) returns the `{model, effectiveModel}` pair for
   CLI envelope data entries.
 - **DAG + gate over the registry**: `requires-graph.ts` implements the pipeline
   order and the acceptance gate. `computePipelineOrder(cwd, stagesDir?)`
   (`requires-graph.ts:71`) is Kahn's algorithm over `requires` with an alphabetical
   tie-break; a missing reference throws `Stage '<id>' requires unknown stage
-  '<req>'` and a residual set throws a cycle error found by `findCycle` (`:24`,
+  '<req>'` and a residual set throws a cycle error found by `findCycle` (`:23`,
   white/gray/black DFS). `evaluateGate(stage, changeRoot, cwd, stagesDir?)`
-  (`:147`) reads each required stage's tracked artifact status
+  (`:149`) reads each required stage's tracked artifact status
   (`readTrackedStatus`, `:129` — `metadata.<status_field>` of the artifact file,
   `'missing'` when absent) and enforces DEC-008: non-review stages need every
   requirement `accepted` (a review requirement's tracked artifact is the artifact
-  of the stage it `reviews`); review stages are runnable when their review target's
-  artifact is `ready-for-review` or `accepted`. Unsatisfied requirements are
+  of the stage it `reviews`); review stages are runnable only when their review
+  target's artifact is `ready-for-review` — an `accepted` artifact is already
+  through the gate, so re-review requires the author to update and re-finalize.
+  Unsatisfied requirements are
   returned as `GateResult.unsatisfied[]` with `{stage, artifact, status, required}`.
 - **Single validation path (CMP-005)**: `validateArtifact(stageId, artifact, cwd,
-  changeRoot)` (`validate.ts:66`) concatenates JSON Schema findings from the
+  changeRoot)` (`validate.ts:68`) concatenates JSON Schema findings from the
   stage's `schema.yaml` (compiled and cached by Ajv with `allErrors`, `strict:
   false`, optional `ajv-formats`) with the named structural checks from the
   stage's `structural-checks.yaml` via `runStageChecks` (checks sub-library).
-  Before the checks run, `validateCheckDeclarations(stage, checksDoc, cwd)`
-  (`validate.ts:100`) validates the declarations themselves (CMP-003, DEC-003):
+   Before the checks run, `validateCheckDeclarations(stage, checksDoc, cwd)`
+   (`validate.ts:291`) validates the declarations themselves (CMP-003, DEC-003):
   every `[]`-bearing parameter string must sit inside a path-bearing parameter
   slot of its check (`pathParams` metadata in the catalog) and must resolve
   through the governing stage schema — the stage's own `schema.yaml`, or for
@@ -81,32 +84,34 @@ modules; nothing here reads hardcoded stage or agent lists.
   `checks/ref-exists.ts`, `checks/forbidden-words.ts`, and `ids.ts`
   (list-valued `next_ids` specs).
 - **Declarative step predicates (DM-003)**: `steps-loader.ts` loads
-  `steps.yaml` (`loadStepDefinitions`, `:80`; cached per folder via
-  `getStepDefinitions`, `:96`) and evaluates the `complete_when` vocabulary —
+  `steps.yaml` (`loadStepDefinitions`, `:79`; cached per folder via
+  `getStepDefinitions`, `:95`) and evaluates the `complete_when` vocabulary —
   `field` + `non_empty`/`equals` (dotted-path resolution via `resolveDotPath`),
   `array` + `min_items`, and `all`/`any` combinators — in
-  `evaluatePredicate` (`:43`); a missing predicate means complete.
+  `evaluatePredicate` (`:42`); a missing predicate means complete. A step
+  definition carries `title`, `markdown`, `commands`, `exit_criteria`, and
+  `complete_when` — nothing else.
 - **Generic authoring step machine (FLW-002)**: `authoring-base.ts` defines
   `CANONICAL_STEPS` (`:10`: needs_input, init, authoring, ready, complete,
   recovery — the six-step tour every authoring stage declares in steps.yaml)
-  and `detectStep(env)` (`:55`), detected purely from artifact state — never
+  and `detectStep(env)` (`:54`), detected purely from artifact state — never
   from stage hooks: no change dir → `needs_input`; no artifact → `init`;
   `metadata.status === 'rejected'` → `recovery`; unsatisfied `init`
   predicate → `init`; blocking mechanical findings → `recovery`; then any
   non-canonical steps.yaml step whose `complete_when` predicate is
   unsatisfied; `complete` when status is `ready-for-review`/`accepted`, else
   `ready` when the `authoring` predicate is satisfied and `authoring` while
-  still drafting. `isReadyForReview` (`:79`) and `getData` (`:107`) expose
+  still drafting. `isReadyForReview` (`:78`) and `getData` (`:102`) expose
   the same signals (`authoring_complete`, `mechanical_valid`,
   `semantic_complete`, `delta_complete`; `semantic_complete` derives purely
   from artifact status per DEC-002 — `ready-for-review`/`accepted` only;
-  `deltaComplete` in `stage-helpers.ts:6` accepts a non-empty `delta` array
+  `deltaComplete` in `stage-helpers.ts:3` accepts a non-empty `delta` array
   or `metadata.delta_reviewed === true`).
 - **Frozen envelope + exit codes**: `cli.ts` — `EXIT` (`:6`: `ok`/`actionFailed`/
   `usage`/`ambiguous`/`internal`), `parseArgs` (`:14`, supports `--key=value` and
   `--key value`), `resolveCwd` (`:49`, `--cwd <project-root>` override
   documented by `CWD_FLAG_DOC` at `:55`), `normalizeEnvelope` (`:58`) and
-  `writeJson` (`:144`) (see [../codemap.md](../codemap.md) for the full
+  `writeJson` (`:141`) (see [../codemap.md](../codemap.md) for the full
   contract). `normalizeEnvelope` resolves the workflow id to a stage record
   via `getStageById(process.cwd(), workflowId, stagesDir)` and prepends
   `delegationDirective(stage)` (CMP-002, DEC-001, DEC-005) ahead of the
@@ -137,16 +142,15 @@ modules; nothing here reads hardcoded stage or agent lists.
   substring; a unique match resolves, multiple matches throw
   `ResolveRootError` with `candidates`, zero matches is not-found. Failures
   also carry `available` (sorted change-dir names, `[]` when the dir is
-  missing) and `searched` (the `docs/changes` path). `change-root.ts`
-  `requireChangeRoot(args, cwd, base)` (`:31`) wraps this into blocked
+   missing) and `searched` (the `docs/changes` path). `change-root.ts`
+   `requireChangeRoot(args, cwd, base)` (`:43`) wraps this into blocked
   envelopes: `MISSING_CHANGE_DIR`, `AMBIGUOUS_CHANGE_DIR` (exit
   `EXIT.ambiguous` 3), `CHANGE_DIR_NOT_FOUND`; these surface
   `data.available_changes`, `data.searched` and a contextual `fix` on the
   error item.
 - **Context abstraction**: `context.ts` `makeCtx(cwd, changeRoot)` (`:18`) returns
-  `Ctx` (`types.ts:49`) with `loadFile`/`fileExists`/`readFile` resolving
-  change-root-first then cwd, plus `safeReadYaml` (`:10`) and
-  `loadReviewReport` (`:60`, reads `review-report.yaml`).
+  `Ctx` (`types.ts:34`) with `loadFile`/`fileExists`/`readFile` resolving
+  change-root-first then cwd, plus `safeReadYaml` (`:10`).
 - **Central policy loading**: `policy-loader.ts` `loadErrorCatalog(cwd)` (`:21`)
   loads the only central policy (`policies/errors.yaml`) through
   `resolveRuntimeFile` with a per-path cache; `error-catalog.ts` `makeError(code,
@@ -169,15 +173,22 @@ modules; nothing here reads hardcoded stage or agent lists.
   `stage-helpers.ts` — `deltaComplete`, `normalizeDeltaEntries` (API-003: shared
   delta normalization for `--append-delta` and `--update-artifact`, defaulting
   `phase` from the stage and `date` to `today()`), `titleFromRequest`
-  (80-char truncation), `baseVersion`; `semver.ts` `bumpVersion`; `yaml-io.ts` —
+  (80-char truncation); `step-render.ts` — the shared step-definition renderer
+  (DM-003): `renderTemplate` (`:12`, `{{var}}` placeholders, unknown stay
+  literal), `cliInvocation` (`:19`), `buildStepVars` (`:32`, the shared vars
+  vocabulary `SDLC`/`change_name`/`stage` plus kind-specific extras), and
+  `renderStepHelp` (`:51`, renders a step into the `step_help` surface —
+  title, templated markdown, templated commands, exit criteria — serving the
+  runtime `step_help` payload and the `--describe-step` definition alike);
+  `semver.ts` `bumpVersion`; `yaml-io.ts` —
   `readYaml` (null when missing, throwing on bad YAML), `writeYamlAtomic`
   (tmp-file + rename), `readStdin`, `parseYamlString`; `docs-index.ts` —
   `loadDocsIndex`/`parseDocsIndex` (markdown table under `docs/current/`;
   accepts bare filenames and prefixed paths, filters non-`.md` noise rows so
   delta target/anchor validation runs against real docs),
-  `headingExists`/`normalizeHeading`; `version.ts` — `VERSION = '1.0.0'`;
+  `headingExists`/`normalizeHeading`;   `version.ts` — `VERSION = '1.0.0'`;
   `types.ts` — shared interfaces (`ParseArgsResult`, `Finding`, `ErrorItem`,
-  `WarningItem`, `SemanticResult`, `SemanticSummary`, `StepDefinition`,
+  `WarningItem`, `StepDefinition`,
   `Ctx`, `StageDef`, `RunEnv`, `WorkflowDef`, `ChangeEntry`); `runner.ts` —
   `runAuthoringStage(stageId, argv)` (`:10`), the registry→kind dispatch entry
   for stage commands: resolves `getStageById(cwd, stageId)`, emits
@@ -222,49 +233,40 @@ modules; nothing here reads hardcoded stage or agent lists.
   a `model` outside the supplied catalog enum yields
   `AGENT_MODEL_OUTSIDE_CATALOG`. Free-form non-empty overrides never fail
   here: `model_override` is deliberately not enum-checked.
-- **Review findings + semantic-walk validation (CMP-003, CMP-004)**:
-  `review-findings.ts` — `parseFindingsFile(filePath)` (`:79`) shape-validates
-  the `--findings` YAML (`semantic` + `findings` sections, optional
-  `fix?`; any supplied `severity` is dropped so no per-finding severity is
-  ever recorded, FR-008/AC-014/AC-015); a missing required field throws
-  `FindingsFileError` with `FINDINGS_ENTRY_INVALID` naming the offending
-  entry (AC-012). `collectKnownIds(changeRoot)` (`:161`) builds the
-  known-id universe (DM-004) by recursively walking every YAML document
-  under the change root and collecting every string value matching
-  `ID_PATTERN = /^[A-Z]{2,6}-[0-9]{2,4}$/` (`:36`); unreadable/invalid YAML
-  files are skipped so a single broken document cannot break target
-  resolution. `resolveFindingTargets(findings, knownIds)` (`:204`) classifies
-  each target: an id-shaped token inside the target must resolve in the
-  universe, else an `UNKNOWN_FINDING_TARGET` warning names the target while
-  the round is still recorded (AC-013); targets with no id-shaped token
-  are free-text and never warn. `validateSemanticWalk(semantic,
-  stageChecks, required)` (`:238`) validates the reviewer-supplied
-  `semantic` section against the target stage's `semantic-checks.yaml`
-  (review stages carry none of their own): every check must appear exactly
-  once as `{check_id, status, evidence}` with non-empty evidence (DM-003,
-  FR-010, AC-016); when `required` (i.e. `--accept` with passing mechanical
-  checks) the section is mandatory and every status must be `'pass'` —
-  missing, incomplete, or failing walks throw `SEMANTIC_WALK_INVALID` with
-  nothing written (FR-011, AC-017). Documented blind spot (advisory):
-  `ID_PATTERN` excludes single-letter prefixes (e.g. `F-001`), so targets
-  referencing them are treated as free text and never warn — widening the
-  pattern is a design-review event.
+- **Review failures + failure-only rounds (CMP-003, CMP-004)**:
+  `review-findings.ts` — `parseFailuresFile(filePath)` (`:47`) shape-validates
+  the `--failures` YAML: a top-level YAML list of semantic failures, each
+  exactly `{check, evidence}` with non-empty string values. Extra fields are
+  refused (the former semantic-walk format `{check_id, status, evidence}` is
+  retired) and an empty list is refused because a rejection without a
+  recorded failure would be unactionable; a violation throws
+  `FailureFileError` (`:28`) with `FAILURE_ENTRY_INVALID` naming the
+  offending entry, and nothing is written on refusal.
+  `validateSemanticFailures(failures, stageChecks)` (`:106`) validates the
+  parsed failures against the reviewed (target) stage's
+  `semantic-checks.yaml` check list (review stages carry none of their own):
+  every check must be declared there and no check may appear twice — there
+  is no completeness requirement, a reviewer reports only the checks that
+  failed; violations throw `SEMANTIC_FAILURE_INVALID` with nothing written.
+  Mechanical failures are never reviewer-supplied: they are CLI-computed
+  from `validateArtifact` output and mapped to the same uniform
+  `{check, evidence}` shape (`Failure`, `:22`) by the review interpreter.
 - **Deployment platform renderers (`deploy/platforms/`)**: the deploy layer
   is the ONLY place in the codebase where coding-agent-specific knowledge is
   allowed (agent-agnostic invariant, §2.7). `deploy/platforms/index.ts` —
   `AgentRenderer` / `RenderedAgent` types, a `REGISTRY` keyed by platform
   name and version, `getRenderer(platform, version?)` (`:62`, `undefined` /
   `'latest'` picks the highest known version, unknown platform/version
-  throws listing supported versions), `listPlatforms()` (`:42`,
+  throws listing supported versions),   `listPlatforms()` (`:42`,
   platform-sorted with ascending versions). `deploy/platforms/opencode.ts` —
-  `OPENCODE_RENDERERS` (`:106`, versions 1 and 2) convert a neutral
+  `OPENCODE_RENDERERS` (`:109`, versions 1 and 2) convert a neutral
   `AgentRecord` into an OpenCode `agents/<agent-id>.md` file. The neutral
-  permission keys map to target tool keys via `NEUTRAL_TO_TARGET` (`:34`;
+  permission keys map to target tool keys via `NEUTRAL_TO_TARGET` (`:37`;
   `question` is a render-only key with no stage-contract role);
-  `translatePermissions` (`:50`) emits the v2 `permission` map
+  `translatePermissions` (`:53`) emits the v2 `permission` map
   (target → neutral level verbatim) and the v1 legacy `tools` map
   (`allow` → `true`, `deny` → `false`, `ask` omitted). The rendered
-  frontmatter uses `renderFrontmatter` (`:72`, `yaml` `indent: 2`,
+  frontmatter uses `renderFrontmatter` (`:75`, `yaml` `indent: 2`,
   `lineWidth: 100`), then a blank line, then the system prompt verbatim;
   the rendered `model` is `effectiveModel = modelOverride ?? model`
   (DEC-004), and the source YAML `model` is never mutated by deployment.
@@ -275,7 +277,7 @@ Validation pipeline as executed by `validateArtifact` (and thus by authoring
 1. Resolve the stage via `getStageById` (registry scan + meta-schema validation).
 2. YAML parse layer is the caller's responsibility (artifact already parsed via
    `readYaml`); a null/non-object artifact yields no findings.
-3. JSON Schema layer: `schemaFindings` (`validate.ts:23`) runs the stage
+3. JSON Schema layer: `schemaFindings` (`validate.ts:25`) runs the stage
    `schema.yaml` through cached Ajv; failures become blocking `schema` findings.
 4. Declaration layer: `validateCheckDeclarations` validates the stage's check
    declarations against the stage schema (path-bearing slots, grammar, and
@@ -283,8 +285,9 @@ Validation pipeline as executed by `validateArtifact` (and thus by authoring
 5. Structural layer: `runStageChecks` runs the named checks declared in the
    stage's `structural-checks.yaml` (see [checks/](checks/codemap.md)).
 6. Semantic advisory: the kind interpreter separately evaluates the stage's
-   `semantic-checks.yaml` and folds the `SemanticSummary` into the envelope
-   (see [kinds/](kinds/codemap.md)).
+   `semantic-checks.yaml` — authoring `--finalize` blocks on the checklist
+   until `--confirm-semantic`, and the review interpreter surfaces it on a
+   bare run (see [kinds/](kinds/codemap.md)).
 7. Review gate: `evaluateGate` (above) decides runnability before any of the
    above runs for a stage command; failure produces a blocked envelope naming
    each unsatisfied requirement and its current status.
