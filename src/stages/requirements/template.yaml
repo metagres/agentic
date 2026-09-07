@@ -12,7 +12,7 @@ metadata:
   assumptions_reviewed: false
   delta_reviewed: false
   discovery_reviewed: false
-  scenarios_reviewed: false
+  context_loaded: false
 
 problem_statement: ""
 

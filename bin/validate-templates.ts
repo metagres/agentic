@@ -86,11 +86,11 @@ for (const [stageId, keys] of Object.entries(expectedKeys)) {
 
     // Requirements initialization contract (CMP-010, AC-016): the template must
     // start with both confirmation flags false so a freshly created change
-    // routes into discovery first.
+    // routes into init (context loading) and then discovery first.
     if (stageId === 'requirements') {
-      if (metadata.discovery_reviewed !== false || metadata.scenarios_reviewed !== false) {
+      if (metadata.discovery_reviewed !== false || metadata.context_loaded !== false) {
         throw new Error(
-          'requirements template must initialize discovery_reviewed and scenarios_reviewed to false'
+          'requirements template must initialize discovery_reviewed and context_loaded to false'
         );
       }
 

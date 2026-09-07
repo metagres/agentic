@@ -21,7 +21,7 @@ function runCli(args, input) {
   });
 }
 
-test('requirements --request creates change and enters authoring', () => {
+test('requirements --request creates change and enters init', () => {
   const tmp = makeTmpProject();
 
   const res = runCli([
@@ -37,7 +37,7 @@ test('requirements --request creates change and enters authoring', () => {
   const json = JSON.parse(res.stdout);
 
   assert.equal(json.workflow, 'requirements');
-  assert.equal(json.step, 'authoring');
+  assert.equal(json.step, 'init');
   assert.ok(json.data.change_root);
 
   const artifactPath = path.join(

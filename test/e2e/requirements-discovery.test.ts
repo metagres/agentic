@@ -12,7 +12,7 @@ const root = path.resolve(__dirname, '../..');
 const cli = path.join(root, 'src', 'scripts', 'sdlc.ts');
 
 function makeTmpProject() {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-scen-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-disc-'));
   fs.mkdirSync(path.join(tmp, 'docs', 'current'), { recursive: true });
   fs.writeFileSync(
     path.join(tmp, 'docs', 'current', 'index.md'),
@@ -33,27 +33,28 @@ function run(tmp: string, args: string[], input?: string) {
   return JSON.parse(res.stdout);
 }
 
-// The collapsed six-step tour (needs_input, init, authoring, ready, complete,
-// recovery) no longer routes through granular discovery/scenarios states: the
-// only gate between authoring and review is finalize. This test pins that an
-// in-flight artifact without any legacy confirmation flags routes through
-// authoring/ready and finalizes in one call.
-test('an in-flight artifact without confirmation flags routes through authoring/ready and finalizes', () => {
+// The requirements tour routes through the init confirmation (context loading)
+// and the discovery confirmation (interview gate): a fresh artifact enters
+// init, an unconfirmed discovery flag pins the interview open, and one-call
+// finalize evaluates the mechanical and semantic gates together.
+test('an in-flight artifact routes through init and the confirmed discovery gate', () => {
   const tmp = makeTmpProject();
 
   let out = run(tmp, ['requirements', '--request', 'Add device registration']);
   const changeRoot = out.data.change_root;
   const changeDir = path.basename(changeRoot);
 
-  // Fresh artifact: created but empty -> authoring.
-  assert.equal(out.step, 'authoring', JSON.stringify(out));
+  // Fresh artifact: context not loaded -> init.
+  assert.equal(out.step, 'init', JSON.stringify(out));
 
-  // Pre-change artifact: no confirmation flags and a discovery_log that
-  // predates the data lens (schema-valid under NFR-002).
+  out = run(tmp, ['requirements', '--change', changeDir, '--complete-step', '--step', 'init']);
+  assert.equal(out.step, 'discovery', JSON.stringify(out));
+
+  // Content present and mechanically clean but discovery unconfirmed: the
+  // machine stays at discovery until the gate is explicitly confirmed.
   const artifact = validRequirements({}) as Record<string, unknown>;
   const meta = artifact.metadata as Record<string, unknown>;
   delete meta.discovery_reviewed;
-  delete meta.scenarios_reviewed;
   (artifact.discovery_log as Record<string, unknown>[]).pop(); // remove the data-lens answer
 
   out = run(
@@ -61,9 +62,9 @@ test('an in-flight artifact without confirmation flags routes through authoring/
     ['requirements', '--change', changeDir, '--update-artifact'],
     JSON.stringify(artifact)
   );
-  // Content present and mechanically clean: the machine routes to ready even
-  // though the legacy discovery/scenarios confirmation flags are unset — they
-  // no longer participate in routing.
+  assert.equal(out.step, 'discovery', JSON.stringify(out));
+
+  out = run(tmp, ['requirements', '--change', changeDir, '--complete-step', '--step', 'discovery']);
   assert.equal(out.step, 'ready', JSON.stringify(out));
 
   // One-call finalize evaluates the mechanical and semantic gates together.

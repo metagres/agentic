@@ -13,7 +13,7 @@ directory is copied next to the CLI and `hooks.ts` is compiled to `hooks.js`
 ## Stage Inventory
 | Stage (folder) | Kind | Agent | Artifact / status field | requires | reviews / review file | Declared structural checks | Steps (steps.yaml) | Hooks | Notes |
 |---|---|---|---|---|---|---|---|---|---|
-| `requirements/` | authoring | requirements-analyst | requirements.yaml / `status` | — | — | unique-ids (plain-name scopes + one unions group), given-when-then, forbidden-words, sentence-count | needs_input, init, authoring, recovery, ready, complete | yes | Also carries `requirements-policy.yaml` (discovery gate policy); acceptance criteria NESTED inside each FR/NFR entry (required `acceptance_criteria` array, minItems 1; criterion = id `^AC-[0-9]{3}$` + Given-When-Then statement + category happy/edge/negative/boundary, declared once under `definitions` and `$ref`d) — no top-level criteria list, no `ac_ids`, no `parent_id` (retired fields rejected by boolean-false property schemas in addition to `additionalProperties: false`); no scenarios array; delta phase `Requirements`; next ids FR/NFR (plain) + AC (two-path list over both nested criteria arrays)/DL/SC |
+| `requirements/` | authoring | requirements-analyst | requirements.yaml / `status` | — | — | unique-ids (plain-name scopes + one unions group), given-when-then, forbidden-words, sentence-count | needs_input, init, discovery, authoring, recovery, ready, complete | yes | Also carries `requirements-policy.yaml` (discovery gate policy); acceptance criteria NESTED inside each FR/NFR entry (required `acceptance_criteria` array, minItems 1; criterion = id `^AC-[0-9]{3}$` + Given-When-Then statement + category happy/edge/negative/boundary, declared once under `definitions` and `$ref`d) — no top-level criteria list, no `ac_ids`, no `parent_id` (retired fields rejected by boolean-false property schemas in addition to `additionalProperties: false`); no scenarios array; delta phase `Requirements`; next ids FR/NFR (plain) + AC (two-path list over both nested criteria arrays)/DL |
 | `requirements-review/` | review | stage-reviewer | requirements.yaml / `status` | — | requirements → requirements-review.yaml | — (no structural checks of its own; runs the target stage's) | needs_input, review, accept, reject | no | |
 | `design/` | authoring | systems-architect | design.yaml / `status` | requirements-review | — | sentence-count, ref-exists, duplicate-refs | needs_input, init, authoring, recovery, ready, complete | yes | Cross-file `ref-exists` into requirements.yaml; delta phase `Design`; next ids CMP/DM/API/DEC |
 | `design-review/` | review | stage-reviewer | design.yaml / `status` | — | design → design-review.yaml | — | needs_input, review, accept, reject | no | |
@@ -70,10 +70,12 @@ this for the shared `plan.yaml` (`schema_from: planning`).
   `{{SDLC}}`, `{{change_name}}`, `{{stage}}`), `commands`, and declarative
   `complete_when` predicates (DM-003). Every authoring stage declares the
   same canonical six-step tour (needs_input, init, authoring, ready,
-  complete, recovery), detected from artifact state; discovery/scenarios/
-  assumptions guidance is folded into the `authoring` step, and any extra
-  steps.yaml step beyond the six remains declarative, driven by its
-  `complete_when` predicate. Finalize is one call (`--finalize
+  complete, recovery), detected from artifact state; assumptions guidance is
+  folded into the `authoring` step, and any extra steps.yaml step beyond the
+  six remains declarative, driven by its `complete_when` predicate —
+  requirements carries one such `discovery` step (gate-driven interview,
+  completed when `metadata.discovery_reviewed` is true). Finalize is one
+  call (`--finalize
   --confirm-semantic`) evaluating gate, mechanical validation, and semantic
   confirmation; legacy `--complete-step` names are still accepted. Review
   stages declare needs_input/review/accept/reject; implementation declares
@@ -90,15 +92,14 @@ this for the shared `plan.yaml` (`schema_from: planning`).
     `STAGE_POLICY_INVALID` (no silent fallbacks). The gate passes when every
     required lens has a resolved `discovery_log` entry and the resolved
     question count meets the minimum. Exports `startup` (loads/validates the
-    policy before any command), `getExtraData` (exposes `discovery_gate`,
-    `scenarios_state`, and `assumptions_complete` in the envelope),
+    policy before any command), `getExtraData` (exposes `discovery_gate` —
+    the discovery step's exit authority — in the envelope),
     `recordAnswer` (allocates the next `DL-NNN` id and appends a
     resolved entry from `--lens/--question/--answer`; also driven per entry by
-    batch `--record-answers <file>`), and `setClarity`
-    (validates `clear|partial|vague`, writes `metadata.clarity`). The legacy
-    `extraStep` export is retained but no longer consulted — step detection is
-    purely from artifact state, with discovery/assumptions guidance folded
-    into the `authoring` step.
+    batch `--record-answers <file>`), and `setClarity` (one argument,
+    validates `clear|partial|vague`, writes `metadata.clarity`). The legacy
+    `extraStep` export was removed — step detection never consulted it and
+    is purely from artifact state.
   - `design/hooks.ts` — advisory `preconditionWarnings` (`PREVIOUS_STAGE_NOT_READY`
     when requirements.yaml is not ready-for-review/accepted).
   - `planning/hooks.ts` — advisory `preconditionWarnings`

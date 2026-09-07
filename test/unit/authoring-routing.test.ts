@@ -40,34 +40,77 @@ test('detectStep maps artifact state onto the six-step tour', () => {
   // No artifact -> init.
   assert.equal(detectStep(makeEnv({ artifact: null })), 'init');
 
-  // Created but empty (init predicate unsatisfied) -> init.
+  // Created but context not loaded (init predicate unsatisfied) -> init.
   assert.equal(detectStep(makeEnv({ artifact: { metadata: {} } })), 'init');
 
-  // Draft with content still being authored -> authoring.
+  // Context loaded, discovery unconfirmed -> discovery.
   assert.equal(
-    detectStep(makeEnv({ artifact: { metadata: { title: 'T', request_summary: 'R' }, problem_statement: '' } })),
+    detectStep(
+      makeEnv({ artifact: { metadata: { title: 'T', request_summary: 'R', context_loaded: true } } })
+    ),
+    'discovery'
+  );
+
+  // Discovery confirmed, draft with content still being authored -> authoring.
+  assert.equal(
+    detectStep(
+      makeEnv({
+        artifact: {
+          metadata: { title: 'T', request_summary: 'R', context_loaded: true, discovery_reviewed: true },
+          problem_statement: '',
+        },
+      })
+    ),
     'authoring'
   );
 
   // Draft whose authoring predicate is satisfied -> ready.
   assert.equal(
-    detectStep(makeEnv({ artifact: { metadata: { title: 'T', request_summary: 'R' }, problem_statement: 'P' } })),
+    detectStep(
+      makeEnv({
+        artifact: {
+          metadata: { title: 'T', request_summary: 'R', context_loaded: true, discovery_reviewed: true },
+          problem_statement: 'P',
+        },
+      })
+    ),
     'ready'
   );
 
   // Finalized -> complete; accepted stays complete.
   assert.equal(
-    detectStep(makeEnv({ artifact: { metadata: { title: 'T', request_summary: 'R', status: 'ready-for-review' }, problem_statement: 'P' } })),
+    detectStep(
+      makeEnv({
+        artifact: {
+          metadata: { title: 'T', request_summary: 'R', context_loaded: true, discovery_reviewed: true, status: 'ready-for-review' },
+          problem_statement: 'P',
+        },
+      })
+    ),
     'complete'
   );
   assert.equal(
-    detectStep(makeEnv({ artifact: { metadata: { title: 'T', request_summary: 'R', status: 'accepted' }, problem_statement: 'P' } })),
+    detectStep(
+      makeEnv({
+        artifact: {
+          metadata: { title: 'T', request_summary: 'R', context_loaded: true, discovery_reviewed: true, status: 'accepted' },
+          problem_statement: 'P',
+        },
+      })
+    ),
     'complete'
   );
 
   // Rejected -> recovery.
   assert.equal(
-    detectStep(makeEnv({ artifact: { metadata: { title: 'T', request_summary: 'R', status: 'rejected' }, problem_statement: 'P' } })),
+    detectStep(
+      makeEnv({
+        artifact: {
+          metadata: { title: 'T', request_summary: 'R', context_loaded: true, discovery_reviewed: true, status: 'rejected' },
+          problem_statement: 'P',
+        },
+      })
+    ),
     'recovery'
   );
 
@@ -75,7 +118,10 @@ test('detectStep maps artifact state onto the six-step tour', () => {
   assert.equal(
     detectStep(
       makeEnv({
-        artifact: { metadata: { title: 'T', request_summary: 'R' }, problem_statement: 'P' },
+        artifact: {
+          metadata: { title: 'T', request_summary: 'R', context_loaded: true, discovery_reviewed: true },
+          problem_statement: 'P',
+        },
         blocking: [{ finding: 'duplicate id' }],
       })
     ),
@@ -83,13 +129,13 @@ test('detectStep maps artifact state onto the six-step tour', () => {
   );
 });
 
-test('detectStep ignores legacy granular confirmation flags for routing', () => {
-  // discovery_reviewed / scenarios_reviewed / assumptions_reviewed unset must
-  // not route to removed step ids.
+test('detectStep routes removed legacy step ids nowhere', () => {
+  // The retired granular flags (scenarios/assumptions) must not route to
+  // removed step ids; the discovery extra step routes only on its own flag.
   const step = detectStep(
     makeEnv({
       artifact: {
-        metadata: { title: 'T', request_summary: 'R', clarity: 'vague' },
+        metadata: { title: 'T', request_summary: 'R', clarity: 'vague', context_loaded: true, discovery_reviewed: true },
         problem_statement: 'P',
         discovery_log: [],
         assumptions: [],

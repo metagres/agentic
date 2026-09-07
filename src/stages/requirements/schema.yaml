@@ -86,7 +86,7 @@
         "discovery_reviewed": {
           "type": "boolean"
         },
-        "scenarios_reviewed": {
+        "context_loaded": {
           "type": "boolean"
         }
       }
@@ -123,7 +123,6 @@
               "scope",
               "interface",
               "behavior",
-              "design",
               "data",
               "constraint",
               "failure",

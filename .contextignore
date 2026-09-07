@@ -63,8 +63,9 @@ logs/
 temp/
 .codegraph/
 .codemap/
-codemap.md
+**/codemap.md
 
 # ignore files
 .gitignore
 .contextignore
+LICENSE

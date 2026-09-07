@@ -210,48 +210,6 @@ test('startup throws STAGE_POLICY_INVALID naming the offending field for shape v
   }
 });
 
-test('a passing floor without confirmation leaves the step at discovery (AC-005)', () => {
-  const folder = fixtureStageFolder(VALID_POLICY);
-  const env = mockEnv(folder, floorArtifact());
-  const extraStep = (hooks as { extraStep: (e: unknown) => string | null }).extraStep;
-  assert.equal(extraStep(env), 'discovery');
-});
-
-test('complete-step confirmation advances past discovery; assumptions route by content', () => {
-  const folder = fixtureStageFolder(VALID_POLICY);
-  const artifact = floorArtifact({
-    metadata: { clarity: 'partial', discovery_reviewed: true },
-  });
-  const env = mockEnv(folder, artifact);
-  const extraStep = (hooks as { extraStep: (e: unknown) => string | null }).extraStep;
-
-  // Confirmed discovery, empty criteria set not yet confirmed -> scenarios.
-  assert.equal(extraStep(env), 'scenarios');
-
-  // With the criteria step confirmed and assumptions recorded, no extra step
-  // blocks the machine.
-  const withAssumptions = floorArtifact({
-    metadata: {
-      clarity: 'partial',
-      discovery_reviewed: true,
-      scenarios_reviewed: true,
-    },
-    assumptions: [{ type: 'verified', text: 'The database stores device records.' }],
-  });
-  assert.equal(extraStep(mockEnv(folder, withAssumptions)), null);
-
-  // Missing assumptions keep the machine at assumptions even with the
-  // confirmation flag set.
-  const withoutAssumptions = floorArtifact({
-    metadata: {
-      clarity: 'partial',
-      discovery_reviewed: true,
-      scenarios_reviewed: true,
-    },
-  });
-  assert.equal(extraStep(mockEnv(folder, withoutAssumptions)), 'assumptions');
-});
-
 test('an artifact clarity outside the policy anchors fails the gate loudly', () => {
   const folder = fixtureStageFolder(VALID_POLICY);
   const env = mockEnv(
@@ -315,7 +273,7 @@ function runCli(tmp: string, args: string[], input?: string) {
   return JSON.parse(res.stdout);
 }
 
-test('complete-step --step discovery and scenarios set the confirmation flags (FR-011, AC-014)', () => {
+test('complete-step --step discovery sets the confirmation flag (FR-011, AC-014)', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-cs-'));
   let out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
   const changeRoot = out.data.change_root;
@@ -323,7 +281,6 @@ test('complete-step --step discovery and scenarios set the confirmation flags (F
 
   const artifact = validRequirements({}) as Record<string, unknown>;
   (artifact.metadata as Record<string, unknown>).discovery_reviewed = false;
-  (artifact.metadata as Record<string, unknown>).scenarios_reviewed = false;
 
   out = runCli(
     tmp,
@@ -335,12 +292,8 @@ test('complete-step --step discovery and scenarios set the confirmation flags (F
   out = runCli(tmp, ['requirements', '--change', changeDir, '--complete-step', '--step', 'discovery']);
   assert.equal(out.state, 'in_progress', JSON.stringify(out));
 
-  out = runCli(tmp, ['requirements', '--change', changeDir, '--complete-step', '--step', 'scenarios']);
-  assert.equal(out.state, 'in_progress', JSON.stringify(out));
-
   const saved = readYaml(path.join(changeRoot, 'requirements.yaml')) as {
-    metadata: { discovery_reviewed: boolean; scenarios_reviewed: boolean };
+    metadata: { discovery_reviewed: boolean };
   };
   assert.equal(saved.metadata.discovery_reviewed, true);
-  assert.equal(saved.metadata.scenarios_reviewed, true);
 });

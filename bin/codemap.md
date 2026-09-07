@@ -53,7 +53,7 @@ self-contained skill bundles plus per-platform rendered agent files.
    the five canonical stages are discoverable via `getStageById`.
 3. `validate-templates.ts` — verifies the three authoring stage templates
    (`src/stages/<stage>/template.yaml`) carry the expected top-level keys, the correct
-   `metadata.stage`, and (requirements only) `discovery_reviewed`/`scenarios_reviewed`
+   `metadata.stage`, and (requirements only) `discovery_reviewed`/`context_loaded`
    initialized to false plus at least one requirement entry carrying a non-empty nested
    `acceptance_criteria` array (the nested-criteria scaffold contract, AC-019); then
    validates every folder under `src/skills/`: `SKILL.md`

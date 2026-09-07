@@ -31,10 +31,10 @@ requires no TypeScript change; adding a kind is a design-review event.
   `reason` ≥ 10 chars, `date` YYYY-MM-DD, Modify/Remove need
   `target_anchor` (verified via `headingExists`) or `entity_id` — then
   normalizes the entries before appending),
-  `completeStep` (`:475`, manual completion for `assumptions`, `delta`,
-  `init` plus the legacy `discovery`/`scenarios` names → sets
+  `completeStep` (`:475`, manual completion for the step names `assumptions`,
+  `delta`, `init`, and `discovery` → sets
   `assumptions_reviewed`/`delta_reviewed`/`context_loaded`/
-  `discovery_reviewed`/`scenarios_reviewed`),
+  `discovery_reviewed`; any other step name throws),
   `finalizeArtifact` (`:542`, validation pass → version bump (explicit
   `--bump-version`, else `patch` from `rejected` / `minor` from `accepted`) →
   status `ready-for-review`), `markMutated` (`:245`,

@@ -3,11 +3,16 @@ steps:
   needs_input:
     title: Needs input
     markdown: |
-      Ask the user whether this is an existing change or a new request.
+      One question per turn.
 
-      For an existing change, present `data.existing_changes` and ask the user to choose one.
+      Ask whether this is an existing change or a new request. Existing change:
+      present `data.existing_changes` via the question tool and let the user pick
+      one. New request: ask for the request text.
 
-      For a new request, ask the user for the request text.
+      If the request text is a solution proposal, re-anchor first:
+      "What problem does X solve for you?"
+
+      Run the matching command. Report one line: which command ran.
     commands:
       - "{{SDLC}} requirements --change <change-name>"
       - "{{SDLC}} requirements --request \"<request text>\""
@@ -17,46 +22,94 @@ steps:
     markdown: |
       The script created the initial requirements artifact.
 
-      Read `docs/current/index.md` and use it to decide which living docs are relevant.
-      Read only what is needed for this request.
+      Read `docs/current/index.md` and use it to decide which living docs are
+      relevant. Read only what is needed. Chain reads silently.
+
+      Confirm with --complete-step --step init. Report one line: artifact title
+      + request summary + living docs consulted.
     commands:
       - "{{SDLC}} requirements --change {{change_name}}"
+      - "{{SDLC}} requirements --change {{change_name}} --complete-step --step init"
     complete_when:
-      all:
-        - field: metadata.title
-          non_empty: true
-        - field: metadata.request_summary
-          non_empty: true
+      field: metadata.context_loaded
+      equals: true
+
+  discovery:
+    title: Discovery
+    markdown: |
+      Interview the stakeholder to resolve ambiguity. One interrogation unit per
+      turn — a unit is either ONE discovery probe (free text in the reply) or ONE
+      batch of at most 4 independent bounded questions via the question tool.
+      Never mix a dependent probe into a batch.
+
+      Pacing:
+      - Dependent probes run one at a time — each answer shapes the next question.
+      - Independent bounded gaps may be batched through the question tool —
+        structured options are cheap to answer.
+      - Open-ended probes (failure modes, edge cases, "why") are one per turn and
+        never multiple choice — inventing options bakes in assumptions.
+
+      Question tool discipline:
+      - Options non-leading, mutually distinct, always with an escape option
+        ("Other"/"Undecided") when the true answer may lie outside the set.
+      - An answer outside the options IS the answer. Follow up only if it opens a
+        new gap.
+      - Topic switch: one optional preceding line `GAP: <ambiguity>`. Probes on the
+        current topic get no GAP line.
+      - A forced inference surfaces before the unit as `ASSUMPTION: ...` — never
+        buried in prose.
+
+      After every answer — tool or free text — record silently through
+      --record-answer (allocates DL-NNN; batch answers through --record-answers)
+      and set the overall clarity label with --set-clarity <clear|partial|vague>.
+      No acknowledgments in chat. Then emit the next unit.
+
+      Coverage and exit:
+      - `data.discovery_gate.passed` is the exit authority. A lens the gate still
+        requires stays open no matter how complete the interview feels — target
+        follow-up probes at `data.discovery_gate.missing_lenses` and keep probing
+        until `data.discovery_gate.resolved_questions` meets
+        `data.discovery_gate.minimum_questions`.
+      - Probe until answers support a clarity label; vague answers keep the lens
+        open.
+
+      When the gate reports passed, confirm with --complete-step --step discovery,
+      then report one line (answers recorded, clarity state) and proceed to
+      authoring.
+    commands:
+      - "{{SDLC}} requirements --change {{change_name}} --record-answer --lens <lens> --question \"<question>\" --answer \"<answer>\""
+      - "{{SDLC}} requirements --change {{change_name}} --record-answers < answers.yaml"
+      - "{{SDLC}} requirements --change {{change_name}} --set-clarity <clear|partial|vague>"
+      - "{{SDLC}} requirements --change {{change_name}} --complete-step --step discovery"
+    complete_when:
+      field: metadata.discovery_reviewed
+      equals: true
 
   authoring:
     title: Authoring
     markdown: |
-      Draft the full requirements artifact, recording as you go:
+      Synthesize the artifact from the recorded discovery. No interviewing here —
+      if authoring exposes an unresolved question, record it via --record-answer
+      and ask the stakeholder with one free-text probe (Discovery protocol
+      applies). Out of scope: straight to the out_of_scope section.
 
-      - Discovery answers: record each resolved question through the script
-        (--record-answer allocates the next DL-NNN id) and set clarity with
-        --set-clarity. Watch `data.discovery_gate` to confirm lens coverage.
-      - Assumptions: list every assumption implied by the request and the
-        discovery answers, classifying each as verified or unverified.
-      - Acceptance criteria: author every criterion directly in Given-When-Then
-        form, each with a category (happy, edge, negative, boundary), nested in
-        the acceptance_criteria array of the FR or NFR entry it verifies. Cover
-        every category for the core behaviors. There is no separate promotion
-        or back-fill pass: an example is authored as an acceptance criterion
+      Chain script calls silently. As you author:
+      - Assumptions: every assumption implied by the request and discovery
+        answers, classified verified or unverified.
+      - Acceptance criteria: every criterion in Given-When-Then form, each with a
+        category (happy, edge, negative, boundary), nested in the
+        acceptance_criteria array of the FR/NFR it verifies. Cover every category
+        for core behaviors. No promotion or back-fill pass: an example is authored
         inside its owning requirement or it does not enter the artifact.
-      - Delta: determine which living docs are affected and append entries via
-        --append-delta (allowed targets: `data.delta_allowed_target_docs`) or
-        include them in --update-artifact. Knowledge extraction dedupes.
+      - Requirements: EARS form ("When <trigger>, the system shall <response>") or
+        an equally unambiguous pattern. Every requirement testable.
+      - Use `data.next_ids` for FR/NFR/AC ids.
+      - Delta: determine affected living docs; append via --append-delta
+        (targets: `data.delta_allowed_target_docs`) or include in
+        --update-artifact. Knowledge extraction dedupes.
 
-      Use `data.next_ids` to choose the next FR/NFR/AC ids.
-
-      Phrase each requirement in EARS form (When <trigger>, the system shall <response>) or an
-      equally unambiguous pattern.
-
-      If an example exposes an unresolved question instead, record it with --record-answer.
-      If it is out of scope, add it straight to the out_of_scope section.
-
-      Write the artifact through the script.
+      Write through --update-artifact. Report one line: artifact updated
+      (N requirements, M criteria, K deltas).
     commands:
       - "{{SDLC}} requirements --change {{change_name}} --next-ids"
       - "{{SDLC}} requirements --change {{change_name}} --record-answer --lens <lens> --question \"<question>\" --answer \"<answer>\""
@@ -70,13 +123,15 @@ steps:
   recovery:
     title: Recovery
     markdown: |
-      The artifact was rejected by review.
+      The artifact was rejected by review. Fix exactly the failures listed in
+      `data.review_failures` ({check, evidence}) — nothing else. Unaffected
+      sections are not rewritten or re-emitted.
 
-      Fix each failure listed in `data.review_failures` ({check, evidence}).
+      One line per fix in chat: `<check> -> <what changed>`. Then update through
+      the script and finalize again.
 
-      Update the artifact through the script, then finalize again.
-
-      Finalizing a rejected artifact automatically applies a patch version bump unless you pass --bump-version.
+      Finalizing a rejected artifact bumps the version (patch by default;
+      --bump-version major|minor|patch overrides).
     commands:
       - "{{SDLC}} requirements --change {{change_name}} --update-artifact < requirements.yaml"
       - "{{SDLC}} requirements --change {{change_name}} --finalize"
@@ -84,9 +139,8 @@ steps:
   ready:
     title: Ready
     markdown: |
-      All gates passed.
-
-      Finalize with --finalize --confirm-semantic.
+      All gates passed. Finalize with --finalize --confirm-semantic.
+      Report one line: artifact finalized (version).
     commands:
       - "{{SDLC}} requirements --change {{change_name}} --finalize --confirm-semantic"
 

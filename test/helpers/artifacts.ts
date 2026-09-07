@@ -54,7 +54,7 @@ export function validRequirements({
       assumptions_reviewed: true,
       delta_reviewed: true,
       discovery_reviewed: true,
-      scenarios_reviewed: true,
+      context_loaded: true,
     },
     problem_statement:
       'Operators cannot register devices, so onboarding requires manual database edits.',

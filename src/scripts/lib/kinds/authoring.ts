@@ -485,8 +485,6 @@ function completeStep(env: AuthorEnv): void {
     meta.context_loaded = true;
   } else if (step === 'discovery') {
     meta.discovery_reviewed = true;
-  } else if (step === 'scenarios') {
-    meta.scenarios_reviewed = true;
   } else {
     throw new Error(`Cannot manually complete step '${String(step)}'.`);
   }

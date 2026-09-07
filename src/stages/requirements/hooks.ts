@@ -1,8 +1,8 @@
 // Optional hooks module for the requirements stage (DEC-016). This is the only
 // stage-specific code allowed and never participates in validation. It supplies
 // the fail-loud discovery policy loader (CMP-002), the confirmed discovery gate
-// (CMP-003), record-answer, set-clarity, and extra-step behavior that no
-// declarative predicate expresses.
+// (CMP-003), record-answer, and set-clarity behavior that no declarative
+// predicate expresses.
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -203,51 +203,6 @@ function discoveryGate(env: HookEnv): DiscoveryGateResult {
   };
 }
 
-function assumptionsComplete(artifact: Record<string, unknown>): boolean {
-  if (!Array.isArray(artifact && artifact.assumptions)) return false;
-  const metadata = ((artifact && artifact.metadata) || {}) as Record<string, unknown>;
-  return (
-    (artifact.assumptions as unknown[]).length > 0 ||
-    metadata.assumptions_reviewed === true
-  );
-}
-
-// Scenarios step activation (CMP-004, DEC-004, DEC-008, FR-006): active while
-// any scenario has status open, or while the scenarios array is empty and the
-// set was not explicitly confirmed with --complete-step --step scenarios.
-function scenariosActive(artifact: Record<string, unknown>): boolean {
-  const scenarios = Array.isArray(artifact.scenarios)
-    ? (artifact.scenarios as { status?: string }[])
-    : [];
-  const metadata = ((artifact && artifact.metadata) || {}) as Record<string, unknown>;
-  if (scenarios.some((s) => s && s.status === 'open')) return true;
-  if (scenarios.length === 0 && metadata.scenarios_reviewed !== true) return true;
-  return false;
-}
-
-// Envelope-facing scenarios state (DM-005): counts, the reviewed flag, and the
-// routing decision.
-function scenariosState(artifact: Record<string, unknown>): {
-  total: number;
-  open: number;
-  resolved: number;
-  reviewed: boolean;
-  needs_attention: boolean;
-} {
-  const scenarios = Array.isArray(artifact.scenarios)
-    ? (artifact.scenarios as { status?: string }[])
-    : [];
-  const metadata = ((artifact && artifact.metadata) || {}) as Record<string, unknown>;
-  const open = scenarios.filter((s) => s && s.status === 'open').length;
-  return {
-    total: scenarios.length,
-    open,
-    resolved: scenarios.length - open,
-    reviewed: metadata.scenarios_reviewed === true,
-    needs_attention: scenariosActive(artifact),
-  };
-}
-
 export default {
   // Stage startup hook (CMP-002, DEC-002): invoked once per authoring command
   // after the stage environment is constructed. Loads and validates the
@@ -256,25 +211,11 @@ export default {
     loadPolicy(env);
   },
 
-  extraStep(env: HookEnv) {
-    const artifact = (env.artifact || {}) as Record<string, unknown>;
-    const metadata = (artifact.metadata || {}) as Record<string, unknown>;
-    const gate = discoveryGate(env);
-    if (!gate.passed || metadata.discovery_reviewed !== true) return 'discovery';
-    if (scenariosActive(artifact)) return 'scenarios';
-    if (!assumptionsComplete(artifact)) return 'assumptions';
-    return null;
-  },
-
+  // Envelope-facing gate data (DM-005): the discovery step markdown treats
+  // data.discovery_gate as the exit authority for the interview.
   getExtraData(env: HookEnv) {
     return {
       discovery_gate: discoveryGate(env),
-      scenarios_state: scenariosState(
-        (env.artifact || {}) as Record<string, unknown>
-      ),
-      assumptions_complete: assumptionsComplete(
-        (env.artifact || {}) as Record<string, unknown>
-      ),
     };
   },
 
