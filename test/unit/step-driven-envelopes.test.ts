@@ -254,7 +254,7 @@ test('tasks envelopes carry the detected steps.yaml step id', () => {
   const progress = runCli(tmp, ['implementation', '--change', changeDir]);
   assertEnvelopeShape(progress);
   assert.equal(progress.step, 'progress');
-  assert.match(progress.instructions, /Update task execution state in plan\.yaml/);
+  assert.match(progress.instructions, /One task per turn:/);
   assert.match(progress.instructions, /Planning quality guardrails/);
   assert.match(progress.instructions, /Implementation progress summary\./);
 

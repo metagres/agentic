@@ -3,32 +3,68 @@ steps:
   needs_input:
     title: Needs input
     markdown: |
-      Ask the user which change to plan.
+      One question per turn: which change to plan. If `data.existing_changes` lists several, present that list and let the user pick; otherwise ask for the change name.
+
+      Run the matching command. Report one line: which command ran.
     commands:
       - "{{SDLC}} planning --change <change-name>"
 
   init:
     title: Initialization
     markdown: |
-      The script created the initial plan artifact.
+      The script created the initial plan artifact. The required predecessor stages must be accepted before authoring begins.
 
-      The required predecessor stages must be accepted before authoring begins.
+      Read requirements.yaml and design.yaml — the FR/NFR/AC ids tasks must reference live in requirements.yaml, the DEC ids in design.yaml. Read docs/current/index.md and the living docs relevant to the change; they map what already exists. Chain reads silently.
+
+      Report one line: artifact initialized (path) + docs consulted.
     commands:
       - "{{SDLC}} planning --change {{change_name}}"
 
   authoring:
     title: Authoring
     markdown: |
-      Draft the plan artifact.
+      Draft the plan artifact. Chain script calls silently.
 
-      Use `data.next_ids` to choose the next TASK ids.
+      Reuse investigation — before decomposing, consult the living docs' inventory of existing components, then search the repo for existing utilities that partially resolve each FR/DEC area, and classify:
+      - Reuse as-is: consumer tasks cite the existing file path.
+      - Reuse with adaptation: a `type: refactor` task (files: `modify` on the real paths), preceded by a task adding behavior-preserving tests (`depends_on`); consumer tasks depend on the refactor task.
+      - No fit: new code, with the rejected existing alternative named in the task description.
+      - Uncertain fit: a `type: analysis` task decides it; consumers depend on it.
+      Reuse that would change a shared contract's behavior is a design decision — route it back to design as a DEC; never decide it here.
 
-      While drafting, determine which living docs are affected by the plan and
-      append delta entries via --append-delta (allowed targets:
-      `data.delta_allowed_target_docs`) or include them in --update-artifact.
-      Knowledge extraction dedupes.
+      Sequencing:
+      - Dependency-first and breadth-safe: stable foundations and shared contracts land before their consumers.
+      - A task too large to verify in one pass is split.
+      - `depends_on` carries only real dependencies.
+      - Descriptions state what and where — never symbol naming or how.
 
-      Write the artifact through the script.
+      Task contracts:
+      - Use `data.next_ids` to choose TASK ids; reference requirements and decisions by id (`covers`, `acceptance_ids`, `design_refs`).
+      - `files` is the task's blast-radius contract: every file the task creates, modifies, or deletes, with its operation. Incidental gaps are noted at implementation; behavioral gaps block and amend the plan.
+      - Retirement: a task that supersedes behavior, files, or docs plans the removal (delete/modify files entry or delta entry) — the plan leaves no dead code or stale documentation.
+      - An open question is not an interview: it becomes a risks entry (description + mitigation). A mitigation names a task, a dependency, or an explicitly accepted contingency.
+
+      While drafting, determine which living docs are affected by the plan and append delta entries via --append-delta (allowed targets: `data.delta_allowed_target_docs`) or include them in --update-artifact. Knowledge extraction dedupes.
+
+      Example task (reuse with adaptation; TASK-003 holds the behavior-preserving tests):
+      - id: TASK-004
+        title: Adapt ReportFormatter to emit CSV
+        description: >
+          Extend the existing src/lib/report-formatter.ts with a CSV emitter
+          (reuses DEC-002's ReportFormatter; rejected a standalone exporter).
+        type: refactor
+        status: pending
+        covers: [FR-003]
+        acceptance_ids: [AC-005]
+        design_refs: [DEC-002]
+        depends_on: [TASK-003]
+        files:
+          - path: src/lib/report-formatter.ts
+            operation: modify
+          - path: test/report-formatter.test.ts
+            operation: create
+
+      Write the artifact through the script. Report one line: plan authored (N tasks, M milestones, K risks, J delta entries).
     commands:
       - "{{SDLC}} planning --change {{change_name}} --next-ids"
       - "{{SDLC}} planning --change {{change_name}} --update-artifact < plan.yaml"
@@ -40,9 +76,11 @@ steps:
   recovery:
     title: Recovery
     markdown: |
-      The plan artifact was rejected by review.
+      The plan artifact was rejected by review. Fix exactly the failures listed in `data.review_failures` ({check, evidence}) — nothing else. Unaffected sections are not rewritten or re-emitted.
 
-      Fix each failure listed in `data.review_failures` ({check, evidence}), update the artifact, and finalize again.
+      One line per fix in chat: `<check> -> <what changed>`. Then update through the script and finalize again.
+
+      Finalizing a rejected artifact bumps the version (patch by default; --bump-version major|minor|patch overrides).
     commands:
       - "{{SDLC}} planning --change {{change_name}} --update-artifact < plan.yaml"
       - "{{SDLC}} planning --change {{change_name}} --finalize"
@@ -50,9 +88,8 @@ steps:
   ready:
     title: Ready
     markdown: |
-      All gates passed.
-
-      Finalize with --finalize --confirm-semantic.
+      All gates passed. Finalize with --finalize --confirm-semantic.
+      Report one line: plan finalized (version).
     commands:
       - "{{SDLC}} planning --change {{change_name}} --finalize --confirm-semantic"
 

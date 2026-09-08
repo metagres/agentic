@@ -3,6 +3,7 @@ checks:
   - check: unique-ids
     params:
       arrays:
+        - tasks
         - milestones
         - risks
   - check: ref-exists
@@ -52,3 +53,25 @@ checks:
   - check: dependency-order
     params:
       array: tasks
+  - check: ref-covers
+    params:
+      from:
+        array: tasks
+        field: covers
+      to:
+        file: requirements.yaml
+        arrays:
+          - functional_requirements
+          - non_functional_requirements
+        field: id
+  - check: ref-covers
+    params:
+      from:
+        array: tasks
+        field: acceptance_ids
+      to:
+        file: requirements.yaml
+        arrays:
+          - functional_requirements[].acceptance_criteria
+          - non_functional_requirements[].acceptance_criteria
+        field: id

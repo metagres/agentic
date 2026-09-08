@@ -6,3 +6,4 @@ checks:
   - "Does the design address the failure paths identified in requirements?"
   - "Do design decisions include enough context and rationale to be reviewed?"
   - "Do delta entries plausibly describe the living docs affected by the design?"
+  - "For functionality served by existing components or utilities, was reuse or adaptation evaluated and recorded as a decision?"

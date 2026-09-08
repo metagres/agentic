@@ -299,7 +299,7 @@ test('the shipped YAML system_prompt ends with the output-discipline fragment fi
   ].join('\n');
 
   for (const agent of roster) {
-    if (agent.id === 'requirements-analyst') {
+    if (['requirements-analyst', 'implementation-engineer', 'task-planner'].includes(agent.id)) {
       assert.ok(
         agent.systemPrompt.includes('<output-discipline>'),
         `'${agent.id}' system_prompt carries the discipline block`

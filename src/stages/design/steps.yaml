@@ -14,7 +14,9 @@ steps:
       The script created the initial design artifact.
 
       The required predecessor stages must be accepted before authoring begins.
-      Report one line: artifact initialized (path).
+      Read docs/current/index.md and the living docs relevant to the change; they map the components and conventions that already exist. Chain reads silently.
+
+      Report one line: artifact initialized (path) + docs consulted.
     commands:
       - "{{SDLC}} design --change {{change_name}}"
 
@@ -26,6 +28,7 @@ steps:
       As you author:
       - context_summary frames the design in 1-12 sentences (mechanically
         checked).
+      - Reuse: before proposing a new component, check the living docs' inventory — an existing component or utility may serve the responsibility as-is or with adaptation. Prefer adapting with explicit behavior-preservation; record the reuse or adaptation decision as a DEC entry.
       - Components: every component owns one responsibility behind a narrow,
         named interface, with explicit data flow across its boundary. Where a
         responsibility lives is a decision, not an accident — ambiguity is a
