@@ -23,20 +23,22 @@ build artifacts, never source), alongside rendered agent files under
   `scripts/sdlc.js` inside the skill.
 - `package.json` — dependency manifest (ajv, ajv-formats, ignore, yaml) and
   the validation pipeline: `validate` (fast gate: schemas + policies +
-  templates + typecheck + unit tests), `test:e2e` (end-to-end suite),
+  templates + agents-md policy + typecheck + unit tests), `test:e2e` (end-to-end suite),
   `check:all` (full coverage: validate + unit + e2e + deploy smoke),
   `deploy:smoke` (deploy to `.tmp/agent` + CLI smoke test).
 - `bin/` — developer/CLI tooling: `deploy-to-agent.ts` (bundle + skill
   assembly + smoke test), `lint-artifact.ts` (external artifact lint via the
   same `validateArtifact` path), `validate-schemas.ts`, `validate-policies.ts`,
-  `validate-templates.ts`.
+  `validate-templates.ts`, `validate-agents-md.ts`.
 - `tsup.config.ts` — single-entry ESM bundle of `src/scripts/sdlc.ts`
   (node20, everything inlined via `noExternal`).
 - `generate_context.js` — compiles repo source into `llm_context.txt`
   (gitignored) using `.contextignore` (falls back to `.gitignore`).
 - `AGENTS.md` — mandatory rules for AI coding agents: the one rule (validate
-  before declaring done), invariants, terminology, stage-folder layout, and
-  validation layers. `codemap.md` (this file) is the map of the repository.
+  before declaring done), the invariants, the definition of done, and the
+  session-context routing table that points descriptive questions at
+  `docs/current/` (AGENTS.md §2 reserves descriptive content to
+  those docs). `codemap.md` (this file) is the map of the repository.
 
 ## Directory Map (Aggregated)
 | Directory | Responsibility Summary | Detailed Map |
@@ -46,7 +48,7 @@ build artifacts, never source), alongside rendered agent files under
 | `src/scripts/` | The sdlc CLI runtime: command dispatch, workflow resolution, frozen envelope emission. | [View Map](src/scripts/codemap.md) |
 | `src/scripts/lib/` | Engine core: stage/agent discovery, requires-DAG + acceptance gate, unified validation orchestrator (with declaration path validation), the artifact path resolver (`artifact-paths.ts`), declarative step machine + shared step renderer (`step-render.ts`), kind permission contracts, delegation + review failure parsing/validation helpers, deploy platform renderers (`deploy/platforms/`), shared plumbing. | [View Map](src/scripts/lib/codemap.md) |
 | `src/scripts/lib/delegation.ts` | Pure delegation-directive composer consumed by the envelope funnel (`normalizeEnvelope`): composes binding-derived directives from `StageRecord.agent` (self clause, unavailability fallback, reviewer-directed phrasing for review kinds) with no hardcoded agent ids (NFR-002 / AC-010). | documented here |
-| `src/scripts/lib/checks/` | The capped catalog of ten named generic structural checks — the single extension path for structural validation logic; array selections address nested collections through `segment([].segment)*` path selectors resolved against the stage schema. | [View Map](src/scripts/lib/checks/codemap.md) |
+| `src/scripts/lib/checks/` | The capped catalog of eleven named generic structural checks — the single extension path for structural validation logic; array selections address nested collections through `segment([].segment)*` path selectors resolved against the stage schema. | [View Map](src/scripts/lib/checks/codemap.md) |
 | `src/scripts/lib/kinds/` | The four kind interpreters (authoring flag loop, review append-only rounds, tasks state machine over plan.yaml, aggregator delta collection). | [View Map](src/scripts/lib/kinds/codemap.md) |
 | `src/scripts/workflows/` | Cross-cutting commands (status, feedback, doctor) and the single `skillManifest` for the deployed skill. | [View Map](src/scripts/workflows/codemap.md) |
 | `src/skills/` | Version-controlled skill sources: the knowledge-init SKILL.md deployed as a second self-contained skill beside agentic-sdlc, plus two development-only skills that are **never** bundled or deployed — `agent-audit/` (live catalog refresh, web-grounded model assignment, permission auto-fix, roster dedupe/add/remove) and `improvement-review/` (six-step SDLC improvement review: SKILL.md method driver plus four bundled deterministic TypeScript helper scripts under `scripts/` — measure_artifacts, envelope_sizes, mine_transcript, validate_duration — the first dev-only skill to bundle scripts; a pure advisor — it reads the goals canon (`docs/current/capabilities.md`, `## SDLC Goals`) and the baselines (`docs/current/operations.md`, `## Baselines`) read-only and writes only `docs/ideas/` proposals). | documented here |

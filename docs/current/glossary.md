@@ -16,6 +16,9 @@
 | next_ids | map prefix → array key | authoring kind only | src/stages/requirements/stage.yaml |
 | produces_delta | bool | No | src/schemas/stage.schema.yaml |
 | delta_phase | string | authoring, delta-producing only | src/stages/design/stage.yaml |
+| schema_from | string (stage id) | Yes (absent → local schema.yaml) | src/schemas/stage.schema.yaml |
+| agent | string (agent id) | Yes (absent → the current agent runs the stage) | src/schemas/stage.schema.yaml |
+| permissions | map of permission keys → allow \| deny | Yes (per-key overrides of the kind contract) | src/schemas/stage.schema.yaml |
 
 | Relationships | Type | Target | Source |
 |---------------|------|--------|--------|
@@ -28,6 +31,8 @@
 | Discovery | every stage is one folder under src/stages/<id>/; no central enumeration | src/scripts/lib/stage-registry.ts |
 | Gate | stage runnable only when every required stage's tracked artifact is `accepted`; review stages when theirs is `ready-for-review` or `accepted` | src/scripts/lib/requires-graph.ts |
 | Startup | cycle or missing requires reference is a hard startup error | STAGE_CYCLE, STAGE_MISSING_REFERENCE in src/policies/errors.yaml |
+| Schema reuse | schema_from validates the artifact against the named stage's schema.yaml instead of a local copy; the local schema.yaml is waived for that stage, and a missing target or local coexistence is a hard startup error | src/scripts/lib/stage-registry.ts, src/stages/implementation/stage.yaml (schema_from: planning) |
+| Agent binding | the optional agent field binds a dedicated agent to the stage; absent means the current agent runs it; permissions overrides individual keys of the kind permission contract | src/schemas/stage.schema.yaml, src/scripts/lib/agent-permissions.ts |
 
 ## Entity: CLI Envelope
 
@@ -43,18 +48,18 @@
 
 | Business Rules | Rule | Location |
 |----------------|------|----------|
-| Frozen shape | no new top-level fields; additionalProperties: false | src/schemas/cli-envelope.schema.yaml, AGENTS.md (invariant 8) |
+| Frozen shape | no new top-level fields; additionalProperties: false | src/schemas/cli-envelope.schema.yaml |
 
 ## Entity: Artifact Status
 
 | Field | Type | Nullable | Source |
 |-------|------|----------|--------|
-| status | draft \| ready-for-review \| accepted \| rejected \| blocked | No | AGENTS.md (terminology), src/scripts/lib/requires-graph.ts |
+| status | draft \| ready-for-review \| accepted \| rejected \| blocked | No | src/scripts/lib/requires-graph.ts |
 
 | Business Rules | Rule | Location |
 |----------------|------|----------|
 | Ownership | CLI owns lifecycle state transitions | src/scripts/lib/kinds/authoring.ts, src/scripts/lib/kinds/review.ts |
-| Review history | append-only; rounds never deleted or rewritten except completing or refreshing an open round (legacy rounds without a status field are treated as closed) | src/scripts/lib/kinds/review.ts, AGENTS.md (invariant 3) |
+| Review history | append-only; rounds never deleted or rewritten except completing or refreshing an open round (legacy rounds without a status field are treated as closed) | src/scripts/lib/kinds/review.ts |
 
 ## Entity: Review Round (review file rounds[])
 
@@ -120,7 +125,7 @@
 
 | Business Rules | Rule | Location |
 |----------------|------|----------|
-| Deployed form | self-contained: no package.json, node_modules, or .ts files; manifest.json carries name, version, deployedAt (cliPath only for skills that ship a CLI) | bin/deploy-to-agent.ts, AGENTS.md (invariant 9) |
+| Deployed form | self-contained: no package.json, node_modules, or .ts files; manifest.json carries name, version, deployedAt (cliPath only for skills that ship a CLI) | bin/deploy-to-agent.ts, AGENTS.md §2 |
 | Sole creator | knowledge-init is the only component that creates docs/current | src/skills/knowledge-init/SKILL.md |
 
 ## Entity: Agent Definition (src/agents/<agent-id>.yaml)
@@ -130,7 +135,7 @@
 | version | int (const 1) | No | src/schemas/agent.schema.yaml |
 | id | string (kebab-case, = filename stem) | No | src/schemas/agent.schema.yaml |
 | description | string (non-empty) | No | src/schemas/agent.schema.yaml |
-| model | enum of 23 fully qualified opencode-go ids | No | src/schemas/agent.schema.yaml |
+| model | enum of sorted opencode/<id> catalog ids (live-endpoint-fed) | No | src/schemas/agent.schema.yaml |
 | temperature | number 0.0–1.0 | No | src/schemas/agent.schema.yaml |
 | mode | subagent \| primary \| all | Yes (omitted → all) | src/schemas/agent.schema.yaml |
 | permissions | map: file_read, search, file_write, shell, subagent, web, question → allow \| ask \| deny | No | src/schemas/agent.schema.yaml |

@@ -4,8 +4,8 @@
 The capped structural-check catalog (CMP-002, CMP-004, DEC-003/DEC-004) — the single
 extension path for structural validation logic. Stages select checks
 declaratively in their `structural-checks.yaml` with parameters; this directory
-holds the fixed set of ten generic `CheckFn` implementations plus the
-dispatch. Adding or changing a check is a design-review event (AGENTS.md §9).
+holds the fixed set of eleven generic `CheckFn` implementations plus the
+dispatch. Adding or changing a check is a design-review event (AGENTS.md §2).
 
 ## Design Patterns
 - **Uniform check contract**: every check is a `CheckFn` (`shared.ts:9`):
@@ -55,12 +55,13 @@ dispatch. Adding or changing a check is a design-review event (AGENTS.md §9).
   finding.
 
 ## Data & Control Flow
-The ten checks (all in this folder):
+The eleven checks (all in this folder):
 
 | Check | Validates | Key params | File |
 |---|---|---|---|
 | `unique-ids` | Duplicate `id` within each configured array (per-array scope) and across each `unions` group (one scope over the union of path-resolved collections) | `arrays`, `unions?`, `id_field?` | unique-ids.ts:9 |
 | `ref-exists` | References in `from.array[].from.field` resolve to ids present in `to.arrays[].to.field` of `to.file` (or this artifact); `to.arrays` entries may be path selectors resolved against the target document | `from{array,field}`, `to{file?,arrays,field}` | ref-exists.ts:16 |
+| `ref-covers` | Every id in `to.file`/`to.arrays`/`to.field` appears at least once among the `from.array[].from.field` values of this artifact — the reverse direction of `ref-exists` (coverage, not dangling references); the from field may be scalar or a list per entry, and `to.arrays` entries may be path selectors resolved against the target document | `from{array,field}`, `to{file?,arrays,field}` | ref-covers.ts:18 |
 | `duplicate-refs` | Duplicate entries inside each item's reference list (minor) | `array`, `list_field` | duplicate-refs.ts:14 |
 | `given-when-then` | Each entry's statement contains Given/When/Then keywords; `arrays` is a string or string list (a list evaluates the union); findings target the full nested statement path | `arrays`, `statement_field?` | given-when-then.ts:9 |
 | `forbidden-words` | Blocking/advisory word scan over configured text fields (blocking first; advisory only when no blocking hit on the same target); multi-segment leaf paths resolve through the resolver | `fields[{path,blocking?,advisory?} \| path]`, `blocking?`, `advisory?` | forbidden-words.ts:14 |

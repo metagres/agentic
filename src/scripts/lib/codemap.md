@@ -12,7 +12,7 @@ CLI entry, kind interpreters, workflows, and the `bin/` tools) composes these
 modules; nothing here reads hardcoded stage or agent lists.
 
 ## Design Patterns
-- **Directory-based discovery (invariant §2.10)**: `loadStageRegistry(cwd, stagesDir?)`
+- **Directory-based discovery**: `loadStageRegistry(cwd, stagesDir?)`
   (`stage-registry.ts:207`) scans `resolveStagesDir(cwd)` (`paths.ts:39`), sorts
   folders alphabetically, and builds a cached `StageRecord[]` via
   `loadStageFolder` (`stage-registry.ts:125`). Each folder must carry a `stage.yaml`
@@ -253,7 +253,7 @@ modules; nothing here reads hardcoded stage or agent lists.
   `{check, evidence}` shape (`Failure`, `:22`) by the review interpreter.
 - **Deployment platform renderers (`deploy/platforms/`)**: the deploy layer
   is the ONLY place in the codebase where coding-agent-specific knowledge is
-  allowed (agent-agnostic invariant, §2.7). `deploy/platforms/index.ts` —
+  allowed (agent-agnostic invariant, AGENTS.md §2). `deploy/platforms/index.ts` —
   `AgentRenderer` / `RenderedAgent` types, a `REGISTRY` keyed by platform
   name and version, `getRenderer(platform, version?)` (`:62`, `undefined` /
   `'latest'` picks the highest known version, unknown platform/version
@@ -268,8 +268,19 @@ modules; nothing here reads hardcoded stage or agent lists.
   (`allow` → `true`, `deny` → `false`, `ask` omitted). The rendered
   frontmatter uses `renderFrontmatter` (`:75`, `yaml` `indent: 2`,
   `lineWidth: 100`), then a blank line, then the system prompt verbatim;
-  the rendered `model` is `effectiveModel = modelOverride ?? model`
-  (DEC-004), and the source YAML `model` is never mutated by deployment.
+   the rendered `model` is `effectiveModel = modelOverride ?? model`
+   (DEC-004), and the source YAML `model` is never mutated by deployment.
+- **AGENTS.md policy (AGENTS.md §2)**: `agents-md-policy.ts` — pure, I/O-free
+  lints behind `bin/validate-agents-md.ts`: `lintAgentsMarkdown(ctx)` enforces
+  the AGENTS.md rules-file policy — line cap, the four-section allowlist
+  (One Rule / Invariants / Definition of Done / Session Context Routing),
+  ghost-heading and fenced-code rejection, table and `npm run` mention caps,
+  routing completeness (every `docs/current/*.md` referenced; backticked
+  repo-root paths exist), and citation integrity: `extractAgentsMdCitations`
+  parses `invariant N` / `§N` / `section N` references out of lines naming
+  AGENTS.md and `parseSectionNumbers` / `parseInvariantNumbers` resolve them
+  against the numbering parsed from AGENTS.md itself. `docs/changes/` and
+  `docs/ideas/` are excluded by the runner (frozen artifacts).
 
 ## Data & Control Flow
 Validation pipeline as executed by `validateArtifact` (and thus by authoring
@@ -306,7 +317,8 @@ required) → `getStageById`/`loadStepDefinitions`/`loadStageHooks` →
   (registry, pipeline order, docs index, agent discovery), `bin/lint-artifact.ts`,
   `bin/validate-policies.ts` (declaration path validation, agent meta-schema,
   model-field cross-checks, prompt markers, stage-reference resolution,
-  permission compatibility), `bin/deploy-to-agent.ts` (platform renderers
+  permission compatibility), `bin/validate-agents-md.ts` (agents-md-policy),
+  `bin/deploy-to-agent.ts` (platform renderers
   under `deploy/platforms/`).
 - **Depends on**: [../stages/](../stages/codemap.md) and [../agents/](../agents/codemap.md)
   folders discovered at runtime (descriptors + config files),

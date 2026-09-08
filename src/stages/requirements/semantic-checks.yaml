@@ -14,3 +14,4 @@ checks:
   - "Does each requirement describe exactly one verifiable behavior, with no conjunctions joining unrelated behaviors?"
   - "Do the acceptance criteria nested under the functional and non-functional requirements cover happy, edge, negative, and boundary cases for the core behaviors, with each criterion verifying the requirement that carries it?"
   - "Do delta entries plausibly describe the living docs affected by the requirements?"
+  - "Does every documentation change declare its destination — an always-in-force rule goes to AGENTS.md (invariants, definition of done, session routing); a description, command, shape, count, layout, or enumeration goes to a docs/current delta citing the owning source file instead of restating it?"

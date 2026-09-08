@@ -4,8 +4,8 @@
 Standalone CLI entry points for developer/CI tooling, each invoked directly by an npm
 script. These are not the agent-facing CLI — that is `src/scripts/sdlc.ts` (bundled to
 `dist/sdlc.js` for deployment). The bins here validate the repository's own contracts
-(schemas, policies, stage folders, agents, skills) and build/deploy the two
-self-contained skill bundles plus per-platform rendered agent files.
+(schemas, policies, stage folders, agents, skills, the AGENTS.md rules file) and
+build/deploy the two self-contained skill bundles plus per-platform rendered agent files.
 
 ## Design Patterns
 - **Thin bin wrappers**: each bin is a top-level script that composes shared engine
@@ -58,12 +58,21 @@ self-contained skill bundles plus per-platform rendered agent files.
    `acceptance_criteria` array (the nested-criteria scaffold contract, AC-019); then
    validates every folder under `src/skills/`: `SKILL.md`
    frontmatter `name` equals the folder name and `description` is a non-empty string.
-4. `lint-artifact.ts` — parses `--target/--artifact/--cwd/--no-fail`, maps the legacy
+4. `validate-agents-md.ts` — thin runner over `lintAgentsMarkdown`
+   (`src/scripts/lib/agents-md-policy.ts`): enforces the AGENTS.md rules-file
+   policy (AGENTS.md §2) — line/section/table/`npm run` caps, the
+   four-section allowlist, ghost-heading and fenced-code rejection, routing
+   completeness (every `docs/current/*.md` referenced; backticked repo paths
+   exist), and citation integrity (every `AGENTS.md (invariant N)` / `§N` /
+   `section N` in `docs/current/`, all codemaps, and `src/skills/*/SKILL.md`
+   resolves against the section/invariant numbers parsed from AGENTS.md;
+   `docs/changes/` and `docs/ideas/` are excluded as frozen artifacts).
+5. `lint-artifact.ts` — parses `--target/--artifact/--cwd/--no-fail`, maps the legacy
    alias `plan` → stage `planning` (`TARGET_TO_STAGE`), reads the artifact with
    `readYaml`, builds a context with `makeCtx(cwd, changeRoot)`, runs
    `validateArtifact(stageId, artifact, cwd, changeRoot)`, prints blocking findings, and
    exits 1 on any finding unless `--no-fail`.
-5. `deploy-to-agent.ts` — `main()` (`:248`) resolves `--dest` (or first positional),
+6. `deploy-to-agent.ts` — `main()` (`:248`) resolves `--dest` (or first positional),
    optional `--platform`/`--platform-version` (renderer via `getRenderer`, default
    `opencode`/latest), `--clean` (removes both skill dirs, the legacy `sdlc/` runtime
    dir, `LEGACY_SKILL_IDS`, and stale rendered agent files whose source definitions no
@@ -86,13 +95,14 @@ self-contained skill bundles plus per-platform rendered agent files.
   - `validate:schemas` → `bin/validate-schemas.ts`
   - `validate:policies` → `bin/validate-policies.ts`
   - `validate:templates` → `bin/validate-templates.ts`
-  - `validate` → schemas + policies + templates + `typecheck` (tsc --noEmit) + `test:unit`
+  - `validate:agents-md` → `bin/validate-agents-md.ts`
+  - `validate` → schemas + policies + templates + agents-md + `typecheck` (tsc --noEmit) + `test:unit`
   - `test:all` → `validate` + unit/e2e tests; `check:all` → `test:all` + `deploy:smoke`
   - `deploy:smoke` → `bin/deploy-to-agent.ts --dest .tmp/agent --clean`
   - `deploy` → `bin/deploy-to-agent.ts`
 - **Depends on**: `src/scripts/lib/` (yaml-io, cli, validate, context, error-catalog,
   stage-registry, agent-registry, agent-model-fields, agent-permissions,
-  agent-prompt-marker, paths, checks catalog, version, deploy/platforms renderers) and
+  agent-prompt-marker, agents-md-policy, paths, checks catalog, version, deploy/platforms renderers) and
   `src/scripts/workflows/skill-manifest.ts` (the `skillManifest` single source for the
   deployed skill identity).
 - **Produces**: the deployed build artifact — `<dest>/skills/agentic-sdlc/` (`SKILL.md`,

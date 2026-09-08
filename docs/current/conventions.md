@@ -4,7 +4,7 @@
 
 | Pattern | Where Used | Evidence |
 |---------|------------|----------|
-| Declarative stage folder: one folder per stage carrying all config (stage.yaml + kind-specific files); discovered by directory scan, no central enumeration | every stage | src/stages/, src/scripts/lib/stage-registry.ts, AGENTS.md §5 |
+| Declarative stage folder: one folder per stage carrying all config (stage.yaml + kind-specific files); discovered by directory scan, no central enumeration | every stage | src/stages/, src/scripts/lib/stage-registry.ts |
 | Frozen JSON envelope: every CLI output is {workflow, step, state, instructions, data, errors, warnings}, written via writeJson | all of src/scripts/ | src/scripts/lib/cli.ts, src/schemas/cli-envelope.schema.yaml |
 | Central error catalog: errors/warnings are produced by makeError(code) from errors.yaml; no ad-hoc error text | engine, bins, kinds | src/scripts/lib/error-catalog.ts, src/policies/errors.yaml |
 | Declarative validation: stages declare named checks from the capped catalog in structural-checks.yaml; no stage-specific validation scripts | authoring + tasks stages | src/stages/*/structural-checks.yaml, src/scripts/lib/checks/index.ts |
@@ -42,14 +42,14 @@
 
 | Rule | Evidence |
 |------|----------|
-| Stage = one folder under src/stages/<id>/ with a fixed per-kind file set (authoring: 6 files; review: 2; tasks: 5; aggregator: 3); optional hooks.ts is the only stage-specific code | src/stages/, AGENTS.md §5 |
+| Stage = one folder under src/stages/<id>/ with a fixed per-kind file set (authoring: 6 files; review: 2; tasks: 5; aggregator: 3); optional hooks.ts is the only stage-specific code | src/stages/ |
 | Skill sources live under src/skills/<name>/SKILL.md; frontmatter requires name equal to the folder name and a non-empty description; validated by validate:templates | src/skills/, bin/validate-templates.ts |
 | Agent = one YAML file under src/agents/<id>.yaml with id equal to the filename stem; neutral permission vocabulary (file_read, search, file_write, shell, subagent, web, question × allow/ask/deny); validated by validate:policies | src/agents/, src/schemas/agent.schema.yaml |
 | Dev-only skill convention: dev-only skills (e.g. agent-audit) live under src/skills/<name>/SKILL.md, are invoked manually by the maintainer, never ship in the deployed bundle, and are the only place LLM judgment drives configuration | src/skills/agent-audit/SKILL.md, bin/deploy-to-agent.ts |
 | Dev-only skill helper convention: dev-only skills may bundle deterministic helper scripts under src/skills/<name>/scripts/ as plain ESM TypeScript executed directly via node with node builtins only — no build step, no new npm dependencies; typechecked by the existing fast-gate include set (tsconfig includes src/**/*.ts); first instance is improvement-review (four helpers) | src/skills/improvement-review/scripts/, tsconfig.json |
 | Model override convention: the agent model field stays the team recommendation and remains enum-checked; optional model_override is a non-empty free-form string, not enum-checked, wins as effectiveModel (model_override ?? model) at deploy; the audit never overwrites an existing override | src/schemas/agent.schema.yaml, src/scripts/lib/agent-registry.ts, src/scripts/lib/deploy/platforms/opencode.ts |
 | docs/current index contract: exactly four columns (File, Purpose, When to Read, Notes) and nine fixed document rows; no overview.md; created only by the knowledge-init skill, maintained only by knowledge extraction | src/skills/knowledge-init/SKILL.md |
-| Deployed skills are self-contained build artifacts in .opencode/skills/ (agentic-sdlc, knowledge-init): no package.json, node_modules, or source .ts; never edited directly | AGENTS.md §2.9/§10, bin/deploy-to-agent.ts |
-| Single central policy: src/policies/errors.yaml is the only central policy file | AGENTS.md §6, src/policies/ |
-| Living docs (docs/current/) updated only through knowledge extraction; authoring stages emit delta entries and never edit docs/current directly | AGENTS.md §2.4/§2.5, src/scripts/lib/kinds/aggregator.ts |
+| Deployed skills are self-contained build artifacts in .opencode/skills/ (agentic-sdlc, knowledge-init): no package.json, node_modules, or source .ts; never edited directly | AGENTS.md §2, bin/deploy-to-agent.ts |
+| Single central policy: src/policies/errors.yaml is the only central policy file | src/policies/ |
+| Living docs (docs/current/) updated only through knowledge extraction; authoring stages emit delta entries and never edit docs/current directly | AGENTS.md §2, src/scripts/lib/kinds/aggregator.ts |
 | docs/ideas queue contract: docs/ideas holds only open proposal documents whose Status header field carries the disposition (Proposed / Landed in <change-slug> <YYYY-MM-DD> / Dropped <YYYY-MM-DD> — <reason> / Superseded by <slug> <YYYY-MM-DD>); mutable canon lives only in docs/current and changes only via changes; an idea implemented by a change is landed during that change's implementation stage by a documentation task that sets Status to the landing signature "Landed in <change-slug> <YYYY-MM-DD>" (regex ^Landed in \S+ \d{4}-\d{2}-\d{2}$) and moves the file unmodified into the change folder, with implementation-review verifying docs/ideas holds no landed signatures; hosted idea files are frozen with the completed change and referenced read-only | docs/changes/rehome-improvement-review-canon/design.yaml (CMP-005, DM-004), src/skills/improvement-review/SKILL.md |

@@ -6,4 +6,5 @@ checks:
   - "Does the design address the failure paths identified in requirements?"
   - "Do design decisions include enough context and rationale to be reviewed?"
   - "Do delta entries plausibly describe the living docs affected by the design?"
+  - "Does every documentation task declare its destination — an always-in-force rule goes to AGENTS.md (invariants, definition of done, session routing); a description, command, shape, count, layout, or enumeration goes to a docs/current delta citing the owning source file instead of restating it?"
   - "For functionality served by existing components or utilities, was reuse or adaptation evaluated and recorded as a decision?"
