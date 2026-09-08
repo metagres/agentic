@@ -10,9 +10,15 @@ steps:
   docs_delta:
     title: Collect deltas
     markdown: |
-      Collect delta arrays from every delta-producing stage and apply them to docs/current.
+      The CLI collects and dedupes delta entries from every delta-producing stage into `data.deltas_to_apply`; apply each listed delta to its target_doc under docs/current, editing in place at the delta's anchor.
 
-      Use `data.deltas_to_apply` to update the living docs. After updating the docs, run: {{SDLC}} knowledge-extraction --change {{change_name}} --complete
+      If the envelope carries DOCS_INDEX_MISSING, stop and tell the user to run the knowledge-init skill — the CLI never creates docs/current.
+
+      One applied delta looks like:
+      target_doc `docs/current/capabilities.md`, anchor `## SDLC Goals`: insert the delta's statement under that heading; when a statement already covers it, update or merge instead of appending.
+
+      After updating the docs, run: {{SDLC}} knowledge-extraction --change {{change_name}} --complete
+      Report the finished step in one line: how many deltas were applied across how many docs.
     commands:
       - "{{SDLC}} knowledge-extraction --change {{change_name}}"
 

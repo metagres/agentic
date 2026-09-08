@@ -15,7 +15,12 @@ steps:
       Run the requirements review against the tracked artifact.
 
       Report only failures, never passed checks: each failure as {check, evidence} with the check named, the evidence quoted rather than paraphrased, and the exact location (artifact, section, clause, or missing link). Mechanical failures are CLI-computed and listed in `data.failures`; walk the semantic checklist yourself and report its failures the same way. With zero failures report one line stating no failures plus the verdict.
+      One failure line looks like:
+      `given-when-then`: "FR-4 AC-2 'the system responds' is not a Given-When-Then statement (requirements.yaml, functional_requirements[3].acceptance_criteria[1])"
+
+      Name semantic checks exactly as the checklist declares them — a check name the checklist does not carry is refused and nothing is recorded.
       Issue the verdict through the CLI in this session: bare `--accept` accepts when mechanical checks pass; `--reject --failures <file>` records the failed semantic checks as a top-level YAML list of {check, evidence}. A bare invocation without a verdict flag only opens or refreshes the round — a review without a recorded verdict is incomplete.
+      Report the finished review in one line: round, verdict, failures count.
     commands:
       - "{{SDLC}} requirements-review --change {{change_name}}"
 
@@ -35,6 +40,8 @@ steps:
       Reject the requirements artifact to send it back for corrections.
 
       When mechanical checks fail, bare `--reject` records the CLI-computed mechanical failures — no input needed.
-      When mechanical checks pass, rejections are evidence-backed: `--reject --failures <file>` with a top-level YAML list of the failed semantic checks as {check, evidence}.
+      When mechanical checks pass, rejections are evidence-backed: `--reject --failures <file>` with a top-level YAML list of the failed semantic checks as {check, evidence}. The check must quote the checklist question verbatim — an undeclared name is refused and nothing is written:
+      - check: "Does at least one acceptance criterion cover a boundary or negative case?"
+        evidence: "No AC under FR-7 'rate limiting' exercises a 429 or empty-token boundary (requirements.yaml, FR-7)."
     commands:
       - "{{SDLC}} requirements-review --change {{change_name}} --reject --failures <file>"

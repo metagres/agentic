@@ -15,7 +15,12 @@ steps:
       Run the design review against the tracked artifact.
 
       Report only failures, never passed checks: each failure as {check, evidence} with the check named, the evidence quoted rather than paraphrased, and the exact location (artifact, section, clause, or missing link). Mechanical failures are CLI-computed and listed in `data.failures`; walk the semantic checklist yourself and report its failures the same way. With zero failures report one line stating no failures plus the verdict.
+      One failure line looks like:
+      `ref-covers`: "FR-6 'audit logging' is covered by no component's satisfies list (design.yaml, components)"
+
+      Name semantic checks exactly as the checklist declares them — a check name the checklist does not carry is refused and nothing is recorded.
       Issue the verdict through the CLI in this session: bare `--accept` accepts when mechanical checks pass; `--reject --failures <file>` records the failed semantic checks as a top-level YAML list of {check, evidence}. A bare invocation without a verdict flag only opens or refreshes the round — a review without a recorded verdict is incomplete.
+      Report the finished review in one line: round, verdict, failures count.
     commands:
       - "{{SDLC}} design-review --change {{change_name}}"
 
@@ -35,6 +40,8 @@ steps:
       Reject the design artifact to send it back for corrections.
 
       When mechanical checks fail, bare `--reject` records the CLI-computed mechanical failures — no input needed.
-      When mechanical checks pass, rejections are evidence-backed: `--reject --failures <file>` with a top-level YAML list of the failed semantic checks as {check, evidence}.
+      When mechanical checks pass, rejections are evidence-backed: `--reject --failures <file>` with a top-level YAML list of the failed semantic checks as {check, evidence}. The check must quote the checklist question verbatim — an undeclared name is refused and nothing is written:
+      - check: "Are component responsibilities clear, non-overlapping, and testable?"
+        evidence: "components.api_gateway and components.auth both claim token issuance (design.yaml, components)."
     commands:
       - "{{SDLC}} design-review --change {{change_name}} --reject --failures <file>"

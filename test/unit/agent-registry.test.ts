@@ -284,58 +284,18 @@ test('every loaded record exposes systemPrompt as the full deploy-time prompt (p
   }
 });
 
-test('the shipped YAML system_prompt ends with the output-discipline fragment first line', () => {
+test('the shipped YAML system_prompt ends with the output-discipline block', () => {
   const roster = loadAgentRegistry(repoRoot);
   assert.equal(roster.length, 6, 'the six-agent roster loads');
 
-  const legacyTail = [
-    'Output discipline for every reply and every reasoning step - plain English sentences, no token cap:',
-    '- No preamble, acknowledgments, or self-introduction; start with the substance.',
-    "- Never restate the user's request or the step instructions you were given.",
-    '- Never recap CLI envelope or tool output the user can already see.',
-    '- A finished step is reported in one line: what is done and the artifact path.',
-    '- When blocked, state what is blocked, why, and what unblocks it.',
-    'When reasoning: do not restate the request or instructions; no audience-addressed filler; reason in fragments of facts, options, and decisions.',
-  ].join('\n');
-
   for (const agent of roster) {
-    if (['requirements-analyst', 'implementation-engineer', 'task-planner'].includes(agent.id)) {
-      assert.ok(
-        agent.systemPrompt.includes('<output-discipline>'),
-        `'${agent.id}' system_prompt carries the discipline block`
-      );
-      assert.ok(
-        agent.systemPrompt.trimEnd().endsWith('</output-discipline>'),
-        `'${agent.id}' system_prompt ends with the discipline block`
-      );
-      continue;
-    }
-    if (agent.id === 'systems-architect') {
-      assert.ok(
-        agent.systemPrompt.includes(
-          'Discipline — these rules govern style and cross-step behavior only'
-        ),
-        `'${agent.id}' system_prompt carries the discipline block`
-      );
-      assert.ok(
-        agent.systemPrompt
-          .trimEnd()
-          .endsWith(
-            '- Reasoning and artifact prose have no token cap: reason in fragments of facts, options, and decisions, no audience-addressed filler. Step reports stay one line.'
-          ),
-        `'${agent.id}' system_prompt ends with the discipline block`
-      );
-      continue;
-    }
     assert.ok(
-      agent.systemPrompt.includes(
-        'Output discipline for every reply and every reasoning step'
-      ),
-      `'${agent.id}' system_prompt carries the fragment first line`
+      agent.systemPrompt.includes('<output-discipline>'),
+      `'${agent.id}' system_prompt carries the discipline block`
     );
     assert.ok(
-      agent.systemPrompt.endsWith(legacyTail),
-      `'${agent.id}' system_prompt ends with the fragment`
+      agent.systemPrompt.trimEnd().endsWith('</output-discipline>'),
+      `'${agent.id}' system_prompt ends with the discipline block`
     );
   }
 });

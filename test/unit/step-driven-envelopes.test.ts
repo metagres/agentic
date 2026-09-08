@@ -339,7 +339,7 @@ test('aggregator envelopes carry the detected steps.yaml step id', () => {
   const listing = runCli(tmp, ['knowledge-extraction', '--change', changeDir]);
   assertEnvelopeShape(listing);
   assert.equal(listing.step, 'docs_delta');
-  assert.match(listing.instructions, /Collect delta arrays from every delta-producing stage/);
+  assert.match(listing.instructions, /collects and dedupes delta entries from every delta-producing stage/);
   assert.match(listing.instructions, /--complete/);
 
   // --complete: the complete step.
