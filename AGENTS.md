@@ -12,21 +12,21 @@ Documentation-only changes (`*.md`) are exempt. For full confidence run
 
 Invariant numbering is stable — docs/current cites these rules by number. Never renumber.
 
-1. Authoring stages produce delta entries; `docs/current/` is written only by knowledge extraction — except content the docs-gen tooling owns (`docs-gen.yaml` whole-file generated documents and `<!-- docs-gen -->` marker regions), which is written only by `npm run docs:generate` and enforced fresh by `docs:check` in the fast gate.
+1. Authoring stages produce delta entries. `docs/current/` content the docs-gen tooling owns (`docs-gen.yaml` whole-file generated documents and `<!-- docs-gen -->` marker regions) is written only by `npm run docs:generate` and enforced fresh by `docs:check` in the fast gate; all other `docs/current/` content is updated directly by the code change that drifted it (§3) or by knowledge extraction.
 2. The toolkit is agent-agnostic — no hardcoded agent paths.
 3. Deployed skills and agents under `.opencode/` are build artifacts — never edit them, never treat them as source.
 4. Validation is declarative: stages declare named checks from the capped catalog; stage-specific validation scripts are prohibited. Adding or changing a check is a design-review event — the catalog in `src/scripts/lib/checks/index.ts` is the single extension path and is never restated elsewhere.
 5. A new check type, error code, or ID prefix updates its catalog (`src/policies/errors.yaml` or the stage folder) and adds a test.
 6. (Retired) Codemap files were removed; code-structure exploration belongs to the code intelligence tools and to docs/current/. Do not re-introduce generated documentation layers without a named consumer (docs/current capabilities G-05).
 7. Stage lifecycle commands execute through the deployed CLI (`.opencode/skills/agentic-sdlc/scripts/sdlc.js`), never through `src/` scripts. After any change to stage, agent, schema, or policy sources, refresh the production runtime: `npm run deploy -- --dest .opencode --clean`.
-8. AGENTS.md carries only always-in-force rules. Descriptive or drift-prone content — commands, shapes, counts, layouts, enumerations — belongs in docs/current/, lands via knowledge-extraction deltas, and cites the owning source file instead of restating it.
+8. AGENTS.md carries only always-in-force rules. Descriptive or drift-prone content — commands, shapes, counts, layouts, enumerations — belongs in docs/current/, lands through the §3 docs-current duty or knowledge-extraction deltas, and cites the owning source file instead of restating it.
 
 ## 3. Definition of Done
 
 - The One Rule (§1) is satisfied and no invariant (§2) is violated.
 - No hardcoded agent-specific paths were added.
 - Deployment-related changes: `npm run deploy:smoke` passes.
-- Behavior changed: docs updated (§2 governs how).
+- Behavior changed: the affected `docs/current/` content is updated in the same change — direct edits for curated content, the generator for docs-gen-owned regions (§2). A code change without its docs/current update is not done.
 
 ## 4. Session Context Routing
 

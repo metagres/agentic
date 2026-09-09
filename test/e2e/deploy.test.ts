@@ -96,6 +96,12 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
     skillMdContent.includes('is run via that agent'),
     'generated SKILL.md must contain the delegation-rule marker phrase'
   );
+  // CLI-only artifact rule: the generated SKILL.md states that change
+  // artifacts are modified only via the sdlc CLI (marker mirrors the smoke).
+  assert.ok(
+    skillMdContent.includes('only via the sdlc CLI'),
+    'generated SKILL.md must contain the artifact-rule marker phrase'
+  );
 
   const expectedSchemas = [
     'stage.schema.yaml',
@@ -271,6 +277,23 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
     const permission = frontmatter.permission as Record<string, string>;
     const expectedQuestion = file === 'requirements-analyst.md' ? 'allow' : 'deny';
     assert.equal(permission.question, expectedQuestion, `${file} question permission`);
+
+    // CLI-only artifact rule (platform permissions): every deployed agent's
+    // file-write targets deny the change-artifact directory. The rule is
+    // either a flat 'deny' (nothing writable either way) or a path-scoped
+    // object whose docs/changes/** patterns are 'deny'; every other path
+    // keeps the agent's neutral level.
+    for (const target of ['edit', 'write', 'apply_patch']) {
+      const rule: unknown = permission[target];
+      if (typeof rule === 'string') {
+        assert.equal(rule, 'deny', `${file} ${target} must be flat deny`);
+      } else {
+        const scoped = rule as Record<string, string>;
+        assert.equal(scoped['**/docs/changes/**'], 'deny', `${file} ${target} ** pattern`);
+        assert.equal(scoped['docs/changes/**'], 'deny', `${file} ${target} relative pattern`);
+        assert.ok('*' in scoped, `${file} ${target} must keep a catch-all base level`);
+      }
+    }
   }
 
   assert.equal(

@@ -49,7 +49,7 @@ graph TD
 | src/schemas/ | YAML asset layer: meta-schemas; the agent.schema.yaml model enum is live-endpoint-fed (sorted opencode/<id> qualifications from GET http://opencode.ai/zen/go/v1/models, migrated from opencode-go/*) rather than hand-maintained | stage.schema.yaml, agent.schema.yaml, cli-envelope.schema.yaml, docs-delta.schema.yaml | No | src/schemas/ |
 | bin/ | Developer CLI tooling: validation, lint, deployment | deploy-to-agent.ts, lint-artifact.ts, validate-{schemas,policies,templates}.ts | No | bin/ |
 | test/ | Unit + e2e suites | node --test test/unit, test/e2e | No | package.json (scripts) |
-| docs/current/ | Living docs, created only by knowledge-init, maintained by knowledge extraction | 9 documents; the routing map lives in AGENTS.md §4 | No | src/skills/knowledge-init/SKILL.md, AGENTS.md §4 |
+| docs/current/ | Living docs, created only by knowledge-init, maintained by direct change-time updates (one per code change, AGENTS.md §3) and knowledge extraction | 9 documents; the routing map lives in AGENTS.md §4 | No | src/skills/knowledge-init/SKILL.md, AGENTS.md §3, §4 |
 
 ## Integration Points
 
@@ -57,7 +57,7 @@ graph TD
 |----------|--------|--------|----------|----------|
 | Agent ↔ CLI | AI agent | sdlc CLI | argv in; frozen 7-field JSON envelope out | src/schemas/cli-envelope.schema.yaml, src/scripts/sdlc.ts |
 | Deploy → runtime | bin/deploy-to-agent.ts | .opencode/skills/ | file copy + manifest.json per skill | bin/deploy-to-agent.ts |
-| Deploy → agents | bin/deploy-to-agent.ts | <dest>/agents/<agent-id>.md | renderer per platform/version; skills stay platform-uniform | bin/deploy-to-agent.ts, src/scripts/lib/deploy/platforms/ |
+| Deploy → agents | bin/deploy-to-agent.ts | <dest>/agents/<agent-id>.md | renderer per platform/version; v2 file-write permissions carry path-scoped deny rules for docs/changes/** (change artifacts are modified only via the CLI); skills stay platform-uniform | bin/deploy-to-agent.ts, src/scripts/lib/deploy/platforms/ |
 | Deploy → agent prompts | loadAgentRegistry | rendered agent file body | no composition — renderers emit the agent's system_prompt verbatim from the YAML, with the output-discipline text carried inline per agent | src/scripts/lib/agent-registry.ts, src/scripts/lib/deploy/platforms/opencode.ts |
 | Skill source → deploy | bin/deploy-to-agent.ts | src/skills/knowledge-init/SKILL.md | file copy (fail names missing source) | bin/deploy-to-agent.ts |
 | CLI → stage config | kind interpreters | src/stages/<id>/*.yaml | YAML load at startup | src/scripts/lib/stage-registry.ts |

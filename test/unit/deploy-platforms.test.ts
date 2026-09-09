@@ -55,6 +55,23 @@ function agentWithQuestion(level: 'allow' | 'ask' | 'deny'): AgentRecord {
   return makeAgent({ permissions: { ...makeAgent().permissions, question: level } });
 }
 
+/** An agent whose base fixture permissions carry `file_write` at `level`. */
+function agentWithFileWrite(level: 'allow' | 'ask' | 'deny'): AgentRecord {
+  return makeAgent({ permissions: { ...makeAgent().permissions, file_write: level } });
+}
+
+/** The path-scoped permission object the v2 renderer must emit for a
+ *  non-denied file-write target: the neutral level as the catch-all (first,
+ *  because OpenCode resolves object rules last-match-wins) followed by the
+ *  protected change-artifact deny patterns. */
+function protectedWriteRule(level: 'allow' | 'ask'): Record<string, string> {
+  return {
+    '*': level,
+    '**/docs/changes/**': 'deny',
+    'docs/changes/**': 'deny',
+  };
+}
+
 /** Splits rendered content into its parsed YAML frontmatter and the body that
  *  follows the closing `---`. */
 function parseRendered(content: string): {
@@ -94,15 +111,16 @@ test('v2 permission translation covers all six neutral keys and all three levels
   const rendered = getRenderer('opencode').renderAgent(agent);
   const { frontmatter } = parseRendered(rendered.content);
 
-  // file_write allow -> edit/write/apply_patch all "allow"
+  // file_write allow -> edit/write/apply_patch carry the neutral level for
+  // every path (* first) plus the protected change-artifact deny patterns.
   assert.deepEqual(frontmatter.permission, {
     read: 'allow',
     list: 'allow',
     glob: 'allow',
     grep: 'allow',
-    edit: 'allow',
-    write: 'allow',
-    apply_patch: 'allow',
+    edit: protectedWriteRule('allow'),
+    write: protectedWriteRule('allow'),
+    apply_patch: protectedWriteRule('allow'),
     bash: 'ask',
     task: 'deny',
     webfetch: 'deny',
@@ -116,6 +134,36 @@ test('v2 permission translation covers all six neutral keys and all three levels
   assert.equal(permission.websearch, 'deny');
   // an ask level passes through as "ask"
   assert.equal(permission.bash, 'ask');
+});
+
+test('v2 file-write rules deny the change-artifact directory with the catch-all first', () => {
+  const rendered = getRenderer('opencode').renderAgent(agentWithFileWrite('allow'));
+  const { frontmatter } = parseRendered(rendered.content);
+  const permission = frontmatter.permission as Record<string, unknown>;
+
+  const edit = permission.edit as Record<string, string>;
+  // Key order matters at the platform: '*' must precede the protected
+  // patterns (last-match-wins resolution).
+  assert.deepEqual(Object.keys(edit), ['*', '**/docs/changes/**', 'docs/changes/**']);
+  assert.equal(edit['*'], 'allow');
+  assert.equal(edit['**/docs/changes/**'], 'deny');
+  assert.equal(edit['docs/changes/**'], 'deny');
+});
+
+test('v2 file-write ask keeps ask for other paths and denies change artifacts', () => {
+  const rendered = getRenderer('opencode').renderAgent(agentWithFileWrite('ask'));
+  const { frontmatter } = parseRendered(rendered.content);
+  const permission = frontmatter.permission as Record<string, unknown>;
+  assert.deepEqual(permission.write, protectedWriteRule('ask'));
+});
+
+test('v2 file-write deny stays a flat string (nothing writable either way)', () => {
+  const rendered = getRenderer('opencode').renderAgent(agentWithFileWrite('deny'));
+  const { frontmatter } = parseRendered(rendered.content);
+  const permission = frontmatter.permission as Record<string, unknown>;
+  assert.equal(permission.edit, 'deny');
+  assert.equal(permission.write, 'deny');
+  assert.equal(permission.apply_patch, 'deny');
 });
 
 test('v2 question translation emits the neutral level verbatim', () => {

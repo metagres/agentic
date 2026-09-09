@@ -192,7 +192,7 @@
 | Business Rules | Rule | Location |
 |----------------|------|----------|
 | Registry | deployment-layer registry keyed by platform + version; getRenderer resolves, latest is the default | src/scripts/lib/deploy/platforms/index.ts |
-| OpenCode v2 | permission frontmatter map; target tool keys carry the neutral level verbatim | src/scripts/lib/deploy/platforms/opencode.ts |
+| OpenCode v2 | permission frontmatter map; non-file-write target keys carry the neutral level verbatim; file-write targets (edit, write, apply_patch) carry an object — the neutral level as the `*` catch-all (first, because OpenCode resolves object rules last-match-wins) plus deny patterns for docs/changes/** (change artifacts are modified only via the CLI) | src/scripts/lib/deploy/platforms/opencode.ts |
 | OpenCode v1 | legacy tools frontmatter; allow → true, deny → false, ask omitted | src/scripts/lib/deploy/platforms/opencode.ts |
 | Translation | file_read → read/list, search → glob/grep, file_write → edit/write/apply_patch, shell → bash, subagent → task, web → webfetch/websearch, question → question | src/scripts/lib/deploy/platforms/opencode.ts |
 | Frontmatter | rendered agents/<id>.md header carries description, mode (invocation mode), model, temperature beside the permission/tools map | src/scripts/lib/deploy/platforms/opencode.ts |

@@ -164,6 +164,14 @@ function indent(text: string, spaces: number) {
 // this constant deliberately (DEC-006).
 const DELEGATION_RULE_MARKER = 'is run via that agent';
 
+// Stable marker phrase for the CLI-only artifact rule: the deploy smoke fails
+// when the generated SKILL.md lacks it, so rewording the artifact rule must
+// update this constant deliberately. The rule pairs with the path-scoped
+// file-write deny the v2 renderer emits for docs/changes/** (platform
+// permissions) — the prompt layer covers the session agent and runtimes
+// without permission support.
+const ARTIFACT_RULE_MARKER = 'only via the sdlc CLI';
+
 const SKILL_TEMPLATE = [
   '---',
   'name: {{ID}}',
@@ -184,6 +192,7 @@ const SKILL_TEMPLATE = [
   '3. The CLI owns stage detection — do not guess which workflow to run.',
   `4. A stage bound to an agent ${DELEGATION_RULE_MARKER}: check the \`agent\` field in \`data.workflows[]\`, and when it is set, delegate the stage to that agent — unless you are already that agent, or that agent is not present or not invocable in your runtime, in which case proceed running the stage yourself.`,
   '   - Review stages are always performed by their bound reviewer agent, never by the agent that authored the artifact under review.',
+  `5. Change artifacts under \`docs/changes/\` are created and modified ${ARTIFACT_RULE_MARKER} — never edit them directly (deployed agents deny direct writes to that path).`,
   '',
   'Workflows: {{WORKFLOWS}}',
   '',
@@ -421,6 +430,14 @@ function main() {
     if (!skillMd.includes(DELEGATION_RULE_MARKER)) {
       fail(
         `Deployment smoke test failed: generated SKILL.md lacks the delegation rule marker phrase '${DELEGATION_RULE_MARKER}'.`
+      );
+    }
+
+    // CLI-only artifact rule (CMP-005 pattern): the generated SKILL.md must
+    // state that change artifacts are modified only via the sdlc CLI.
+    if (!skillMd.includes(ARTIFACT_RULE_MARKER)) {
+      fail(
+        `Deployment smoke test failed: generated SKILL.md lacks the artifact rule marker phrase '${ARTIFACT_RULE_MARKER}'.`
       );
     }
 
