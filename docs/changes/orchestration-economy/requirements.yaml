@@ -1,0 +1,352 @@
+metadata:
+  id: REQ-001
+  title: Make the status-driven orchestration loop the written contract (G-09)
+  stage: requirements
+  status: draft
+  version: 0.1.0
+  created: 2026-09-07
+  updated: 2026-09-07
+  request_summary: "Make the status-driven orchestration loop the written contract (proposed goal
+    G-09): the orchestrator checks sdlc status, delegates the suggested stage to its bound agent,
+    accepts the subagent's one-line completion report, re-checks status to verify the stage
+    advanced, and continues to the next suggested stage — session transcripts show the orchestrator
+    instead re-delegating completed reviews, performing discovery the subagent repeats, and retrying
+    CLI calls that failed from the wrong context (2 USAGE rejections in the requirements-review
+    session), and the deployed skill body never instructs the loop-back. Add the loop-closure step
+    to the skill body in bin/deploy-to-agent.ts, the state-check and no-pre-discovery sentences to
+    the delegation directive in src/scripts/lib/delegation.ts, and an additive per-round invocation
+    counter in src/scripts/lib/kinds/review.ts so more-reviewer-calls-than-rounds is visible in the
+    review artifact; envelope shape, flags, round lifecycle semantics, and the deploy-smoke marker
+    stay unchanged."
+  clarity: clear
+  assumptions_reviewed: false
+  delta_reviewed: false
+  discovery_reviewed: false
+  scenarios_reviewed: false
+problem_statement: Multi-agent stage work pays an orchestration tax the stage agents do not pay —
+  the orchestrator re-delegates stages whose tracked artifact is already accepted, performs
+  discovery the delegated agent then repeats, and retries CLI calls that failed from the wrong
+  context. The deployed skill body instructs status checking and delegation but never closes the
+  loop — no instruction says to re-run status after a delegated stage reports completion, verify the
+  stage advanced, and continue to the next suggested stage. When the orchestrator re-asks the
+  reviewer on an open round, the round lifecycle refreshes it in place keeping the same round
+  number, so the durable record cannot show that the review was paid for twice — an agent resuming
+  from artifacts alone (goal G-01) cannot see the redundancy. The engine already supports every step
+  of the loop; the gap is the instruction surface.
+discovery_log:
+  - id: DL-001
+    question: When should the delegation directive tell the orchestrator to run sdlc status before
+      delegating a stage?
+    answer: "Re-delegation and ambiguity only: the state-check is required before re-delegating a stage
+      and whenever the next step is ambiguous; first delegations stay zero-overhead with no extra
+      status call on the happy path (maintainer answer, 2026-09-07)."
+    lens: constraint
+    resolved: true
+  - id: DL-002
+    question: Should the review CLI emit an envelope warning when a bare invocation increments an open
+      round's counter past 1?
+    answer: "No call-time warning; the counter stays artifact-only. Rationale (maintainer, 2026-09-07):
+      a review is open if it is not rejected or passed, and in that case the round must be reused —
+      re-invocation on an open round is the designed lifecycle, so invocation count alone does not
+      imply redundancy and the CLI cannot judge it (matches the proposal's non-goal of no mechanical
+      blocking). Zero-change round-trips are read from the artifact as refreshes > 0 with an
+      unchanged artifact_version."
+    lens: interface
+    resolved: true
+  - id: DL-003
+    question: When the orchestrator re-checks status after a subagent reports completion and the stage
+      has NOT advanced, what should the loop instruction say to do?
+    answer: "Retry once, then escalate: the loop instruction tells the orchestrator to re-delegate once
+      with the mismatch noted (stage reported done but status shows otherwise), and if the stage
+      still has not advanced, stop the loop and surface the discrepancy to the maintainer
+      (maintainer answer, 2026-09-07)."
+    lens: failure
+    resolved: true
+  - id: DL-004
+    question: What increments the per-round invocation counter — every reviewer CLI invocation, or only
+      ones that actually touch the round?
+    answer: "Successful invocations only: an invocation increments the counter only when it actually
+      opens or refreshes the open round; a failed invocation (e.g. a USAGE rejection where findings
+      were passed inline) changes no round state and does not increment, so the counter measures
+      paid review work, not call noise (maintainer answer, 2026-09-07)."
+    lens: data
+    resolved: true
+  - id: DL-005
+    question: Who must be able to interpret the per-round invocation counter in the review artifact?
+    answer: "Both audiences: the maintainer reviewing artifacts and agents resuming from artifacts alone
+      (goal G-01) must be able to interpret the counter without transcripts — the field and its
+      documenting text must be self-explanatory (maintainer answer, 2026-09-07)."
+    lens: stakeholder
+    resolved: true
+assumptions:
+  - type: verified
+    text: The deployed skill body instructs status checking and delegation (steps 1-4) with no loop-back
+      step after a delegated stage reports completion.
+    source: bin/deploy-to-agent.ts (SKILL_TEMPLATE, read-verified 2026-09-07)
+  - type: verified
+    text: The delegation directive composes review and authoring variants deterministically from the
+      StageRecord (id, kind, agent) and returns null for unbound stages and cross-cutting commands.
+    source: src/scripts/lib/delegation.ts (read-verified 2026-09-07)
+  - type: verified
+    text: A bare review invocation on an open round replaces it in place keeping the same round number,
+      and a verdict closes it in place or appends a closed round — so invocation counts are erased
+      by the current refresh path.
+    source: src/scripts/lib/kinds/review.ts (open/refresh/verdict path, read-verified 2026-09-07)
+  - type: verified
+    text: sdlc status reports current_workflow, suggested_command, and per-stage bound agent ids so the
+      orchestrator can decide delegation from state alone.
+    source: src/scripts/workflows/status.ts (DEC-004, cited read-verified in
+      docs/ideas/orchestration-economy.md; the deployed skill body instructs checking the agent
+      field in data.workflows[])
+  - type: verified
+    text: Delegated agents already self-serve state through the CLI — the implementation-engineer
+      session records 14 sdlc invocations and each review session 5-10 (miner invocation map,
+      2026-09-07).
+    source: docs/ideas/orchestration-economy.md (Evidence — miner invocation map, 2026-09-07; the 14
+      supplied session transcripts were ephemeral maintainer exports, not committed to the
+      repository)
+  - type: unverified
+    text: The orchestrator's re-delegation and pre-delegation-discovery patterns recur across future
+      cycles — the maintainer's class-3 observation comes from other dogfooding cycles; the 14
+      supplied sessions showed zero instances of it.
+    risk: If the patterns were one-off, the added directive sentences change text without observed
+      behavior change.
+    impact: Low — additive text inside the existing instructions field; future transcripts measure the
+      classes mechanically.
+    severity: low
+  - type: unverified
+    text: The state-check reflex's added status calls cost less in orchestrator tokens than the
+      zero-change round-trips they prevent.
+    risk: The reflex could add calls without preventing round-trips if orchestrators never re-delegate
+      anyway.
+    impact: Bounded — the trigger is scoped to re-delegation and ambiguity only (DL-001), so first
+      delegations pay nothing; future improvement-review runs measure the balance.
+    severity: low
+functional_requirements:
+  - id: FR-001
+    description: When the orchestrator is about to re-delegate a stage or is ambiguous about which stage
+      comes next, the delegation directive shall instruct it to verify stage state via `sdlc status
+      --change <slug>` before delegating and shall forbid re-delegating any stage whose tracked
+      artifact is already accepted.
+    acceptance_criteria:
+      - id: AC-001
+        statement: Given a stage whose tracked artifact status is accepted, When the orchestrator reads the
+          delegation directive before considering another delegation, Then the directive instructs a
+          `sdlc status --change <slug>` check and forbids re-delegating the accepted stage.
+        category: happy
+      - id: AC-002
+        statement: Given a stage's first delegation in a session with no ambiguity about the next step, When
+          the orchestrator follows the directive, Then the directive demands no status check before
+          that delegation.
+        category: boundary
+      - id: AC-003
+        statement: Given ambiguity about which stage comes next, When the orchestrator is about to delegate,
+          Then the directive instructs resolving the ambiguity with a status check before
+          delegating.
+        category: edge
+  - id: FR-002
+    description: When the orchestrator delegates a bound stage, the delegation directive shall instruct
+      it to pass the change slug and stage context only, and the orchestrator shall not perform the
+      delegated stage's discovery (reads or CLI state calls) that the delegated agent can perform
+      itself through the CLI.
+    acceptance_criteria:
+      - id: AC-004
+        statement: Given a bound stage to delegate, When the orchestrator composes the delegation, Then it
+          passes the change slug and stage context and performs none of the delegated stage's
+          discovery itself.
+        category: happy
+      - id: AC-005
+        statement: Given the delegated agent can resolve its own state through the CLI, When the directive
+          is followed, Then the orchestrator performs no pre-delegation reads or state calls on the
+          delegated stage's behalf.
+        category: negative
+      - id: AC-023
+        statement: Given a stage bound to an agent, When the delegation directive is composed, Then the
+          composed text instructs the orchestrator to pass the change slug and stage context and to
+          leave the delegated stage's discovery to the delegated agent.
+        category: happy
+  - id: FR-003
+    description: When an envelope is composed for a stage bound to an agent, the delegation directive
+      shall remain deterministic text composed from the declarative binding at the single funnel,
+      and cross-cutting commands (status, feedback, doctor) shall emit no directive.
+    acceptance_criteria:
+      - id: AC-006
+        statement: Given identical StageRecord inputs (id, kind, agent), When the directive is composed
+          repeatedly, Then the emitted text is byte-identical every time.
+        category: happy
+      - id: AC-007
+        statement: Given a cross-cutting command (status, feedback, doctor), When its envelope is composed,
+          Then no delegation directive is emitted.
+        category: negative
+      - id: AC-008
+        statement: Given a stage with no agent binding, When the directive is composed, Then the result is
+          null and the envelope carries no directive text.
+        category: boundary
+  - id: FR-004
+    description: When a review CLI invocation successfully opens or refreshes a review round, the round
+      shall record its invocation count — a bare invocation on an open round increments the count in
+      place keeping the round number, a verdict carries the count into the closed round, a failed
+      invocation changes no round state and does not increment, and rounds recorded before this
+      change without the field are read as count 1 and never rewritten.
+    acceptance_criteria:
+      - id: AC-009
+        statement: Given a review with no open round, When a bare review invocation is recorded, Then a new
+          open round is appended with invocation count 1.
+        category: happy
+      - id: AC-010
+        statement: Given an open round with invocation count N, When another bare invocation is recorded,
+          Then the same round number is refreshed in place with invocation count N+1.
+        category: edge
+      - id: AC-011
+        statement: Given an open round with invocation count N, When a verdict closes the round, Then the
+          closed round carries invocation count N.
+        category: boundary
+      - id: AC-012
+        statement: Given an invocation rejected before any write (for example a USAGE rejection), When it
+          returns, Then no round is opened, refreshed, or counted.
+        category: negative
+      - id: AC-013
+        statement: Given a legacy round recorded before this change without the count field, When the review
+          file is read, Then the round is treated as invocation count 1 and its recorded content is
+          never rewritten to add the field.
+        category: boundary
+  - id: FR-005
+    description: When a delegated or self-run stage reports completion, the deployed skill body shall
+      instruct the orchestrator to re-run `sdlc status`, verify the stage advanced, and follow the
+      instructions for the next suggested stage.
+    acceptance_criteria:
+      - id: AC-014
+        statement: Given a delegated or self-run stage reports completion, When the orchestrator follows the
+          deployed skill body, Then it re-runs `sdlc status`, verifies the stage advanced, and
+          follows the instructions for the next suggested stage.
+        category: happy
+      - id: AC-015
+        statement: Given a stage whose status is accepted, When the orchestrator consults the skill body,
+          Then the body instructs it never to re-delegate that stage.
+        category: negative
+      - id: AC-016
+        statement: Given a subagent reported completion but `sdlc status` shows the stage did not advance,
+          When the orchestrator follows the loop instruction, Then it re-delegates once with the
+          mismatch noted and, if the stage still has not advanced, stops the loop and surfaces the
+          discrepancy to the maintainer.
+        category: edge
+      - id: AC-017
+        statement: Given the generated SKILL.md, When the deploy smoke runs, Then the delegation rule marker
+          phrase is present verbatim and the loop-closure step appears as additive body text.
+        category: boundary
+non_functional_requirements:
+  - id: NFR-001
+    description: The directive shall stay within the envelope's `instructions` field and the loop
+      instruction within the generated skill body; the seven frozen top-level envelope fields, all
+      flag surfaces, and the deploy-smoke marker contract shall remain unchanged.
+    acceptance_criteria:
+      - id: AC-018
+        statement: Given any CLI envelope after the change, When the envelope is inspected, Then it carries
+          exactly the seven frozen top-level fields with the directive text inside `instructions`.
+        category: happy
+      - id: AC-019
+        statement: Given the CLI flag surface before and after the change, When the surfaces are compared,
+          Then no flag was added or removed.
+        category: negative
+      - id: AC-020
+        statement: Given the deploy smoke, When it checks the generated SKILL.md, Then the delegation rule
+          marker phrase contract passes unchanged.
+        category: boundary
+  - id: NFR-002
+    description: The per-round invocation count shall be self-explanatory in the review artifact to both
+      the maintainer and agents resuming from artifacts alone (goal G-01), without session
+      transcripts; the count shall remain artifact-only and no call-time envelope warning shall be
+      emitted for a refresh, because an open round (not rejected or passed) must be reused by
+      design.
+    acceptance_criteria:
+      - id: AC-021
+        statement: Given a closed round with invocation count greater than 1, When the maintainer or an
+          agent resuming from artifacts alone reads the review file, Then the field name and value
+          convey that the round was invoked that many times without needing transcripts.
+        category: happy
+      - id: AC-022
+        statement: Given a bare invocation that increments an open round's invocation count past 1, When the
+          envelope returns, Then no call-time warning about the refresh is emitted.
+        category: negative
+out_of_scope:
+  - Mechanical blocking of re-delegation — the CLI cannot judge whether a re-ask is redundant; that
+    judgment stays at the call site as orchestration judgment.
+  - Call-time envelope warnings for round refreshes — rejected in discovery (DL-002) — an open round
+    (not rejected or passed) must be reused by design, so invocation count alone does not imply
+    redundancy.
+  - Reviewer-side completion echo (design-space option b in the idea doc) — not committed; may be
+    evaluated during design as a complement.
+  - Envelope shape changes, new flags, stage changes, or changes to the open/refresh/verdict round
+    lifecycle semantics — re-asks that refresh an open round remain legal; this change makes them
+    counted and visible, not forbidden.
+failure_paths:
+  - When a subagent reports a stage complete but `sdlc status` shows the stage did not advance, the
+    loop instruction has the orchestrator re-delegate once with the mismatch noted; if the stage
+    still has not advanced, the orchestrator stops the loop and surfaces the discrepancy to the
+    maintainer (DL-003).
+  - When a review CLI invocation fails before any write (for example a USAGE rejection), no round
+    state changes and the invocation count does not increment (DL-004).
+  - When the state-check reflex's added status calls cost more than the round-trips they prevent,
+    the scoped trigger (re-delegation and ambiguity only, DL-001) bounds the cost and future
+    improvement-review runs measure the balance.
+  - When a reader misreads invocation count greater than 1 as a defect, the field's documenting text
+    states that open-round reuse is the designed lifecycle and the zero-change signal is count
+    greater than 1 with an unchanged artifact_version (DL-002, DL-005).
+  - When the delegation directive grows with the state-check and no-pre-discovery sentences, the
+    added text stays inside the existing `instructions` field composed deterministically from the
+    binding (FR-003), so envelope consumers parse the same seven-field shape and the directive
+    length stays bounded to the added sentences.
+  - When the orchestrator's re-delegation and pre-discovery patterns do not recur, future
+    transcripts and the improvement-review miner measure the classes mechanically and the added text
+    remains harmless.
+risks_and_dependencies:
+  - Depends on the landed output-discipline fragment (one-line completion reports) and the status
+    surface (current_workflow, suggested_command, per-stage agent bindings — DEC-004); both are
+    already in the engine.
+  - Risk — directive text growth on every bound-stage envelope; mitigated by keeping the added
+    sentences inside the existing `instructions` field (NFR-001) with pure deterministic composition
+    (FR-003).
+  - Risk — a future agent misreads invocation count greater than 1 as a defect; mitigated by the
+    self-explanatory field and documenting text stating that open-round reuse is the designed
+    lifecycle (DL-002, DL-005).
+  - Risk — the state-check reflex adds status calls whose cost could exceed the round-trips they
+    prevent; mitigated by the scoped trigger (DL-001) and measured in future dogfooding.
+  - Risk — the observed orchestrator patterns may not recur; mitigated by mechanical measurement in
+    future improvement-review runs before judging the change ineffective.
+delta:
+  - phase: Requirements
+    target_doc: docs/current/conventions.md
+    target_anchor: null
+    entity_id: null
+    change: Add
+    reason: Orchestrator loop convention — the status-driven delegation loop (check status, delegate to
+      the bound agent, accept the one-line report, re-check status, continue), the state-check
+      reflex scoped to re-delegation and ambiguity, and the no-pre-delegation-discovery rule.
+    date: 2026-09-07
+  - phase: Requirements
+    target_doc: docs/current/capabilities.md
+    target_anchor: null
+    entity_id: null
+    change: Add
+    reason: Goal G-09 (the status-driven orchestration loop as written contract) lands through this
+      change's knowledge extraction; the delegation directive gains the state-check and
+      no-pre-discovery sentences and the skill body gains the loop-closure step.
+    date: 2026-09-07
+  - phase: Requirements
+    target_doc: docs/current/operations.md
+    target_anchor: null
+    entity_id: null
+    change: Add
+    reason: The review round invocation-count field — per-round record of successful reviewer CLI
+      invocations carried into the closed round; legacy rounds read as 1; zero-change round-trips
+      read as count greater than 1 with an unchanged artifact_version.
+    date: 2026-09-07
+  - phase: Requirements
+    target_doc: docs/current/decisions.md
+    target_anchor: null
+    entity_id: null
+    change: Add
+    reason: Decision — no call-time envelope warning for round refreshes — an open round (not rejected
+      or passed) must be reused by design, so invocation count alone does not imply redundancy and
+      the CLI does not judge it; interpretation stays with the artifact reader.
+    date: 2026-09-07
