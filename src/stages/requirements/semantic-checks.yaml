@@ -9,6 +9,7 @@ checks:
   - "Does each risk have a corresponding failure_paths entry, and each unverified assumption a corresponding risk entry?"
   - "Do any functional requirements contradict the out_of_scope list, another FR, or an NFR?"
   - "Does the problem statement describe the problem, not a solution?"
+  - "Is the problem statement stated in at most six sentences — specific enough to name the operator pain, tight enough to remain a single problem?"
   - "Could any requirement or acceptance criterion be read in more than one way by a machine consumer? If so, split it, add precision, or record a discovery question."
   - "Is each requirement description phrased in EARS form (When <trigger>, the system shall <response>) or an equally unambiguous pattern?"
   - "Does each requirement describe exactly one verifiable behavior, with no conjunctions joining unrelated behaviors?"

@@ -6,7 +6,7 @@ steps:
       Ask the user which change to design. Run the matching command.
       Report one line: which command ran.
     commands:
-      - "{{SDLC}} design --change <change-name>"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   init:
     title: Initialization
@@ -18,7 +18,7 @@ steps:
 
       Report one line: artifact initialized (path) + docs consulted.
     commands:
-      - "{{SDLC}} design --change {{change_name}}"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   authoring:
     title: Authoring
@@ -73,12 +73,17 @@ steps:
       entries via --append-delta (allowed targets:
       `data.delta_allowed_target_docs`). Knowledge extraction dedupes.
 
+      Mechanical checks (CLI-enforced; every finding blocks finalize and review —
+      the full table lives in docs/current/conventions.md):
+      - unique-ids: component/data-model/API/decision ids unique
+      - ref-exists and ref-covers: every satisfies entry resolves to a
+        requirements id, and every FR/NFR is covered by some component
+      - duplicate-refs: no repeated reference inside one satisfies list
+
       Write the artifact through the script. Report one line: design authored
       (N components, M decisions, K delta entries).
     commands:
-      - "{{SDLC}} design --change {{change_name}} --next-ids"
-      - "{{SDLC}} design --change {{change_name}} --update-artifact < design.yaml"
-      - "{{SDLC}} design --change {{change_name}} --append-delta < delta.yaml"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
     complete_when:
       field: context_summary
       non_empty: true
@@ -86,10 +91,10 @@ steps:
   recovery:
     title: Recovery
     markdown: |
-      The design artifact was rejected by review. Fix exactly the failures
-      listed in `data.review_failures` ({check, evidence}) and `data.errors`
-      (blocking findings) — nothing else. Unaffected sections are not
-      rewritten or re-emitted.
+      The design artifact needs recovery: mechanical validation failed, or
+      review rejected it. Fix exactly the failures listed in `data.review_failures`
+      ({check, evidence}) and `data.errors` (mechanical findings) — nothing
+      else. Unaffected sections are not rewritten or re-emitted.
 
       One line per fix in chat: `<check> -> <what changed>`. Then update
       through the script and finalize again.
@@ -97,8 +102,7 @@ steps:
       Finalizing a rejected artifact bumps the version (patch by default;
       --bump-version major|minor|patch overrides).
     commands:
-      - "{{SDLC}} design --change {{change_name}} --update-artifact < design.yaml"
-      - "{{SDLC}} design --change {{change_name}} --finalize"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   ready:
     title: Ready
@@ -106,11 +110,11 @@ steps:
       All gates passed. Finalize with --finalize --confirm-semantic.
       Report one line: artifact finalized (version).
     commands:
-      - "{{SDLC}} design --change {{change_name}} --finalize --confirm-semantic"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   complete:
     title: Complete
     markdown: |
       The design artifact is ready for the review gate.
     commands:
-      - "{{SDLC}} design-review --change {{change_name}}"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."

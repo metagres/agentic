@@ -7,7 +7,7 @@ steps:
 
       Run the matching command. Report one line: which command ran.
     commands:
-      - "{{SDLC}} planning --change <change-name>"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   init:
     title: Initialization
@@ -18,7 +18,7 @@ steps:
 
       Report one line: artifact initialized (path) + docs consulted.
     commands:
-      - "{{SDLC}} planning --change {{change_name}}"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   authoring:
     title: Authoring
@@ -64,11 +64,17 @@ steps:
           - path: test/report-formatter.test.ts
             operation: create
 
+      Mechanical checks (CLI-enforced; every finding blocks finalize and review —
+      the full table lives in docs/current/conventions.md):
+      - unique-ids: task/milestone/risk ids unique
+      - ref-exists and ref-covers: tasks cover FRs and acceptance criteria,
+        milestones reference existing tasks, design_refs resolve
+      - dependency-acyclic and dependency-order: no dependency cycles, and a
+        dependency appears before the tasks that depend on it
+
       Write the artifact through the script. Report one line: plan authored (N tasks, M milestones, K risks, J delta entries).
     commands:
-      - "{{SDLC}} planning --change {{change_name}} --next-ids"
-      - "{{SDLC}} planning --change {{change_name}} --update-artifact < plan.yaml"
-      - "{{SDLC}} planning --change {{change_name}} --append-delta < delta.yaml"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
     complete_when:
       array: tasks
       min_items: 1
@@ -76,14 +82,13 @@ steps:
   recovery:
     title: Recovery
     markdown: |
-      The plan artifact was rejected by review. Fix exactly the failures listed in `data.review_failures` ({check, evidence}) — nothing else. Unaffected sections are not rewritten or re-emitted.
+      The plan artifact needs recovery: mechanical validation failed, or review rejected it. Fix exactly the failures listed in `data.errors` (mechanical findings) and `data.review_failures` ({check, evidence} from the latest rejected round) — nothing else. Unaffected sections are not rewritten or re-emitted.
 
       One line per fix in chat: `<check> -> <what changed>`. Then update through the script and finalize again.
 
       Finalizing a rejected artifact bumps the version (patch by default; --bump-version major|minor|patch overrides).
     commands:
-      - "{{SDLC}} planning --change {{change_name}} --update-artifact < plan.yaml"
-      - "{{SDLC}} planning --change {{change_name}} --finalize"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   ready:
     title: Ready
@@ -91,11 +96,11 @@ steps:
       All gates passed. Finalize with --finalize --confirm-semantic.
       Report one line: plan finalized (version).
     commands:
-      - "{{SDLC}} planning --change {{change_name}} --finalize --confirm-semantic"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   complete:
     title: Complete
     markdown: |
       The plan artifact is ready for the review gate.
     commands:
-      - "{{SDLC}} planning-review --change {{change_name}}"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."

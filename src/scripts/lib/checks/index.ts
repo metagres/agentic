@@ -6,7 +6,6 @@ import { refCovers } from './ref-covers.ts';
 import { duplicateRefs } from './duplicate-refs.ts';
 import { givenWhenThen } from './given-when-then.ts';
 import { forbiddenWords } from './forbidden-words.ts';
-import { sentenceCount } from './sentence-count.ts';
 import { requiredNoteForStatus } from './required-note-for-status.ts';
 import { allTasksTerminal } from './all-tasks-terminal.ts';
 import { dependencyAcyclic } from './dependency-acyclic.ts';
@@ -26,10 +25,11 @@ export interface PathParamSpec {
 }
 
 /**
- * The capped catalog of eleven named structural checks (CMP-002 part 2, AC-014;
- * referenced-by was removed with the nested acceptance-criteria format).
- * Adding or changing a check is a design-review event; this catalog is the
- * single extension path for structural validation logic.
+ * The capped catalog of ten named structural checks (CMP-002 part 2, AC-014;
+ * referenced-by was removed with the nested acceptance-criteria format and
+ * sentence-count moved to the stages' semantic checklists). Adding or changing
+ * a check is a design-review event; this catalog is the single extension path
+ * for structural validation logic.
  */
 export const CHECK_CATALOG: Record<
   string,
@@ -66,7 +66,6 @@ export const CHECK_CATALOG: Record<
     requiredParams: ['fields'],
     pathParams: [{ spec: 'fields', kind: 'leaf' }],
   },
-  'sentence-count': { fn: sentenceCount, requiredParams: ['field', 'min', 'max'] },
   'required-note-for-status': { fn: requiredNoteForStatus, requiredParams: ['array', 'statuses'] },
   'all-tasks-terminal': { fn: allTasksTerminal, requiredParams: ['array', 'allowed_statuses'] },
   'dependency-acyclic': { fn: dependencyAcyclic, requiredParams: ['array'] },

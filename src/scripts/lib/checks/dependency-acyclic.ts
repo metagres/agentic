@@ -43,9 +43,7 @@ export const dependencyAcyclic: CheckFn = (artifact, params) => {
     const id = String(t?.[idField] || '');
     if (visit(id)) {
       findings.push({
-        check: 'dependency-acyclic',
-        severity: 'blocking',
-        category: 'structural',
+        check: 'dependency-acyclic',        category: 'structural',
         target: arrayName,
         finding: 'Task dependency graph contains a cycle.',
         fix: 'Remove the dependency cycle',

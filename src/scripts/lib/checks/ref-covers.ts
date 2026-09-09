@@ -62,9 +62,7 @@ export const refCovers: CheckFn = (artifact, params, context) => {
         const id = item?.[to.field as string];
         if (typeof id === 'string' && !covered.has(id)) {
           findings.push({
-            check: 'ref-covers',
-            severity: 'blocking',
-            category: 'traceability',
+            check: 'ref-covers',            category: 'traceability',
             target: `${toFile || 'this artifact'}:${arrayName}.${to.field}`,
             finding: `'${id}' in '${arrayName}' is not covered by any ${from.array}.${from.field} entry`,
             fix: `Add '${id}' to a '${from.array}' entry's '${from.field}'`,

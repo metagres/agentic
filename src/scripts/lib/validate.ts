@@ -39,7 +39,6 @@ function schemaFindings(schemaPath: string, data: unknown): Finding[] {
     const target = err.instancePath || 'doc';
     return {
       check: 'schema',
-      severity: 'blocking',
       category: 'structural',
       target,
       finding: `${target} ${err.message}`.trim(),

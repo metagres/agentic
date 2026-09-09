@@ -7,12 +7,18 @@
 // stores and contains no hardcoded runtime locations (invariant 7, DEC-005).
 // Extraction targets the generic line-oriented event grammar documented in
 // SKILL.md: sdlc CLI invocation lines counted per command/stage, repeated
-// identical consecutive command lines as wasted-round candidates, and
-// delegation events capturing the three FR-002 sub-fields (delegation type,
-// model resolution success/failure, rework needed). The source filename is
-// printed beside every number. Zero parseable events in a supplied file
-// produce an explicit zero-extraction report naming the file and a non-zero
-// exit (AC-006). Byte-identical output for identical input files (DEC-008).
+// identical consecutive command lines as wasted-round candidates, ack-repeat
+// candidates (consecutive invocations returning an identical instructions
+// text), envelope error signatures counted per code, tool-call failure
+// signatures (schema errors, exact-match edit failures) counted per
+// signature, source-exploration events (codegraph explores, grep/rg naming
+// src/ paths), diagnosis-loop candidates (exploration runs following a
+// blocked envelope), and delegation events capturing the three FR-002
+// sub-fields (delegation type, model resolution success/failure, rework
+// needed). The source filename is printed beside every number. Zero
+// parseable events in a supplied file produce an explicit zero-extraction
+// report naming the file and a non-zero exit (AC-006). Byte-identical output
+// for identical input files (DEC-008).
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -48,6 +54,91 @@ const FAILURE_RE = /\\?"code\\?"\s*:\s*\\?"([A-Z][A-Z_]{3,})\\?"/;
 const ERRORS_ANCHOR_RE = /\\?"errors\\?"\s*:\s*\[/g;
 const WARNINGS_ANCHOR_RE = /\\?"warnings\\?"\s*:\s*\[/g;
 
+/**
+ * Tool-call failure event: a line carrying a known tool-call failure
+ * signature — schema errors and exact-match edit failures — counted per
+ * signature (first matching signature per line). The signature is only
+ * read inside a raw or escaped-JSON `"error": "` field anchor, mirroring
+ * the errors-array window of the envelope-failure rule: tool-runtime
+ * results match, quoted prose and engine source shapes (makeError calls)
+ * never do. The catalog is closed: signatures spell the tool-runtime
+ * phrasing of the failure classes observed in reviewed sessions, not
+ * generic error words. Tool failures also arm the diagnosis-loop detector,
+ * like blocked envelopes do.
+ */
+const TOOL_ERROR_ANCHOR_RE = /\\?"error\\?"\s*:\s*\\?"/;
+const TOOL_FAILURE_SIGNATURES: { signature: string; pattern: RegExp }[] = [
+  {
+    signature: 'edit-not-found',
+    pattern:
+      /\bCould not find oldString in the file\b|\boldString not found in file\b|\bString to replace not found in file\b/,
+  },
+  {
+    signature: 'tool-schema-error',
+    pattern: /\bSchemaError\b|\bPlease rewrite the input so it satisfies the expected schema\b/,
+  },
+];
+
+/**
+ * Source-exploration event: a codegraph-explore tool call, or a grep/rg
+ * command line naming a src/ path. Counted per kind (codegraph | grep).
+ */
+const CODEGRAPH_EXPLORE_RE = /codegraph\S*explore/;
+const GREP_SRC_RE = /\b(?:grep|rg)\s[^;|]*\bsrc\//;
+
+/**
+ * Blocked-envelope anchor: a raw or escaped-JSON `"state": "blocked"` field.
+ * Together with envelope error signatures and tool-call failures it arms the
+ * diagnosis-loop detector.
+ */
+const BLOCKED_STATE_RE = /\\?"state\\?"\s*:\s*\\?"blocked\\?"/;
+
+/**
+ * Ack-repeat candidate: consecutive CLI invocations whose returned envelope
+ * instructions text is identical — the repeated-ack pattern distinct from
+ * the identical-command-line wasted-round rule (command lines differ, the
+ * returned instructions do not). The instructions slice runs from the
+ * raw or escaped-JSON `"instructions": "` anchor to the next `"data"` anchor
+ * on the same line (or end of line); only the first instructions anchor per
+ * line is read. A slice is attributed to an invocation only when an
+ * invocation event was seen since the previous attributed slice, so the
+ * duplicate envelope copies a transcript may carry for one invocation never
+ * count as repeats.
+ */
+const INSTRUCTIONS_ANCHOR_RE = /\\?"instructions\\?"\s*:\s*\\?"/;
+const DATA_ANCHOR_RE = /\\?"data\\?"\s*:/;
+
+/** Extraction threshold N: a post-block exploration run of any length counts. */
+const DIAGNOSIS_LOOP_MIN_EXPLORATIONS = 1;
+
+/** First tool-failure signature inside an `"error"` field anchor, by catalog order. */
+function matchToolFailure(line: string): string | null {
+  if (!TOOL_ERROR_ANCHOR_RE.test(line)) return null;
+  for (const { signature, pattern } of TOOL_FAILURE_SIGNATURES) {
+    if (pattern.test(line)) return signature;
+  }
+  return null;
+}
+
+/**
+ * Instructions slice for ack-repeat comparison: from the instructions anchor
+ * through the next data anchor (or end of line). Identical instructions
+ * yield identical slices regardless of the surrounding envelope payload.
+ */
+function instructionsSlice(line: string): string | null {
+  const anchor = INSTRUCTIONS_ANCHOR_RE.exec(line);
+  if (!anchor) return null;
+  const start = anchor.index;
+  const rest = line.slice(start + anchor[0].length);
+  const data = DATA_ANCHOR_RE.exec(rest);
+  const end = data ? start + anchor[0].length + data.index : line.length;
+  return line.slice(start, end);
+}
+
+function explorationKind(line: string): string {
+  return CODEGRAPH_EXPLORE_RE.test(line) ? 'codegraph' : 'grep';
+}
+
 function matchFailureCode(line: string): string | null {
   let lastErrorsAnchor = -1;
   for (const match of line.matchAll(ERRORS_ANCHOR_RE)) lastErrorsAnchor = match.index;
@@ -77,8 +168,15 @@ interface FileStats {
   totalInvocations: number;
   wasted: Map<string, number>;
   wastedTotal: number;
+  ackRepeatTotal: number;
   failures: Map<string, number>;
   failuresTotal: number;
+  toolFailures: Map<string, number>;
+  toolFailuresTotal: number;
+  explorations: Map<string, number>;
+  explorationsTotal: number;
+  diagnosisLoopTotal: number;
+  diagnosisLoopRuns: number[];
   delegations: DelegationEvent[];
 }
 
@@ -94,13 +192,35 @@ function mineFile(file: string, text: string): FileStats {
     totalInvocations: 0,
     wasted: new Map(),
     wastedTotal: 0,
+    ackRepeatTotal: 0,
     failures: new Map(),
     failuresTotal: 0,
+    toolFailures: new Map(),
+    toolFailuresTotal: 0,
+    explorations: new Map(),
+    explorationsTotal: 0,
+    diagnosisLoopTotal: 0,
+    diagnosisLoopRuns: [],
     delegations: [],
   };
 
   const lines = text.split('\n');
   let previousCommandLine: string | null = null;
+
+  // Ack-repeat state: an instructions slice is only attributed to an
+  // invocation when an invocation event was seen since the previous
+  // attributed slice, so duplicate envelope copies for one invocation
+  // never count as repeats.
+  let pendingInvocation = false;
+  let lastInstructionsSlice: string | null = null;
+
+  // Diagnosis-loop state: a blocked envelope (state:"blocked", an envelope
+  // error signature, or a tool-call failure) arms the detector; an sdlc
+  // invocation disarms it and ends the current exploration run. Non-event
+  // lines (prose, file reads, blank lines) neither break a run nor re-arm.
+  let blockedArmed = false;
+  let inLoopRun = false;
+  let loopRunEvents = 0;
 
   for (const raw of lines) {
     const line = raw.trim();
@@ -117,6 +237,10 @@ function mineFile(file: string, text: string): FileStats {
       const command = token.startsWith('-') ? 'none' : token;
       stats.invocations.set(command, (stats.invocations.get(command) ?? 0) + 1);
       stats.totalInvocations += 1;
+      pendingInvocation = true;
+      blockedArmed = false;
+      inLoopRun = false;
+      loopRunEvents = 0;
 
       // Wasted-round candidate: repeated identical consecutive command lines.
       if (previousCommandLine === line) {
@@ -140,6 +264,44 @@ function mineFile(file: string, text: string): FileStats {
     if (failureCode) {
       stats.failures.set(failureCode, (stats.failures.get(failureCode) ?? 0) + 1);
       stats.failuresTotal += 1;
+      blockedArmed = true;
+    }
+
+    const toolFailure = matchToolFailure(line);
+    if (toolFailure) {
+      stats.toolFailures.set(toolFailure, (stats.toolFailures.get(toolFailure) ?? 0) + 1);
+      stats.toolFailuresTotal += 1;
+      blockedArmed = true;
+    }
+
+    if (BLOCKED_STATE_RE.test(line)) {
+      blockedArmed = true;
+    }
+
+    if (CODEGRAPH_EXPLORE_RE.test(line) || GREP_SRC_RE.test(line)) {
+      const kind = explorationKind(line);
+      stats.explorations.set(kind, (stats.explorations.get(kind) ?? 0) + 1);
+      stats.explorationsTotal += 1;
+
+      if (blockedArmed) {
+        loopRunEvents += 1;
+        if (!inLoopRun && loopRunEvents >= DIAGNOSIS_LOOP_MIN_EXPLORATIONS) {
+          stats.diagnosisLoopTotal += 1;
+          inLoopRun = true;
+          stats.diagnosisLoopRuns.push(loopRunEvents);
+        } else if (inLoopRun) {
+          stats.diagnosisLoopRuns[stats.diagnosisLoopRuns.length - 1] = loopRunEvents;
+        }
+      }
+    }
+
+    const slice = instructionsSlice(line);
+    if (slice !== null && pendingInvocation) {
+      if (slice === lastInstructionsSlice) {
+        stats.ackRepeatTotal += 1;
+      }
+      lastInstructionsSlice = slice;
+      pendingInvocation = false;
     }
   }
 
@@ -182,6 +344,15 @@ function main(): void {
   const allStats: FileStats[] = [];
   const zeroExtractionFiles: string[] = [];
 
+  const hasEvents = (stats: FileStats): boolean =>
+    stats.totalInvocations > 0 ||
+    stats.delegations.length > 0 ||
+    stats.failuresTotal > 0 ||
+    stats.toolFailuresTotal > 0 ||
+    stats.explorationsTotal > 0 ||
+    stats.diagnosisLoopTotal > 0 ||
+    stats.ackRepeatTotal > 0;
+
   for (const file of files) {
     let text: string;
     try {
@@ -195,22 +366,24 @@ function main(): void {
     const stats = mineFile(file, text);
     allStats.push(stats);
 
-    if (
-      stats.totalInvocations === 0 &&
-      stats.delegations.length === 0 &&
-      stats.failuresTotal === 0
-    ) {
+    if (!hasEvents(stats)) {
       zeroExtractionFiles.push(file);
     }
   }
 
-  const hasEvents = (stats: FileStats): boolean =>
-    stats.totalInvocations > 0 || stats.delegations.length > 0 || stats.failuresTotal > 0;
-
   lines.push(allStats.every(hasEvents) ? 'result: ok' : 'result: zero-extraction');
   lines.push('rows:');
 
-  let totals = { invocations: 0, wasted: 0, failures: 0, delegations: 0 };
+  let totals = {
+    invocations: 0,
+    wasted: 0,
+    ackRepeats: 0,
+    failures: 0,
+    toolFailures: 0,
+    explorations: 0,
+    diagnosisLoops: 0,
+    delegations: 0,
+  };
 
   for (const stats of allStats) {
     lines.push(
@@ -220,7 +393,19 @@ function main(): void {
       `label=wasted_round_candidates value=${stats.wastedTotal} unit=events source=file:${stats.file}`
     );
     lines.push(
+      `label=ack_repeat_candidates value=${stats.ackRepeatTotal} unit=events source=file:${stats.file}`
+    );
+    lines.push(
       `label=failures value=${stats.failuresTotal} unit=events source=file:${stats.file}`
+    );
+    lines.push(
+      `label=tool_failures value=${stats.toolFailuresTotal} unit=events source=file:${stats.file}`
+    );
+    lines.push(
+      `label=explorations value=${stats.explorationsTotal} unit=events source=file:${stats.file}`
+    );
+    lines.push(
+      `label=diagnosis_loop_candidates value=${stats.diagnosisLoopTotal} unit=events source=file:${stats.file}`
     );
     lines.push(
       `label=delegations value=${stats.delegations.length} unit=events source=file:${stats.file}`
@@ -228,7 +413,11 @@ function main(): void {
 
     totals.invocations += stats.totalInvocations;
     totals.wasted += stats.wastedTotal;
+    totals.ackRepeats += stats.ackRepeatTotal;
     totals.failures += stats.failuresTotal;
+    totals.toolFailures += stats.toolFailuresTotal;
+    totals.explorations += stats.explorationsTotal;
+    totals.diagnosisLoops += stats.diagnosisLoopTotal;
     totals.delegations += stats.delegations.length;
 
     if (verbose) {
@@ -253,6 +442,29 @@ function main(): void {
         lines.push(
           `label=${path.basename(stats.file)}:failure_code:${code} ` +
             `value=${stats.failures.get(code)} unit=events source=file:${stats.file}`
+        );
+      }
+
+      const toolSignatures = [...stats.toolFailures.keys()].sort(compareStrings);
+      for (const signature of toolSignatures) {
+        lines.push(
+          `label=${path.basename(stats.file)}:tool_failure:${signature} ` +
+            `value=${stats.toolFailures.get(signature)} unit=events source=file:${stats.file}`
+        );
+      }
+
+      const explorationKinds = [...stats.explorations.keys()].sort(compareStrings);
+      for (const kind of explorationKinds) {
+        lines.push(
+          `label=${path.basename(stats.file)}:exploration:${kind} ` +
+            `value=${stats.explorations.get(kind)} unit=events source=file:${stats.file}`
+        );
+      }
+
+      for (const runEvents of stats.diagnosisLoopRuns) {
+        lines.push(
+          `label=${path.basename(stats.file)}:diagnosis_loop_run ` +
+            `value=${runEvents} unit=events source=file:${stats.file}`
         );
       }
 
@@ -287,7 +499,15 @@ function main(): void {
     lines.push(
       `label=total value=${totals.wasted} unit=events source=files:wasted_round_candidates`
     );
+    lines.push(
+      `label=total value=${totals.ackRepeats} unit=events source=files:ack_repeat_candidates`
+    );
     lines.push(`label=total value=${totals.failures} unit=events source=files:failures`);
+    lines.push(`label=total value=${totals.toolFailures} unit=events source=files:tool_failures`);
+    lines.push(`label=total value=${totals.explorations} unit=events source=files:explorations`);
+    lines.push(
+      `label=total value=${totals.diagnosisLoops} unit=events source=files:diagnosis_loop_candidates`
+    );
     lines.push(`label=total value=${totals.delegations} unit=events source=files:delegations`);
   }
 

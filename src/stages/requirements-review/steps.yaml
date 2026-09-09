@@ -7,7 +7,7 @@ steps:
 
       The review gate requires the requirements artifact to be ready-for-review.
     commands:
-      - "{{SDLC}} requirements-review --change <change-name> [--accept|--reject] [--failures <file>]"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   review:
     title: Review
@@ -22,7 +22,7 @@ steps:
       Issue the verdict through the CLI in this session: bare `--accept` accepts when mechanical checks pass; `--reject --failures <file>` records the failed semantic checks as a top-level YAML list of {check, evidence}. A bare invocation without a verdict flag only opens or refreshes the round — a review without a recorded verdict is incomplete.
       Report the finished review in one line: round, verdict, failures count.
     commands:
-      - "{{SDLC}} requirements-review --change {{change_name}}"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   accept:
     title: Accept
@@ -32,7 +32,7 @@ steps:
       Run bare `--accept` — no findings file: the round is recorded accepted with `failures: []` and both valid flags true.
       If mechanical checks fail, acceptance is impossible: the round is forced rejected and the artifact is flipped to rejected — fix the recorded failures first.
     commands:
-      - "{{SDLC}} requirements-review --change {{change_name}} --accept"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   reject:
     title: Reject
@@ -44,4 +44,4 @@ steps:
       - check: "Does at least one acceptance criterion cover a boundary or negative case?"
         evidence: "No AC under FR-7 'rate limiting' exercises a 429 or empty-token boundary (requirements.yaml, FR-7)."
     commands:
-      - "{{SDLC}} requirements-review --change {{change_name}} --reject --failures <file>"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."

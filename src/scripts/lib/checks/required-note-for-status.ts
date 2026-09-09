@@ -19,9 +19,7 @@ export const requiredNoteForStatus: CheckFn = (artifact, params) => {
     const note = item?.[noteField];
     if (!note || String(note).trim().length === 0) {
       findings.push({
-        check: 'required-note-for-status',
-        severity: 'blocking',
-        category: 'completeness',
+        check: 'required-note-for-status',        category: 'completeness',
         target: `${arrayName}[].${noteField}`,
         finding: `Task ${String(item?.id || 'entry')} has status '${status}' but no ${noteField}`,
         fix: `Add a ${noteField} explaining what was done and how it was verified`,

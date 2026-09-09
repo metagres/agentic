@@ -19,6 +19,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
+import { STAGES, invocationClass } from './invocation_class.ts';
+
 const SCRIPT = 'envelope_sizes.ts';
 
 /** Repository root, resolved from this file's location (src/skills/improvement-review/scripts/). */
@@ -29,23 +31,6 @@ const ROOT = path.resolve(
   '..',
   '..'
 );
-
-/**
- * The nine pipeline stage ids in canonical order with the invocation-class
- * mutation matrix (CMP-004, RISK-001 mitigation): review stages hardcode
- * mandatory --dry-run.
- */
-const STAGES: { id: string; dryRun: boolean }[] = [
-  { id: 'requirements', dryRun: false },
-  { id: 'requirements-review', dryRun: true },
-  { id: 'design', dryRun: false },
-  { id: 'design-review', dryRun: true },
-  { id: 'planning', dryRun: false },
-  { id: 'planning-review', dryRun: true },
-  { id: 'implementation', dryRun: false },
-  { id: 'implementation-review', dryRun: true },
-  { id: 'knowledge-extraction', dryRun: false },
-];
 
 /** The frozen CLI envelope top-level fields, in frozen order (invariant 8). */
 const FROZEN_FIELDS = [
@@ -206,13 +191,16 @@ function main(): void {
   ];
 
   let grandTotal = 0;
+  const classTotals = new Map<string, number>();
 
   for (const stage of STAGES) {
     const measurement = measureEnvelope(stage.id, stage.dryRun, options.change);
+    const klass = invocationClass(stage.id);
     grandTotal += measurement.total;
+    classTotals.set(klass, (classTotals.get(klass) ?? 0) + measurement.total);
 
     lines.push(
-      `label=${stage.id} value=${measurement.total} unit=bytes source=step:${measurement.step}`
+      `label=${stage.id} value=${measurement.total} unit=bytes source=step:${measurement.step} class=${klass}`
     );
 
     if (options.verbose) {
@@ -225,8 +213,25 @@ function main(): void {
     }
   }
 
+  // Per-invocation-class rows: the before/after delta of an envelope-semantics
+  // change (for example terse envelopes) is measurable per class instead of
+  // blended into one total.
+  for (const klass of ['detection', 'mutation'] as const) {
+    lines.push(
+      `label=${klass} value=${classTotals.get(klass) ?? 0} unit=bytes source=stages:${klass}`
+    );
+  }
+
   lines.push(`label=total value=${grandTotal} unit=bytes source=envelopes:${STAGES.length}`);
-  lines.push('');
+  lines.push(
+    'notes:',
+    '- envelope bytes scale with the envelope rendering semantics; when a change alters those',
+    '  semantics (for example terse envelopes for mutation invocations), same-kind byte rows',
+    '  across the change are incomparable and every affected envelope-byte baseline row becomes',
+    '  an initial-baseline candidate per the re-baseline rule in SKILL.md section 4 — record the',
+    '  fresh per-class rows instead of claiming a regression.',
+    ''
+  );
 
   process.stdout.write(lines.join('\n'));
 }

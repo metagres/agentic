@@ -178,7 +178,10 @@ test('review --help-step renders the detected step definition with substituted c
   assert.ok(Array.isArray(help.commands) && help.commands.length > 0);
   for (const command of help.commands) {
     assert.ok(!command.includes('{{'), `commands must be rendered: ${command}`);
-    assert.ok(command.includes(changeDir), `commands carry the change name: ${command}`);
+    // Steps.yaml commands are help pointers (W4): the agent discovers the
+    // invocation surface via --help / --describe-step.
+    assert.ok(command.includes('--help'), `commands carry the help pointer: ${command}`);
+    assert.ok(command.includes('--describe-step'), `commands carry the describe-step pointer: ${command}`);
   }
 
   // Without the flag the payload stays lean.
@@ -245,8 +248,8 @@ test('tasks envelopes carry the detected steps.yaml step id', () => {
   assert.match(progress.instructions, /Planning quality guardrails/);
   assert.match(progress.instructions, /Implementation progress summary\./);
 
-  // Task update with work remaining: still the progress step, with the task
-  // line as the annex.
+  // Task update with work remaining: still the progress step, rendered as a
+  // terse ack (mutation, implementation still in progress).
   const updated = runCli(tmp, [
     'implementation',
     '--change',
@@ -260,8 +263,8 @@ test('tasks envelopes carry the detected steps.yaml step id', () => {
   ]);
   assertEnvelopeShape(updated);
   assert.equal(updated.step, 'progress');
-  assert.match(updated.instructions, /Task TASK-001 is now done\./);
-  assert.match(updated.instructions, /Planning quality guardrails/);
+  assert.equal(updated.instructions, 'Task TASK-001 is now done.');
+  assert.doesNotMatch(updated.instructions, /Planning quality guardrails/);
 
   // Last task terminal: the complete step invites the review gate.
   const complete = runCli(tmp, [

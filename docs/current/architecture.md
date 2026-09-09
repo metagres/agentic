@@ -72,7 +72,7 @@ Local ESM import edges between repo modules, resolved from relative specifiers b
 <!-- docs-gen:begin id="architecture-import-graph" -->
 | From (module) | To (module) | Import edges |
 | --- | --- | --- |
-| bin/ | src/scripts/lib/ | 20 |
+| bin/ | src/scripts/lib/ | 21 |
 | bin/ | src/scripts/lib/checks/ | 1 |
 | bin/ | src/scripts/lib/deploy/platforms/ | 1 |
 | bin/ | src/scripts/lib/docs-gen/ | 2 |
@@ -83,8 +83,8 @@ Local ESM import edges between repo modules, resolved from relative specifiers b
 | src/scripts/lib/ | src/scripts/lib/ | 40 |
 | src/scripts/lib/ | src/scripts/lib/checks/ | 1 |
 | src/scripts/lib/ | src/scripts/lib/kinds/ | 1 |
-| src/scripts/lib/checks/ | src/scripts/lib/ | 21 |
-| src/scripts/lib/checks/ | src/scripts/lib/checks/ | 24 |
+| src/scripts/lib/checks/ | src/scripts/lib/ | 20 |
+| src/scripts/lib/checks/ | src/scripts/lib/checks/ | 22 |
 | src/scripts/lib/deploy/platforms/ | src/scripts/lib/ | 3 |
 | src/scripts/lib/deploy/platforms/ | src/scripts/lib/deploy/platforms/ | 2 |
 | src/scripts/lib/docs-gen/ | src/scripts/lib/ | 1 |
@@ -99,4 +99,5 @@ Local ESM import edges between repo modules, resolved from relative specifiers b
 | src/scripts/workflows/ | src/scripts/lib/ | 23 |
 | src/scripts/workflows/ | src/scripts/lib/kinds/ | 1 |
 | src/scripts/workflows/ | src/scripts/workflows/ | 3 |
+| src/skills/improvement-review/scripts/ | src/skills/improvement-review/scripts/ | 1 |
 <!-- docs-gen:end id="architecture-import-graph" -->

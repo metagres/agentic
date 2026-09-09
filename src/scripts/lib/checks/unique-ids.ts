@@ -22,9 +22,7 @@ export const uniqueIds: CheckFn = (artifact, params) => {
       if (typeof id === 'string') {
         if (seen.has(id)) {
           findings.push({
-            check: 'unique-ids',
-            severity: 'blocking',
-            category: 'structural',
+            check: 'unique-ids',            category: 'structural',
             target: `${name}[].${idField}`,
             finding: `Duplicate ID '${id}' in '${name}'`,
             fix: `Use a unique id for each entry in '${name}'`,
@@ -61,9 +59,7 @@ export const uniqueIds: CheckFn = (artifact, params) => {
     for (const [id, locations] of locationsById) {
       if (locations.length > 1) {
         findings.push({
-          check: 'unique-ids',
-          severity: 'blocking',
-          category: 'structural',
+          check: 'unique-ids',          category: 'structural',
           target: specs.join(' + '),
           finding: `Duplicate ID '${id}' at ${locations.join(', ')}`,
           fix: `Use a unique id for each entry across the unioned collections`,

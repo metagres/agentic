@@ -31,9 +31,7 @@ export const givenWhenThen: CheckFn = (artifact, params) => {
 
         if (missing.length > 0) {
           findings.push({
-            check: 'given-when-then',
-            severity: 'blocking',
-            category: 'ambiguity',
+            check: 'given-when-then',            category: 'ambiguity',
             target,
             finding: `${target} is missing keyword(s): ${missing.join(', ')}.`,
             fix: 'Restructure as Given <state>, When <action>, Then <result>',

@@ -5,9 +5,13 @@ inputs:
   - docs/current/capabilities.md ("## SDLC Goals" canon) — read-only
   - docs/current/operations.md ("## Baselines") — read-only
   - docs/changes/<slug>/ artifacts for every change in scope
-  - src/ engine source (src/scripts/, bin/, src/stages/) for consumer checks
+  - Engine source snapshot for the reviewed sessions (src/scripts/, bin/, src/stages/ at the
+    checkout the sessions ran against) — review quality depends on having both the transcript
+    and the matching source snapshot; verified against engine source before any causal claim
   - AGENTS.md and docs/current/ for grounding and governance screening
-  - Session transcripts explicitly supplied by the maintainer (optional; never discovered)
+  - Transcript path(s) explicitly supplied by the maintainer (optional; never discovered) —
+    mined with the bundled helper and traced message/tool-call by message/tool-call for
+    causal verification; a review without transcripts degrades to instrumentation notes only
 outputs:
   - docs/ideas/<slug>.md proposals in the nine-section format, each carrying a governance-test result and a Status header field carrying the disposition with a date
   - Measurement records from the four bundled helpers with command and date recorded beside every number
@@ -107,7 +111,9 @@ baselines in `operations.md` are the authoritative qualitative record and are ne
 # Artifact volume per change under docs/changes/ (default <= 40 lines; --verbose for per-file)
 node src/skills/improvement-review/scripts/measure_artifacts.ts [--change <slug>] [--verbose]
 
-# Envelope byte sizes for the nine stages (review stages run with mandatory --dry-run)
+# Envelope byte sizes for the nine stages, split per invocation class
+# (review stages run with mandatory --dry-run = detection; the rest = mutation);
+# per-stage rows carry class=, aggregate per-class rows follow the stage rows
 node src/skills/improvement-review/scripts/envelope_sizes.ts --change <slug> [--verbose]
 
 # Fast-gate duration (shape-stable record; duration_ms varies with machine and load)
@@ -137,6 +143,13 @@ The generic line-oriented event grammar it applies (document here if it ever cha
   or a bare `sdlc ...` — counted per command token (the first non-flag argument).
 - **Wasted-round candidate**: repeated identical consecutive command lines (trimmed); each
   repeat beyond the first in a run counts once.
+- **Ack-repeat candidate**: consecutive CLI invocations whose returned envelope instructions
+  text is identical — the command lines differ but the returned instructions do not (for
+  example repeated `--record-answer` acks); each repeat beyond the first in a run counts once.
+  The instructions text is the raw or escaped-JSON slice from the `"instructions": "` anchor to
+  the next `"data"` anchor on the line, and a slice is attributed to an invocation only when an
+  invocation event was seen since the previous attributed slice — duplicate envelope copies a
+  transcript may carry for one invocation never count as repeats.
 - **Delegation event**: a line mentioning delegation that carries sub-field tokens — `type=`
   (delegation type used), `model=` (model resolution success/failure), `rework=` (whether the
   delegated output needed rework). Missing sub-fields are reported as `unrecorded`.
@@ -145,6 +158,20 @@ The generic line-oriented event grammar it applies (document here if it ever cha
   tool-result envelopes only: errors.yaml codes (`CODE:` YAML keys) and engine
   `makeError('CODE')` calls do not match. Wrong-location invocation failures
   (`CHANGE_DIR_NOT_FOUND`, `MISSING_CHANGE_DIR`, `AMBIGUOUS_CHANGE_DIR`) surface here.
+- **Tool-call failure event**: a line carrying a closed-catalog tool failure signature inside
+  a raw or escaped-JSON `"error": "` field anchor — schema errors (`SchemaError` / "satisfies
+  the expected schema") and exact-match edit failures ("Could not find oldString in the file"
+  and its phrasing variants) — counted per signature, first matching signature per line. As
+  with the envelope-failure window, quoted prose and engine source shapes never match.
+- **Source-exploration event**: a codegraph-explore tool call, or a grep/rg command line
+  naming a `src/` path — counted per kind (codegraph | grep). Exploration volume is evidence;
+  classification of which explorations were avoidable stays at the call site.
+- **Diagnosis-loop candidate**: a maximal run of consecutive source-exploration events —
+  consecutive meaning no sdlc invocation event between them — that begins after a blocked
+  envelope has been seen (a `"state": "blocked"` field, an envelope error signature, or a
+  tool-call failure). One candidate per run; an sdlc invocation ends the run and disarms the
+  detector until the next blocked envelope. Prose, file reads, and blank lines neither break a
+  run nor re-arm.
 - **Judgment classes (not miner events)**: redundant re-delegation of an already-complete stage
   and pre-delegation discovery duplication are classified by the reviewing agent from the
   invocation map (per-command counts, including `status` state-checks) and session context —
@@ -190,6 +217,32 @@ Apply the policy to every candidate finding:
 - **Unverified hypothesis**: labeled as such, with `missing_evidence` naming what would confirm
   it. It never enters a proposal body as established fact.
 - **Unsupported and unlabelable**: dropped, with the reason noted.
+
+### 8.1 Canonical findings taxonomy
+
+Every accepted finding is classified into exactly one of five canonical classes so that
+multiple reviews of the same session dedup by claim, not by prose:
+
+| Class | Covers |
+|-------|--------|
+| `failed-call` | tool schema errors, exact-match edit failures, refused CLI invocations |
+| `hidden-gate-behavior` | gates and checks whose state is invisible in the envelope (blocked envelopes reporting nothing actionable, thresholds contradicting each other) |
+| `instruction-gap` | step text, docs, or envelope instructions missing, stale, or contradicting the change under way |
+| `token-waste` | repeated acks, avoidable re-reads and re-delegations, boilerplate repeated per envelope, oversized reasoning driven by missing data |
+| `permission-conflict` | permission grants that defeat each other or force equivalent work through another door |
+
+The class travels beside the claim in every finding and proposal Evidence entry. Two findings
+belong to the same claim when class and cited evidence identify the same message/tool-call
+sequence — merge them; differing prose about the same claim is not a second finding.
+
+### 8.2 Causal-claim verification
+
+- Every causal claim (this caused that) cites the exact message or tool-call id it rests on —
+  a claim without a citable id is an unverified hypothesis (labeled per the policy above).
+- When two reviews of the same session produce contradictory causal attributions for one
+  claim, resolve the contradiction against the transcript — trace the cited ids — **before**
+  any proposal carrying that claim is written; the resolution and the winning ids are recorded
+  in the proposal's Evidence section.
 
 ## 9. Step 5 — Proposals (nine-section skeleton)
 

@@ -36,7 +36,6 @@ test('a mis-cased key in a free-form section is a blocking schema finding (snake
   const schema = findings.filter((f) => f.check === 'schema');
   assert.ok(schema.length > 0, JSON.stringify(findings));
   assert.match(schema[0].finding, /must match pattern/);
-  assert.equal(schema[0].severity, 'blocking');
 
   // The same entry with the snake_case key produces no schema finding.
   (artifact as Record<string, unknown>).discovery_log = [
@@ -55,7 +54,6 @@ test('a schema violation produces a schema finding first (AC-019)', () => {
   const findings = validateArtifact('requirements', artifact, root, changeRoot);
   const schema = findings.filter((f) => f.check === 'schema');
   assert.ok(schema.length > 0, JSON.stringify(findings));
-  assert.equal(schema[0].severity, 'blocking');
   assert.equal(schema[0].category, 'structural');
 });
 
@@ -68,10 +66,9 @@ test('a lint violation produces a named-check finding after schema findings (AC-
 
   assert.ok(findings.length > 1, JSON.stringify(findings));
   assert.equal(findings[0].check, 'schema', 'schema findings come first');
-  assert.equal(findings[0].severity, 'blocking');
   assert.equal(findings[0].category, 'structural');
   assert.ok(
-    findings.some((f) => f.check === 'forbidden-word' && f.severity === 'blocking'),
+    findings.some((f) => f.check === 'forbidden-word'),
     JSON.stringify(findings)
   );
 });
@@ -97,7 +94,6 @@ test('design ref-exists resolves against requirements.yaml in the change root', 
   const findings = validateArtifact('design', design, root, changeRoot);
   const ref = findings.filter((f) => f.check === 'ref-exists');
   assert.equal(ref.length, 1);
-  assert.equal(ref[0].severity, 'blocking');
   assert.match(ref[0].finding, /FR-099/);
 });
 
@@ -160,7 +156,6 @@ test('a plan without milestones or risks fails with two blocking schema findings
   );
   assert.equal(missing.length, 2, JSON.stringify(findings));
   for (const f of missing) {
-    assert.equal(f.severity, 'blocking');
     assert.equal(f.category, 'structural');
   }
 });
@@ -173,7 +168,7 @@ test('a milestone without done_when is a blocking schema finding', () => {
   const findings = validateArtifact('planning', plan, root, changeRoot);
   assert.ok(
     findings.some(
-      (f) => f.check === 'schema' && f.severity === 'blocking' && /done_when/.test(f.finding)
+      (f) => f.check === 'schema' && /done_when/.test(f.finding)
     ),
     JSON.stringify(findings)
   );
@@ -189,7 +184,7 @@ test('a risk without mitigation is a blocking schema finding', () => {
   const findings = validateArtifact('planning', plan, root, changeRoot);
   assert.ok(
     findings.some(
-      (f) => f.check === 'schema' && f.severity === 'blocking' && /mitigation/.test(f.finding)
+      (f) => f.check === 'schema' && /mitigation/.test(f.finding)
     ),
     JSON.stringify(findings)
   );
@@ -202,7 +197,6 @@ test('a milestone referencing an unknown task is a blocking ref-exists finding',
   const findings = validateArtifact('planning', plan, root, changeRoot);
   const refs = findings.filter((f) => f.check === 'ref-exists');
   assert.equal(refs.length, 1, JSON.stringify(findings));
-  assert.equal(refs[0].severity, 'blocking');
   assert.match(refs[0].finding, /TASK-999/);
 });
 
@@ -213,7 +207,6 @@ test('duplicate milestone ids are a blocking unique-ids finding', () => {
   const findings = validateArtifact('planning', plan, root, changeRoot);
   const dups = findings.filter((f) => f.check === 'unique-ids');
   assert.equal(dups.length, 1, JSON.stringify(findings));
-  assert.equal(dups[0].severity, 'blocking');
   assert.match(dups[0].finding, /MS-001/);
 });
 
@@ -245,8 +238,11 @@ test('a [].-bearing string outside path-bearing slots aborts naming the stage fo
     version: 1,
     checks: [
       {
-        check: 'sentence-count',
-        params: { field: 'tasks[].title', min: 1, max: 6 },
+        check: 'ref-exists',
+        params: {
+          from: { array: 'tasks', field: 'acceptance_ids[].title' },
+          to: { arrays: ['functional_requirements'], field: 'id' },
+        },
       },
     ],
   };
@@ -256,7 +252,7 @@ test('a [].-bearing string outside path-bearing slots aborts naming the stage fo
       const message = err instanceof Error ? err.message : String(err);
       return (
         message.includes('src/stages/requirements') &&
-        message.includes("check 'sentence-count'") &&
+        message.includes("check 'ref-exists'") &&
         message.includes('unsupported path')
       );
     }
@@ -522,7 +518,6 @@ test('an empty nested acceptance_criteria array is a blocking schema finding (AC
     findings.some(
       (f) =>
         f.check === 'schema' &&
-        f.severity === 'blocking' &&
         /acceptance_criteria.*must NOT have fewer than 1 items/.test(f.finding)
     ),
     JSON.stringify(findings)
@@ -542,7 +537,6 @@ test('a criterion missing a required property is a blocking schema finding (AC-0
     findings.some(
       (f) =>
         f.check === 'schema' &&
-        f.severity === 'blocking' &&
         /acceptance_criteria\/0 must have required property 'category'/.test(f.finding)
     ),
     JSON.stringify(findings)

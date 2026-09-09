@@ -361,38 +361,38 @@ test('--accept with mechanical failures forces rejection: round rejected, artifa
 });
 
 // ---------------------------------------------------------------------------
-// Any finding is a failure: minor-severity findings reject too
+// Any finding is a failure: a single mechanical finding rejects too
 // ---------------------------------------------------------------------------
 
-/** Introduces a minor-severity mechanical finding (sentence-count) on disk. */
-function breakArtifactMinor(rc: ReadyChange): void {
+/** Introduces a one-finding mechanical failure (forbidden word) on disk. */
+function breakArtifactSingle(rc: ReadyChange): void {
   const artifactPath = path.join(rc.changeRoot, 'requirements.yaml');
   const artifact = readYaml(artifactPath) as Record<string, unknown> & {
     metadata: { status: string; request_summary?: string };
   };
   (artifact as { problem_statement?: string }).problem_statement =
-    'One. Two. Three. Four. Five. Six. Seven. Eight.';
+    'The registration flow is simple and covers every operator need.';
   artifact.metadata.status = 'ready-for-review';
   fs.writeFileSync(artifactPath, JSON.stringify(artifact), 'utf8');
 }
 
-test('a minor-severity finding is a failure: bare invocation reports mechanical invalid and --accept forces rejection', () => {
+test('a single mechanical finding is a failure: bare invocation reports mechanical invalid and --accept forces rejection', () => {
   const rc = setupReadyChange('Add device registration');
-  breakArtifactMinor(rc);
+  breakArtifactSingle(rc);
 
-  // Bare invocation: the minor finding is listed as a failure, mechanical.valid false.
+  // Bare invocation: the finding is listed as a failure, mechanical.valid false.
   let out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
   assert.equal(out.state, 'blocked');
   assert.equal(out.data.status, 'open');
-  assert.deepEqual(out.data.failures.map((f: { check: string }) => f.check), ['sentence-count']);
+  assert.deepEqual(out.data.failures.map((f: { check: string }) => f.check), ['forbidden-word']);
   assert.equal(out.warnings.length, 0);
 
   let round = readRounds(rc)[0];
   assert.equal(round.mechanical_checks_passed, false);
-  assert.equal((round.failures as { check: string }[])[0].check, 'sentence-count');
+  assert.equal((round.failures as { check: string }[])[0].check, 'forbidden-word');
   assert.equal('severity' in (round.failures as unknown[])[0], false);
 
-  // --accept with a minor finding forces rejection exactly like a blocking one.
+  // --accept with one finding forces rejection exactly like many.
   out = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--accept']);
   assert.equal(out.state, 'blocked');
   assert.equal(out.data.status, 'rejected');

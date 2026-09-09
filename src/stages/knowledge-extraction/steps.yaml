@@ -5,7 +5,7 @@ steps:
     markdown: |
       Ask the user which change to synchronize.
     commands:
-      - "{{SDLC}} knowledge-extraction --change <change-name>"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   docs_delta:
     title: Collect deltas
@@ -22,12 +22,11 @@ steps:
       After updating the docs, run: {{SDLC}} knowledge-extraction --change {{change_name}} --complete
       Report the finished step in one line: how many deltas were applied across how many docs.
     commands:
-      - "{{SDLC}} knowledge-extraction --change {{change_name}}"
-      - "npm run docs:generate"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   complete:
     title: Complete
     markdown: |
       Mark the synchronization complete after the deltas are applied.
     commands:
-      - "{{SDLC}} knowledge-extraction --change {{change_name}} --complete"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."

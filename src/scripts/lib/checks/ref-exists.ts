@@ -64,9 +64,7 @@ export const refExists: CheckFn = (artifact, params, context) => {
     for (const refStr of refs) {
       if (refStr && !validIds.has(refStr)) {
         findings.push({
-          check: 'ref-exists',
-          severity: 'blocking',
-          category: 'traceability',
+          check: 'ref-exists',          category: 'traceability',
           target: `${from.array}[].${from.field}`,
           finding: `${itemId || 'an entry'} references missing ${from.field} value '${refStr}' in ${toFile || 'this artifact'}`,
           fix: `Add the missing ${from.field} entry or fix the reference`,

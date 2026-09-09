@@ -23,9 +23,7 @@ export const duplicateRefs: CheckFn = (artifact, params) => {
       if (refStr && seen.has(refStr)) {
         const prefix = /^([A-Z]+)-/.exec(refStr)?.[1] || 'reference';
         findings.push({
-          check: 'duplicate-refs',
-          severity: 'minor',
-          category: 'traceability',
+          check: 'duplicate-refs',          category: 'traceability',
           target: `${arrayName}[].${listField}`,
           finding: `Duplicate ${prefix} reference '${refStr}' in ${String(itemId || 'entry')}`,
           fix: `Remove the duplicate ${prefix} reference`,

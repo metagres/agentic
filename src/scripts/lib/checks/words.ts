@@ -1,8 +1,9 @@
-// Shared forbidden-word profiles used by the forbidden-words check. Ported
+// Shared forbidden-word profile used by the forbidden-words check. Ported
 // verbatim from the legacy lint-checks.ts so the check reproduces current lint
-// behavior exactly.
+// behavior exactly. Only the hard forbidden list produces findings — every
+// finding blocks by definition.
 
-export const BLOCKING_WORDS = [
+export const FORBIDDEN_WORDS = [
   'fast',
   'user-friendly',
   'gracefully',
@@ -16,15 +17,4 @@ export const BLOCKING_WORDS = [
   'intuitive',
   'optimal',
   'as needed',
-];
-
-export const ADVISORY_WORDS = [
-  'should',
-  'reasonable',
-  'sufficient',
-  'normal',
-  'expected',
-  'proper',
-  'maybe',
-  'probably',
 ];

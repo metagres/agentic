@@ -358,3 +358,65 @@ test('a fixture-driven bound envelope keeps exactly the seven top-level fields (
     'workflow',
   ]);
 });
+
+// ---------------------------------------------------------------------------
+// Terse mutation acks (kind-split terse design): the internal `_terse` marker
+// opts a payload out of the delegation-directive prepend. It is consumed —
+// never emitted — so the seven-field shape stays frozen and no marker leaks.
+// ---------------------------------------------------------------------------
+
+test('the _terse marker skips the delegation directive and is never emitted', () => {
+  const { stagesDir } = makeDelegationFixtures();
+
+  const env = normalizeEnvelope(
+    {
+      workflow: 'fixture-stage',
+      step: 'authoring',
+      state: 'in_progress',
+      instructions: 'Artifact updated. Step authoring unchanged.',
+      data: { change_root: '/tmp/change' },
+      errors: [],
+      warnings: [],
+      _terse: true,
+    },
+    stagesDir
+  );
+
+  // No directive prepend: the terse instruction stands alone.
+  assert.equal(env.instructions, 'Artifact updated. Step authoring unchanged.');
+  assert.doesNotMatch(env.instructions, /bound to the dedicated agent/);
+  assert.doesNotMatch(env.instructions, /fixture-alpha/);
+
+  // The marker is consumed, not carried through.
+  assert.equal('_terse' in env, false);
+  assert.equal(JSON.stringify(env).includes('_terse'), false);
+
+  // The seven-field shape stays frozen.
+  assert.deepEqual(Object.keys(env).sort(), [
+    'data',
+    'errors',
+    'instructions',
+    'state',
+    'step',
+    'warnings',
+    'workflow',
+  ]);
+});
+
+test('without the marker the same payload still carries the directive (full rendering unchanged)', () => {
+  const { stagesDir } = makeDelegationFixtures();
+
+  const env = normalizeEnvelope(
+    {
+      workflow: 'fixture-stage',
+      step: 'authoring',
+      state: 'in_progress',
+      instructions: 'Step guidance.',
+      data: {},
+    },
+    stagesDir
+  );
+
+  assert.match(env.instructions, /^Stage 'fixture-stage' is bound to the dedicated agent 'fixture-alpha'/);
+  assert.ok(env.instructions.endsWith('\n\nStep guidance.'));
+});

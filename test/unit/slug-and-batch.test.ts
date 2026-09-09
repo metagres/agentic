@@ -297,3 +297,66 @@ test('--record-answers persists every batch entry to the artifact (CLI)', () => 
   assert.equal(saved.discovery_log[1].id, 'DL-002');
   assert.equal(saved.discovery_log[1].resolved, true);
 });
+
+// ---------------------------------------------------------------------------
+// Stdin batch (`--record-answers -`): a YAML array on stdin avoids the
+// write-then-record file deadlock. Invalid entries persist nothing.
+// ---------------------------------------------------------------------------
+
+test('--record-answers - reads the batch from stdin and allocates sequential DL ids', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-batch-stdin-'));
+  const out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  const changeRoot = out.data.change_root;
+  const changeDir = path.basename(changeRoot);
+
+  const stdin = [
+    '- lens: stakeholder',
+    '  question: Who is affected?',
+    '  answer: Device owners.',
+    '- lens: data',
+    '  question: Is there a data model?',
+    '  answer: Yes.',
+    '- lens: failure',
+    '  question: What happens on duplicates?',
+    '  answer: Rejected with a conflict response.',
+    '',
+  ].join('\n');
+
+  const batch = runCli(tmp, ['requirements', '--change', changeDir, '--record-answers', '-'], stdin);
+  assert.notEqual(batch.state, 'blocked', JSON.stringify(batch));
+
+  const saved = safeReadYaml(path.join(changeRoot, 'requirements.yaml')) as {
+    discovery_log: Record<string, unknown>[];
+  };
+  assert.equal(saved.discovery_log.length, 3);
+  assert.deepEqual(
+    saved.discovery_log.map((entry) => entry.id),
+    ['DL-001', 'DL-002', 'DL-003']
+  );
+});
+
+test('--record-answers - with an invalid entry persists nothing', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-batch-stdin-'));
+  const out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  const changeRoot = out.data.change_root;
+  const changeDir = path.basename(changeRoot);
+
+  const stdin = [
+    '- lens: stakeholder',
+    '  question: Who is affected?',
+    '  answer: Device owners.',
+    '- lens: design',
+    '  question: Not in the vocabulary.',
+    '  answer: Rejected.',
+    '',
+  ].join('\n');
+
+  const out2 = runCli(tmp, ['requirements', '--change', changeDir, '--record-answers', '-'], stdin);
+  assert.equal(out2.state, 'blocked', JSON.stringify(out2));
+  assert.match(String(out2.instructions), /entry 1/);
+
+  const saved = safeReadYaml(path.join(changeRoot, 'requirements.yaml')) as {
+    discovery_log?: Record<string, unknown>[];
+  };
+  assert.equal((saved.discovery_log || []).length, 0, 'nothing persisted');
+});

@@ -70,6 +70,5 @@ The capped check catalog with each check's required parameters, path-addressed p
 | ref-covers | from, to | to.arrays (collection) | design, planning, planning |
 | ref-exists | from, to | to.arrays (collection) | design, planning, planning, planning, planning |
 | required-note-for-status | array, statuses | — | implementation |
-| sentence-count | field, min, max | — | design, requirements |
 | unique-ids | arrays | arrays (collection), unions[].arrays (collection) | design, planning, requirements |
 <!-- docs-gen:end id="conventions-checks-reference" -->

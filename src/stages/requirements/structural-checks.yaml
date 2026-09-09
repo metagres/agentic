@@ -24,8 +24,3 @@ checks:
         - non_functional_requirements[].description
         - functional_requirements[].acceptance_criteria[].statement
         - non_functional_requirements[].acceptance_criteria[].statement
-  - check: sentence-count
-    params:
-      field: problem_statement
-      min: 1
-      max: 6

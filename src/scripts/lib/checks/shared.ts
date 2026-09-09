@@ -18,15 +18,6 @@ export function hasWord(text: string, word: string): boolean {
   return new RegExp(`\\b${escaped}\\b`, 'i').test(text);
 }
 
-// Count sentences by splitting on [.!?]+ and counting non-empty segments.
-export function countSentences(text: string): number {
-  if (!text) return 0;
-  return text
-    .split(/[.!?]+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0).length;
-}
-
 // Delegates to the artifact path resolver (DEC-001): single-segment specs
 // collapse to the resolver's top-level array resolution with identical items.
 export function getTopArray(

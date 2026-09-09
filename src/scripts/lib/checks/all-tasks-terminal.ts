@@ -20,9 +20,7 @@ export const allTasksTerminal: CheckFn = (artifact, params) => {
 
   if (doneCount < tasks.length) {
     findings.push({
-      check: 'all-tasks-terminal',
-      severity: 'blocking',
-      category: 'completeness',
+      check: 'all-tasks-terminal',      category: 'completeness',
       target: arrayName,
       finding: `Not all tasks are complete (${doneCount} of ${tasks.length} ${allowed.join('/')})`,
       fix: 'Complete or skip every task before finalizing',

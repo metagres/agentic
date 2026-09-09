@@ -6,7 +6,7 @@ steps:
       Ask the user which change to implement.
       Report one line: which command ran.
     commands:
-      - "{{SDLC}} implementation --change <change-name>"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   progress:
     title: Progress
@@ -29,8 +29,7 @@ steps:
       - Incidental changes such as imports, formatting, or test helpers are acceptable with a clear note.
       - Every done, blocked, or skipped task must have an implementation note: one sentence stating what changed and how it was verified (test, lint, or manual check; the command when applicable).
     commands:
-      - "{{SDLC}} implementation --change {{change_name}} --task-id <TASK-NNN> --status <pending|in_progress|done|blocked|skipped> --note \"...\""
-      - "{{SDLC}} implementation --change {{change_name}} --task-id <TASK-NNN> --status done --files \"create:src/a.ts,modify:src/b.ts\""
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   complete:
     title: Complete
@@ -39,4 +38,4 @@ steps:
 
       Run the implementation review gate.
     commands:
-      - "{{SDLC}} implementation-review --change {{change_name}}"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."

@@ -10,11 +10,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '../..');
 
 // Minimal AuthorEnv over the shipped requirements steps.yaml: detectStep only
-// reads changeRoot, artifact, blocking, and stage.files.steps.
+// reads changeRoot, artifact, findings, and stage.files.steps.
 function makeEnv(overrides: {
   changeRoot?: string | null;
   artifact?: Record<string, unknown> | null;
-  blocking?: unknown[];
+  findings?: unknown[];
 }): AuthorEnv {
   return {
     args: {},
@@ -29,7 +29,7 @@ function makeEnv(overrides: {
     warnings: [],
     hooks: null,
     readYaml: () => null,
-    blocking: overrides.blocking || [],
+    findings: overrides.findings || [],
   } as AuthorEnv;
 }
 
@@ -114,7 +114,8 @@ test('detectStep maps artifact state onto the six-step tour', () => {
     'recovery'
   );
 
-  // Blocking mechanical findings -> recovery regardless of content.
+  // Any mechanical finding -> recovery regardless of content (every finding
+  // blocks by definition).
   assert.equal(
     detectStep(
       makeEnv({
@@ -122,7 +123,7 @@ test('detectStep maps artifact state onto the six-step tour', () => {
           metadata: { title: 'T', request_summary: 'R', context_loaded: true, discovery_reviewed: true },
           problem_statement: 'P',
         },
-        blocking: [{ finding: 'duplicate id' }],
+        findings: [{ finding: 'duplicate id' }],
       })
     ),
     'recovery'

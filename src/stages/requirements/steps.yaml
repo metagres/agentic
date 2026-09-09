@@ -14,8 +14,7 @@ steps:
 
       Run the matching command. Report one line: which command ran.
     commands:
-      - "{{SDLC}} requirements --change <change-name>"
-      - "{{SDLC}} requirements --request \"<request text>\""
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   init:
     title: Initialization
@@ -28,8 +27,7 @@ steps:
       Confirm with --complete-step --step init. Report one line: artifact title
       + request summary + living docs consulted.
     commands:
-      - "{{SDLC}} requirements --change {{change_name}}"
-      - "{{SDLC}} requirements --change {{change_name}} --complete-step --step init"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
     complete_when:
       field: metadata.context_loaded
       equals: true
@@ -77,10 +75,7 @@ steps:
       then report one line (answers recorded, clarity state) and proceed to
       authoring.
     commands:
-      - "{{SDLC}} requirements --change {{change_name}} --record-answer --lens <lens> --question \"<question>\" --answer \"<answer>\""
-      - "{{SDLC}} requirements --change {{change_name}} --record-answers < answers.yaml"
-      - "{{SDLC}} requirements --change {{change_name}} --set-clarity <clear|partial|vague>"
-      - "{{SDLC}} requirements --change {{change_name}} --complete-step --step discovery"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
     complete_when:
       field: metadata.discovery_reviewed
       equals: true
@@ -108,14 +103,18 @@ steps:
         (targets: `data.delta_allowed_target_docs`) or include in
         --update-artifact. Knowledge extraction dedupes.
 
+      Mechanical checks (CLI-enforced; every finding blocks finalize and review —
+      the full table lives in docs/current/conventions.md):
+      - unique-ids: FR/NFR/AC/DL ids unique per array and across the AC union
+      - given-when-then: every AC statement in Given/When/Then form
+      - forbidden-words: no vague words — fast, simple, easy, robust, seamless,
+        intuitive, optimal, gracefully, user-friendly, appropriately, "it
+        works", "it handles", "as needed"
+
       Write through --update-artifact. Report one line: artifact updated
       (N requirements, M criteria, K deltas).
     commands:
-      - "{{SDLC}} requirements --change {{change_name}} --next-ids"
-      - "{{SDLC}} requirements --change {{change_name}} --record-answer --lens <lens> --question \"<question>\" --answer \"<answer>\""
-      - "{{SDLC}} requirements --change {{change_name}} --set-clarity <clear|partial|vague>"
-      - "{{SDLC}} requirements --change {{change_name}} --update-artifact < requirements.yaml"
-      - "{{SDLC}} requirements --change {{change_name}} --append-delta < delta.yaml"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
     complete_when:
       field: problem_statement
       non_empty: true
@@ -123,9 +122,11 @@ steps:
   recovery:
     title: Recovery
     markdown: |
-      The artifact was rejected by review. Fix exactly the failures listed in
-      `data.review_failures` ({check, evidence}) — nothing else. Unaffected
-      sections are not rewritten or re-emitted.
+      The artifact needs recovery: mechanical validation failed, or review
+      rejected it. Fix exactly the failures listed in `data.errors` (mechanical
+      findings) and `data.review_failures` ({check, evidence} from the latest
+      rejected round) — nothing else. Unaffected sections are not rewritten or
+      re-emitted.
 
       One line per fix in chat: `<check> -> <what changed>`. Then update through
       the script and finalize again.
@@ -133,8 +134,7 @@ steps:
       Finalizing a rejected artifact bumps the version (patch by default;
       --bump-version major|minor|patch overrides).
     commands:
-      - "{{SDLC}} requirements --change {{change_name}} --update-artifact < requirements.yaml"
-      - "{{SDLC}} requirements --change {{change_name}} --finalize"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   ready:
     title: Ready
@@ -142,11 +142,11 @@ steps:
       All gates passed. Finalize with --finalize --confirm-semantic.
       Report one line: artifact finalized (version).
     commands:
-      - "{{SDLC}} requirements --change {{change_name}} --finalize --confirm-semantic"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
 
   complete:
     title: Complete
     markdown: |
       The requirements artifact is ready for the review gate.
     commands:
-      - "{{SDLC}} requirements-review --change {{change_name}}"
+      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."

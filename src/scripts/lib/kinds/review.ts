@@ -38,10 +38,9 @@ function semanticChecksFor(stage: StageRecord): string[] {
 
 /**
  * Maps a CLI-computed mechanical finding to the uniform {check, evidence}
- * failure shape: severity and category are stripped and the fix hint is
- * folded into the evidence text (check messages are self-locating — each
- * names its target). Every finding is a failure regardless of severity — a
- * finding is automatically a failure. Mechanical failures are always
+ * failure shape: the fix hint is folded into the evidence (which already
+ * names its target). Every finding is a failure — a finding blocks by
+ * definition. Mechanical failures are always
  * CLI-computed — never reviewer-supplied.
  */
 function toFailure(finding: Finding): Failure {
@@ -466,8 +465,8 @@ export async function runReviewStage(
     }
 
     // Unified validation path: identical findings to internal finalize (FR-006).
-    // Every finding is a failure regardless of severity — a finding is
-    // automatically a failure (failure-only contract).
+    // Every finding is a failure — a finding blocks by definition
+    // (failure-only contract).
     const findings = validateArtifact(trackedStage.id, artifact, cwd, changeRoot);
     const mechanicalFailures = findings.map(toFailure);
     const mechanicalValid = findings.length === 0;

@@ -28,7 +28,6 @@ export interface AuthorEnv {
   hooks: Record<string, unknown> | null;
   readYaml: (file: string) => unknown;
   findings?: Finding[];
-  blocking?: Finding[];
 }
 
 export function stepPredicate(
@@ -45,7 +44,8 @@ export function stepPredicate(
  * state — never from stage hooks or granular in-artifact confirmation flags:
  * - no change root -> needs_input; no artifact -> init
  * - init predicate unsatisfied -> init (created but empty)
- * - rejected status or blocking mechanical findings -> recovery
+ * - rejected status or any mechanical finding -> recovery (every finding
+ *   blocks by definition)
  * - ready-for-review / accepted -> complete, otherwise the tour runs through
  *   ready (authoring predicate satisfied) or authoring (still drafting).
  * Stage-declared extra steps beyond the canonical six remain declarative and
@@ -60,8 +60,8 @@ export function detectStep(env: AuthorEnv): string {
 
   if (!evaluatePredicate(stepPredicate(env, 'init'), artifact)) return 'init';
 
-  const blockingCount = (env.blocking as unknown[])?.length || 0;
-  if (blockingCount > 0) return 'recovery';
+  const findingCount = (env.findings as unknown[])?.length || 0;
+  if (findingCount > 0) return 'recovery';
 
   const steps = loadStepDefinitions(env.stage);
   for (const stepId of Object.keys(steps)) {
@@ -89,9 +89,9 @@ export function isReadyForReview(env: AuthorEnv): { ready: boolean; reasons: str
   if (!evaluatePredicate(stepPredicate(env, 'authoring'), artifact)) {
     reasons.push('authoring is not complete');
   }
-  const blockingCount = (env.blocking as unknown[])?.length || 0;
-  if (blockingCount > 0) {
-    reasons.push(`${blockingCount} blocking mechanical finding(s)`);
+  const findingCount = (env.findings as unknown[])?.length || 0;
+  if (findingCount > 0) {
+    reasons.push(`${findingCount} mechanical finding(s)`);
   }
   if (!deltaComplete(artifact)) {
     reasons.push('delta is not complete');
@@ -108,7 +108,7 @@ export function getData(env: AuthorEnv): Record<string, unknown> {
   const status = metadata.status;
   const data: Record<string, unknown> = {
     authoring_complete: evaluatePredicate(stepPredicate(env, 'authoring'), artifact),
-    mechanical_valid: ((env.blocking as unknown[])?.length || 0) === 0,
+    mechanical_valid: ((env.findings as unknown[])?.length || 0) === 0,
     semantic_complete: status === 'ready-for-review' || status === 'accepted',
     delta_complete: deltaComplete(artifact),
   };

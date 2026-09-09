@@ -6,6 +6,7 @@ import { readYaml } from '../src/scripts/lib/yaml-io.ts';
 import { validateArtifact } from '../src/scripts/lib/validate.ts';
 import { makeCtx } from '../src/scripts/lib/context.ts';
 import { makeError } from '../src/scripts/lib/error-catalog.ts';
+import type { Finding } from '../src/scripts/lib/types.ts';
 
 // Maps legacy target aliases to discovered stage ids.
 const TARGET_TO_STAGE: Record<string, string> = {
@@ -69,7 +70,7 @@ try {
 
 const ctx = makeCtx(cwd, changeRoot);
 
-let findings: { finding?: string; message?: string; severity?: string }[] = [];
+let findings: Finding[] = [];
 try {
   findings = validateArtifact(
     stageId,
@@ -93,8 +94,7 @@ try {
   process.exit(1);
 }
 
-const blocking = findings;
-const ok = blocking.length === 0;
+const ok = findings.length === 0;
 
 console.log(
   JSON.stringify(
@@ -103,8 +103,6 @@ console.log(
       target: targetName,
       stage: stageId,
       artifact: artifactPath,
-      blocking_count: blocking.length,
-      blocking,
       findings,
     },
     null,

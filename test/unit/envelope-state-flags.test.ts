@@ -192,3 +192,49 @@ test('the standard authoring envelope carries exactly the seven frozen top-level
   // Fresh init envelope: the empty draft reports semantic_complete false.
   assert.equal(out.data.semantic_complete, false);
 });
+
+// ---------------------------------------------------------------------------
+// Terse mutation acks (kind-split terse design): a mutation that leaves the
+// detected step unchanged renders a terse ack — the `_terse` marker is
+// consumed by normalizeEnvelope, so it never leaks into output and the
+// delegation directive is absent.
+// ---------------------------------------------------------------------------
+
+test('a mutation with an unchanged step renders a terse ack without the directive or the marker', () => {
+  const tmp = tmpProject('agentic-esf-');
+
+  let out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  const changeDir = path.basename(String(out.data.change_root));
+
+  // Move to the discovery step first (step transition -> full rendering).
+  out = runCli(tmp, ['requirements', '--change', changeDir, '--complete-step', '--step', 'init']);
+  assert.equal(out.step, 'discovery', JSON.stringify(out));
+  assert.ok(
+    String(out.instructions).includes('bound to the dedicated agent'),
+    'a step transition renders full, with the delegation directive'
+  );
+
+  // A discovery mutation that leaves the step unchanged: terse ack.
+  out = runCli(tmp, [
+    'requirements',
+    '--change',
+    changeDir,
+    '--record-answer',
+    '--lens',
+    'scope',
+    '--question',
+    'What is in scope?',
+    '--answer',
+    'Only device registration.',
+  ]);
+  assertEnvelopeShape(out);
+  assert.equal(out.instructions, 'Artifact updated. Step discovery unchanged.');
+  assert.doesNotMatch(out.instructions, /bound to the dedicated agent/);
+
+  // The marker never leaks; the seven frozen fields stay.
+  assert.equal(JSON.stringify(out).includes('_terse'), false);
+  assert.deepEqual(
+    Object.keys(out).sort(),
+    ['data', 'errors', 'instructions', 'state', 'step', 'warnings', 'workflow']
+  );
+});

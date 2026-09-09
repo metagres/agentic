@@ -146,6 +146,7 @@ interface DiscoveryEntry {
 
 interface DiscoveryGateResult {
   passed: boolean;
+  rule: string;
   clarity: string;
   clarity_valid: boolean;
   required_lenses: string[];
@@ -154,6 +155,11 @@ interface DiscoveryGateResult {
   minimum_questions: number;
   confirmed: boolean;
 }
+
+// The stable one-line statement of the gate rule (W4): surfaced in
+// data.discovery_gate.rule so the pass condition is never opaque.
+const GATE_RULE =
+  'passed = all required lenses resolved AND clarity set AND resolved_questions >= minimum';
 
 // Confirmed discovery gate (CMP-003, DEC-003, DEC-010): the policy floor
 // (required lenses covered and minimum resolved questions met) plus the
@@ -177,6 +183,7 @@ function discoveryGate(env: HookEnv): DiscoveryGateResult {
   if (!anchor) {
     return {
       passed: false,
+      rule: GATE_RULE,
       clarity,
       clarity_valid: false,
       required_lenses: [],
@@ -193,6 +200,7 @@ function discoveryGate(env: HookEnv): DiscoveryGateResult {
 
   return {
     passed: missing.length === 0 && resolved.length >= minimum,
+    rule: GATE_RULE,
     clarity,
     clarity_valid: true,
     required_lenses: required,

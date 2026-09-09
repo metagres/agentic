@@ -1,5 +1,6 @@
 version: 1
 checks:
+  - "Is the context summary framed in one to twelve sentences — enough to orient a reviewer, without padding or a historical narrative?"
   - "Is every FR and NFR from requirements.yaml covered by at least one component's satisfies entry and design element?"
   - "Are component responsibilities clear, non-overlapping, and testable?"
   - "Are data models consistent with the requirements and APIs?"

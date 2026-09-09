@@ -326,10 +326,11 @@ function applyUpdateArtifact(env: AuthorEnv): void {
 }
 
 /**
- * Batch discovery recording (--record-answers <file>, TASK-009): reads a YAML
- * array of { lens, question, answer } entries and routes each one through the
- * exact same validation/allocation path as --record-answer by invoking the
- * stage's recordAnswer hook per entry with per-entry args. DL ids allocate
+ * Batch discovery recording (--record-answers <file>|- , TASK-009): reads a
+ * YAML array of { lens, question, answer } entries — from a file, or from
+ * stdin when the value is `-` — and routes each one through the exact same
+ * validation/allocation path as --record-answer by invoking the stage's
+ * recordAnswer hook per entry with per-entry args. DL ids allocate
  * sequentially because every entry appends to the same artifact. Failures name
  * the offending entry index; nothing is persisted unless every entry applies
  * (the caller saves only after this loop returns).
@@ -346,14 +347,23 @@ export function recordAnswersBatch(env: AuthorEnv): void {
     throw new Error('--record-answers requires a file path.');
   }
 
-  if (!fs.existsSync(file)) {
-    throw new Error(`--record-answers file not found: ${file}`);
+  let doc: unknown;
+  if (file.trim() === '-') {
+    const raw = readStdin();
+    if (!raw.trim()) {
+      throw new Error('--record-answers - requires a YAML array on stdin.');
+    }
+    doc = parseYamlString(raw, 'stdin');
+  } else {
+    if (!fs.existsSync(file)) {
+      throw new Error(`--record-answers file not found: ${file}`);
+    }
+    doc = readYaml(file);
   }
 
-  const doc = readYaml(file) as unknown;
   if (!Array.isArray(doc)) {
     throw new Error(
-      `--record-answers file must contain a YAML array of { lens, question, answer } entries: ${file}`
+      `--record-answers must contain a YAML array of { lens, question, answer } entries${file.trim() === '-' ? ' on stdin' : `: ${file}`}`
     );
   }
 
@@ -529,8 +539,14 @@ function loadReviewFailures(
   return null;
 }
 
-function blockingFindings(findings: Finding[]): Finding[] {
-  return findings.filter((f) => !f.severity || f.severity === 'blocking');
+/**
+ * The finalize/recovery failure listing format (W3): every finding blocks by
+ * definition, so the listing is `- [check] finding — fix` and never empty.
+ */
+function findingLines(findings: Finding[]): string {
+  return findings
+    .map((f) => `- [${f.check}] ${f.finding}${f.fix ? ` — ${f.fix}` : ''}`)
+    .join('\n');
 }
 
 function finalizeArtifact(env: AuthorEnv): void {
@@ -538,9 +554,8 @@ function finalizeArtifact(env: AuthorEnv): void {
   const findings = validateArtifact(stage.id, env.artifact, env.cwd, env.changeRoot);
 
   if (findings.length > 0) {
-    const blocking = blockingFindings(findings);
     throw new Error(
-      `Cannot finalize. Fix the following structural/reference errors:\n - ${blocking.map((f) => f.finding).join('\n - ')}`
+      `Cannot finalize. Fix the following validation failures:\n${findingLines(findings)}`
     );
   }
 
@@ -822,6 +837,15 @@ export async function runAuthoringStage(
       (hooks.startup as (e: AuthorEnv) => void)(env);
     }
 
+    // Terse-envelope basis (kind-split terse design): the pre-mutation step
+    // detection — one extra cheap validateArtifact pass. A mutation that
+    // leaves the detected step unchanged renders a terse ack; any step
+    // transition, blocked state, or bare invocation renders full.
+    const preFindings = validateArtifact(stage.id, env.artifact, env.cwd, env.changeRoot);
+    const preStepEnv: AuthorEnv = { ...env, findings: preFindings };
+    const stepBefore = changeRoot ? detectStep(preStepEnv) : 'needs_input';
+    let mutated = false;
+
     if (args['next-ids']) {
       ensureArtifact(env);
       writeJson(
@@ -847,6 +871,7 @@ export async function runAuthoringStage(
       ensureArtifact(env);
       applyUpdateArtifact(env);
       saveArtifact(env);
+      mutated = true;
     }
 
     if (args['record-answer']) {
@@ -857,6 +882,7 @@ export async function runAuthoringStage(
       (hooks.recordAnswer as (e: AuthorEnv) => void)(env);
       markMutated(env);
       saveArtifact(env);
+      mutated = true;
     }
 
     if (args['record-answers']) {
@@ -864,6 +890,7 @@ export async function runAuthoringStage(
       recordAnswersBatch(env);
       markMutated(env);
       saveArtifact(env);
+      mutated = true;
     }
 
     if (args['set-clarity']) {
@@ -874,18 +901,21 @@ export async function runAuthoringStage(
       (hooks.setClarity as (e: AuthorEnv) => void)(env);
       markMutated(env);
       saveArtifact(env);
+      mutated = true;
     }
 
     if (args['append-delta']) {
       ensureArtifact(env);
       appendDelta(env);
       saveArtifact(env);
+      mutated = true;
     }
 
     if (args['complete-step']) {
       ensureArtifact(env);
       completeStep(env);
       saveArtifact(env);
+      mutated = true;
     }
 
     if (args.finalize) {
@@ -920,19 +950,22 @@ export async function runAuthoringStage(
       const findings = validateArtifact(stage.id, env.artifact, env.cwd, env.changeRoot);
 
       if (findings.length > 0) {
-        const blocking = blockingFindings(findings);
-
+        // Finalize-block envelope (W3): every finding blocks, so the listing
+        // is always non-empty and carries every finding, plus the lint
+        // pointer for the full detail surface.
         writeJson(
           {
             workflow: stage.id,
             step: 'recovery',
             state: 'blocked',
             instructions:
-              'Fix the following structural/reference errors:\n - ' +
-              blocking.map((f) => f.finding).join('\n - '),
+              'Cannot finalize. Fix the following validation failures:\n' +
+              findingLines(findings) +
+              `\n\nRun node bin/lint-artifact.ts --target ${stage.id} --artifact ${artifactPath} for details.`,
             data: {
               change_root: changeRoot,
-              errors: blocking,
+              artifact: artifactPath,
+              errors: findings,
             },
             errors: [],
             warnings,
@@ -969,16 +1002,16 @@ export async function runAuthoringStage(
 
       finalizeArtifact(env);
       saveArtifact(env);
+      mutated = true;
     }
 
-    // Recalculate state for standard output.
+    // Recalculate state for standard output. Every finding blocks by
+    // definition: a non-empty findings array is the recovery step.
     const findings = validateArtifact(stage.id, env.artifact, env.cwd, env.changeRoot);
-    const blocking = blockingFindings(findings);
 
     const stepEnv: AuthorEnv = {
       ...env,
       findings,
-      blocking,
     };
 
     const stepDefinitions = loadStepDefinitions(stage) || {};
@@ -1013,11 +1046,18 @@ export async function runAuthoringStage(
       data.next_ids = nextIdsFromArrays(env.artifact || {}, stage.nextIds);
       data.delta_allowed_target_docs = loadDocsIndex(cwd).map((doc) => doc.file);
     } else if (step === 'recovery') {
-      data.errors = blocking;
+      data.errors = findings;
       // Feedback-loop repair (failure-only review rounds): the latest
       // rejected round's failures from the review stage's round store.
       const reviewFailures = loadReviewFailures(stage, changeRoot, cwd);
       if (reviewFailures) data.review_failures = reviewFailures;
+    }
+
+    // Problems visible at mutation time (W3): any envelope computed after a
+    // mutation carries the current findings so a failing mutation is visible
+    // without a separate lint invocation.
+    if (findings.length > 0) {
+      data.findings = findings;
     }
 
     Object.assign(data, getData(stepEnv));
@@ -1028,19 +1068,32 @@ export async function runAuthoringStage(
     const state =
       step === 'complete'
         ? 'complete'
-        : step === 'recovery' && blocking.length > 0
+        : step === 'recovery' && findings.length > 0
           ? 'blocked'
           : 'in_progress';
 
-    let instructions = renderedMarkdown;
+    // Kind-split terse design (authoring kind): a mutation that leaves the
+    // detected step unchanged, with no findings and no blocked state, renders
+    // a terse ack. Bare invocations, step transitions, recovery, complete,
+    // error envelopes, and --help-step requests always render full.
+    const terse =
+      mutated &&
+      !args['help-step'] &&
+      stepBefore === step &&
+      state === 'in_progress' &&
+      findings.length === 0;
+
+    let instructions = terse
+      ? `Artifact updated. Step ${step} unchanged.`
+      : renderedMarkdown;
 
     if (!instructions) {
       instructions = `Current step: ${step}.`;
     }
 
-    if (state === 'blocked' && blocking.length > 0) {
+    if (state === 'blocked' && findings.length > 0) {
       instructions = [
-        'Fix blocking validation errors before continuing.',
+        'Fix the validation failures in data.errors before continuing.',
         '',
         instructions,
       ]
@@ -1062,6 +1115,9 @@ export async function runAuthoringStage(
         },
         errors: [],
         warnings: allWarnings,
+        // Internal terse marker: consumed by normalizeEnvelope (never emitted)
+        // to skip the delegation-directive prepend on terse acks.
+        ...(terse ? { _terse: true } : {}),
       },
       EXIT.ok
     );

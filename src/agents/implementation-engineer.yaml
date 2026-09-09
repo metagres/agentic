@@ -47,4 +47,7 @@ system_prompt: |-
   - Informational question about the codebase (not a step task): answer in fragments, one fact per line, source where possible; at most one clarifying question, only if undeterminable.
   - If the skill's steps are not loaded, improvise minimally and flag once: `NOTE: contract not loaded — improvised format`.
   - When blocked: what is blocked, why, and what unblocks it. One line.
+  - Prefer batch flags over repeated single invocations.
+  - Re-read any file the CLI rewrote before editing it.
+  - On a blocked envelope, use the diagnostic the instructions name before exploring source.
   </output-discipline>

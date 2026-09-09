@@ -30,7 +30,7 @@ export function loadSchema(schemaFile: string, cwd: string = process.cwd()): unk
   return compiledSchemas.get(abs);
 }
 
-export function validateWithSchema(data: unknown, schemaFile: string, cwd: string = process.cwd()): { check: string; severity: string; category: string; target: string; finding: string; fix: string }[] {
+export function validateWithSchema(data: unknown, schemaFile: string, cwd: string = process.cwd()): { check: string; category: string; target: string; finding: string; fix: string }[] {
   try {
     const validate = loadSchema(schemaFile, cwd) as { (data: unknown): boolean; errors?: { instancePath?: string; message?: string }[] };
     const valid = validate(data);
@@ -42,7 +42,6 @@ export function validateWithSchema(data: unknown, schemaFile: string, cwd: strin
       const target = err.instancePath || 'doc';
       return {
         check: 'schema',
-        severity: 'blocking',
         category: 'structural',
         target,
         finding: `${target} ${err.message}`.trim(),
@@ -53,7 +52,6 @@ export function validateWithSchema(data: unknown, schemaFile: string, cwd: strin
     return [
       {
         check: 'schema',
-        severity: 'blocking',
         category: 'structural',
         target: 'doc',
         finding: err instanceof Error ? err.message : String(err),

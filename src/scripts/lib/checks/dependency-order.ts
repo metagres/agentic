@@ -30,9 +30,7 @@ export const dependencyOrder: CheckFn = (artifact, params) => {
       const depIdx = indexById.get(dep);
       if (depIdx !== undefined && taskIdx !== undefined && depIdx > taskIdx) {
         findings.push({
-          check: 'dependency-order',
-          severity: 'blocking',
-          category: 'structural',
+          check: 'dependency-order',          category: 'structural',
           target: arrayName,
           finding: `Task ${taskId} depends on ${dep} which appears later in the plan`,
           fix: 'Reorder tasks so dependencies come first',

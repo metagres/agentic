@@ -311,3 +311,215 @@ test('envelope warning codes are not failures (errors-array window only)', () =>
     }
   );
 });
+
+// ---------------------------------------------------------------------------
+// Event-class fixture (grammar extensions): failed tool calls, ack repeats,
+// and a diagnosis loop — one committed fixture with expected counts, plus
+// per-rule temp-transcript cases next to their assertions.
+// ---------------------------------------------------------------------------
+
+const eventClassesFixturePath = path.join(
+  root,
+  'test',
+  'fixtures',
+  'transcripts',
+  'event-classes.txt'
+);
+const zeroExtractionFixturePath = path.join(
+  root,
+  'test',
+  'fixtures',
+  'transcripts',
+  'zero-extraction.txt'
+);
+
+test('the event-classes fixture yields the expected counts for all three new detection rules', () => {
+  assert.ok(fs.existsSync(eventClassesFixturePath), `fixture missing: ${eventClassesFixturePath}`);
+
+  const run = runMiner([eventClassesFixturePath]);
+
+  assertResultOk(run.stdout);
+  // 3 sdlc invocations whose command lines differ (two --record-answer calls
+  // with different answers) — no wasted-round candidates.
+  assert.equal(rowValue(run.stdout, 'invocations'), 3);
+  assert.equal(rowValue(run.stdout, 'wasted_round_candidates'), 0);
+  // Invocations 2 and 3 return an instructions text identical to the
+  // previous attributed slice — two repeats beyond the first.
+  assert.equal(rowValue(run.stdout, 'ack_repeat_candidates'), 2);
+  // One schema-error line and one exact-match edit-failure line.
+  assert.equal(rowValue(run.stdout, 'tool_failures'), 2);
+  // The edit failure arms the diagnosis-loop detector; the trailing
+  // codegraph explore (no invocation in between) is one loop candidate.
+  assert.equal(rowValue(run.stdout, 'explorations'), 1);
+  assert.equal(rowValue(run.stdout, 'diagnosis_loop_candidates'), 1);
+  assert.equal(rowValue(run.stdout, 'failures'), 0);
+  assert.equal(rowValue(run.stdout, 'delegations'), 0);
+  assert.equal(run.status, 0);
+});
+
+test('the event-classes fixture verbose rows carry the per-signature, per-kind, and per-run labels', () => {
+  const run = runMiner([eventClassesFixturePath, '--verbose']);
+
+  assertVerboseRow(run.stdout, 'label=event-classes.txt:tool_failure:edit-not-found', 1);
+  assertVerboseRow(run.stdout, 'label=event-classes.txt:tool_failure:tool-schema-error', 1);
+  assertVerboseRow(run.stdout, 'label=event-classes.txt:exploration:codegraph', 1);
+  assertVerboseRow(run.stdout, 'label=event-classes.txt:diagnosis_loop_run', 1);
+});
+
+test('the zero-extraction fixture yields the explicit zero report and a non-zero exit (AC-006)', () => {
+  assert.ok(
+    fs.existsSync(zeroExtractionFixturePath),
+    `fixture missing: ${zeroExtractionFixturePath}`
+  );
+
+  const run = runMiner([zeroExtractionFixturePath]);
+
+  assert.match(run.stdout, /^result: zero-extraction$/m);
+  assertZeroExtractionReport(run.stdout, zeroExtractionFixturePath);
+  assert.equal(run.status, 1);
+});
+
+test('duplicate envelope copies for one invocation never count as ack repeats', () => {
+  const ack =
+    '{"step": "discovery", "instructions": "Interview the stakeholder.", "data": {}}';
+  withTempTranscript(
+    [
+      'node src/scripts/sdlc.ts requirements --change demo --record-answer --question q1',
+      ack,
+      ack,
+      'node src/scripts/sdlc.ts requirements --change demo --record-answer --question q2',
+      ack,
+    ],
+    (file) => {
+      const run = runMiner([file]);
+
+      // The second copy of the first envelope arrives with no invocation
+      // since the previous attributed slice — ignored. Only the third
+      // envelope (after the second invocation) repeats.
+      assert.equal(rowValue(run.stdout, 'invocations'), 2);
+      assert.equal(rowValue(run.stdout, 'ack_repeat_candidates'), 1);
+      assert.equal(run.status, 0);
+    }
+  );
+});
+
+test('differing instructions between identical acks break the repeat run', () => {
+  const ack = '{"step": "discovery", "instructions": "Interview the stakeholder.", "data": {}}';
+  const other = '{"step": "authoring", "instructions": "Update the artifact.", "data": {}}';
+  withTempTranscript(
+    [
+      'node src/scripts/sdlc.ts requirements --change demo --record-answer --question q1',
+      ack,
+      'node src/scripts/sdlc.ts requirements --change demo --update-artifact',
+      other,
+      'node src/scripts/sdlc.ts requirements --change demo --record-answer --question q2',
+      ack,
+    ],
+    (file) => {
+      const run = runMiner([file]);
+
+      assert.equal(rowValue(run.stdout, 'invocations'), 3);
+      assert.equal(rowValue(run.stdout, 'ack_repeat_candidates'), 0);
+    }
+  );
+});
+
+test('an exploration without a preceding blocked envelope is counted but is not a diagnosis-loop candidate', () => {
+  withTempTranscript(
+    ['reading the engine source to answer a docs gap', 'codegraph_codegraph_explore finalizeArtifact'],
+    (file) => {
+      const run = runMiner([file]);
+
+      assert.equal(rowValue(run.stdout, 'explorations'), 1);
+      assert.equal(rowValue(run.stdout, 'diagnosis_loop_candidates'), 0);
+      assertResultOk(run.stdout);
+      assert.equal(run.status, 0);
+    }
+  );
+});
+
+test('a blocked envelope arms the diagnosis-loop detector until the next sdlc invocation', () => {
+  withTempTranscript(
+    [
+      '{"step": "recovery", "state": "blocked", "instructions": "Fix the errors.", "data": {"errors": []}}',
+      'codegraph_codegraph_explore finalizeArtifact',
+      'node src/scripts/sdlc.ts requirements --change demo',
+      'codegraph_codegraph_explore discovery gate',
+    ],
+    (file) => {
+      const run = runMiner([file]);
+
+      // The first explore follows the block (candidate); the invocation
+      // disarms, so the second explore is plain volume.
+      assert.equal(rowValue(run.stdout, 'explorations'), 2);
+      assert.equal(rowValue(run.stdout, 'diagnosis_loop_candidates'), 1);
+    }
+  );
+});
+
+test('an escaped-JSON blocked state arms the detector the same way as raw JSON', () => {
+  withTempTranscript(
+    [
+      'tool result: \\n  \\\"step\\\": \\\"recovery\\\", \\n  \\\"state\\\": \\\"blocked\\\", \\n  \\\"errors\\\": []',
+      'codegraph_codegraph_explore discovery gate rule',
+    ],
+    (file) => {
+      const run = runMiner([file]);
+
+      assert.equal(rowValue(run.stdout, 'diagnosis_loop_candidates'), 1);
+    }
+  );
+});
+
+test('explorations within one post-block run collapse into a single candidate with the run size in verbose output', () => {
+  withTempTranscript(
+    [
+      '{"step": "recovery", "state": "blocked", "instructions": "Fix the errors.", "data": {"errors": []}}',
+      'grep -rn "instructions" src/scripts/lib/',
+      'codegraph_codegraph_explore normalizeEnvelope instructions field',
+      'node src/scripts/sdlc.ts status --change demo',
+      'codegraph_codegraph_explore status workflow',
+    ],
+    (file) => {
+      const run = runMiner([file, '--verbose']);
+
+      assert.equal(rowValue(run.stdout, 'explorations'), 3);
+      assert.equal(rowValue(run.stdout, 'diagnosis_loop_candidates'), 1);
+      // One run of two events (block, grep, codegraph), then the invocation
+      // disarms; the trailing explore is volume, not a second candidate.
+      assertVerboseRow(run.stdout, 'label=transcript.txt:diagnosis_loop_run', 2);
+    }
+  );
+});
+
+test('a tool-call failure arms the diagnosis-loop detector like a blocked envelope', () => {
+  withTempTranscript(
+    [
+      '"error": "Could not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings."',
+      'codegraph_codegraph_explore mergeArtifact writeYamlAtomic',
+    ],
+    (file) => {
+      const run = runMiner([file]);
+
+      assert.equal(rowValue(run.stdout, 'tool_failures'), 1);
+      assert.equal(rowValue(run.stdout, 'diagnosis_loop_candidates'), 1);
+      assert.equal(run.status, 0);
+    }
+  );
+});
+
+test('prose discussing tool failures never matches the closed signature catalog', () => {
+  withTempTranscript(
+    [
+      'the review discussed schema errors and oldString misses at length',
+      'makeError(\'SCHEMA_INVALID\', { message: \'Could not find oldString in the file\' })',
+    ],
+    (file) => {
+      const run = runMiner([file]);
+
+      // Prose and engine source shapes are not tool failures: only the
+      // tool-runtime phrasing ("error": "...") matches.
+      assert.equal(rowValue(run.stdout, 'tool_failures'), 0);
+    }
+  );
+});

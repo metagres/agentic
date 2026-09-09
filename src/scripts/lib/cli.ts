@@ -108,10 +108,13 @@ export function normalizeEnvelope(payload: Record<string, unknown> = {}, stagesD
   // instructions as a distinct paragraph. Cross-cutting and unknown ids
   // resolve to no stage record and stay byte-identical (FR-002); registry
   // resolution failures stay quiet so every envelope keeps emitting exactly
-  // as before.
+  // as before. The internal `_terse` marker (kind-split terse design) opts a
+  // terse mutation ack out of the prepend: it is consumed here and never
+  // emitted, so the seven-field shape stays frozen.
+  const terse = payload._terse === true;
   const workflowId = (payload.workflow ?? payload.stage) as string | undefined;
 
-  if (workflowId) {
+  if (workflowId && !terse) {
     let directive: string | null = null;
     try {
       const stage = getStageById(process.cwd(), workflowId, stagesDir);

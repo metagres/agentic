@@ -47,7 +47,6 @@ const REQUIREMENTS_CHECKS: StructuralChecksDoc = {
         ],
       },
     },
-    { check: 'sentence-count', params: { field: 'problem_statement', min: 1, max: 6 } },
   ],
 };
 
@@ -113,44 +112,66 @@ test('Given/When/Then: an AC missing "then" fails', () => {
   const findings = runStageChecks('requirements', 'requirements', artifact, context(), REQUIREMENTS_CHECKS);
   const gwt = findings.filter((f) => f.check === 'given-when-then');
   assert.equal(gwt.length, 1);
-  assert.equal(gwt[0].severity, 'blocking');
   assert.equal(gwt[0].category, 'ambiguity');
   assert.match(gwt[0].finding, /then/i);
   // The finding targets the full nested statement path (AC-011).
   assert.equal(gwt[0].target, 'functional_requirements[0].acceptance_criteria[0].statement');
 });
 
-test('Forbidden words: "fast" in problem_statement is blocking', () => {
+test('Forbidden words: "fast" in problem_statement produces a finding', () => {
   const artifact = baseRequirements({
     problem_statement: 'The system must be fast for all users.',
   });
   const findings = runStageChecks('requirements', 'requirements', artifact, context(), REQUIREMENTS_CHECKS);
   const fw = findings.filter((f) => f.check === 'forbidden-word');
   assert.equal(fw.length, 1);
-  assert.equal(fw[0].severity, 'blocking');
   assert.match(fw[0].finding, /fast/);
 });
 
-test('Forbidden words: "should" is minor', () => {
+test('Advisory words produce no findings; hard forbidden words still do', () => {
+  // Former advisory words never produce findings.
+  for (const word of ['should', 'expected', 'reasonable', 'proper', 'maybe']) {
+    const artifact = baseRequirements({
+      problem_statement: `The system ${word === 'should' ? 'should handle' : `is ${word}`} for registrations.`,
+    });
+    const findings = runStageChecks('requirements', 'requirements', artifact, context(), REQUIREMENTS_CHECKS);
+    assert.deepEqual(
+      findings.filter((f) => f.check === 'forbidden-word'),
+      [],
+      `expected no finding for "${word}"`
+    );
+  }
+  // A hard forbidden word does.
   const artifact = baseRequirements({
-    problem_statement: 'The system should handle registrations.',
+    problem_statement: 'The design is simple and covers registrations.',
   });
   const findings = runStageChecks('requirements', 'requirements', artifact, context(), REQUIREMENTS_CHECKS);
   const fw = findings.filter((f) => f.check === 'forbidden-word');
   assert.equal(fw.length, 1);
-  assert.equal(fw[0].severity, 'minor');
-  assert.match(fw[0].finding, /should/);
+  assert.match(fw[0].finding, /simple/);
 });
 
-test('Sentence count: a 7-sentence problem_statement is minor for requirements', () => {
-  const sentences = Array.from({ length: 7 }, (_, i) => `Sentence number ${i + 1}.`).join(' ');
-  const artifact = baseRequirements({ problem_statement: sentences });
+test('Prose citing file.md or .yaml paths yields zero mechanical findings (path-punishment regression)', () => {
+  const artifact = baseRequirements({
+    problem_statement:
+      'Operators cannot register devices, so onboarding requires manual edits in src/devices.ts and the flows in docs/current/operations.md.',
+  });
   const findings = runStageChecks('requirements', 'requirements', artifact, context(), REQUIREMENTS_CHECKS);
-  const sc = findings.filter((f) => f.check === 'sentence-count');
-  assert.equal(sc.length, 1);
-  assert.equal(sc[0].severity, 'minor');
-  assert.equal(sc[0].category, 'completeness');
-  assert.match(sc[0].finding, /7 sentence/);
+  assert.deepEqual(findings, []);
+});
+
+test('No produced finding carries a severity key (severity is removed from the contract)', () => {
+  const artifact = baseRequirements({
+    problem_statement: 'The system must be fast and simple.',
+  });
+  (artifact.functional_requirements[0] as { id: string }).id = 'FR-002';
+  (artifact.functional_requirements[0] as { id: string }).id = 'FR-001';
+  const findings = runStageChecks('requirements', 'requirements', artifact, context(), REQUIREMENTS_CHECKS);
+  assert.ok(findings.length > 0, 'expected findings from the fixture');
+  for (const finding of findings) {
+    assert.equal('severity' in finding, false, JSON.stringify(finding));
+  }
+  assert.equal(JSON.stringify(findings).includes('"severity"'), false);
 });
 
 test('Duplicate ids: two FRs with the same id produce a blocking finding', () => {
@@ -187,11 +208,10 @@ test('Duplicate ids: two FRs with the same id produce a blocking finding', () =>
   const findings = runStageChecks('requirements', 'requirements', artifact, context(), REQUIREMENTS_CHECKS);
   const dup = findings.filter((f) => f.finding.includes("Duplicate ID 'FR-001'"));
   assert.equal(dup.length, 1);
-  assert.equal(dup[0].severity, 'blocking');
   assert.equal(dup[0].category, 'structural');
 });
 
-test('Execution note required: a done task without implementation_note is blocking', () => {
+test('Execution note required: a done task without implementation_note produces a finding', () => {
   const artifact = {
     metadata: { id: 'PLAN-001', stage: 'implementation' },
     tasks: [
@@ -215,7 +235,6 @@ test('Execution note required: a done task without implementation_note is blocki
   const findings = runStageChecks('implementation', 'implementation', artifact, context(), checks);
   const note = findings.filter((f) => f.finding.includes('TASK-001'));
   assert.equal(note.length, 1);
-  assert.equal(note[0].severity, 'blocking');
   assert.equal(note[0].category, 'completeness');
 });
 
@@ -241,7 +260,7 @@ test('unknown check aborts the run naming the stage folder and entry', () => {
 test('malformed parameters abort the run naming the stage folder and entry', () => {
   const checks: StructuralChecksDoc = {
     version: 1,
-    checks: [{ check: 'sentence-count', params: { field: 'problem_statement' } }],
+    checks: [{ check: 'forbidden-words', params: {} }],
   };
 
   assert.throws(
@@ -253,7 +272,7 @@ test('malformed parameters abort the run naming the stage folder and entry', () 
         context(),
         checks
       ),
-    /requirements.*sentence-count|sentence-count/
+    /requirements.*forbidden-words|forbidden-words/
   );
 });
 
@@ -644,7 +663,6 @@ test('unions group: two FR-nested criteria collections are evaluated as one unio
   );
   const dup = findings.filter((f) => f.check === 'unique-ids' && f.target.includes(' + '));
   assert.equal(dup.length, 1);
-  assert.equal(dup[0].severity, 'blocking');
   assert.equal(dup[0].category, 'structural');
   assert.match(dup[0].finding, /Duplicate ID 'AC-001'/);
   assert.match(dup[0].finding, /functional_requirements\[0\]\.acceptance_criteria\[0\]/);
@@ -798,7 +816,7 @@ test('path-addressed ref-exists: an FR-nested reference resolves (AC-016)', () =
   }
 });
 
-test('path-addressed ref-exists: a missing reference is a blocking finding (AC-017)', () => {
+test('path-addressed ref-exists: a missing reference produces a finding (AC-017)', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-refpath-'));
   try {
     fs.writeFileSync(
@@ -838,7 +856,6 @@ test('path-addressed ref-exists: a missing reference is a blocking finding (AC-0
     const findings = runStageChecks('planning', 'src/stages/planning', artifact, context(root), checks);
     assert.equal(findings.length, 1);
     assert.equal(findings[0].check, 'ref-exists');
-    assert.equal(findings[0].severity, 'blocking');
     assert.equal(
       findings[0].finding,
       "TASK-001 references missing acceptance_ids value 'AC-042' in requirements.yaml"
@@ -894,7 +911,7 @@ test('path-addressed ref-exists: an NFR-nested reference resolves through the un
   }
 });
 
-test('the catalog registers exactly eleven named checks with referenced-by absent (AC-014)', () => {
+test('the catalog registers exactly the ten named checks with referenced-by and sentence-count absent (AC-014)', () => {
   const catalog = Object.keys(CHECK_CATALOG).sort();
   assert.deepEqual(catalog, [
     'all-tasks-terminal',
@@ -906,10 +923,9 @@ test('the catalog registers exactly eleven named checks with referenced-by absen
     'ref-covers',
     'ref-exists',
     'required-note-for-status',
-    'sentence-count',
     'unique-ids',
   ]);
-  assert.equal(catalog.length, 11);
+  assert.equal(catalog.length, 10);
 });
 
 test('a stage still declaring referenced-by fails startup with the unknown-check error (AC-015)', () => {
@@ -969,7 +985,6 @@ test('forbidden-words resolves multi-segment leaf paths through the resolver', (
   );
   const fw = findings.filter((f) => f.check === 'forbidden-word');
   assert.equal(fw.length, 1);
-  assert.equal(fw[0].severity, 'blocking');
   assert.equal(fw[0].target, 'functional_requirements[0].acceptance_criteria[0].statement');
   assert.match(fw[0].finding, /fast/);
 });
@@ -1054,7 +1069,7 @@ test('ref-covers: same-artifact target (to.file \'.\') resolves coverage against
   );
 });
 
-test('ref-covers: one uncovered FR produces exactly one blocking finding', () => {
+test('ref-covers: one uncovered FR produces exactly one finding', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-refcovers-'));
   try {
     fs.writeFileSync(path.join(root, 'requirements.yaml'), refCoversRequirementsYaml(), 'utf8');
@@ -1064,7 +1079,6 @@ test('ref-covers: one uncovered FR produces exactly one blocking finding', () =>
     const findings = runStageChecks('design', 'src/stages/design', artifact, context(root), REF_COVERS_CHECKS);
     assert.equal(findings.length, 1);
     assert.equal(findings[0].check, 'ref-covers');
-    assert.equal(findings[0].severity, 'blocking');
     assert.equal(findings[0].category, 'traceability');
     assert.equal(
       findings[0].finding,
@@ -1172,7 +1186,6 @@ test('design declarations: unique-ids flags a duplicate component id; duplicate-
     );
     const dups = findings.filter((f) => f.check === 'unique-ids');
     assert.deepEqual(dups.map((f) => f.finding), ["Duplicate ID 'CMP-001' in 'components'"]);
-    assert.equal(dups[0].severity, 'blocking');
     const dupRefs = findings.filter((f) => f.check === 'duplicate-refs');
     assert.deepEqual(dupRefs.map((f) => f.finding), ["Duplicate FR reference 'FR-001' in CMP-001"]);
   } finally {

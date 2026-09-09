@@ -405,6 +405,12 @@ export async function runTasksStage(
 
     const stepId = base.step as string;
 
+    // Kind-split terse design (tasks kind): a task update that leaves the
+    // implementation in progress renders a terse ack. The ready-for-review
+    // transition (state complete), bare invocations, blocked envelopes, and
+    // --help-step requests always render full.
+    const terse = mutation && state === 'in_progress' && !helpStep;
+
     let instructions = '';
 
     if (state === 'complete') {
@@ -414,6 +420,10 @@ export async function runTasksStage(
           'Run implementation review with:\n\n' +
           `sdlc implementation-review --change <change-name>`
       );
+    } else if (terse && updatedTaskId) {
+      const tasks = (Array.isArray(plan.tasks) ? plan.tasks : []) as Record<string, unknown>[];
+      const found = tasks.find((t: Record<string, unknown>) => t.id === updatedTaskId);
+      instructions = `Task ${updatedTaskId} is now ${(found?.status as string) || 'unknown'}.`;
     } else if (updatedTaskId) {
       const tasks = (Array.isArray(plan.tasks) ? plan.tasks : []) as Record<string, unknown>[];
       const found = tasks.find((t: Record<string, unknown>) => t.id === updatedTaskId);
@@ -447,6 +457,9 @@ export async function runTasksStage(
         },
         errors,
         warnings,
+        // Internal terse marker: consumed by normalizeEnvelope (never emitted)
+        // to skip the delegation-directive prepend on terse acks.
+        ...(terse ? { _terse: true } : {}),
       },
       EXIT.ok
     );

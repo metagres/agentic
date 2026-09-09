@@ -17,7 +17,6 @@ export interface ErrorItem {
 
 export interface Finding {
   check: string;
-  severity: string;
   category: string;
   target: string;
   finding: string;
@@ -62,7 +61,6 @@ export interface RunEnv {
   stage: StageDef;
   warnings: WarningItem[];
   findings?: Finding[];
-  blocking?: Finding[];
 }
 
 export interface WorkflowDef {
