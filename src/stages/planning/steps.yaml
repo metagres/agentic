@@ -14,7 +14,7 @@ steps:
     markdown: |
       The script created the initial plan artifact. The required predecessor stages must be accepted before authoring begins.
 
-      Read requirements.yaml and design.yaml — the FR/NFR/AC ids tasks must reference live in requirements.yaml, the DEC ids in design.yaml. Read docs/current/index.md and the living docs relevant to the change; they map what already exists. Chain reads silently.
+      Read requirements.yaml and design.yaml — the FR/NFR/AC ids tasks must reference live in requirements.yaml, the DEC ids in design.yaml. Read the living docs relevant to the change — AGENTS.md section 4 maps docs/current by session goal. Chain reads silently.
 
       Report one line: artifact initialized (path) + docs consulted.
     commands:

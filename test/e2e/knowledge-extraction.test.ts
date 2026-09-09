@@ -14,7 +14,7 @@ const cli = path.join(root, 'src', 'scripts', 'sdlc.ts');
 
 function makeTmpProject() {
   // No docs/current: the knowledge-init skill is the sole creator, so the
-  // stage must warn (DOCS_INDEX_MISSING) without creating the directory.
+  // stage must warn (DOCS_CURRENT_MISSING) without creating the directory.
   return fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-kx-'));
 }
 
@@ -58,10 +58,10 @@ test('knowledge extraction lists deltas and completes', () => {
   assert.equal(out.data.deltas_to_apply[0].target_doc, 'docs/current/architecture.md');
 
   // Without docs/current the stage warns and names the knowledge-init skill.
-  const listingWarning = out.warnings.find((w) => w.code === 'DOCS_INDEX_MISSING');
+  const listingWarning = out.warnings.find((w) => w.code === 'DOCS_CURRENT_MISSING');
   assert.ok(
     listingWarning,
-    `Expected DOCS_INDEX_MISSING warning. Got: ${JSON.stringify(out.warnings)}`
+    `Expected DOCS_CURRENT_MISSING warning. Got: ${JSON.stringify(out.warnings)}`
   );
   assert.match(listingWarning.fix, /knowledge-init/);
   assert.ok(
@@ -72,10 +72,10 @@ test('knowledge extraction lists deltas and completes', () => {
   out = run(tmp, ['knowledge-extraction', '--change', changeDir, '--complete']);
   assert.equal(out.state, 'complete', JSON.stringify(out));
 
-  const completeWarning = out.warnings.find((w) => w.code === 'DOCS_INDEX_MISSING');
+  const completeWarning = out.warnings.find((w) => w.code === 'DOCS_CURRENT_MISSING');
   assert.ok(
     completeWarning,
-    `Expected DOCS_INDEX_MISSING warning on --complete. Got: ${JSON.stringify(out.warnings)}`
+    `Expected DOCS_CURRENT_MISSING warning on --complete. Got: ${JSON.stringify(out.warnings)}`
   );
   assert.ok(
     !fs.existsSync(path.join(tmp, 'docs', 'current')),

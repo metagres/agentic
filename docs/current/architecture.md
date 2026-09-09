@@ -49,7 +49,7 @@ graph TD
 | src/schemas/ | YAML asset layer: meta-schemas; the agent.schema.yaml model enum is live-endpoint-fed (sorted opencode/<id> qualifications from GET http://opencode.ai/zen/go/v1/models, migrated from opencode-go/*) rather than hand-maintained | stage.schema.yaml, agent.schema.yaml, cli-envelope.schema.yaml, docs-delta.schema.yaml | No | src/schemas/ |
 | bin/ | Developer CLI tooling: validation, lint, deployment | deploy-to-agent.ts, lint-artifact.ts, validate-{schemas,policies,templates}.ts | No | bin/ |
 | test/ | Unit + e2e suites | node --test test/unit, test/e2e | No | package.json (scripts) |
-| docs/current/ | Living docs, created only by knowledge-init, maintained by knowledge extraction | index.md + 9 documents | No | src/skills/knowledge-init/SKILL.md |
+| docs/current/ | Living docs, created only by knowledge-init, maintained by knowledge extraction | 9 documents; the routing map lives in AGENTS.md §4 | No | src/skills/knowledge-init/SKILL.md, AGENTS.md §4 |
 
 ## Integration Points
 
@@ -80,7 +80,7 @@ Local ESM import edges between repo modules, resolved from relative specifiers b
 | bin/ | src/scripts/workflows/ | 1 |
 | src/scripts/ | src/scripts/lib/ | 2 |
 | src/scripts/ | src/scripts/workflows/ | 1 |
-| src/scripts/lib/ | src/scripts/lib/ | 41 |
+| src/scripts/lib/ | src/scripts/lib/ | 40 |
 | src/scripts/lib/ | src/scripts/lib/checks/ | 1 |
 | src/scripts/lib/ | src/scripts/lib/kinds/ | 1 |
 | src/scripts/lib/checks/ | src/scripts/lib/ | 21 |
@@ -88,11 +88,11 @@ Local ESM import edges between repo modules, resolved from relative specifiers b
 | src/scripts/lib/deploy/platforms/ | src/scripts/lib/ | 3 |
 | src/scripts/lib/deploy/platforms/ | src/scripts/lib/deploy/platforms/ | 2 |
 | src/scripts/lib/docs-gen/ | src/scripts/lib/ | 1 |
-| src/scripts/lib/docs-gen/ | src/scripts/lib/docs-gen/ | 5 |
+| src/scripts/lib/docs-gen/ | src/scripts/lib/docs-gen/ | 10 |
 | src/scripts/lib/docs-gen/providers/ | src/scripts/lib/ | 4 |
 | src/scripts/lib/docs-gen/providers/ | src/scripts/lib/checks/ | 1 |
-| src/scripts/lib/docs-gen/providers/ | src/scripts/lib/docs-gen/ | 26 |
-| src/scripts/lib/docs-gen/providers/ | src/scripts/lib/docs-gen/providers/ | 9 |
+| src/scripts/lib/docs-gen/providers/ | src/scripts/lib/docs-gen/ | 23 |
+| src/scripts/lib/docs-gen/providers/ | src/scripts/lib/docs-gen/providers/ | 8 |
 | src/scripts/lib/kinds/ | src/scripts/lib/ | 53 |
 | src/scripts/lib/kinds/ | src/scripts/lib/docs-gen/ | 1 |
 | src/scripts/lib/kinds/ | src/scripts/lib/kinds/ | 4 |

@@ -15,8 +15,8 @@ function makeTmpProject() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-disc-'));
   fs.mkdirSync(path.join(tmp, 'docs', 'current'), { recursive: true });
   fs.writeFileSync(
-    path.join(tmp, 'docs', 'current', 'index.md'),
-    '# Current Docs Index\n| File | Purpose | When to Read | Notes |\n|---|---|---|---|\n| docs/current/overview.md | System overview | Start here | Fixture |\n',
+    path.join(tmp, 'docs', 'current', 'overview.md'),
+    '# overview.md\n',
     'utf8'
   );
   return tmp;

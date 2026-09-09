@@ -1,0 +1,15 @@
+metadata:
+  artifact: plan.yaml
+  target: planning
+  latest_round: 1
+  created: 2026-09-09
+  updated: 2026-09-09
+  latest_status: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-09T11:38:07.498Z
+    artifact_version: 0.1.0
+    status: accepted
+    mechanical_checks_passed: true
+    semantic_checks_passed: true
+    failures: []

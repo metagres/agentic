@@ -3,7 +3,7 @@ version: 1
 # regions to providers. This file is the project-specific wiring seam —
 # other projects port the engine by editing it, never the engine.
 # Order matters: later entries read earlier entries' rendered content
-# (index cross-checks must run last).
+# through readRendered; the crosscheck gate runs after the whole loop.
 files:
   - id: dependencies
     provider: dependencies
@@ -100,7 +100,3 @@ files:
     provider: conventions-checks-reference
     path: docs/current/conventions.md
     mode: region
-  - id: index
-    provider: index
-    path: docs/current/index.md
-    mode: file

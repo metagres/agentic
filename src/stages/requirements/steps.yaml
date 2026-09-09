@@ -22,8 +22,8 @@ steps:
     markdown: |
       The script created the initial requirements artifact.
 
-      Read `docs/current/index.md` and use it to decide which living docs are
-      relevant. Read only what is needed. Chain reads silently.
+      Read the living docs relevant to the change — AGENTS.md section 4 maps
+      docs/current by session goal. Read only what is needed. Chain reads silently.
 
       Confirm with --complete-step --step init. Report one line: artifact title
       + request summary + living docs consulted.

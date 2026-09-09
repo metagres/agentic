@@ -97,12 +97,12 @@ Every code in src/policies/errors.yaml with its message, fix text, and the sourc
 | CANNOT_COMPLETE | Knowledge extraction cannot complete. | Resolve validation errors and mark entries extracted. | (catalog entry only) |
 | IMPLEMENTATION_NOT_ACCEPTED | Implementation review is not accepted. | Complete implementation review before completing knowledge extraction. | src/scripts/lib/kinds/aggregator.ts |
 | DELTA_TARGETS_GENERATED_REGION | A delta entry targets docs/current content that is machine-generated. | Drop the delta entry — regenerate the region with npm run docs:generate instead of editing generated content by hand. | src/scripts/lib/kinds/aggregator.ts |
-| ILLEGAL_STATUS_TRANSITION | Illegal lifecycle status transition. | Follow the lifecycle defined in src/policies/lifecycle.yaml. | (catalog entry only) |
+| ILLEGAL_STATUS_TRANSITION | Illegal lifecycle status transition. | Use a status from the artifact status vocabulary declared by the stage — draft, ready-for-review, accepted, rejected, or blocked. | (catalog entry only) |
 | POLICY_INVALID | A policy file is invalid. | Fix the policy file and rerun validation. | (catalog entry only) |
 | STAGE_POLICY_MISSING | The stage policy file is missing. | Restore requirements-policy.yaml in the requirements stage folder. | src/stages/requirements/hooks.ts |
 | STAGE_POLICY_INVALID | The stage policy file is invalid. | Fix the named field in requirements-policy.yaml and rerun. | src/stages/requirements/hooks.ts |
 | UNKNOWN_LENS | The lens is not in the policy vocabulary. | Use one of the lenses listed in requirements-policy.yaml. | src/stages/requirements/hooks.ts |
-| DOCS_INDEX_MISSING | docs/current/index.md not found. | Run the knowledge-init skill to create docs/current/index.md. | src/scripts/lib/kinds/aggregator.ts, src/scripts/lib/kinds/authoring.ts, src/scripts/workflows/doctor.ts |
+| DOCS_CURRENT_MISSING | docs/current not found; delta target validation was skipped. | Run the knowledge-init skill to bootstrap docs/current/. | src/scripts/lib/kinds/aggregator.ts, src/scripts/lib/kinds/authoring.ts, src/scripts/workflows/doctor.ts |
 | SCHEMAS_MISSING | No schemas directory found. | Deploy or restore the runtime schemas. | src/scripts/workflows/doctor.ts |
 | POLICIES_MISSING | No policies directory found. | Deploy or restore the runtime policies. | src/scripts/workflows/doctor.ts |
 | USAGE | Invalid command usage. | Check required flags and try again. | src/scripts/lib/kinds/review.ts, src/scripts/workflows/feedback.ts |
@@ -117,7 +117,7 @@ Every code in src/policies/errors.yaml with its message, fix text, and the sourc
 | ARTIFACT_INITIALIZED | A new artifact was initialized. | Continue the workflow and fill in the artifact. | src/scripts/lib/kinds/authoring.ts |
 | DOCS_DELTA_VALIDATION | Docs-delta validation found problems. | Fix docs-delta entries before completing knowledge extraction. | (catalog entry only) |
 | NODE_VERSION_UNSUPPORTED | Node.js version is not supported. | Use Node.js 20 or newer. | src/scripts/workflows/doctor.ts |
-| MANIFEST_INVALID | Deployed runtime manifest is invalid. | Redeploy the runtime with bin/deploy-to-agent.mjs. | src/scripts/workflows/doctor.ts |
+| MANIFEST_INVALID | Deployed runtime manifest is invalid. | Redeploy the runtime with bin/deploy-to-agent.ts. | src/scripts/workflows/doctor.ts |
 | STAGE_MISSING_DESCRIPTOR | A stage folder is missing its stage.yaml descriptor. | Create stage.yaml in the stage folder. | (catalog entry only) |
 | STAGE_INVALID_DESCRIPTOR | A stage.yaml descriptor is invalid. | Fix stage.yaml to match the stage meta-schema. | src/scripts/workflows/doctor.ts |
 | STAGE_UNKNOWN_KIND | A stage descriptor declares an unknown kind. | Use authoring, review, tasks, or aggregator. | (catalog entry only) |

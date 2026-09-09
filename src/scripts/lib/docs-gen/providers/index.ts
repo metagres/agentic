@@ -7,7 +7,6 @@
 import { dependenciesProvider } from './dependencies.ts';
 import { knownIssuesProvider } from './known-issues.ts';
 import { decisionsProvider } from './decisions.ts';
-import { indexProvider } from './index-crosscheck.ts';
 import {
   operationsCommandsProvider,
   operationsTestingProvider,
@@ -33,7 +32,6 @@ export const providerRegistry: Map<string, Provider> = new Map<string, Provider>
       ['dependencies', dependenciesProvider],
       ['known-issues', knownIssuesProvider],
       ['decisions', decisionsProvider],
-      ['index', indexProvider],
       ['operations-commands', operationsCommandsProvider],
       ['operations-testing', operationsTestingProvider],
       ['operations-environment', operationsEnvironmentProvider],

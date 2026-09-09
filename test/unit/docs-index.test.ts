@@ -1,98 +1,82 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parseDocsIndex, loadDocsIndex } from '../../src/scripts/lib/docs-index.ts';
+import { loadDocsIndex, headingExists } from '../../src/scripts/lib/docs-index.ts';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-test('parseDocsIndex normalizes bare filenames to docs/current/ keys', () => {
-  const content = [
-    '| architecture.md | Tech stack and boundaries | Structural changes | Maintained |',
-  ].join('\n');
+function writeTree(root: string, files: Record<string, string>): void {
+  for (const [rel, content] of Object.entries(files)) {
+    const abs = path.join(root, rel);
+    fs.mkdirSync(path.dirname(abs), { recursive: true });
+    fs.writeFileSync(abs, content, 'utf8');
+  }
+}
 
-  const docs = parseDocsIndex(content);
+test('loadDocsIndex returns the sorted docs/current/*.md directory scan', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-docs-index-'));
+  writeTree(root, {
+    'docs/current/operations.md': '# operations.md\n',
+    'docs/current/api-contract.md': '# api-contract.md\n',
+    'docs/current/architecture.md': '# architecture.md\n',
+  });
 
-  assert.equal(docs.length, 1);
-  assert.equal(docs[0].file, 'docs/current/architecture.md');
-  assert.equal(docs[0].purpose, 'Tech stack and boundaries');
-  assert.equal(docs[0].when, 'Structural changes');
-  assert.equal(docs[0].notes, 'Maintained');
+  assert.deepEqual(loadDocsIndex(root).map((d) => d.file), [
+    'docs/current/api-contract.md',
+    'docs/current/architecture.md',
+    'docs/current/operations.md',
+  ]);
 });
 
-test('parseDocsIndex keeps prefixed docs/current/ rows unchanged', () => {
-  const content = [
-    '| docs/current/glossary.md | Entities and rules | Data layer changes | Maintained |',
-  ].join('\n');
+test('loadDocsIndex excludes non-.md entries', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-docs-index-'));
+  writeTree(root, {
+    'docs/current/glossary.md': '# glossary.md\n',
+    'docs/current/notes.txt': 'not a document',
+  });
+  fs.mkdirSync(path.join(root, 'docs', 'current', 'assets'));
 
-  const docs = parseDocsIndex(content);
+  const files = loadDocsIndex(root).map((d) => d.file);
 
-  assert.equal(docs.length, 1);
-  assert.equal(docs[0].file, 'docs/current/glossary.md');
-  assert.equal(docs[0].purpose, 'Entities and rules');
+  assert.deepEqual(files, ['docs/current/glossary.md']);
 });
 
-test('parseDocsIndex yields every row in a mixed table', () => {
-  const content = [
-    '| architecture.md | Bare form |',
-    '|------|---------|',
-    '| docs/current/api-contract.md | Prefixed form |',
-    '| glossary.md | Another bare form |',
-  ].join('\n');
+test('loadDocsIndex yields an empty list when docs/current is absent', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-docs-index-'));
 
-  const docs = parseDocsIndex(content);
-
-  assert.deepEqual(
-    docs.map((d) => d.file),
-    [
-      'docs/current/architecture.md',
-      'docs/current/api-contract.md',
-      'docs/current/glossary.md',
-    ]
-  );
+  assert.deepEqual(loadDocsIndex(root), []);
 });
 
-test('parseDocsIndex excludes header and noise rows', () => {
-  const content = [
-    '# Heading outside any table',
-    '',
-    'Plain prose line that is not a table row.',
-    '',
-    '| File | Purpose |',
-    '|------|---------|',
-    '| conventions.md | Patterns and naming |',
-    '| # | Check | Result |',
-    '| 1 | Glossary entity with no API endpoint | None |',
-    '| 7 | Decision referencing a technology not in tech stack | None |',
-    '| Note | Location | Detail |',
-    '| STALE-REF | src/policies/errors.yaml | See known-issues.md |',
-    '| operations.md | Build and test commands |',
-  ].join('\n');
+test('loadDocsIndex yields exactly the single .md document (boundary)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-docs-index-'));
+  writeTree(root, { 'docs/current/decisions.md': '# decisions.md\n' });
 
-  const docs = parseDocsIndex(content);
-
-  // Only rows whose first cell ends with '.md' are kept; header and noise
-  // rows of auxiliary tables are dropped instead of becoming pseudo-docs.
-  assert.deepEqual(
-    docs.map((d) => d.file),
-    [
-      'docs/current/conventions.md',
-      'docs/current/operations.md',
-    ]
-  );
+  assert.deepEqual(loadDocsIndex(root), [{ file: 'docs/current/decisions.md' }]);
 });
 
-test('loadDocsIndex reads the real repository index', () => {
+test('loadDocsIndex reads the real repository directory (9 documents after retirement)', () => {
   const docs = loadDocsIndex(REPO_ROOT);
 
   assert.equal(docs.length, 9, `expected exactly 9 documents, got ${docs.length}`);
   assert.ok(
     docs.some((d) => d.file === 'docs/current/architecture.md'),
-    'real index should list docs/current/architecture.md'
+    'directory scan should list docs/current/architecture.md'
   );
-
   const files = new Set(docs.map((d) => d.file));
-  assert.ok(!files.has('docs/current/File'), 'header row must not leak as a pseudo-doc');
-  assert.ok(!files.has('docs/current/#'), 'cross-check header row must not leak as a pseudo-doc');
+  assert.ok(!files.has('docs/current/index.md'), 'retired index.md must not reappear');
+});
+
+test('headingExists validates Modify/Remove anchors against the target document', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-docs-index-'));
+  writeTree(root, {
+    'docs/current/architecture.md': '# architecture.md\n\n## Folder Responsibilities\n',
+  });
+
+  assert.ok(headingExists(root, 'docs/current/architecture.md', '## Folder Responsibilities'));
+  assert.ok(!headingExists(root, 'docs/current/architecture.md', '## Missing'));
+  assert.ok(!headingExists(root, 'docs/current/absent.md', '## Anything'));
 });

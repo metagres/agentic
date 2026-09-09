@@ -19,18 +19,18 @@ function run(args, cwd) {
   return JSON.parse(res.stdout);
 }
 
-test('doctor warns when docs index missing', () => {
+test('doctor warns when docs/current is missing', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-doctor-'));
 
   const normal = run(['doctor', '--cwd', tmp], tmp);
   assert.equal(normal.state, 'ok', JSON.stringify(normal, null, 2));
   assert.ok(
-    normal.warnings.some((w) => w.code === 'DOCS_INDEX_MISSING'),
-    `Expected DOCS_INDEX_MISSING warning. Got: ${JSON.stringify(normal.warnings)}`
+    normal.warnings.some((w) => w.code === 'DOCS_CURRENT_MISSING'),
+    `Expected DOCS_CURRENT_MISSING warning. Got: ${JSON.stringify(normal.warnings)}`
   );
 
   // The guidance names the knowledge-init skill as the sole creator.
-  const warning = normal.warnings.find((w) => w.code === 'DOCS_INDEX_MISSING');
+  const warning = normal.warnings.find((w) => w.code === 'DOCS_CURRENT_MISSING');
   assert.match(warning.fix, /knowledge-init/);
 
   // The templates directory check is gone.
@@ -39,5 +39,5 @@ test('doctor warns when docs index missing', () => {
     !checkIds.includes('templates_available'),
     `Expected no templates check. Got: ${checkIds.join(', ')}`
   );
-  assert.ok(checkIds.includes('docs_index_present'));
+  assert.ok(checkIds.includes('docs_current_present'));
 });

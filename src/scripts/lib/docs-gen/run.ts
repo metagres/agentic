@@ -3,13 +3,16 @@
  * provider registry, producing rendered file contents. Providers run in
  * manifest order; later entries see earlier entries' rendered content
  * through readRendered and read the in-flight content of files already
- * touched this run through readExisting. The orchestrator is pure — the
- * bin decides between writing and checking.
+ * touched this run through readExisting. After the manifest loop the
+ * crosscheck gate runs as a hard failing check — violations abort the run
+ * before anything is written or reported as fresh. The orchestrator is
+ * pure — the bin decides between writing and checking.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { runCrosschecks } from './crosscheck.ts';
 import { DocsGenError, replaceRegion } from './splice.ts';
 import type { DocsGenManifest, FileProvider, Provider, RegionProvider, ProviderContext } from './types.ts';
 
@@ -84,6 +87,8 @@ export function generateAll(
       touchedBy: [...(previous?.touchedBy ?? []), entry.id],
     });
   }
+
+  runCrosschecks(ctx);
 
   return results;
 }

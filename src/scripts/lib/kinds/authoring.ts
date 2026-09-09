@@ -404,11 +404,7 @@ function appendDelta(env: AuthorEnv): void {
   const allowed = new Set(docs.map((d) => d.file));
 
   if (docs.length === 0) {
-    env.warnings.push({
-      code: 'DOCS_INDEX_MISSING',
-      message:
-        'docs/current/index.md not found; delta target validation was skipped.',
-    });
+    env.warnings.push(makeError('DOCS_CURRENT_MISSING'));
   }
 
   const validated: Record<string, unknown>[] = [];
@@ -437,7 +433,7 @@ function appendDelta(env: AuthorEnv): void {
 
     if (allowed.size > 0 && !allowed.has(entry.target_doc as string)) {
       throw new Error(
-        `Delta entry ${idx} target_doc is not listed in docs/current/index.md: ${entry.target_doc}`
+        `Delta entry ${idx} target_doc is not a docs/current document: ${entry.target_doc}`
       );
     }
 

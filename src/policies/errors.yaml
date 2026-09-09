@@ -65,7 +65,7 @@ errors:
     fix: Drop the delta entry — regenerate the region with npm run docs:generate instead of editing generated content by hand.
   ILLEGAL_STATUS_TRANSITION:
     message: Illegal lifecycle status transition.
-    fix: Follow the lifecycle defined in src/policies/lifecycle.yaml.
+    fix: Use a status from the artifact status vocabulary declared by the stage — draft, ready-for-review, accepted, rejected, or blocked.
   POLICY_INVALID:
     message: A policy file is invalid.
     fix: Fix the policy file and rerun validation.
@@ -78,9 +78,9 @@ errors:
   UNKNOWN_LENS:
     message: The lens is not in the policy vocabulary.
     fix: Use one of the lenses listed in requirements-policy.yaml.
-  DOCS_INDEX_MISSING:
-    message: docs/current/index.md not found.
-    fix: Run the knowledge-init skill to create docs/current/index.md.
+  DOCS_CURRENT_MISSING:
+    message: docs/current not found; delta target validation was skipped.
+    fix: Run the knowledge-init skill to bootstrap docs/current/.
   SCHEMAS_MISSING:
     message: No schemas directory found.
     fix: Deploy or restore the runtime schemas.
@@ -126,7 +126,7 @@ errors:
     fix: Use Node.js 20 or newer.
   MANIFEST_INVALID:
     message: Deployed runtime manifest is invalid.
-    fix: Redeploy the runtime with bin/deploy-to-agent.mjs.
+    fix: Redeploy the runtime with bin/deploy-to-agent.ts.
   STAGE_MISSING_DESCRIPTOR:
     message: A stage folder is missing its stage.yaml descriptor.
     fix: Create stage.yaml in the stage folder.

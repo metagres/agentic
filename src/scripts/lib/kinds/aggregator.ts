@@ -262,11 +262,11 @@ export async function runAggregatorStage(
     const collectedDeltas: Record<string, unknown>[] = [];
 
     // The CLI never creates docs/current (DEC-002): when the target project
-    // has no docs index, warn on both the delta-listing and --complete paths
-    // and name the knowledge-init skill as the sole creator.
-    const docsIndexPath = path.join(cwd, 'docs', 'current', 'index.md');
-    if (!fs.existsSync(docsIndexPath)) {
-      warnings.push(makeError('DOCS_INDEX_MISSING'));
+    // has no docs/current directory, warn on both the delta-listing and
+    // --complete paths and name the knowledge-init skill as the sole creator.
+    const docsCurrentDir = path.join(cwd, 'docs', 'current');
+    if (!fs.existsSync(docsCurrentDir)) {
+      warnings.push(makeError('DOCS_CURRENT_MISSING'));
     }
 
     // Collect deltas from all delta-producing stages in the registry.

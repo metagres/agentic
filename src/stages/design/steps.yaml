@@ -14,7 +14,7 @@ steps:
       The script created the initial design artifact.
 
       The required predecessor stages must be accepted before authoring begins.
-      Read docs/current/index.md and the living docs relevant to the change; they map the components and conventions that already exist. Chain reads silently.
+      Read the living docs relevant to the change — AGENTS.md section 4 maps docs/current by session goal; they carry the components and conventions that already exist. Chain reads silently.
 
       Report one line: artifact initialized (path) + docs consulted.
     commands:

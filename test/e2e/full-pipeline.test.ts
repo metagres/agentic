@@ -20,23 +20,8 @@ function makeTmpProject() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-full-'));
   fs.mkdirSync(path.join(tmp, 'docs', 'current'), { recursive: true });
   fs.writeFileSync(
-    path.join(tmp, 'docs', 'current', 'index.md'),
-    [
-      '# Current Docs Index',
-      '',
-      '| File | Purpose | When to Read | Notes |',
-      '|---|---|---|---|',
-      '| docs/current/architecture.md | Tech stack, boundaries, folder responsibilities | Structural changes | Fixture |',
-      '| docs/current/api-contract.md | Endpoints: method, path, auth, shapes | API changes | Fixture |',
-      '| docs/current/glossary.md | Entities, fields, relationships, rules | Data layer changes | Fixture |',
-      '| docs/current/capabilities.md | Features, workflows, user journeys | Feature changes | Fixture |',
-      '| docs/current/conventions.md | Patterns, naming, error handling, file org | Code writing | Fixture |',
-      '| docs/current/operations.md | Build, test, lint, deploy, env vars | Verification | Fixture |',
-      '| docs/current/dependencies.md | Key libraries and roles | Dependency changes | Fixture |',
-      '| docs/current/known-issues.md | Markers, skipped tests | Task estimation | Fixture |',
-      '| docs/current/decisions.md | ADRs (reference) + cycle decisions (living) | Architectural changes | Fixture |',
-      '',
-    ].join('\n'),
+    path.join(tmp, 'docs', 'current', 'architecture.md'),
+    '# architecture.md\n',
     'utf8'
   );
   return tmp;

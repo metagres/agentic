@@ -55,15 +55,8 @@ function tmpProject(prefix: string): string {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
   fs.mkdirSync(path.join(tmp, 'docs', 'current'), { recursive: true });
   fs.writeFileSync(
-    path.join(tmp, 'docs', 'current', 'index.md'),
-    [
-      '# Current Docs Index',
-      '',
-      '| File | Purpose | When to Read | Notes |',
-      '|---|---|---|---|',
-      '| docs/current/architecture.md | Tech stack, boundaries, folder responsibilities | Structural changes | Fixture |',
-      '',
-    ].join('\n'),
+    path.join(tmp, 'docs', 'current', 'architecture.md'),
+    '# architecture.md\n',
     'utf8'
   );
   return tmp;

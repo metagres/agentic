@@ -173,12 +173,12 @@ export function runDoctor(argv: string[]): void {
     }
   }
 
-  const docsIndex = path.join(cwd, 'docs', 'current', 'index.md');
-  if (fs.existsSync(docsIndex)) {
-    addCheck('docs_index_present', true, docsIndex);
+  const docsCurrentDir = path.join(cwd, 'docs', 'current');
+  if (fs.existsSync(docsCurrentDir)) {
+    addCheck('docs_current_present', true, docsCurrentDir);
   } else {
-    addCheck('docs_index_present', false, docsIndex);
-    const issue = makeError('DOCS_INDEX_MISSING');
+    addCheck('docs_current_present', false, docsCurrentDir);
+    const issue = makeError('DOCS_CURRENT_MISSING');
     if (strict) {
       errors.push(issue);
     } else {

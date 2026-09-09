@@ -1,0 +1,48 @@
+metadata:
+  artifact: requirements.yaml
+  target: requirements
+  latest_round: 2
+  created: 2026-09-09
+  updated: 2026-09-09
+  latest_status: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-09T11:07:03.332Z
+    artifact_version: 0.1.0
+    status: rejected
+    mechanical_checks_passed: true
+    semantic_checks_passed: false
+    failures:
+      - check: Does every Then-clause in acceptance_criteria describe an observable external result (HTTP
+          response, persisted file, log line), not an internal function call?
+        evidence: "Four Then-clauses observe internal function returns instead of observable external
+          results. (1) AC-013: \"When makeError('DOCS_CURRENT_MISSING') is invoked, Then the error
+          carries the reworded message and a fix text.\" (requirements.yaml, functional_requirements
+          FR-005, acceptance_criteria AC-013) — makeError (src/scripts/lib/error-catalog.ts) is an
+          internal constructor and the inspected error object is in-process state; the external
+          surfaces are the CLI envelope warning (AC-015) and the rendered error-catalog region
+          (AC-016). (2) AC-018: \"When loadDocsIndex runs, Then the entry is excluded from the
+          returned list.\" (requirements.yaml, functional_requirements FR-006, acceptance_criteria
+          AC-018) — internal loadDocsIndex return; the external surface is the envelope field
+          data.delta_allowed_target_docs, which sibling AC-017 already uses. (3) AC-019: \"Then it
+          returns an empty list and the caller emits the DOCS_CURRENT_MISSING warning with the
+          reworded message.\" (requirements.yaml, functional_requirements FR-006,
+          acceptance_criteria AC-019) — 'it returns an empty list' is the internal loadDocsIndex
+          return; only the warning clause is externally observable. (4) AC-020: \"When loadDocsIndex
+          runs, Then the returned list contains exactly that file.\" (requirements.yaml,
+          functional_requirements FR-006, acceptance_criteria AC-020) — internal loadDocsIndex
+          return."
+      - check: Does each AC assert system behavior under test, not the existence of tests or a process step?
+        evidence: 'AC-045 asserts test-suite sensitivity (existence/efficacy of tests) rather than system
+          behavior under test: "Given a regression restoring index-table parsing for delta targets,
+          When the docs-index unit tests run, Then at least one test fails." (requirements.yaml,
+          non_functional_requirements NFR-004, acceptance_criteria AC-045) — the system behavior
+          itself is already asserted by AC-017/AC-018/AC-020; this criterion asserts only that a
+          test would fail under a hypothetical regression.'
+  - round: 2
+    reviewed_at: 2026-09-09T11:11:31.190Z
+    artifact_version: 0.1.1
+    status: accepted
+    mechanical_checks_passed: true
+    semantic_checks_passed: true
+    failures: []

@@ -37,21 +37,8 @@ function makeProject(): string {
   const tmp = tmpRepo('agentic-round-');
   fs.mkdirSync(path.join(tmp, 'docs', 'current'), { recursive: true });
   fs.writeFileSync(
-    path.join(tmp, 'docs', 'current', 'index.md'),
-    [
-      '| File | Purpose | When to Read | Notes |',
-      '|---|---|---|---|',
-      '| docs/current/architecture.md | Tech stack | Structural changes | Fixture |',
-      '| docs/current/api-contract.md | Endpoints | API changes | Fixture |',
-      '| docs/current/glossary.md | Entities | Data layer changes | Fixture |',
-      '| docs/current/capabilities.md | Features | Feature changes | Fixture |',
-      '| docs/current/conventions.md | Patterns | Code writing | Fixture |',
-      '| docs/current/operations.md | Build | Verification | Fixture |',
-      '| docs/current/dependencies.md | Libraries | Dependency changes | Fixture |',
-      '| docs/current/known-issues.md | Markers | Task estimation | Fixture |',
-      '| docs/current/decisions.md | ADRs | Architectural changes | Fixture |',
-      '',
-    ].join('\n'),
+    path.join(tmp, 'docs', 'current', 'architecture.md'),
+    '# architecture.md\n',
     'utf8'
   );
   return tmp;

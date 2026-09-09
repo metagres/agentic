@@ -1,0 +1,48 @@
+metadata:
+  artifact: design.yaml
+  target: design
+  latest_round: 2
+  created: 2026-09-09
+  updated: 2026-09-09
+  latest_status: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-09T11:25:29.531Z
+    artifact_version: 0.1.0
+    status: rejected
+    mechanical_checks_passed: true
+    semantic_checks_passed: false
+    failures:
+      - check: Does the design address the failure paths identified in requirements?
+        evidence: "Failure path R3 (requirements.yaml, failure_paths) — \"Deployed-runtime drift: .opencode
+          step instructions, doctor warnings, or the deployed knowledge-init skill keep the retired
+          index.md behavior; npm run deploy:smoke and rendered step instructions expose the drift
+          until npm run deploy -- --dest .opencode --clean runs (R3)\" — is not fully addressed: no
+          component (CMP-001..CMP-006) owns src/stages/knowledge-extraction/steps.yaml, whose
+          docs_delta step keeps retired index behavior in the very source the clean redeploy copies.
+          Line 13: \"Whole-file generated documents (dependencies.md, known-issues.md, decisions.md,
+          index.md) and marker-delimited regions in the mixed documents are machine-owned\" — stale
+          once CMP-001 removes the docs-gen.yaml index entry (docs-gen.yaml lines 103-106) and
+          deletes docs/current/index.md. Line 17: \"If the envelope carries DOCS_INDEX_MISSING, stop
+          and tell the user to run the knowledge-init skill\" — keys on the code CMP-003 renames to
+          DOCS_CURRENT_MISSING, leaving the only remaining src/ reference to the retired code and a
+          dead agent-facing handler for the docs/current-missing failure path that F-002 step 3
+          claims to address. The design's own claims contradict this residue: F-004 step 3 —
+          \"Deployed step instructions render with no index.md reference\" — and F-004 step 5 —
+          \"Deployed-runtime drift (retired index behavior surviving in .opencode) is exposed by
+          deploy:smoke and rendered step instructions until the clean redeploy runs (R3)\" — assert
+          a state the clean redeploy cannot deliver, since it faithfully redeploys the unupdated
+          knowledge-extraction source; context_summary likewise claims \"Stage steps and the
+          knowledge-init skill lose every reference to the retired page\". FR-007 scopes only the
+          four authoring stages' steps.yaml, but R3 and F-004 steps 3/5 as written are not so
+          scoped. Fix: add the knowledge-extraction docs_delta step (drop index.md from the
+          docs-gen-owned whole-file list; reword DOCS_INDEX_MISSING to DOCS_CURRENT_MISSING) to
+          CMP-004 or CMP-003, or scope the F-004 step 3/5 and context_summary claims to the four
+          authoring stages."
+  - round: 2
+    reviewed_at: 2026-09-09T11:27:41.697Z
+    artifact_version: 0.1.1
+    status: accepted
+    mechanical_checks_passed: true
+    semantic_checks_passed: true
+    failures: []

@@ -3,16 +3,12 @@
  * whole-file generator. The Markers and Skipped Tests sections are pure
  * scans (findings vanish when the underlying defect is fixed — no
  * merge-by-key here); the Review-Justified section is agent-authored and
- * preserved through its docs-gen region.
+ * preserved through its docs-gen region. Dead-reference findings are not
+ * rendered here — STALE-REF is enforced as a hard gate check by the
+ * crosscheck module (DEC-002).
  */
 
-import path from 'node:path';
-
-import {
-  scanCommentMarkers,
-  scanDeadReferences,
-  scanSkippedTests,
-} from '../scans.ts';
+import { scanCommentMarkers, scanSkippedTests } from '../scans.ts';
 import { renderTable } from '../table.ts';
 import { readRegion, regionBeginMarker, regionEndMarker } from '../splice.ts';
 import type { FileProvider, MarkerFinding, ProviderContext } from '../types.ts';
@@ -29,7 +25,7 @@ export const knownIssuesProvider: FileProvider = {
       findings.length > 0
         ? ['', ...renderTable(MARKER_HEADERS, findings.map(toRow)), '']        : [
             '',
-            '- No comment markers or stale file references found in src/, bin/, or test/ (machine scan).',
+            '- No comment markers found in src/, bin/, or test/ (machine scan).',
             '',
           ];
 
@@ -85,15 +81,6 @@ function collectFindings(root: string): MarkerFinding[] {
       context: hit.text,
       severity: 'scan',
       evidence: `${hit.file}:${hit.line}`,
-    });
-  }
-  for (const hit of scanDeadReferences(root)) {
-    findings.push({
-      location: `${path.dirname(hit.file)}/errors.yaml (${hit.section})`,
-      marker: 'STALE-REF',
-      context: hit.context,
-      severity: 'scan',
-      evidence: `references missing ${hit.reference}`,
     });
   }
   return findings.sort((a, b) => a.location.localeCompare(b.location) || a.marker.localeCompare(b.marker));

@@ -31,11 +31,11 @@ Invariant numbering is stable — docs/current cites these rules by number. Neve
 ## 4. Session Context Routing
 
 docs/current/ is the default destination for descriptive content; this file is the
-exception (§2). Start every session from docs/current/index.md and load
-only what the session goal needs. When the codegraph MCP is available in the
-runtime, use `codegraph_explore` as the first stop for code exploration
-(structure, call paths, impact) instead of grep/read loops. Terminology
-(stage/kind/gate/step/state/status): docs/current/glossary.md.
+exception (§2). The table below is the authoritative map of docs/current — a
+selection menu keyed by session goal; load only the rows the task needs. When the
+codegraph MCP is available in the runtime, use `codegraph_explore` as the first stop
+for code exploration (structure, call paths, impact) instead of grep/read loops.
+Terminology (stage/kind/gate/step/state/status): docs/current/glossary.md.
 
 | Session goal | Read |
 |---|---|
@@ -48,3 +48,5 @@ runtime, use `codegraph_explore` as the first stop for code exploration
 | Features, workflows, SDLC goals canon | docs/current/capabilities.md |
 | Library versions and roles | docs/current/dependencies.md |
 | Known defects and markers | docs/current/known-issues.md |
+| Change artifacts — requirements/design/plan/review (in progress or accepted; no separate archive) | docs/changes/<slug>/ |
+| Deferred corrections noticed mid-session | docs/ideas/ (picked up in a later session) |

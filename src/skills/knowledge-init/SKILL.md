@@ -6,7 +6,6 @@ inputs:
   - Existing ADR log, if any
   - Git history (optional)
 outputs:
-  - docs/current/index.md
   - docs/current/architecture.md
   - docs/current/api-contract.md
   - docs/current/glossary.md
@@ -20,7 +19,7 @@ outputs:
 
 # One-Time Bootstrap: Generate Living Current-State Artifacts
 
-Run **once** when `docs/current/index.md` does not exist. This skill is the only component that creates `docs/current/`. Produces the baseline for ongoing **Knowledge Extraction**.
+Run **once** when `docs/current/` does not exist. This skill is the only component that creates `docs/current/`. Produces the baseline for ongoing **Knowledge Extraction**.
 
 ## Context: Living Documents
 
@@ -45,27 +44,7 @@ Design implications:
 - **No codemaps**: Do not generate codemap.md files; code-structure exploration belongs to the code intelligence tools and the docs themselves.
 - **Generated regions**: when the toolkit's docs-gen tooling is present (docs-gen.yaml at the repo root), mechanical reference content is owned by `npm run docs:generate` — whole-file generated documents and `<!-- docs-gen:begin/end -->` marker regions are machine-owned from the start; bootstrap their markers exactly where the tooling's manifest declares them.
 
-## 1. Generate `index.md`
-
-Navigation for the living documents.
-
-```markdown
-# /docs/current/ — Knowledge Index
-
-| File | Purpose | When to Read | Notes |
-|------|---------|--------------|-------|
-| architecture.md | Tech stack, boundaries, folder responsibilities | Structural changes | Maintained by knowledge extraction |
-| api-contract.md | Endpoints: method, path, auth, shapes | API changes | Maintained by knowledge extraction |
-| glossary.md | Entities, fields, relationships, rules | Data layer changes | Maintained by knowledge extraction |
-| capabilities.md | Features, workflows, user journeys | Feature changes | Maintained by knowledge extraction |
-| conventions.md | Patterns, naming, error handling, file org | Code writing | Maintained by knowledge extraction |
-| operations.md | Build, test, lint, deploy, env vars | Verification | Maintained by knowledge extraction |
-| dependencies.md | Key libraries and roles | Dependency changes | Maintained by knowledge extraction |
-| known-issues.md | Markers, skipped tests | Task estimation | Maintained by knowledge extraction |
-| decisions.md | ADRs (reference) + cycle decisions (living) | Architectural changes | Maintained by knowledge extraction |
-```
-
-## 2. Generate `architecture.md`
+## 1. Generate `architecture.md`
 
 Data sources: the source tree and its import/require statements; `package.json`, `requirements.txt`, `Cargo.toml`, `go.mod`, `pom.xml`, `build.gradle`, `Dockerfile`, `docker-compose.yml`, config files.
 
@@ -96,7 +75,7 @@ Rules:
 - `Mismatch? = YES` when claimed != actual. Note in `Evidence`.
 - Only current state. No intent.
 
-## 3. Generate `api-contract.md`
+## 2. Generate `api-contract.md`
 
 Data sources: route/controller files; middleware/decorator files; OpenAPI/GraphQL schema if present.
 
@@ -117,7 +96,7 @@ Rules:
 - Auth: derive from applied middleware, not comments.
 - Schema drift: mark `YES` only on explicit mismatches (field name, type, required flag).
 
-## 4. Generate `glossary.md`
+## 3. Generate `glossary.md`
 
 Data sources: ORM models, DB schema/migrations, domain types/interfaces, frontend type definitions.
 
@@ -140,7 +119,7 @@ Rules:
 - Business rules: validation, computed fields, DB constraints. No name inference.
 - Cross-check: list backend/frontend naming mismatches.
 
-## 5. Generate `capabilities.md`
+## 4. Generate `capabilities.md`
 
 Data sources: route handlers, service layer public methods, frontend routing/pages, README if present.
 
@@ -160,7 +139,7 @@ Rules:
 - Capability = user-facing feature or system function. Derive from service methods and route logic. Do not invent.
 - Workflows: high-level user journeys. Cap at 5 steps.
 
-## 6. Generate `conventions.md`
+## 5. Generate `conventions.md`
 
 Data sources: most frequent code patterns; linter config; test structure; error handling code.
 
@@ -187,7 +166,7 @@ Rules:
 - Naming: classes, functions, variables, files, DB tables. Use actual code examples.
 - Error handling: throw/catch/log/return patterns. Include HTTP status conventions.
 
-## 7. Generate `operations.md`
+## 6. Generate `operations.md`
 
 Data sources: `package.json` scripts, `Makefile`, `justfile`, CI config, `Dockerfile`, `README` setup, `.env.example`.
 
@@ -214,7 +193,7 @@ Rules:
 - Env vars: from `.env.example` or docker-compose. `Required?` based on app failure without it.
 - No CI config: state `No CI config found`.
 
-## 8. Generate `dependencies.md`
+## 7. Generate `dependencies.md`
 
 Data sources: `package.json`, `requirements.txt`, `Cargo.toml`, `go.mod`, `pom.xml`, `build.gradle`, `composer.json`.
 
@@ -235,7 +214,7 @@ Rules:
 - Role = what it does in THIS codebase. One line. Not generic.
 - Cap at 20 entries per section. Group by category if more.
 
-## 9. Generate `known-issues.md`
+## 8. Generate `known-issues.md`
 
 Data sources: `TODO`, `FIXME`, `HACK`, `XXX`, `BUG`, `DEPRECATED`; test skips (`.skip`, `.only`, `@Disabled`, `pytest.mark.skip`); issue tracker exports if in repo.
 
@@ -259,7 +238,7 @@ Rules:
 - No fabricated severity. Use `unknown` when unclear.
 - Cap at 50. Prioritize: `risk` > `functional` > `cosmetic`.
 
-## 10. Generate `decisions.md`
+## 9. Generate `decisions.md`
 
 Data sources: existing ADR files in `docs/adr/`, `adr/`, or similar; git log messages; code comments containing explicit rationale ("chose X because Y", "avoided Z due to W").
 
@@ -286,22 +265,11 @@ Rules:
 - Do **not** infer decisions from git history. Only include decisions with explicit evidence in code comments, PR descriptions, or design docs.
 - If no cycle decisions exist yet: state `No cycle decisions recorded.`
 
-## 11. Cross-Check Pass
+## 10. Cross-Check Pass
 
-Read all docs. Emit findings inline in `index.md` under `## Cross-Check`, or as a separate `cross-check.md` if contradictions exist.
+The seven mechanical cross-checks and the dead-reference scan are enforced by the toolkit's docs tooling, not by this skill: when docs-gen is present (`docs-gen.yaml` at the repo root), `npm run docs:generate` and `npm run docs:check` run them as hard gate checks after generation and fail the run naming each violation — nothing about check results is rendered or persisted. When the docs tooling is present, emit nothing for this pass; bootstrap the documents and let the gate enforce consistency.
 
-Checklist:
-1. Glossary entity with no API endpoint.
-2. API endpoint with no glossary entity.
-3. Architecture module not in any other doc.
-4. Known-issue location not in architecture folders.
-5. Capability with no related endpoint or entity.
-6. Dependency never imported in source.
-7. Decision referencing a technology not in tech stack.
-
-If no contradictions: `No contradictions detected.`
-
-## 12. Excluded Documents
+## 11. Excluded Documents
 
 The following are **not** generated because they are not maintained during Knowledge Extraction or provide low value:
 
@@ -310,7 +278,7 @@ The following are **not** generated because they are not maintained during Knowl
 | `bootstrap-summary.md` | One-time meta-report for human review. Not a living document. |
 | `changelog-index.md` | Single seed row with no actionable information for an agent. |
 
-## 13. Scope Limit
+## 12. Scope Limit
 
 - Do **not** create `done/` folders or per-RFC findings docs.
 - Do **not** fabricate history.

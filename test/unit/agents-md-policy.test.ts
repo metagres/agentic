@@ -31,7 +31,8 @@ const VALID_AGENTS_MD = [
   '',
   '## 4. Session Context Routing',
   '',
-  'Start from docs/current/index.md.',
+  'The table below is the authoritative map of docs/current — a selection menu',
+  'keyed by session goal; load only the rows the task needs.',
   '',
   '| Session goal | Read |',
   '|---|---|',
@@ -40,7 +41,6 @@ const VALID_AGENTS_MD = [
 ].join('\n');
 
 const ALL_DOCS = [
-  'index.md',
   'operations.md',
   'glossary.md',
   'architecture.md',
@@ -60,7 +60,7 @@ function baseContext(overrides: Partial<PolicyContext> = {}): PolicyContext {
   return {
     agentsMd: { path: 'AGENTS.md', content: VALID_AGENTS_MD },
     citationFiles: [],
-    docsCurrentFileNames: ['index.md', 'operations.md', 'glossary.md'],
+    docsCurrentFileNames: ['operations.md', 'glossary.md'],
     pathExists: () => true,
     ...overrides,
   };
@@ -154,11 +154,30 @@ test('invariant ranges with "and" resolve each number', () => {
 
 test('a docs/current file missing from the routing table is rejected', () => {
   const findings = lintAgentsMarkdown(
-    baseContext({ docsCurrentFileNames: ['index.md', 'operations.md', 'glossary.md', 'known-issues.md'] })
+    baseContext({ docsCurrentFileNames: ['operations.md', 'glossary.md', 'known-issues.md'] })
   );
   const routing = findings.filter((f) => f.check === 'routing-completeness');
   assert.equal(routing.length, 1);
   assert.ok(routing[0].message.includes('docs/current/known-issues.md'));
+});
+
+test('a docs/current mention that does not exist is rejected (reverse direction)', () => {
+  const content = `${VALID_AGENTS_MD}\n\nSee docs/current/index.md for the map.\n`;
+  const findings = lintAgentsMarkdown(baseContext({ agentsMd: { path: 'AGENTS.md', content } }));
+  const phantom = findings.filter((f) => f.check === 'phantom-doc-reference');
+  assert.equal(phantom.length, 1);
+  assert.ok(phantom[0].message.includes('docs/current/index.md'));
+});
+
+test('mentions of existing docs/current documents pass the reverse direction', () => {
+  const findings = lintAgentsMarkdown(baseContext());
+  assert.deepEqual(findings.filter((f) => f.check === 'phantom-doc-reference'), []);
+});
+
+test('docs/changes/ and docs/ideas/ mentions are never flagged by the reverse direction', () => {
+  const content = `${VALID_AGENTS_MD}\n\n| Change artifacts | docs/changes/<slug>/ |\n| Deferred corrections | docs/ideas/ |\n`;
+  const findings = lintAgentsMarkdown(baseContext({ agentsMd: { path: 'AGENTS.md', content } }));
+  assert.deepEqual(findings.filter((f) => f.check === 'phantom-doc-reference'), []);
 });
 
 test('nonexistent backticked repo paths are rejected', () => {

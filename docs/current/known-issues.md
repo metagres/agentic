@@ -2,10 +2,7 @@
 
 ## Markers
 
-| Location | Marker | Context | Evidence |
-| --- | --- | --- | --- |
-| src/policies/errors.yaml (ILLEGAL_STATUS_TRANSITION) | STALE-REF | fix: Follow the lifecycle defined in src/policies/lifecycle.yaml. | references missing src/policies/lifecycle.yaml |
-| src/policies/errors.yaml (MANIFEST_INVALID) | STALE-REF | fix: Redeploy the runtime with bin/deploy-to-agent.mjs. | references missing bin/deploy-to-agent.mjs |
+- No comment markers found in src/, bin/, or test/ (machine scan).
 
 ## Review-Justified Known Issues
 

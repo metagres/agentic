@@ -3,7 +3,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { readYaml } from './yaml-io.ts';
-import { loadDocsIndex } from './docs-index.ts';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 

@@ -213,6 +213,21 @@ export function lintAgentsMarkdown(ctx: PolicyContext): PolicyFinding[] {
     }
   }
 
+  // Reverse direction (DEC-006): every docs/current/<name>.md mention in
+  // AGENTS.md — table cells, backticks, or prose — must exist in docs/current.
+  // The scope is exactly docs/current/<name>.md mentions, so docs/changes/
+  // and docs/ideas/ references are never flagged by it.
+  for (const match of content.matchAll(/docs\/current\/([\w.-]+\.md)/g)) {
+    const name = match[1];
+    if (!docsCurrentFileNames.includes(name)) {
+      findings.push({
+        file: agentsMd.path,
+        check: 'phantom-doc-reference',
+        message: `AGENTS.md references docs/current/${name}, which does not exist in docs/current`,
+      });
+    }
+  }
+
   for (const relPath of extractBacktickPaths(content)) {
     const trimmed = relPath.replace(/\/+$/, '');
     if (trimmed.length > 0 && !pathExists(trimmed)) {
