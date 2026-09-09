@@ -44,6 +44,13 @@ if (fs.existsSync(docsCurrentDir)) {
       continue;
     }
     docsCurrentFileNames.push(name);
+    // decisions.md renders archived change records verbatim (mechanical
+    // render, append-only) — historical AGENTS.md section references in
+    // accepted decision prose are quoted material, not live guidance, so
+    // it is excluded from the section-reference lint.
+    if (name === 'decisions.md') {
+      continue;
+    }
     citationFiles.push({
       path: `docs/current/${name}`,
       content: fs.readFileSync(path.join(docsCurrentDir, name), 'utf8'),
@@ -56,28 +63,6 @@ if (fs.existsSync(docsCurrentDir)) {
     message: 'docs/current directory is missing',
   });
 }
-
-function collectCodemaps(dir: string, relBase: string, out: PolicyFile[]): void {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name.startsWith('.')) {
-      continue;
-    }
-    const abs = path.join(dir, entry.name);
-    const rel = `${relBase}/${entry.name}`;
-    if (entry.isDirectory()) {
-      collectCodemaps(abs, rel, out);
-    } else if (entry.name === 'codemap.md') {
-      out.push({ path: rel, content: fs.readFileSync(abs, 'utf8') });
-    }
-  }
-}
-
-const rootCodemap = path.join(root, 'codemap.md');
-if (fs.existsSync(rootCodemap)) {
-  citationFiles.push({ path: 'codemap.md', content: fs.readFileSync(rootCodemap, 'utf8') });
-}
-collectCodemaps(path.join(root, 'src'), 'src', citationFiles);
-collectCodemaps(path.join(root, 'bin'), 'bin', citationFiles);
 
 const skillsDir = path.join(root, 'src', 'skills');
 if (fs.existsSync(skillsDir)) {

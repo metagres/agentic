@@ -334,12 +334,12 @@ test('aggregator envelopes carry the detected steps.yaml step id', () => {
 
   const changeDir = seedAcceptedImplementation(tmp, 'step-agg');
 
-  // Default invocation: the docs_delta step, with the run-–complete hint from
-  // the steps.yaml markdown.
+  // Default invocation: the docs_delta step, with the regenerate-then-apply
+  // hint from the steps.yaml markdown.
   const listing = runCli(tmp, ['knowledge-extraction', '--change', changeDir]);
   assertEnvelopeShape(listing);
   assert.equal(listing.step, 'docs_delta');
-  assert.match(listing.instructions, /collects and dedupes delta entries from every delta-producing stage/);
+  assert.match(listing.instructions, /First regenerate the mechanical parts of docs\/current/);
   assert.match(listing.instructions, /--complete/);
 
   // --complete: the complete step.

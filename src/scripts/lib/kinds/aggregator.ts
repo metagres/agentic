@@ -13,6 +13,84 @@ import { evaluateGate } from '../requires-graph.ts';
 import { loadStepDefinitions } from '../steps-loader.ts';
 import { buildStepVars, renderStepHelp, renderTemplate } from '../step-render.ts';
 import type { ParseArgsResult, WarningItem } from '../types.ts';
+import { loadManifest } from '../docs-gen/manifest.ts';
+
+/**
+ * Generated-content guard (G-04, fail fast at the write boundary): delta
+ * entries whose target_doc is a whole-file generated document, or whose
+ * target anchor resolves to a heading inside a docs-gen region, are
+ * refused before they are ever presented for application. Projects
+ * without a docs-gen.yaml manifest have no generated content and the
+ * guard is a no-op.
+ */
+export function generatedRegionViolations(
+  deltas: Record<string, unknown>[],
+  cwd: string
+): string[] {
+  let manifest;
+  try {
+    manifest = loadManifest(cwd);
+  } catch {
+    return []; // no manifest — no generated content anywhere
+  }
+
+  const fileGenerated = new Set<string>(
+    manifest.files.filter((entry) => entry.mode === 'file').map((entry) => entry.path)
+  );
+  const regionPaths = new Set(
+    manifest.files.filter((entry) => entry.mode === 'region').map((entry) => entry.path)
+  );
+  const violations: string[] = [];
+
+  for (const delta of deltas) {
+    const targetDoc = String(delta.target_doc ?? '');
+    if (fileGenerated.has(targetDoc)) {
+      violations.push(
+        `${targetDoc} is a whole-file generated document (${String(delta.change ?? 'delta')} entry)`
+      );
+      continue;
+    }
+    const anchor = delta.target_anchor;
+    if (anchor === undefined || anchor === null || String(anchor).length === 0) continue;
+    if (!regionPaths.has(targetDoc)) continue;
+
+    const docPath = path.join(cwd, targetDoc);
+    if (!fs.existsSync(docPath)) continue;
+    const lines = fs.readFileSync(docPath, 'utf8').split('\n');
+    const anchorText = String(anchor).replace(/^#+\s*/, '').trim();
+    const anchorLine = lines.findIndex((line) => {
+      const heading = line.match(/^#{1,6}\s+(.*?)\s*$/);
+      return heading !== null && heading[1] === anchorText;
+    });
+    if (anchorLine === -1) continue;
+    for (const range of regionRanges(lines)) {
+      if (anchorLine >= range.start && anchorLine <= range.end) {
+        violations.push(
+          `anchor '${anchorText}' in ${targetDoc} resolves inside generated region '${range.id}'`
+        );
+      }
+    }
+  }
+  return violations;
+}
+
+const BEGIN_RE = /^<!--\s*docs-gen:begin\s+id="([^"]+)"\s*-->\s*$/;
+const END_RE = /^<!--\s*docs-gen:end\s+id="([^"]+)"\s*-->\s*$/;
+
+function regionRanges(lines: string[]): { id: string; start: number; end: number }[] {
+  const ranges: { id: string; start: number; end: number }[] = [];
+  let open: { id: string; start: number } | null = null;
+  for (let i = 0; i < lines.length; i += 1) {
+    const begin = lines[i].match(BEGIN_RE);
+    const end = lines[i].match(END_RE);
+    if (begin && !open) open = { id: begin[1], start: i };
+    else if (end && open && end[1] === open.id) {
+      ranges.push({ id: open.id, start: open.start, end: i });
+      open = null;
+    }
+  }
+  return ranges;
+}
 
 /**
  * Anchor identity of a delta entry: its target_anchor when present, otherwise
@@ -212,6 +290,27 @@ export async function runAggregatorStage(
     // Near-duplicate entries across phases (same target_doc + change) are
     // collapsed before presentation; distinct anchored edits survive.
     const deltasToApply = dedupeDeltas(collectedDeltas);
+
+    const guardViolations = generatedRegionViolations(deltasToApply, cwd);
+    if (guardViolations.length > 0) {
+      writeJson(
+        {
+          ...base,
+          state: 'blocked',
+          instructions:
+            'Delta entries target machine-generated docs/current content and are refused:\n - ' +
+            guardViolations.join('\n - '),
+          data: {
+            change_root: changeRoot,
+            violations: guardViolations,
+          },
+          errors: [makeError('DELTA_TARGETS_GENERATED_REGION')],
+          warnings,
+        },
+        EXIT.actionFailed
+      );
+      return;
+    }
 
     const plan = safeReadYaml(path.join(changeRoot, 'plan.yaml')) as Record<string, unknown> | null;
     const implementationStatus =

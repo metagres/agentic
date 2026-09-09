@@ -25,15 +25,17 @@ CLI toolkit: no HTTP endpoints. The contract surface is the `sdlc` command line 
 
 ## Envelope
 
+<!-- docs-gen:begin id="api-contract-envelope" -->
 | Field | Type | Notes | Evidence |
-|-------|------|-------|----------|
-| workflow | string | command or stage id | src/schemas/cli-envelope.schema.yaml |
-| step | string | internal step name | src/schemas/cli-envelope.schema.yaml |
-| state | ok \| in_progress \| blocked \| complete | CLI response state | src/schemas/cli-envelope.schema.yaml |
-| instructions | string | agent-facing next action; bound stages prepend a delegation directive paragraph (see below) | src/schemas/cli-envelope.schema.yaml, src/scripts/lib/delegation.ts |
+| --- | --- | --- | --- |
 | data | object | command-specific payload | src/schemas/cli-envelope.schema.yaml |
-| errors | array | {code, message, fix?} from errors.yaml | src/policies/errors.yaml |
-| warnings | array | advisory findings | src/policies/errors.yaml |
+| errors | object[] | {code, message, fix?} from errors.yaml | src/schemas/cli-envelope.schema.yaml |
+| instructions | string | agent-facing next action; bound stages prepend a delegation directive paragraph (see below) | src/schemas/cli-envelope.schema.yaml |
+| state | ok \\| in_progress \\| blocked \\| complete | CLI response state | src/schemas/cli-envelope.schema.yaml |
+| step | string | internal step name | src/schemas/cli-envelope.schema.yaml |
+| warnings | object[] | advisory findings | src/schemas/cli-envelope.schema.yaml |
+| workflow | string | command or stage id | src/schemas/cli-envelope.schema.yaml |
+<!-- docs-gen:end id="api-contract-envelope" -->
 
 - Envelope top-level fields are frozen: no new fields may be added. Evidence: src/schemas/cli-envelope.schema.yaml (additionalProperties: false).
 - `data.workflows[]` entries (from `--list-workflows` / `--help`) and per-stage entries in `data.pipeline` (from `status`) each carry an `agent` field: the bound agent id or null. Cross-cutting commands (status, feedback, doctor) are always null. The envelope top-level shape is unchanged.
@@ -58,9 +60,80 @@ CLI toolkit: no HTTP endpoints. The contract surface is the `sdlc` command line 
 
 ## Schema Reconciliation
 
+<!-- docs-gen:begin id="api-contract-schema-reconciliation" -->
 | Schema File | Endpoints Covered | Drift |
-|-------------|-------------------|-------|
-| src/schemas/cli-envelope.schema.yaml | all sdlc CLI envelopes | No |
-| src/schemas/stage.schema.yaml | stage.yaml descriptors (startup validation) | No |
+| --- | --- | --- |
 | src/schemas/agent.schema.yaml | agent.yaml definitions (startup validation; model enum-checked, model_override free-form) | No |
+| src/schemas/cli-envelope.schema.yaml | all sdlc CLI envelopes | No |
 | src/schemas/docs-delta.schema.yaml | docs-delta.yaml artifact written by knowledge-extraction | No |
+| src/schemas/stage.schema.yaml | stage.yaml descriptors (startup validation) | No |
+<!-- docs-gen:end id="api-contract-schema-reconciliation" -->
+
+## Error Catalog
+
+Every code in src/policies/errors.yaml with its message, fix text, and the source files that emit or reference it (generated):
+
+<!-- docs-gen:begin id="api-contract-error-catalog" -->
+| Code | Message | Fix | Emitted at |
+| --- | --- | --- | --- |
+| MISSING_CHANGE_DIR | A change is required. | Use --change <change-name>. | src/scripts/lib/change-root.ts, src/scripts/lib/kinds/review.ts, src/scripts/workflows/feedback.ts |
+| AMBIGUOUS_CHANGE_DIR | Multiple changes match the provided value. | Pass one of the listed candidates as --change. | src/scripts/lib/change-root.ts, src/scripts/lib/kinds/authoring.ts, src/scripts/lib/kinds/review.ts, src/scripts/workflows/doctor.ts |
+| CHANGE_DIR_NOT_FOUND | No matching change was found. | Use one of the changes listed in data.available_changes, or create a new change with --request. | src/scripts/lib/change-root.ts, src/scripts/lib/kinds/authoring.ts, src/scripts/lib/kinds/review.ts, src/scripts/workflows/doctor.ts |
+| INVALID_CHANGE_SLUG | The provided --change name is not a valid change slug. | Use lowercase letters, digits, and hyphens only; start with a letter or digit; at most 60 characters; no trailing hyphen. | src/scripts/lib/kinds/authoring.ts |
+| CHANGE_DIR_EXISTS | A change directory with that exact name already exists. | Use one of the listed changes as --change, or pick a different name. | src/scripts/lib/kinds/authoring.ts |
+| ARTIFACT_NOT_FOUND | Required artifact not found. | Run the corresponding stage first. | src/scripts/lib/kinds/review.ts |
+| ARTIFACT_PARSE_FAILED | Artifact YAML could not be parsed. | Fix the YAML syntax. | bin/lint-artifact.ts |
+| REVIEW_NOT_PASSING | Mechanical checks are not passing. | Fix the recorded failures, re-finalize the artifact, and run the review again. | src/scripts/lib/kinds/review.ts |
+| CONFLICTING_DECISION | Conflicting review decision flags. | Use either --accept or --reject, not both. | src/scripts/lib/kinds/review.ts |
+| UNKNOWN_COMMAND | Unknown workflow or command. | Use --list-workflows to see available workflows. | src/scripts/sdlc.ts |
+| UNKNOWN_STAGE | Unknown stage. | Use a known stage name. | src/scripts/lib/runner.ts, src/scripts/workflows/feedback.ts |
+| UNKNOWN_STEP | Unknown step. | Use a known step name. | src/scripts/lib/kinds/authoring.ts |
+| INTERNAL_ERROR | Internal error. | Inspect the error details. | bin/lint-artifact.ts, src/scripts/lib/kinds/aggregator.ts, src/scripts/lib/kinds/authoring.ts, src/scripts/lib/kinds/review.ts, src/scripts/lib/kinds/tasks.ts, src/scripts/workflows/doctor.ts |
+| PLAN_NOT_FOUND | plan.yaml not found. | Run the planning stage first. | src/scripts/lib/kinds/tasks.ts |
+| TASK_NOT_FOUND | Task not found in plan.yaml. | Use a valid TASK-NNN id. | src/scripts/lib/kinds/tasks.ts |
+| INVALID_TASK_STATUS | Invalid task status. | Use pending, in_progress, done, blocked, or skipped. | src/scripts/lib/kinds/tasks.ts |
+| MISSING_TASK_UPDATE_FIELDS | Task update requires both --task-id and --status. | Provide both --task-id and --status. | src/scripts/lib/kinds/tasks.ts |
+| TASK_DONE_REQUIRES_NOTE | Marking a task done requires a non-empty implementation note. | Re-run the update with --note describing what was implemented. | src/scripts/lib/kinds/tasks.ts |
+| CANNOT_COMPLETE | Knowledge extraction cannot complete. | Resolve validation errors and mark entries extracted. | (catalog entry only) |
+| IMPLEMENTATION_NOT_ACCEPTED | Implementation review is not accepted. | Complete implementation review before completing knowledge extraction. | src/scripts/lib/kinds/aggregator.ts |
+| DELTA_TARGETS_GENERATED_REGION | A delta entry targets docs/current content that is machine-generated. | Drop the delta entry — regenerate the region with npm run docs:generate instead of editing generated content by hand. | src/scripts/lib/kinds/aggregator.ts |
+| ILLEGAL_STATUS_TRANSITION | Illegal lifecycle status transition. | Follow the lifecycle defined in src/policies/lifecycle.yaml. | (catalog entry only) |
+| POLICY_INVALID | A policy file is invalid. | Fix the policy file and rerun validation. | (catalog entry only) |
+| STAGE_POLICY_MISSING | The stage policy file is missing. | Restore requirements-policy.yaml in the requirements stage folder. | src/stages/requirements/hooks.ts |
+| STAGE_POLICY_INVALID | The stage policy file is invalid. | Fix the named field in requirements-policy.yaml and rerun. | src/stages/requirements/hooks.ts |
+| UNKNOWN_LENS | The lens is not in the policy vocabulary. | Use one of the lenses listed in requirements-policy.yaml. | src/stages/requirements/hooks.ts |
+| DOCS_INDEX_MISSING | docs/current/index.md not found. | Run the knowledge-init skill to create docs/current/index.md. | src/scripts/lib/kinds/aggregator.ts, src/scripts/lib/kinds/authoring.ts, src/scripts/workflows/doctor.ts |
+| SCHEMAS_MISSING | No schemas directory found. | Deploy or restore the runtime schemas. | src/scripts/workflows/doctor.ts |
+| POLICIES_MISSING | No policies directory found. | Deploy or restore the runtime policies. | src/scripts/workflows/doctor.ts |
+| USAGE | Invalid command usage. | Check required flags and try again. | src/scripts/lib/kinds/review.ts, src/scripts/workflows/feedback.ts |
+| UNKNOWN_STAGE_FILTER | Unknown stage filter. | Use --stage requirements, design, or planning. | (catalog entry only) |
+| MISSING_EXTRACTION_NOTE | Marking a docs-delta entry extracted requires a note. | Provide --note with at least 10 characters. | (catalog entry only) |
+| MISSING_MARK_TARGET | Marking extracted requires an entry id or target doc. | Provide --entry-id or --target-doc. | (catalog entry only) |
+| ENTRY_ID_NOT_FOUND | No docs-delta entry matched the provided entry id. | Use a valid DD-... entry id from docs-delta.yaml. | src/scripts/workflows/feedback.ts |
+| TARGET_DOC_NOT_FOUND | No docs-delta entries matched the provided target doc. | Use a target_doc listed in docs-delta.yaml. | (catalog entry only) |
+| UNPLANNED_FILE | A task changed a file not listed in the plan. | Update the plan or explain the incidental change. | src/scripts/lib/kinds/tasks.ts |
+| PREVIOUS_STAGE_NOT_READY | A previous stage artifact is not ready or accepted. | Complete the previous stage before finalizing this stage. | src/stages/design/hooks.ts |
+| REQUIREMENTS_NOT_READY | Requirements are not ready or accepted. | Complete requirements before finalizing downstream stages. | src/stages/planning/hooks.ts |
+| ARTIFACT_INITIALIZED | A new artifact was initialized. | Continue the workflow and fill in the artifact. | src/scripts/lib/kinds/authoring.ts |
+| DOCS_DELTA_VALIDATION | Docs-delta validation found problems. | Fix docs-delta entries before completing knowledge extraction. | (catalog entry only) |
+| NODE_VERSION_UNSUPPORTED | Node.js version is not supported. | Use Node.js 20 or newer. | src/scripts/workflows/doctor.ts |
+| MANIFEST_INVALID | Deployed runtime manifest is invalid. | Redeploy the runtime with bin/deploy-to-agent.mjs. | src/scripts/workflows/doctor.ts |
+| STAGE_MISSING_DESCRIPTOR | A stage folder is missing its stage.yaml descriptor. | Create stage.yaml in the stage folder. | (catalog entry only) |
+| STAGE_INVALID_DESCRIPTOR | A stage.yaml descriptor is invalid. | Fix stage.yaml to match the stage meta-schema. | src/scripts/workflows/doctor.ts |
+| STAGE_UNKNOWN_KIND | A stage descriptor declares an unknown kind. | Use authoring, review, tasks, or aggregator. | (catalog entry only) |
+| STAGE_ID_MISMATCH | A stage folder name does not match its descriptor id. | Rename the folder or fix the descriptor id. | (catalog entry only) |
+| STAGE_CYCLE | The requires graph contains a cycle. | Remove the cycle from the requires fields. | (catalog entry only) |
+| STAGE_MISSING_REFERENCE | A stage requires a stage that does not exist. | Create the stage folder or fix the requires field. | (catalog entry only) |
+| CHECK_UNKNOWN | A structural-checks.yaml entry names an unknown check. | Use a check from the capped catalog. | (catalog entry only) |
+| CHECK_INVALID_PARAMS | A structural-checks.yaml entry carries malformed parameters. | Fix the check parameters for the named check. | (catalog entry only) |
+| STAGE_GATE_BLOCKED | A stage cannot run because a required stage is not accepted. | Complete and accept the required stage before running this stage. | src/scripts/lib/kinds/aggregator.ts, src/scripts/lib/kinds/authoring.ts, src/scripts/lib/kinds/review.ts, src/scripts/lib/kinds/tasks.ts |
+| AGENT_SCHEMA_INVALID | An agent definition file fails the agent meta-schema. | Fix the agent file to match agent.schema.yaml and keep its id equal to the filename stem. | (catalog entry only) |
+| AGENT_PROMPT_MARKER | An agent system prompt contains CLI or skill instruction markers. | Remove the marker from the system prompt so the personality prose stays neutral. | (catalog entry only) |
+| AGENT_REF_UNRESOLVED | A stage.yaml agent reference does not resolve. | Reference an agent id defined in src/agents/ or remove the stage binding. | (catalog entry only) |
+| AGENT_PERMISSION_INCOMPATIBLE | A stage-to-agent binding violates the permission compatibility check. | Align the stage's permission contract with the agent's declared permissions. | (catalog entry only) |
+| AGENT_MODEL_OVERRIDE_EMPTY | An agent definition declares an empty model_override. | Set model_override to a non-empty free-form model id or remove the field. | src/scripts/lib/agent-model-fields.ts |
+| AGENT_MODEL_OUTSIDE_CATALOG | An agent definition's model is not a member of the current catalog enum. | Set model to a qualified id from the current catalog enum in agent.schema.yaml. | src/scripts/lib/agent-model-fields.ts |
+| PLATFORM_UNKNOWN | Deployment platform or version selection does not resolve. | Use a known platform and version for the deployment target. | (catalog entry only) |
+| FAILURE_ENTRY_INVALID | A --failures entry is not a {check, evidence} object with non-empty check and evidence. | Supply both fields on every entry as a top-level YAML list; no other fields are accepted. | src/scripts/lib/review-findings.ts |
+| SEMANTIC_FAILURE_INVALID | A --failures entry names a check that is not declared in the target stage's semantic-checks.yaml or duplicates another entry. | Name only declared semantic checks, one entry per failed check, with non-empty evidence. | src/scripts/lib/review-findings.ts |
+<!-- docs-gen:end id="api-contract-error-catalog" -->

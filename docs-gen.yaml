@@ -1,0 +1,106 @@
+version: 1
+# docs-gen manifest: the declarative binding of generated files and
+# regions to providers. This file is the project-specific wiring seam —
+# other projects port the engine by editing it, never the engine.
+# Order matters: later entries read earlier entries' rendered content
+# (index cross-checks must run last).
+files:
+  - id: dependencies
+    provider: dependencies
+    path: docs/current/dependencies.md
+    mode: file
+  - id: known-issues
+    provider: known-issues
+    path: docs/current/known-issues.md
+    mode: file
+  - id: decisions
+    provider: decisions
+    path: docs/current/decisions.md
+    mode: file
+  - id: operations-commands
+    provider: operations-commands
+    path: docs/current/operations.md
+    mode: region
+  - id: operations-testing
+    provider: operations-testing
+    path: docs/current/operations.md
+    mode: region
+  - id: operations-environment
+    provider: operations-environment
+    path: docs/current/operations.md
+    mode: region
+  - id: operations-deployment
+    provider: operations-deployment
+    path: docs/current/operations.md
+    mode: region
+  - id: glossary-fields-stage-descriptor
+    provider: glossary-fields
+    path: docs/current/glossary.md
+    mode: region
+    params:
+      schema: src/schemas/stage.schema.yaml
+      source: src/schemas/stage.schema.yaml
+  - id: glossary-fields-cli-envelope
+    provider: glossary-fields
+    path: docs/current/glossary.md
+    mode: region
+    params:
+      schema: src/schemas/cli-envelope.schema.yaml
+      source: src/schemas/cli-envelope.schema.yaml
+  - id: glossary-fields-docs-delta
+    provider: glossary-fields
+    path: docs/current/glossary.md
+    mode: region
+    params:
+      schema: src/schemas/docs-delta.schema.yaml
+      source: src/schemas/docs-delta.schema.yaml
+  - id: glossary-fields-plan-task
+    provider: glossary-fields
+    path: docs/current/glossary.md
+    mode: region
+    params:
+      schema: src/stages/planning/schema.yaml
+      pointer: properties/tasks/items
+      source: "src/stages/planning/schema.yaml (schema_from: planning)"
+  - id: glossary-fields-agent-definition
+    provider: glossary-fields
+    path: docs/current/glossary.md
+    mode: region
+    params:
+      schema: src/schemas/agent.schema.yaml
+      source: src/schemas/agent.schema.yaml
+  - id: glossary-fields-model-override
+    provider: glossary-fields
+    path: docs/current/glossary.md
+    mode: region
+    params:
+      schema: src/schemas/agent.schema.yaml
+      source: src/schemas/agent.schema.yaml
+  - id: architecture-tech-stack
+    provider: architecture-tech-stack
+    path: docs/current/architecture.md
+    mode: region
+  - id: architecture-import-graph
+    provider: architecture-import-graph
+    path: docs/current/architecture.md
+    mode: region
+  - id: api-contract-envelope
+    provider: api-contract-envelope
+    path: docs/current/api-contract.md
+    mode: region
+  - id: api-contract-schema-reconciliation
+    provider: api-contract-schema-reconciliation
+    path: docs/current/api-contract.md
+    mode: region
+  - id: api-contract-error-catalog
+    provider: api-contract-error-catalog
+    path: docs/current/api-contract.md
+    mode: region
+  - id: conventions-checks-reference
+    provider: conventions-checks-reference
+    path: docs/current/conventions.md
+    mode: region
+  - id: index
+    provider: index
+    path: docs/current/index.md
+    mode: file

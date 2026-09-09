@@ -60,6 +60,9 @@ errors:
   IMPLEMENTATION_NOT_ACCEPTED:
     message: Implementation review is not accepted.
     fix: Complete implementation review before completing knowledge extraction.
+  DELTA_TARGETS_GENERATED_REGION:
+    message: A delta entry targets docs/current content that is machine-generated.
+    fix: Drop the delta entry — regenerate the region with npm run docs:generate instead of editing generated content by hand.
   ILLEGAL_STATUS_TRANSITION:
     message: Illegal lifecycle status transition.
     fix: Follow the lifecycle defined in src/policies/lifecycle.yaml.

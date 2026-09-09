@@ -2,14 +2,16 @@
 
 ## Tech Stack
 
+<!-- docs-gen:begin id="architecture-tech-stack" -->
 | Layer | Technology | Version | Evidence |
-|-------|------------|---------|----------|
-| Runtime | Node.js | >=20 | package.json (engines) |
-| Language | TypeScript (ESM, strict) | compiler ^7.0.2 | tsconfig.json |
-| Bundling | tsup (single ESM entry, noExternal) | ^8.5.1 | tsup.config.ts |
+| --- | --- | --- | --- |
 | Schema validation | ajv + ajv-formats | ^8.20.0 / ^3.0.1 | src/scripts/lib/schema.ts |
+| Test runner | node --test (built-in) | — | package.json (scripts) |
+| Runtime | Node.js | >=20 | package.json (engines) |
+| Bundling | tsup (single ESM entry, noExternal) | ^8.5.1 | tsup.config.ts |
+| Language | TypeScript (ESM, strict) | ^7.0.2 | tsconfig.json |
 | Config/artifact format | YAML | ^2.5.1 | src/scripts/lib/yaml-io.ts |
-| Test runner | node --test (built-in) | node >=20 | package.json (scripts) |
+<!-- docs-gen:end id="architecture-tech-stack" -->
 
 ## Component Boundaries
 
@@ -32,7 +34,7 @@ graph TD
 
 ## Folder Responsibilities
 
-| Folder | Claimed (CodeMap) | Actual Exports/Entry | Mismatch? | Evidence |
+| Folder | Declared Role | Actual Exports/Entry | Mismatch? | Evidence |
 |--------|-------------------|----------------------|-----------|----------|
 | src/scripts/ | CLI runtime: dispatch, workflow resolution, envelope | src/scripts/sdlc.ts (npm bin `sdlc`) | No | package.json, src/scripts/sdlc.ts |
 | src/scripts/lib/ | Engine core: discovery, requires-DAG + acceptance gate, validation orchestrator, artifact-path resolver, step machine, delegation-directive composer, agent registry + kind permission contracts + prompt markers | stage-registry.ts, requires-graph.ts, validate.ts, artifact-paths.ts, agent-registry.ts, agent-permissions.ts, agent-prompt-marker.ts, delegation.ts | No | src/scripts/lib/ |
@@ -42,7 +44,7 @@ graph TD
 | src/scripts/workflows/ | Cross-cutting commands + single skillManifest | index.ts (resolveWorkflow, listWorkflows) | No | src/scripts/workflows/index.ts |
 | src/stages/ | Structural source of truth: 9 stage folders, declarative config | stage.yaml per folder (5 authoring/tasks, 4 review) | No | src/stages/ |
 | src/agents/ | Agent definitions: one YAML file per agent, discovered by scan, validated by the engine-owned agent meta-schema | <agent-id>.yaml per agent (6 shipped) | No | src/agents/, src/schemas/agent.schema.yaml |
-| src/skills/ | Version-controlled skill sources: knowledge-init (deployed) + agent-audit and improvement-review (dev-only, excluded from the deployed bundle); improvement-review is the first dev-only skill to bundle scripts (four deterministic helpers under scripts/) | src/skills/knowledge-init/SKILL.md, src/skills/agent-audit/SKILL.md, src/skills/improvement-review/SKILL.md + scripts/ | No | codemap.md, src/skills/ |
+| src/skills/ | Version-controlled skill sources: knowledge-init (deployed) + agent-audit and improvement-review (dev-only, excluded from the deployed bundle); improvement-review is the first dev-only skill to bundle scripts (four deterministic helpers under scripts/) | src/skills/knowledge-init/SKILL.md, src/skills/agent-audit/SKILL.md, src/skills/improvement-review/SKILL.md + scripts/ | No | src/skills/ |
 | src/policies/ | YAML asset layer: single central policy | src/policies/errors.yaml | No | src/policies/ |
 | src/schemas/ | YAML asset layer: meta-schemas; the agent.schema.yaml model enum is live-endpoint-fed (sorted opencode/<id> qualifications from GET http://opencode.ai/zen/go/v1/models, migrated from opencode-go/*) rather than hand-maintained | stage.schema.yaml, agent.schema.yaml, cli-envelope.schema.yaml, docs-delta.schema.yaml | No | src/schemas/ |
 | bin/ | Developer CLI tooling: validation, lint, deployment | deploy-to-agent.ts, lint-artifact.ts, validate-{schemas,policies,templates}.ts | No | bin/ |
@@ -62,3 +64,39 @@ graph TD
 | Validation layers | validateArtifact | ajv (schema) → named checks → semantic checklist → review gate | function call, single orchestrator | src/scripts/lib/validate.ts |
 | Check declarations → artifact paths | named structural checks + next-id allocation | src/scripts/lib/artifact-paths.ts (shared resolver) | segment([].segment)* path specs resolved against the artifact document; malformed paths abort validation against the stage schema; planning validates tasks[].acceptance_ids through path-addressed ref-exists into the nested per-requirement criteria arrays; next_ids specs accept string or string[] | src/scripts/lib/artifact-paths.ts, src/scripts/lib/checks/, src/scripts/lib/ids.ts |
 | Lint → validation | bin/lint-artifact.ts | validateArtifact | same path as internal finalize | bin/lint-artifact.ts |
+
+## Module Import Edges
+
+Local ESM import edges between repo modules, resolved from relative specifiers by a static scan (generated; interactive exploration belongs to codegraph):
+
+<!-- docs-gen:begin id="architecture-import-graph" -->
+| From (module) | To (module) | Import edges |
+| --- | --- | --- |
+| bin/ | src/scripts/lib/ | 20 |
+| bin/ | src/scripts/lib/checks/ | 1 |
+| bin/ | src/scripts/lib/deploy/platforms/ | 1 |
+| bin/ | src/scripts/lib/docs-gen/ | 2 |
+| bin/ | src/scripts/lib/docs-gen/providers/ | 1 |
+| bin/ | src/scripts/workflows/ | 1 |
+| src/scripts/ | src/scripts/lib/ | 2 |
+| src/scripts/ | src/scripts/workflows/ | 1 |
+| src/scripts/lib/ | src/scripts/lib/ | 41 |
+| src/scripts/lib/ | src/scripts/lib/checks/ | 1 |
+| src/scripts/lib/ | src/scripts/lib/kinds/ | 1 |
+| src/scripts/lib/checks/ | src/scripts/lib/ | 21 |
+| src/scripts/lib/checks/ | src/scripts/lib/checks/ | 24 |
+| src/scripts/lib/deploy/platforms/ | src/scripts/lib/ | 3 |
+| src/scripts/lib/deploy/platforms/ | src/scripts/lib/deploy/platforms/ | 2 |
+| src/scripts/lib/docs-gen/ | src/scripts/lib/ | 1 |
+| src/scripts/lib/docs-gen/ | src/scripts/lib/docs-gen/ | 5 |
+| src/scripts/lib/docs-gen/providers/ | src/scripts/lib/ | 4 |
+| src/scripts/lib/docs-gen/providers/ | src/scripts/lib/checks/ | 1 |
+| src/scripts/lib/docs-gen/providers/ | src/scripts/lib/docs-gen/ | 26 |
+| src/scripts/lib/docs-gen/providers/ | src/scripts/lib/docs-gen/providers/ | 9 |
+| src/scripts/lib/kinds/ | src/scripts/lib/ | 53 |
+| src/scripts/lib/kinds/ | src/scripts/lib/docs-gen/ | 1 |
+| src/scripts/lib/kinds/ | src/scripts/lib/kinds/ | 4 |
+| src/scripts/workflows/ | src/scripts/lib/ | 23 |
+| src/scripts/workflows/ | src/scripts/lib/kinds/ | 1 |
+| src/scripts/workflows/ | src/scripts/workflows/ | 3 |
+<!-- docs-gen:end id="architecture-import-graph" -->

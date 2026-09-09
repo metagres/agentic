@@ -10,7 +10,9 @@ steps:
   docs_delta:
     title: Collect deltas
     markdown: |
-      The CLI collects and dedupes delta entries from every delta-producing stage into `data.deltas_to_apply`; apply each listed delta to its target_doc under docs/current, editing in place at the delta's anchor.
+      First regenerate the mechanical parts of docs/current: run npm run docs:generate. Whole-file generated documents (dependencies.md, known-issues.md, decisions.md, index.md) and marker-delimited regions in the mixed documents are machine-owned — never edit them by hand; docs:check in the fast gate enforces freshness.
+
+      Then apply each remaining listed delta to its target_doc under docs/current, editing in place at the delta's anchor. Only judgment content is delta-managed now: capabilities, conventions, glossary business rules, architecture prose, api-contract behavioral bullets, operations baselines, and canon sections. A delta whose target is a generated file or region is refused by the CLI with DELTA_TARGETS_GENERATED_REGION — regenerate instead.
 
       If the envelope carries DOCS_INDEX_MISSING, stop and tell the user to run the knowledge-init skill — the CLI never creates docs/current.
 
@@ -21,6 +23,7 @@ steps:
       Report the finished step in one line: how many deltas were applied across how many docs.
     commands:
       - "{{SDLC}} knowledge-extraction --change {{change_name}}"
+      - "npm run docs:generate"
 
   complete:
     title: Complete

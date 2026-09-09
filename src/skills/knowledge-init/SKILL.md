@@ -3,7 +3,6 @@ name: knowledge-init
 description: One-time bootstrap to generate `/docs/current/` living documentation from an existing codebase. These documents are maintained by the Knowledge Extraction step at the end of every development lifecycle.
 inputs:
   - Full codebase
-  - CodeMap output (per-folder descriptions)
   - Existing ADR log, if any
   - Git history (optional)
 outputs:
@@ -43,6 +42,8 @@ Design implications:
 - **Incremental design**: New items append; changed items update in-place; obsolete items delete.
 - **No Graphify**: Do not reference or depend on Graphify.
 - **No meta-docs**: Do not generate `bootstrap-summary.md` or `changelog-index.md`. These are not maintained during Knowledge Extraction and add token bloat.
+- **No codemaps**: Do not generate codemap.md files; code-structure exploration belongs to the code intelligence tools and the docs themselves.
+- **Generated regions**: when the toolkit's docs-gen tooling is present (docs-gen.yaml at the repo root), mechanical reference content is owned by `npm run docs:generate` — whole-file generated documents and `<!-- docs-gen:begin/end -->` marker regions are machine-owned from the start; bootstrap their markers exactly where the tooling's manifest declares them.
 
 ## 1. Generate `index.md`
 
@@ -66,7 +67,7 @@ Navigation for the living documents.
 
 ## 2. Generate `architecture.md`
 
-Data sources: CodeMap; `package.json`, `requirements.txt`, `Cargo.toml`, `go.mod`, `pom.xml`, `build.gradle`, `Dockerfile`, `docker-compose.yml`, config files; import/require statements.
+Data sources: the source tree and its import/require statements; `package.json`, `requirements.txt`, `Cargo.toml`, `go.mod`, `pom.xml`, `build.gradle`, `Dockerfile`, `docker-compose.yml`, config files.
 
 Output:
 
@@ -84,7 +85,7 @@ graph TD
 ```
 
 ## Folder Responsibilities
-| Folder | Claimed (CodeMap) | Actual Exports/Entry | Mismatch? | Evidence |
+| Folder | Declared Role | Actual Exports/Entry | Mismatch? | Evidence |
 
 ## Integration Points
 | Boundary | Caller | Callee | Protocol | Evidence |

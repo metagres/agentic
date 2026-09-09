@@ -2,23 +2,27 @@
 
 ## Entity: Stage Descriptor (stage.yaml)
 
+<!-- docs-gen:begin id="glossary-fields-stage-descriptor" -->
 | Field | Type | Nullable | Source |
-|-------|------|----------|--------|
-| version | int | No | src/schemas/stage.schema.yaml |
-| id | string (kebab-case) | No | src/schemas/stage.schema.yaml |
-| kind | authoring \| review \| tasks \| aggregator | No | src/schemas/stage.schema.yaml |
+| --- | --- | --- | --- |
+| agent | string | Yes | src/schemas/stage.schema.yaml |
+| artifact | string | No | src/schemas/stage.schema.yaml |
+| delta_phase | string | Yes | src/schemas/stage.schema.yaml |
+| id | string | No | src/schemas/stage.schema.yaml |
+| kind | enum: authoring \| review \| tasks \| aggregator | No | src/schemas/stage.schema.yaml |
+| next_ids | object | Yes | src/schemas/stage.schema.yaml |
+| permissions | object | Yes | src/schemas/stage.schema.yaml |
+| produces_delta | boolean | Yes | src/schemas/stage.schema.yaml |
+| requires | string[] | Yes | src/schemas/stage.schema.yaml |
+| review_file | string | Yes | src/schemas/stage.schema.yaml |
+| reviews | string | Yes | src/schemas/stage.schema.yaml |
+| schema_from | string | Yes | src/schemas/stage.schema.yaml |
+| status_field | string | No | src/schemas/stage.schema.yaml |
 | title | string | No | src/schemas/stage.schema.yaml |
-| artifact | string (file name in change dir) | No | src/schemas/stage.schema.yaml |
-| status_field | string (metadata field holding status) | No | src/schemas/stage.schema.yaml |
-| requires | string[] | No (may be empty) | src/schemas/stage.schema.yaml |
-| reviews | string (stage id) | review kind only | src/stages/design-review/stage.yaml |
-| review_file | string | review kind only | src/stages/design-review/stage.yaml |
-| next_ids | map prefix → array key | authoring kind only | src/stages/requirements/stage.yaml |
-| produces_delta | bool | No | src/schemas/stage.schema.yaml |
-| delta_phase | string | authoring, delta-producing only | src/stages/design/stage.yaml |
-| schema_from | string (stage id) | Yes (absent → local schema.yaml) | src/schemas/stage.schema.yaml |
-| agent | string (agent id) | Yes (absent → the current agent runs the stage) | src/schemas/stage.schema.yaml |
-| permissions | map of permission keys → allow \| deny | Yes (per-key overrides of the kind contract) | src/schemas/stage.schema.yaml |
+| title_default | string | Yes | src/schemas/stage.schema.yaml |
+| title_prefix | string | Yes | src/schemas/stage.schema.yaml |
+| version | const 1 | No | src/schemas/stage.schema.yaml |
+<!-- docs-gen:end id="glossary-fields-stage-descriptor" -->
 
 | Relationships | Type | Target | Source |
 |---------------|------|--------|--------|
@@ -36,15 +40,17 @@
 
 ## Entity: CLI Envelope
 
+<!-- docs-gen:begin id="glossary-fields-cli-envelope" -->
 | Field | Type | Nullable | Source |
-|-------|------|----------|--------|
-| workflow | string | No | src/schemas/cli-envelope.schema.yaml |
-| step | string | No | src/schemas/cli-envelope.schema.yaml |
-| state | ok \| in_progress \| blocked \| complete | No | src/schemas/cli-envelope.schema.yaml |
-| instructions | string | No | src/schemas/cli-envelope.schema.yaml |
+| --- | --- | --- | --- |
 | data | object | No | src/schemas/cli-envelope.schema.yaml |
-| errors | array of {code, message, fix?} | No | src/scripts/lib/error-catalog.ts |
-| warnings | array of {code, message, fix?} | No | src/scripts/lib/error-catalog.ts |
+| errors | object[] | No | src/schemas/cli-envelope.schema.yaml |
+| instructions | string | No | src/schemas/cli-envelope.schema.yaml |
+| state | enum: ok \| in_progress \| blocked \| complete | No | src/schemas/cli-envelope.schema.yaml |
+| step | string | No | src/schemas/cli-envelope.schema.yaml |
+| warnings | object[] | No | src/schemas/cli-envelope.schema.yaml |
+| workflow | string | No | src/schemas/cli-envelope.schema.yaml |
+<!-- docs-gen:end id="glossary-fields-cli-envelope" -->
 
 | Business Rules | Rule | Location |
 |----------------|------|----------|
@@ -86,12 +92,12 @@
 
 ## Entity: Docs Delta (docs-delta.yaml)
 
+<!-- docs-gen:begin id="glossary-fields-docs-delta" -->
 | Field | Type | Nullable | Source |
-|-------|------|----------|--------|
-| metadata.stage | string | No | src/scripts/lib/kinds/aggregator.ts |
-| metadata.status | complete | No | src/scripts/lib/kinds/aggregator.ts |
-| metadata.updated | date | No | src/scripts/lib/kinds/aggregator.ts |
-| deltas_applied | int | No | src/scripts/lib/kinds/aggregator.ts |
+| --- | --- | --- | --- |
+| deltas_applied | integer | No | src/schemas/docs-delta.schema.yaml |
+| metadata | object | No | src/schemas/docs-delta.schema.yaml |
+<!-- docs-gen:end id="glossary-fields-docs-delta" -->
 
 | Business Rules | Rule | Location |
 |----------------|------|----------|
@@ -100,14 +106,25 @@
 
 ## Entity: Plan Task (plan.yaml)
 
+<!-- docs-gen:begin id="glossary-fields-plan-task" -->
 | Field | Type | Nullable | Source |
-|-------|------|----------|--------|
-| id | TASK-NNN | No | src/stages/implementation/schema.yaml |
-| title, description | string | No | src/stages/implementation/schema.yaml |
-| status | pending \| in_progress \| done \| blocked \| skipped | No | INVALID_TASK_STATUS in src/policies/errors.yaml |
-| type | analysis \| setup \| implementation \| refactor \| test \| verification \| release \| documentation | No | src/stages/implementation/schema.yaml |
-| covers, acceptance_ids, design_refs, depends_on | string[] | No | src/stages/implementation/schema.yaml |
-| files_changed | array of {path, operation} | No | src/stages/implementation/schema.yaml |
+| --- | --- | --- | --- |
+| acceptance_ids | string[] | No | src/stages/planning/schema.yaml (schema_from: planning) |
+| completed_at | string | Yes | src/stages/planning/schema.yaml (schema_from: planning) |
+| complexity | enum: low \| medium \| high | Yes | src/stages/planning/schema.yaml (schema_from: planning) |
+| covers | string[] | No | src/stages/planning/schema.yaml (schema_from: planning) |
+| depends_on | string[] | Yes | src/stages/planning/schema.yaml (schema_from: planning) |
+| description | string | No | src/stages/planning/schema.yaml (schema_from: planning) |
+| design_refs | string[] | Yes | src/stages/planning/schema.yaml (schema_from: planning) |
+| files | object[] | Yes | src/stages/planning/schema.yaml (schema_from: planning) |
+| files_changed | object[] | Yes | src/stages/planning/schema.yaml (schema_from: planning) |
+| id | string | No | src/stages/planning/schema.yaml (schema_from: planning) |
+| implementation_note | string | Yes | src/stages/planning/schema.yaml (schema_from: planning) |
+| started_at | string | Yes | src/stages/planning/schema.yaml (schema_from: planning) |
+| status | enum: pending \| in_progress \| done \| blocked \| skipped | No | src/stages/planning/schema.yaml (schema_from: planning) |
+| title | string | No | src/stages/planning/schema.yaml (schema_from: planning) |
+| type | enum: analysis \| setup \| implementation \| refactor \| test \| verification \| release \| documentation | No | src/stages/planning/schema.yaml (schema_from: planning) |
+<!-- docs-gen:end id="glossary-fields-plan-task" -->
 
 | Business Rules | Rule | Location |
 |----------------|------|----------|
@@ -130,16 +147,19 @@
 
 ## Entity: Agent Definition (src/agents/<agent-id>.yaml)
 
+<!-- docs-gen:begin id="glossary-fields-agent-definition" -->
 | Field | Type | Nullable | Source |
-|-------|------|----------|--------|
-| version | int (const 1) | No | src/schemas/agent.schema.yaml |
-| id | string (kebab-case, = filename stem) | No | src/schemas/agent.schema.yaml |
-| description | string (non-empty) | No | src/schemas/agent.schema.yaml |
-| model | enum of sorted opencode/<id> catalog ids (live-endpoint-fed) | No | src/schemas/agent.schema.yaml |
-| temperature | number 0.0–1.0 | No | src/schemas/agent.schema.yaml |
-| mode | subagent \| primary \| all | Yes (omitted → all) | src/schemas/agent.schema.yaml |
-| permissions | map: file_read, search, file_write, shell, subagent, web, question → allow \| ask \| deny | No | src/schemas/agent.schema.yaml |
-| system_prompt | string (non-empty) | No | src/schemas/agent.schema.yaml |
+| --- | --- | --- | --- |
+| description | string | No | src/schemas/agent.schema.yaml |
+| id | string | No | src/schemas/agent.schema.yaml |
+| mode | enum: subagent \| primary \| all | Yes | src/schemas/agent.schema.yaml |
+| model | enum: opencode-go/grok-4.5 \| opencode-go/gpt-5.6-luna \| opencode-go/glm-5.3 \| opencode-go/glm-5.2 \| opencode-go/glm-5.1 \| opencode-go/kimi-k3 \| opencode-go/kimi-k2.7-code \| opencode-go/kimi-k2.6 \| opencode-go/longcat-2.0 \| opencode-go/deepseek-v4-pro \| opencode-go/deepseek-v4-flash \| opencode-go/deepseek-v4-flash-vision-exp \| opencode-go/mimo-v2.5 \| opencode-go/mimo-v2.5-pro \| opencode-go/minimax-m3 \| opencode-go/minimax-m2.7 \| opencode-go/muse-spark-1.2-contributor \| opencode-go/qwen3.8-max \| opencode-go/qwen3.7-max \| opencode-go/qwen3.7-plus \| opencode-go/qwen3.6-plus \| opencode-go/hy3 \| opencode-go/ox-alpha-free | No | src/schemas/agent.schema.yaml |
+| model_override | string | Yes | src/schemas/agent.schema.yaml |
+| permissions | object | No | src/schemas/agent.schema.yaml |
+| system_prompt | string | No | src/schemas/agent.schema.yaml |
+| temperature | number | No | src/schemas/agent.schema.yaml |
+| version | const 1 | No | src/schemas/agent.schema.yaml |
+<!-- docs-gen:end id="glossary-fields-agent-definition" -->
 
 | Business Rules | Rule | Location |
 |----------------|------|----------|
@@ -195,12 +215,19 @@
 
 ## Entity: Model Override
 
+<!-- docs-gen:begin id="glossary-fields-model-override" -->
 | Field | Type | Nullable | Source |
-|-------|------|----------|--------|
-| model | string (enum: sorted opencode/<id> catalog) | No | src/schemas/agent.schema.yaml |
-| model_override | string (free-form, minLength 1 when present, not enum-checked) | Yes (absent → null) | src/schemas/agent.schema.yaml |
-| modelOverride | string \| null on AgentRecord | Yes | src/scripts/lib/agent-registry.ts |
-| effectiveModel | string = model_override ?? model | No | src/scripts/lib/agent-registry.ts |
+| --- | --- | --- | --- |
+| description | string | No | src/schemas/agent.schema.yaml |
+| id | string | No | src/schemas/agent.schema.yaml |
+| mode | enum: subagent \| primary \| all | Yes | src/schemas/agent.schema.yaml |
+| model | enum: opencode-go/grok-4.5 \| opencode-go/gpt-5.6-luna \| opencode-go/glm-5.3 \| opencode-go/glm-5.2 \| opencode-go/glm-5.1 \| opencode-go/kimi-k3 \| opencode-go/kimi-k2.7-code \| opencode-go/kimi-k2.6 \| opencode-go/longcat-2.0 \| opencode-go/deepseek-v4-pro \| opencode-go/deepseek-v4-flash \| opencode-go/deepseek-v4-flash-vision-exp \| opencode-go/mimo-v2.5 \| opencode-go/mimo-v2.5-pro \| opencode-go/minimax-m3 \| opencode-go/minimax-m2.7 \| opencode-go/muse-spark-1.2-contributor \| opencode-go/qwen3.8-max \| opencode-go/qwen3.7-max \| opencode-go/qwen3.7-plus \| opencode-go/qwen3.6-plus \| opencode-go/hy3 \| opencode-go/ox-alpha-free | No | src/schemas/agent.schema.yaml |
+| model_override | string | Yes | src/schemas/agent.schema.yaml |
+| permissions | object | No | src/schemas/agent.schema.yaml |
+| system_prompt | string | No | src/schemas/agent.schema.yaml |
+| temperature | number | No | src/schemas/agent.schema.yaml |
+| version | const 1 | No | src/schemas/agent.schema.yaml |
+<!-- docs-gen:end id="glossary-fields-model-override" -->
 
 | Business Rules | Rule | Location |
 |----------------|------|----------|
