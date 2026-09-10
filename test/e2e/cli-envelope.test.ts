@@ -14,7 +14,7 @@ const cli = path.join(root, 'src', 'scripts', 'sdlc.ts');
 const commands = [
   ['--help'],
   ['--version'],
-  ['--list-workflows'],
+  ['--list-commands'],
   ['requirements', '--help'],
   ['design', '--help'],
   ['planning', '--help'],

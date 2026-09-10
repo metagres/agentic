@@ -32,7 +32,7 @@
 | improvement-review skill (dev-only) | invoke src/skills/improvement-review/SKILL.md to run the six-step improvement review; inputs are per-cycle instrumentation notes, docs/changes/ artifacts, and explicitly supplied transcript paths; the four bundled helpers run as node src/skills/improvement-review/scripts/{measure_artifacts.ts [--change <slug>] [--verbose], envelope_sizes.ts --change <slug> [--verbose], mine_transcript.ts <file>... [--verbose], validate_duration.ts [--verbose]} and fail non-zero naming the cause on unreadable input (zero-extraction transcripts exit non-zero; zeros are never printed as data); mine_transcript.ts applies the line-oriented event grammar documented in SKILL.md §5 (invocations, wasted rounds, ack repeats, envelope error signatures, tool-call failure signatures, source explorations, diagnosis loops, delegations); envelope_sizes.ts splits per-stage rows per invocation class (detection \| mutation) with per-class aggregate rows | src/skills/improvement-review/SKILL.md, src/skills/improvement-review/scripts/ |
 <!-- docs-gen:end id="operations-commands" -->
 
-- CLI invocation contract: the project root is the directory where the AI coding agent runs, and every stage and workflow resolves the changes directory as `<project-root>/docs/changes` under it (no directory walking, no script-location inference). `--cwd <project-root>` overrides the invocation working directory as the project root for project-data resolution (default: the current working directory) and appears with a description of its effect in every help and usage surface. Evidence: src/scripts/lib/cli.ts (resolveCwd, CWD_FLAG_DOC), src/scripts/lib/resolve-root.ts (changesDirFor).
+- CLI invocation contract: the project root is the directory where the AI coding agent runs, and every stage and command resolves the changes directory as `<project-root>/docs/changes` under it (no directory walking, no script-location inference). `--cwd <project-root>` overrides the invocation working directory as the project root for project-data resolution (default: the current working directory) and appears with a description of its effect in every help and usage surface. Evidence: src/scripts/lib/cli.ts (resolveCwd, CWD_FLAG_DOC), src/scripts/lib/resolve-root.ts (changesDirFor).
 
 ## Baselines
 
@@ -41,7 +41,7 @@ Rows are appended only through a change's knowledge extraction; improvement-revi
 ### Qualitative baselines (authoritative)
 
 - `npm run validate`: ~2 s, unit-only; e2e lives in `check:all`.
-- Authoring stages: four steps (`authoring/ready/complete/recovery`); `--finalize --confirm-semantic` completes in one call; change-less workflow invocations are usage errors (engagement backstop).
+- Authoring stages: four steps (`authoring/ready/complete/recovery`); `--finalize --confirm-semantic` completes in one call; change-less stage invocations are usage errors (engagement backstop).
 - Requirements: one merged `acceptance_criteria` list (id / GWT / category / parent_id).
 - Implementation review: zero mechanical failures expected when notes are given at done-time.
 - Deltas presented to knowledge-extraction: deduplicated per doc+change.
@@ -95,7 +95,7 @@ Rows are appended only through a change's knowledge extraction; improvement-revi
 | Smoke target .tmp/agent | npm run deploy:smoke (dest .tmp/agent, --clean) | package.json (scripts.deploy:smoke) |
 | Payload | two self-contained skills: agentic-sdlc (SKILL.md interpolated from src/skills/agentic-sdlc/SKILL.md + bundled scripts/sdlc.js + stages/ + schemas/ + policies/) and knowledge-init (SKILL.md + manifest.json); six agents rendered into <dest>/agents/<agent-id>.md via the selected platform renderer (default opencode, latest version); --clean removes both skills first and stale rendered agents whose source definitions no longer exist | bin/deploy-to-agent.ts, AGENTS.md §2 |
 | Rendered agent frontmatter | carries the invocation mode (omitted → all) beside model and temperature plus the per-agent question tool grant (allow on requirements-analyst, deny on the other five); verified by the existing smoke checks | src/scripts/lib/deploy/platforms/opencode.ts, src/agents/ |
-| Smoke coverage | agentic-sdlc CLI --list-workflows run + delegation/artifact marker phrases + per-skill SKILL.md frontmatter check for both managed skills (name equals folder, description non-empty) + per-agent check (frontmatter parses, filename stem matches agent id); report carries skills and agents arrays plus platform and platformVersion | bin/deploy-to-agent.ts |
+| Smoke coverage | agentic-sdlc CLI --list-commands run + delegation/artifact marker phrases + per-skill SKILL.md frontmatter check for both managed skills (name equals folder, description non-empty) + per-agent check (frontmatter parses, filename stem matches agent id); report carries skills and agents arrays plus platform and platformVersion | bin/deploy-to-agent.ts |
 <!-- docs-gen:end id="operations-deployment" -->
 
 - No CI config found. Evidence: no .github/ in repository root.

@@ -134,14 +134,14 @@ test('adding a stage folder requires no TypeScript change', { timeout: 240000 },
 
   const bundleCli = path.join(skillDir, 'scripts', 'sdlc.js');
 
-  // Discovery: --list-workflows includes the new stage.
-  const list = spawnSync(process.execPath, [bundleCli, '--list-workflows'], {
+  // Discovery: --list-commands includes the new stage.
+  const list = spawnSync(process.execPath, [bundleCli, '--list-commands'], {
     encoding: 'utf8',
     cwd: dest,
   });
   assert.equal(list.status, 0, list.stderr);
   const listJson = JSON.parse(list.stdout);
-  const ids = listJson.data.workflows.map((w) => w.id);
+  const ids = listJson.data.commands.map((w) => w.id);
   assert.ok(ids.includes('release'), `expected 'release' in ${ids.join(', ')}`);
 
   // Authoring run from the folder alone: creates the change and the artifact.
@@ -155,7 +155,7 @@ test('adding a stage folder requires no TypeScript change', { timeout: 240000 },
   );
   assert.equal(create.status, 0, create.stderr);
   const createJson = JSON.parse(create.stdout);
-  assert.equal(createJson.workflow, 'release');
+  assert.equal(createJson.command, 'release');
   assert.ok(createJson.data.change_root, JSON.stringify(createJson));
 
   const changeRoot = createJson.data.change_root;

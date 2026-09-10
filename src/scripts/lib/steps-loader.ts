@@ -89,13 +89,13 @@ const stepsCache = new Map<string, Record<string, StepDefinition>>();
 
 /**
  * Loader-backed getStepDefinitions over the discovered stages: resolves the
- * workflow id to a stage and returns its steps.yaml definitions.
+ * stage id to a stage and returns its steps.yaml definitions.
  */
 export function getStepDefinitions(
-  workflowId: string,
+  stageId: string,
   cwd: string = process.cwd()
 ): Record<string, StepDefinition> | null {
-  const stage = getStageById(cwd, workflowId);
+  const stage = getStageById(cwd, stageId);
   if (!stage) return null;
 
   if (stepsCache.has(stage.folder)) {

@@ -1,7 +1,5 @@
 import type { WarningItem } from './types.ts';
 import * as path from 'node:path';
-import { getStageById } from './stage-registry.ts';
-import { delegationDirective } from './delegation.ts';
 
 export const EXIT = {
   ok: 0,
@@ -55,7 +53,7 @@ export function resolveCwd(args: Record<string, string | boolean | string[]>): s
 export const CWD_FLAG_DOC =
   '--cwd <project-root>: run as if invoked from the given project root (default: the current working directory).';
 
-export function normalizeEnvelope(payload: Record<string, unknown> = {}, stagesDir?: string): { workflow: string; step: string; state: string; instructions: string; data: Record<string, unknown>; errors: unknown[]; warnings: unknown[] } {
+export function normalizeEnvelope(payload: Record<string, unknown> = {}): { command: string; step: string; state: string; instructions: string; data: Record<string, unknown>; errors: unknown[]; warnings: unknown[] } {
   const data: Record<string, unknown> = {
     ...(payload.data && typeof payload.data === 'object' ? payload.data as Record<string, unknown> : {}),
   };
@@ -64,13 +62,7 @@ export function normalizeEnvelope(payload: Record<string, unknown> = {}, stagesD
     data._debug = payload._debug;
   }
 
-  const skillInstructions = payload.skill_instructions as Record<string, unknown> | undefined;
-
-  let instructions: string =
-    (payload.instructions as string) ??
-    (payload.instructions_for_llm as string) ??
-    (skillInstructions?.markdown as string) ??
-    '';
+  let instructions = (payload.instructions as string) ?? '';
 
   const errors = Array.isArray(payload.errors) ? payload.errors as { message?: string }[] : [];
 
@@ -103,35 +95,8 @@ export function normalizeEnvelope(payload: Record<string, unknown> = {}, stagesD
     }
   }
 
-  // CMP-002 (DEC-001, DEC-005): resolve the workflow id to a stage record and
-  // prepend its binding-derived delegation directive ahead of the existing
-  // instructions as a distinct paragraph. Cross-cutting and unknown ids
-  // resolve to no stage record and stay byte-identical (FR-002); registry
-  // resolution failures stay quiet so every envelope keeps emitting exactly
-  // as before. The internal `_terse` marker (kind-split terse design) opts a
-  // terse mutation ack out of the prepend: it is consumed here and never
-  // emitted, so the seven-field shape stays frozen.
-  const terse = payload._terse === true;
-  const workflowId = (payload.workflow ?? payload.stage) as string | undefined;
-
-  if (workflowId && !terse) {
-    let directive: string | null = null;
-    try {
-      const stage = getStageById(process.cwd(), workflowId, stagesDir);
-      if (stage?.agent) {
-        directive = delegationDirective(stage);
-      }
-    } catch {
-      directive = null;
-    }
-
-    if (directive) {
-      instructions = instructions ? `${directive}\n\n${instructions}` : directive;
-    }
-  }
-
   return {
-    workflow: (payload.workflow ?? payload.stage ?? 'cli') as string,
+    command: (payload.command ?? 'cli') as string,
     step: (payload.step ?? 'step') as string,
     state,
     instructions: String(instructions || ''),
@@ -143,10 +108,9 @@ export function normalizeEnvelope(payload: Record<string, unknown> = {}, stagesD
 
 export function writeJson(
   payload: Record<string, unknown>,
-  code: number = EXIT.ok,
-  stagesDir?: string
+  code: number = EXIT.ok
 ): void {
-  const envelope = normalizeEnvelope(payload, stagesDir);
+  const envelope = normalizeEnvelope(payload);
 
   process.stdout.write(`${JSON.stringify(envelope, null, 2)}\n`);
   process.exit(code);

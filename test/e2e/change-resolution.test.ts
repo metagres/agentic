@@ -13,7 +13,7 @@ const cli = path.resolve(__dirname, '../../src/scripts/sdlc.ts');
 
 /** The frozen CLI envelope top-level fields (invariant 8, AC-011). */
 const FROZEN_FIELDS = [
-  'workflow',
+  'command',
   'step',
   'state',
   'instructions',
@@ -55,7 +55,7 @@ test('status resolves a natural-language change name to its slug', () => {
   const res = runCli(['status', '--cwd', tmp, '--change', 'stage engine']);
   assert.equal(res.status, 0, res.stdout);
   const json = JSON.parse(res.stdout);
-  assert.equal(json.workflow, 'status');
+  assert.equal(json.command, 'status');
   assert.equal(json.data.change_name, 'genericize-the-stage-engine');
 });
 
@@ -135,12 +135,12 @@ test('--cwd override resolves exactly as if invoked from the project root', () =
 
   const rootJson = JSON.parse(fromRoot.stdout);
   const overrideJson = JSON.parse(overridden.stdout);
-  // Identical resolution: same state, change name, and change root as the
-  // project-root invocation.
+  // Identical resolution: same state, change name, and suggested command as
+  // the project-root invocation.
   assert.equal(overrideJson.state, rootJson.state);
   assert.equal(overrideJson.data.change_name, rootJson.data.change_name);
-  assert.equal(overrideJson.data.change_root, rootJson.data.change_root);
-  assert.equal(overrideJson.data.change_root, path.join(tmp, 'docs', 'changes', 'genericize-the-stage-engine'));
+  assert.equal(overrideJson.data.stage, rootJson.data.stage);
+  assert.equal(overrideJson.data.suggested_command, rootJson.data.suggested_command);
 });
 
 test('invalid --cwd produces a blocked envelope naming the invalid root', () => {
@@ -173,7 +173,7 @@ test('help output documents the --cwd override flag on every usage surface', () 
   const topJson = JSON.parse(top.stdout);
   assert.ok(topJson.instructions.includes(CWD_FLAG_DOC), topJson.instructions);
 
-  // A cross-cutting workflow usage surface.
+  // A cross-cutting command usage surface.
   const status = runCli(['status', '--help']);
   assert.equal(status.status, 0, status.stderr);
   const statusJson = JSON.parse(status.stdout);

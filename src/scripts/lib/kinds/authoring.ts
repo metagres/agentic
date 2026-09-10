@@ -643,7 +643,7 @@ function finalizeArtifact(env: AuthorEnv): void {
 function describeWorkflow(stage: StageRecord) {
   const stepDefinitions = loadStepDefinitions(stage) || {};
   return {
-    workflow: stage.id,
+    command: stage.id,
     step: 'describe',
     state: 'ok',
     instructions: `Workflow description for ${stage.id}.`,
@@ -670,7 +670,7 @@ function describeStep(stage: StageRecord, stepId: string, cwd: string) {
 
   if (!step) {
     return {
-      workflow: stage.id,
+      command: stage.id,
       step: 'describe_step',
       state: 'blocked',
       instructions: `Unknown step: ${stepId}. Known steps: ${stepIds.join(', ')}.`,
@@ -691,7 +691,7 @@ function describeStep(stage: StageRecord, stepId: string, cwd: string) {
   const help = renderStepHelp(stepId, step, vars);
 
   return {
-    workflow: stage.id,
+    command: stage.id,
     step: 'describe_step',
     state: 'ok',
     instructions: help.markdown || `Step description for ${stepId}.`,
@@ -709,7 +709,7 @@ function helpPayload(stage: StageRecord) {
   const stepIds = Object.keys(stepDefinitions);
 
   return helpEnvelope({
-    workflow: stage.id,
+    command: stage.id,
     purpose: `${stage.title} authoring stage. Payload flags accept [file|-]: stdin (default, documented first) or a temp file under .tmp/sdlc (prescribed unique names); the CLI never deletes input files. --update-artifact creates the artifact when missing (upsert) and merges the payload.`,
     usage: [
       `sdlc ${stage.id} --change <change-name>`,
@@ -740,7 +740,7 @@ function runLint(stage: StageRecord, args: ParseArgsResult, cwd: string): void {
   if (!args.change) {
     writeJson(
       {
-        workflow: stage.id,
+        command: stage.id,
         step: 'lint',
         state: 'blocked',
         instructions:
@@ -763,7 +763,7 @@ function runLint(stage: StageRecord, args: ParseArgsResult, cwd: string): void {
 
     writeJson(
       {
-        workflow: stage.id,
+        command: stage.id,
         step: 'lint',
         state: findings.length > 0 ? 'blocked' : 'ok',
         instructions:
@@ -785,7 +785,7 @@ function runLint(stage: StageRecord, args: ParseArgsResult, cwd: string): void {
 
     writeJson(
       {
-        workflow: stage.id,
+        command: stage.id,
         step: 'lint',
         state: 'blocked',
         instructions: err.message,
@@ -840,13 +840,13 @@ export async function runAuthoringStage(  stage: StageRecord,
   const warnings: WarningItem[] = [];
   let changeRoot: string | null = null;
 
-  // Engagement backstop (FR-012): a workflow invocation without --change or
+  // Engagement backstop (FR-012): a stage invocation without --change or
   // --request is a usage error, never a conversational step. Change
   // identification belongs to the skill (or the caller), never to a stage.
   if (!args.change && !args.request) {
     writeJson(
       {
-        workflow: stage.id,
+        command: stage.id,
         step: 'blocked',
         state: 'blocked',
         instructions:
@@ -886,7 +886,7 @@ export async function runAuthoringStage(  stage: StageRecord,
             if (!(createErr instanceof ChangeSlugError)) throw createErr;
             writeJson(
               {
-                workflow: stage.id,
+                command: stage.id,
                 step: 'blocked',
                 state: 'blocked',
                 instructions: createErr.message,
@@ -917,7 +917,7 @@ export async function runAuthoringStage(  stage: StageRecord,
         } else {
           writeJson(
             {
-              workflow: stage.id,
+              command: stage.id,
               step: 'blocked',
               state: 'blocked',
               instructions: err.message,
@@ -1061,7 +1061,7 @@ export async function runAuthoringStage(  stage: StageRecord,
       if (!gate.satisfied) {
         writeJson(
           {
-            workflow: stage.id,
+            command: stage.id,
             step: 'blocked',
             state: 'blocked',
             instructions:
@@ -1089,7 +1089,7 @@ export async function runAuthoringStage(  stage: StageRecord,
         // pointer for the full detail surface.
         writeJson(
           {
-            workflow: stage.id,
+            command: stage.id,
             step: 'recovery',
             state: 'blocked',
             instructions:
@@ -1116,7 +1116,7 @@ export async function runAuthoringStage(  stage: StageRecord,
 
         writeJson(
           {
-            workflow: stage.id,
+            command: stage.id,
             step: 'semantic_review',
             state: 'in_progress',
             instructions:
@@ -1235,7 +1235,7 @@ export async function runAuthoringStage(  stage: StageRecord,
 
     writeJson(
       {
-        workflow: stage.id,
+        command: stage.id,
         step,
         state,
         instructions,
@@ -1260,7 +1260,7 @@ export async function runAuthoringStage(  stage: StageRecord,
     if (err instanceof CreationBlockedError) {
       writeJson(
         {
-          workflow: stage.id,
+          command: stage.id,
           step: 'blocked',
           state: 'blocked',
           instructions: err.message,
@@ -1279,7 +1279,7 @@ export async function runAuthoringStage(  stage: StageRecord,
     const errMsg = err instanceof Error ? err.message : String(err);
     writeJson(
       {
-        workflow: stage.id,
+        command: stage.id,
         step: 'blocked',
         state: 'blocked',
         instructions: errMsg,

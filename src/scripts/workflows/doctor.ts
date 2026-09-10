@@ -35,7 +35,7 @@ export function runDoctor(argv: string[]): void {
   if (args.help) {
     writeJson(
       helpEnvelope({
-        workflow: 'doctor',
+        command: 'doctor',
         purpose: 'Check runtime contracts: schemas, policies, stages, docs index, manifest, and Node version.',
         usage: ['sdlc doctor [--strict]'],
         flags: DOCTOR_FLAGS,
@@ -211,7 +211,7 @@ export function runDoctor(argv: string[]): void {
 
   writeJson(
     {
-      workflow: 'doctor',
+      command: 'doctor',
       step: 'check',
       state,
       instructions,

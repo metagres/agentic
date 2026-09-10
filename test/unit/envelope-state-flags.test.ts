@@ -186,21 +186,51 @@ test('the standard authoring envelope carries exactly the seven frozen top-level
 
   assert.deepEqual(
     Object.keys(out).sort(),
-    ['data', 'errors', 'instructions', 'state', 'step', 'warnings', 'workflow']
+    ['command', 'data', 'errors', 'instructions', 'state', 'step', 'warnings']
   );
+  assert.equal(out.command, 'requirements');
 
   // Fresh init envelope: the empty draft reports semantic_complete false.
   assert.equal(out.data.semantic_complete, false);
 });
 
 // ---------------------------------------------------------------------------
-// Terse mutation acks (kind-split terse design): a mutation that leaves the
-// detected step unchanged renders a terse ack — the `_terse` marker is
-// consumed by normalizeEnvelope, so it never leaks into output and the
-// delegation directive is absent.
+// Delegation absence guard: envelopes carry facts and actionable next steps
+// only — never delegate-to instructions. Delegation rules live solely in the
+// deployed skill, so no emitted envelope's instructions may contain them.
 // ---------------------------------------------------------------------------
 
-test('a mutation with an unchanged step renders a terse ack without the directive or the marker', () => {
+test('no emitted envelope instructs delegation (stage, status, changes, help)', () => {
+  const tmp = tmpProject('agentic-esf-');
+
+  const envelopes = [
+    runCli(tmp, ['requirements', '--request', 'Add device registration']),
+    runCli(tmp, ['requirements', '--help']),
+    runCli(tmp, ['status', '--help']),
+    runCli(tmp, ['changes']),
+  ];
+
+  // A change exists now, so status resolves to a real stage envelope.
+  const changeDir = path.basename(String(envelopes[0].data.change_root));
+  envelopes.push(runCli(tmp, ['status', '--change', changeDir]));
+
+  for (const env of envelopes) {
+    assert.equal(
+      JSON.stringify(env.instructions).toLowerCase().includes('delegate'),
+      false,
+      `envelope must not contain delegate-to instructions: ${env.instructions}`
+    );
+    assert.ok('command' in env, 'envelope carries the top-level command field');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Terse mutation acks (kind-split terse design): a mutation that leaves the
+// detected step unchanged renders a terse ack — the `_terse` marker is
+// consumed by normalizeEnvelope, so it never leaks into output.
+// ---------------------------------------------------------------------------
+
+test('a mutation with an unchanged step renders a terse ack without the marker', () => {
   const tmp = tmpProject('agentic-esf-');
 
   let out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
@@ -209,10 +239,6 @@ test('a mutation with an unchanged step renders a terse ack without the directiv
   // The fresh artifact lands on the discovery step directly (no init step).
   out = runCli(tmp, ['requirements', '--change', changeDir]);
   assert.equal(out.step, 'discovery', JSON.stringify(out));
-  assert.ok(
-    String(out.instructions).includes('bound to the dedicated agent'),
-    'a step transition renders full, with the delegation directive'
-  );
 
   // A discovery mutation that leaves the step unchanged: terse ack.
   out = runCli(tmp, [
@@ -229,12 +255,12 @@ test('a mutation with an unchanged step renders a terse ack without the directiv
   ]);
   assertEnvelopeShape(out);
   assert.equal(out.instructions, 'Artifact updated. Step discovery unchanged.');
-  assert.doesNotMatch(out.instructions, /bound to the dedicated agent/);
+  assert.doesNotMatch(out.instructions, /delegate/i);
 
   // The marker never leaks; the seven frozen fields stay.
   assert.equal(JSON.stringify(out).includes('_terse'), false);
   assert.deepEqual(
     Object.keys(out).sort(),
-    ['data', 'errors', 'instructions', 'state', 'step', 'warnings', 'workflow']
+    ['command', 'data', 'errors', 'instructions', 'state', 'step', 'warnings']
   );
 });

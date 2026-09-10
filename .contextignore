@@ -12,6 +12,7 @@ venv/
 target/
 .tmp/
 docs/
+test/
 
 # Lock files (usually noise for an LLM)
 package-lock.json

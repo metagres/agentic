@@ -28,8 +28,8 @@ errors:
     message: Conflicting review decision flags.
     fix: Use either --accept or --reject, not both.
   UNKNOWN_COMMAND:
-    message: Unknown workflow or command.
-    fix: Use --list-workflows to see available workflows.
+    message: Unknown command.
+    fix: Use --list-commands to see available commands.
   UNKNOWN_STAGE:
     message: Unknown stage.
     fix: Use a known stage name.
@@ -114,7 +114,7 @@ errors:
     fix: Complete requirements before finalizing downstream stages.
   ARTIFACT_INITIALIZED:
     message: A new artifact was initialized.
-    fix: Continue the workflow and fill in the artifact.
+    fix: Continue the stage and fill in the artifact.
   NODE_VERSION_UNSUPPORTED:
     message: Node.js version is not supported.
     fix: Use Node.js 20 or newer.

@@ -207,7 +207,7 @@ test('every command answers --help with a usage and flags map (AC-027, AC-029)',
       envelope.data.flags && typeof envelope.data.flags === 'object' && Object.keys(envelope.data.flags).length > 0,
       `${command}: flags map must be non-empty`
     );
-    for (const field of ['workflow', 'step', 'state', 'instructions', 'data', 'errors', 'warnings']) {
+    for (const field of ['command', 'step', 'state', 'instructions', 'data', 'errors', 'warnings']) {
       assert.ok(field in envelope, `${command}: top-level field ${field} present`);
     }
     assert.equal(Object.keys(envelope).length, 7, `${command}: seven frozen top-level fields`);

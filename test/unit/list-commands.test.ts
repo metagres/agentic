@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { listWorkflows } from '../../src/scripts/workflows/index.ts';
+import { listCommands } from '../../src/scripts/workflows/index.ts';
 import { loadStageRegistry, getStageById } from '../../src/scripts/lib/stage-registry.ts';
 import { loadAgentRegistry, getAgentModelFields } from '../../src/scripts/lib/agent-registry.ts';
 import { validateWithSchema } from '../../src/scripts/lib/schema.ts';
@@ -23,15 +23,15 @@ function runCli(args: string[]) {
   });
 }
 
-test('listWorkflows() carries the bound agent id for every discovered stage', () => {
-  const workflows = listWorkflows();
-  const byId = new Map(workflows.map((w) => [w.id, w]));
+test('listCommands() carries the bound agent id for every discovered stage', () => {
+  const commands = listCommands();
+  const byId = new Map(commands.map((c) => [c.id, c]));
 
   // Expectations derive from the stage registry itself, not a hardcoded list.
   const registry = loadStageRegistry(root);
   for (const stage of registry) {
     const entry = byId.get(stage.id);
-    assert.ok(entry, `missing workflow entry for stage '${stage.id}'`);
+    assert.ok(entry, `missing command entry for stage '${stage.id}'`);
     assert.equal(entry.agent, stage.agent, `agent mismatch for stage '${stage.id}'`);
     assert.equal(entry.description, stage.title);
   }
@@ -54,12 +54,12 @@ test('listWorkflows() carries the bound agent id for every discovered stage', ()
   }
 });
 
-test('bound workflow entries surface both the recommended and the effective model', () => {
-  const workflows = listWorkflows();
+test('bound command entries surface both the recommended and the effective model', () => {
+  const commands = listCommands();
   const agents = loadAgentRegistry(root);
   const byId = new Map(agents.map((a) => [a.id, a]));
 
-  for (const entry of workflows) {
+  for (const entry of commands) {
     if (!entry.agent) {
       // Unbound entries carry no model fields at all.
       assert.ok(!('model' in entry), `unbound entry '${entry.id}' must not carry model`);
@@ -78,17 +78,17 @@ test('bound workflow entries surface both the recommended and the effective mode
 
   // The shipped roster currently pins no override, so recommendation and
   // effective model coincide for every bound stage.
-  const requirements = workflows.find((w) => w.id === 'requirements');
+  const requirements = commands.find((c) => c.id === 'requirements');
   const analyst = byId.get('requirements-analyst');
   assert.ok(requirements && analyst);
   assert.equal(requirements.model, analyst.model);
   assert.equal(requirements.effectiveModel, analyst.effectiveModel);
 });
 
-test('cross-cutting workflow entries (status, feedback, doctor) carry agent: null', () => {
-  const workflows = listWorkflows();
+test('cross-cutting command entries (status, feedback, doctor) carry agent: null', () => {
+  const commands = listCommands();
   for (const id of CROSS_CUTTING_IDS) {
-    const entry = workflows.find((w) => w.id === id);
+    const entry = commands.find((c) => c.id === id);
     assert.ok(entry, `missing cross-cutting entry '${id}'`);
     assert.equal(entry.agent, null, `cross-cutting entry '${id}' must be agent-null`);
     assert.ok(!('model' in entry), `cross-cutting entry '${id}' must not carry model`);
@@ -145,26 +145,26 @@ test('getAgentModelFields resolves the override as effectiveModel from a fixture
   assert.deepEqual(getAgentModelFields(tmp, 'does-not-exist', agentsDir), {});
 });
 
-test('every workflows[] entry carries an agent field and the envelope validates', () => {
-  const res = runCli(['--list-workflows']);
+test('every commands[] entry carries an agent field and the envelope validates', () => {
+  const res = runCli(['--list-commands']);
   assert.equal(res.status, 0, res.stderr);
 
   const json = JSON.parse(res.stdout);
-  assert.equal(json.workflow, 'cli');
+  assert.equal(json.command, 'cli');
   assert.equal(json.state, 'ok');
 
-  for (const entry of json.data.workflows) {
-    assert.ok('agent' in entry, `workflow entry '${entry.id}' missing agent field`);
+  for (const entry of json.data.commands) {
+    assert.ok('agent' in entry, `command entry '${entry.id}' missing agent field`);
   }
 
   const findings = validateWithSchema(json, 'cli-envelope.schema.yaml', root);
   assert.deepEqual(findings, [], JSON.stringify(findings, null, 2));
 });
 
-test('status pipeline stage entries carry the bound agent id or null', () => {
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-list-workflows-'));
+test('status emits the slim envelope with the stage to run and its bound agent', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-list-commands-'));
 
-  // Create a change so the status workflow has a pipeline to report.
+  // Create a change so the status command has a pipeline to report.
   const req = runCli(['requirements', '--cwd', tmp, '--request', 'Add login']);
   assert.equal(req.status, 0, req.stderr);
   const reqJson = JSON.parse(req.stdout);
@@ -173,39 +173,30 @@ test('status pipeline stage entries carry the bound agent id or null', () => {
   const res = runCli(['status', '--cwd', tmp, '--change', changeDir]);
   assert.equal(res.status, 0, res.stderr);
   const json = JSON.parse(res.stdout);
-  assert.equal(json.workflow, 'status');
+  assert.equal(json.command, 'status');
 
-  // Every stage entry in the pipeline carries status and the bound agent.
-  const byId = new Map(loadStageRegistry(root).map((s) => [s.id, s]));
-  for (const [id, entry] of Object.entries(json.data.pipeline)) {
-    const stage = byId.get(id);
-    assert.equal(typeof entry.status, 'string', `pipeline '${id}' missing status`);
-    assert.equal(entry.agent, stage ? stage.agent : null, `pipeline '${id}' agent mismatch`);
-
-    if (entry.agent) {
-      // Bound pipeline entries surface the recommended/effective model pair.
-      assert.equal(typeof entry.model, 'string', `pipeline '${id}' missing model`);
-      assert.equal(
-        typeof entry.effectiveModel,
-        'string',
-        `pipeline '${id}' missing effectiveModel`
-      );
-    } else {
-      assert.ok(!('model' in entry), `unbound pipeline '${id}' must not carry model`);
-      assert.ok(
-        !('effectiveModel' in entry),
-        `unbound pipeline '${id}' must not carry effectiveModel`
-      );
-    }
-  }
-
-  // Spot checks: an authoring stage binds its analyst, a review stage binds
-  // the shared reviewer, and status still reports the artifact status.
-  assert.equal(json.data.pipeline.requirements.agent, 'requirements-analyst');
-  assert.equal(json.data.pipeline['requirements-review'].agent, 'stage-reviewer');
-  assert.equal(json.data.pipeline.requirements.status, 'draft');
+  // Exactly the slim data shape — no per-stage pipeline map, no change_root.
+  assert.deepEqual(Object.keys(json.data).sort(), [
+    'agent',
+    'change_name',
+    'stage',
+    'suggested_command',
+  ]);
+  assert.equal(json.data.change_name, changeDir);
+  assert.equal(json.data.stage, 'requirements');
+  assert.equal(json.data.agent, 'requirements-analyst');
+  assert.equal(json.data.suggested_command, `sdlc requirements --change ${changeDir}`);
 
   // The emitted envelope still validates against the frozen schema.
   const findings = validateWithSchema(json, 'cli-envelope.schema.yaml', root);
   assert.deepEqual(findings, [], JSON.stringify(findings, null, 2));
+});
+
+test('status stage resolution derives the agent from the registry for every stage id', () => {
+  // The slim envelope's agent field is the bound agent of the stage it names;
+  // spot-check the registry mapping the assertion relies on.
+  const requirements = getStageById(root, 'requirements');
+  const requirementsReview = getStageById(root, 'requirements-review');
+  assert.equal(requirements?.agent, 'requirements-analyst');
+  assert.equal(requirementsReview?.agent, 'stage-reviewer');
 });

@@ -34,7 +34,7 @@ const ROOT = path.resolve(
 
 /** The frozen CLI envelope top-level fields, in frozen order (invariant 8). */
 const FROZEN_FIELDS = [
-  'workflow',
+  'command',
   'step',
   'state',
   'instructions',

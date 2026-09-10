@@ -25,7 +25,7 @@ function usage(stage: StageRecord, code = EXIT.ok) {
   if (code === EXIT.ok) {
     writeJson(
       helpEnvelope({
-        workflow: stage.id,
+        command: stage.id,
         purpose:
           'Implementation stage: update task status and manage the task list of the accepted plan.',
         usage: [
@@ -44,7 +44,7 @@ function usage(stage: StageRecord, code = EXIT.ok) {
 
   writeJson(
     {
-      workflow: stage.id,
+      command: stage.id,
       step: 'help',
       state: 'blocked',
       instructions:
@@ -317,7 +317,7 @@ export async function runTasksStage(
   const helpStep = Boolean(args['help-step']);
 
   const base: Record<string, unknown> = {
-    workflow: stage.id,
+    command: stage.id,
     step: 'progress',
   };
 

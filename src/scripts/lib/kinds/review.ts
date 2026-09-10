@@ -76,7 +76,7 @@ export async function runReviewStage(
 ): Promise<void> {
   const args = parseArgs(argv);
   rejectUnknownFlags(stage.id, args, REVIEW_FLAGS);
-  const workflow = stage.id;
+  const command = stage.id;
   const targetStage = stage.reviews ? getStageById(cwd, stage.reviews) : null;
   const targetLabel = stage.reviews || stage.id;
 
@@ -102,7 +102,7 @@ export async function runReviewStage(
     if (code === EXIT.ok) {
       writeJson(
         helpEnvelope({
-          workflow: stage.id,
+          command: stage.id,
           purpose: `Review gate for ${targetLabel}: run the mechanical + semantic checks and record the verdict.`,
           usage: [
             `sdlc ${stage.id} --change <change-name>`,
@@ -121,7 +121,7 @@ export async function runReviewStage(
 
     writeJson(
       {
-        workflow,
+        command,
         step: 'help',
         state: 'blocked',
         instructions:
@@ -149,11 +149,11 @@ export async function runReviewStage(
   if (!args.change) {
     writeJson(
       {
-        workflow,
+        command,
         step: 'blocked',
         state: 'blocked',
         instructions: compose(
-          "A workflow invocation must be engaged with a change: provide --change <change-name> (one of data.available_changes). Change identification is the skill's job, never a stage step.",
+          "A stage invocation must be engaged with a change: provide --change <change-name> (one of data.available_changes). Change identification is the skill's job, never a stage step.",
           'Provide --change <change-name>.'
         ),
         data: {
@@ -176,7 +176,7 @@ export async function runReviewStage(
     if (err instanceof ResolveRootError) {
       writeJson(
         {
-          workflow,
+          command,
           step: 'blocked',
           state: 'blocked',
           instructions: compose('', err.message),
@@ -218,7 +218,7 @@ export async function runReviewStage(
     const checks = semanticChecksFor(listStage);
     writeJson(
       {
-        workflow,
+        command,
         step: 'list_checks',
         state: 'ok',
         instructions:
@@ -244,7 +244,7 @@ export async function runReviewStage(
   if (args.accept && args.reject) {
     writeJson(
       {
-        workflow,
+        command,
         step: stepId,
         state: 'blocked',
         instructions: 'Use either --accept or --reject, not both.',
@@ -269,7 +269,7 @@ export async function runReviewStage(
   if (failuresFile && args.accept) {
     writeJson(
       {
-        workflow,
+        command,
         step: stepId,
         state: 'blocked',
         instructions:
@@ -294,7 +294,7 @@ export async function runReviewStage(
   if (failuresFile && !args.reject) {
     writeJson(
       {
-        workflow,
+        command,
         step: stepId,
         state: 'blocked',
         instructions: '--failures requires --reject.',
@@ -319,7 +319,7 @@ export async function runReviewStage(
     // special value '-' reads the failures YAML from stdin instead of a file.
     writeJson(
       {
-        workflow,
+        command,
         step: stepId,
         state: 'blocked',
         instructions: `--failures file not found: ${failuresFile}`,
@@ -350,7 +350,7 @@ export async function runReviewStage(
       if (err instanceof FailureFileError) {
         writeJson(
           {
-            workflow,
+            command,
             step: stepId,
             state: 'blocked',
             instructions: err.message,
@@ -379,7 +379,7 @@ export async function runReviewStage(
       const alreadyAccepted = gate.unsatisfied.some((u) => u.status === 'accepted');
       writeJson(
         {
-          workflow,
+          command,
           step: stepId,
           state: 'blocked',
           instructions: alreadyAccepted
@@ -415,7 +415,7 @@ export async function runReviewStage(
     if (!artifact) {
       writeJson(
         {
-          workflow,
+          command,
           step: stepId,
           state: 'blocked',
           instructions: `No ${trackedStage.artifact} found in ${changeRoot}. Run the relevant stage first.`,
@@ -455,7 +455,7 @@ export async function runReviewStage(
         '--reject requires --failures <file> when mechanical checks pass: supply the failed semantic checks as a top-level YAML list of {check, evidence}.';
       writeJson(
         {
-          workflow,
+          command,
           step: stepId,
           state: 'blocked',
           instructions: message,
@@ -479,7 +479,7 @@ export async function runReviewStage(
         '--failures is not valid while mechanical checks fail: mechanical failures are CLI-computed and recorded automatically. Drop --failures or fix the mechanical failures first.';
       writeJson(
         {
-          workflow,
+          command,
           step: stepId,
           state: 'blocked',
           instructions: compose(message, `Mechanical failures:\n${failureLines(mechanicalFailures)}`),
@@ -509,7 +509,7 @@ export async function runReviewStage(
         if (err instanceof FailureFileError) {
           writeJson(
             {
-              workflow,
+              command,
               step: stepId,
               state: 'blocked',
               instructions: err.message,
@@ -716,7 +716,7 @@ export async function runReviewStage(
 
     writeJson(
       {
-        workflow,
+        command,
         step: stepId,
         state,
         instructions,
@@ -749,7 +749,7 @@ export async function runReviewStage(
   } catch (err: unknown) {
     writeJson(
       {
-        workflow,
+        command,
         step: stepId,
         state: 'blocked',
         instructions: err instanceof Error ? err.message : String(err),

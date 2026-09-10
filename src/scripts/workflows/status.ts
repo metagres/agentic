@@ -3,8 +3,7 @@ import path from 'node:path';
 import { parseArgs, writeJson, EXIT, resolveCwd, CWD_FLAG_DOC } from '../lib/cli.ts';
 import { safeReadYaml } from '../lib/context.ts';
 import { requireChangeRoot } from '../lib/change-root.ts';
-import { loadStageRegistry, getStageById } from '../lib/stage-registry.ts';
-import { getAgentModelFields } from '../lib/agent-registry.ts';
+import { getStageById } from '../lib/stage-registry.ts';
 import { computePipelineOrder, evaluateGate } from '../lib/requires-graph.ts';
 import { helpEnvelope, rejectUnknownFlags, STATUS_FLAGS } from '../lib/help.ts';
 import type { ParseArgsResult } from '../lib/types.ts';
@@ -13,7 +12,7 @@ function usage(code: number = EXIT.ok): void {
   if (code === EXIT.ok) {
     writeJson(
       helpEnvelope({
-        workflow: 'status',
+        command: 'status',
         purpose: 'Show the pipeline state for one change and the suggested next command.',
         usage: ['sdlc status --change <change-name>'],
         flags: STATUS_FLAGS,
@@ -25,7 +24,7 @@ function usage(code: number = EXIT.ok): void {
 
   writeJson(
     {
-      workflow: 'status',
+      command: 'status',
       step: 'help',
       state: 'blocked',
       instructions: 'Usage: sdlc status --change <change-name> ' + CWD_FLAG_DOC,
@@ -80,7 +79,7 @@ export function runStatus(argv: string[]): void {
   const cwd = resolveCwd(args);
 
   const base: Record<string, unknown> = {
-    workflow: 'status',
+    command: 'status',
     step: 'pipeline',
   };
 
@@ -89,25 +88,12 @@ export function runStatus(argv: string[]): void {
   const changeDir = path.basename(changeRoot);
 
   // Pipeline order derives from the requires DAG with an alphabetical
-  // tie-break; no hardcoded pipeline map exists anymore. Every per-stage entry
-  // carries the stage's bound agent id (or null) so the primary agent can
-  // decide delegation (DEC-004), plus the recommended/effective model pair for
-  // bound agents so an override is visible without reading source files.
-  const registry = loadStageRegistry(cwd);
+  // tie-break; no hardcoded pipeline map exists anymore.
   const order = computePipelineOrder(cwd);
 
-  const pipeline: Record<
-    string,
-    { status: string; agent: string | null; model?: string; effectiveModel?: string }
-  > = {};
+  const statuses: Record<string, string> = {};
   for (const id of order) {
-    const stage = getStageById(cwd, id);
-    const agent = stage ? stage.agent : null;
-    pipeline[id] = {
-      status: readStageStatus(cwd, changeRoot, id),
-      agent,
-      ...getAgentModelFields(cwd, agent),
-    };
+    statuses[id] = readStageStatus(cwd, changeRoot, id);
   }
 
   // Check for open feedback first (unchanged behavior).
@@ -123,13 +109,12 @@ export function runStatus(argv: string[]): void {
         instructions:
           `An open feedback entry exists from ${openFeedback.from_stage} to ${openFeedback.to_stage}. ` +
           `Reason: ${openFeedback.reason}. ` +
-          `Run scripts/sdlc.js ${openFeedback.to_stage} --change ${changeDir} to fix the issue and re-review. ` +
+          `Run sdlc ${openFeedback.to_stage} --change ${changeDir} to fix the issue and re-review. ` +
           `Once accepted, run: sdlc feedback --change ${changeDir} --resolve ${openFeedback.id}`,
         data: {
           change_name: changeDir,
-          change_root: changeRoot,
-          pipeline,
-          current_workflow: openFeedback.to_stage,
+          stage: openFeedback.to_stage,
+          agent: getStageById(cwd, openFeedback.to_stage)?.agent ?? null,
           suggested_command: `sdlc ${openFeedback.to_stage} --change ${changeDir}`,
           open_feedback: openFeedback,
         },
@@ -141,49 +126,47 @@ export function runStatus(argv: string[]): void {
     return;
   }
 
-  let currentWorkflow: string | undefined;
+  let stage: string | undefined;
   let state: string = 'in_progress';
   let instructions: string = '';
   let suggestedCommand: string | null = null;
 
   // 1. Check for rejected stages first.
-  const rejectedStage = order.find((key: string) => pipeline[key].status === 'rejected');
+  const rejectedStage = order.find((key: string) => statuses[key] === 'rejected');
   if (rejectedStage) {
-    currentWorkflow = rejectedStage;
+    stage = rejectedStage;
     state = 'blocked';
-    instructions = `The ${rejectedStage} workflow has a rejected artifact. Fix the recorded failures and re-finalize.`;
+    instructions = `The ${rejectedStage} stage has a rejected artifact. Fix the recorded failures and re-finalize.`;
     suggestedCommand = `sdlc ${rejectedStage} --change ${changeDir}`;
   } else {
     // 2. Find the first incomplete stage whose gate is satisfied.
     for (const id of order) {
-      const stage = getStageById(cwd, id);
-      if (!stage) continue;
+      const stageRecord = getStageById(cwd, id);
+      if (!stageRecord) continue;
 
-      const status = pipeline[id].status;
+      const status = statuses[id];
       const isDone =
-        stage.kind === 'aggregator' ? status === 'complete' : status === 'accepted';
+        stageRecord.kind === 'aggregator' ? status === 'complete' : status === 'accepted';
 
       if (isDone) continue;
 
       // A stage is runnable only when its acceptance gate is satisfied.
-      const gate = evaluateGate(stage, changeRoot, cwd);
+      const gate = evaluateGate(stageRecord, changeRoot, cwd);
       if (!gate.satisfied) continue;
 
-      currentWorkflow = id;
-
-      if (stage.kind === 'review') {
-        currentWorkflow = id;
+      if (stageRecord.kind === 'review') {
+        stage = id;
         suggestedCommand = `sdlc ${id} --change ${changeDir}`;
-        instructions = `${stage.title} gate is ready. Run the review gate.`;
+        instructions = `${stageRecord.title} gate is ready. Run the review gate.`;
       } else if (status === 'ready-for-review') {
         const reviewStageId = `${id}-review`;
-        currentWorkflow = reviewStageId;
+        stage = reviewStageId;
         suggestedCommand = `sdlc ${reviewStageId} --change ${changeDir}`;
-        instructions = `${stage.title} is ready for review. Run the review gate.`;
+        instructions = `${stageRecord.title} is ready for review. Run the review gate.`;
       } else {
-        currentWorkflow = id;
+        stage = id;
         suggestedCommand = `sdlc ${id} --change ${changeDir}`;
-        instructions = `${stage.title} is not accepted yet. Continue the ${id} stage.`;
+        instructions = `${stageRecord.title} is not accepted yet. Continue the ${id} stage.`;
       }
 
       state = status === 'blocked' ? 'blocked' : 'in_progress';
@@ -192,8 +175,8 @@ export function runStatus(argv: string[]): void {
   }
 
   // 3. All stages complete.
-  if (!currentWorkflow) {
-    currentWorkflow = 'complete';
+  if (!stage) {
+    stage = 'complete';
     suggestedCommand = null;
     instructions = 'The full SDLC pipeline is complete for this change.';
     state = 'complete';
@@ -206,9 +189,8 @@ export function runStatus(argv: string[]): void {
       instructions,
       data: {
         change_name: changeDir,
-        change_root: changeRoot,
-        pipeline,
-        current_workflow: currentWorkflow,
+        stage,
+        agent: stage === 'complete' ? null : getStageById(cwd, stage)?.agent ?? null,
         suggested_command: suggestedCommand,
       },
       errors: [],

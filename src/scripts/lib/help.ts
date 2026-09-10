@@ -19,7 +19,7 @@ export interface FlagDoc {
 export type FlagTable = Record<string, FlagDoc>;
 
 export function helpEnvelope(params: {
-  workflow: string;
+  command: string;
   purpose: string;
   usage: string[];
   flags: FlagTable;
@@ -43,7 +43,7 @@ export function helpEnvelope(params: {
   ].join('\n');
 
   return {
-    workflow: params.workflow,
+    command: params.command,
     step: 'help',
     state: 'ok',
     instructions,
@@ -59,11 +59,11 @@ export function helpEnvelope(params: {
 
 /**
  * Closed-vocabulary guard (FR-009): refuses flags outside the command's
- * declared table before any workflow effect. Exits through writeJson with
+ * declared table before any command effect. Exits through writeJson with
  * the usage code naming every unknown flag.
  */
 export function rejectUnknownFlags(
-  workflow: string,
+  command: string,
   args: Record<string, unknown>,
   table: FlagTable
 ): void {
@@ -75,15 +75,15 @@ export function rejectUnknownFlags(
 
   writeJson(
     {
-      workflow,
+      command,
       step: 'blocked',
       state: 'blocked',
-      instructions: `Unknown flag --${unknown[0]} for '${workflow}'. Run sdlc ${workflow} --help for the flags map.`,
+      instructions: `Unknown flag --${unknown[0]} for '${command}'. Run sdlc ${command} --help for the flags map.`,
       data: { unknown_flags: unknown.map((flag) => `--${flag}`) },
       errors: [
         {
           code: 'UNKNOWN_FLAG',
-          message: `Unknown flag '--${unknown[0]}' for '${workflow}'.`,
+          message: `Unknown flag '--${unknown[0]}' for '${command}'.`,
           fix: 'Check the flags map with --help and retry with declared flags only.',
         },
       ],
@@ -164,7 +164,7 @@ export const AUTHORING_FLAGS: FlagTable = {
     value: '(flag)',
   },
   describe: {
-    description: 'Print the workflow description (steps, artifact) without a change.',
+    description: 'Print the stage description (steps, artifact) without a change.',
     value: '(flag)',
   },
   'describe-step': {

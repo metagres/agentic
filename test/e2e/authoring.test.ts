@@ -36,7 +36,7 @@ test('requirements --request creates change and enters discovery', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'requirements');
+  assert.equal(json.command, 'requirements');
   assert.equal(json.step, 'discovery');
   assert.ok(json.data.change_root);
 
@@ -76,7 +76,7 @@ test('planning creation is blocked while the required predecessor is not accepte
 
   const planJson = JSON.parse(plan.stdout);
 
-  assert.equal(planJson.workflow, 'planning');
+  assert.equal(planJson.command, 'planning');
   assert.equal(planJson.step, 'blocked');
   assert.equal(planJson.state, 'blocked');
   assert.equal(planJson.errors[0].code, 'STAGE_GATE_BLOCKED');

@@ -159,7 +159,7 @@ const KNOWLEDGE_INIT_SKILL_ID = 'knowledge-init';
 // Stable marker phrase (CMP-005, AC-007): the deploy smoke fails when the
 // generated SKILL.md lacks it, so rewording the delegation rule must update
 // this constant deliberately (DEC-006).
-const DELEGATION_RULE_MARKER = 'is run via that agent';
+const DELEGATION_RULE_MARKER = 'delegate the stage to that agent';
 
 // Stable marker phrase for the CLI-only artifact rule: the deploy smoke fails
 // when the generated SKILL.md lacks it, so rewording the artifact rule must
@@ -176,9 +176,9 @@ const IDENTIFICATION_RULE_MARKER = 'Change identification';
 
 // The agentic-sdlc skill body is version-controlled at
 // src/skills/agentic-sdlc/SKILL.md (same layout as knowledge-init); deploy
-// reads it and interpolates the dynamic workflow list into this token — the
+// reads it and interpolates the dynamic command list into this token — the
 // only generated part of the deployed SKILL.md.
-const WORKFLOWS_TOKEN = '{{WORKFLOWS}}';
+const COMMANDS_TOKEN = '{{COMMANDS}}';
 
 function renderAgenticSdlcSkill() {
   const agenticSdlcSkillSource = path.join(
@@ -195,16 +195,16 @@ function renderAgenticSdlcSkill() {
 
   const source = fs.readFileSync(agenticSdlcSkillSource, 'utf8');
 
-  if (!source.includes(WORKFLOWS_TOKEN)) {
+  if (!source.includes(COMMANDS_TOKEN)) {
     fail(
-      `Skill source is missing the workflows token '${WORKFLOWS_TOKEN}': ${agenticSdlcSkillSource}`
+      `Skill source is missing the commands token '${COMMANDS_TOKEN}': ${agenticSdlcSkillSource}`
     );
   }
 
   const stages = getStageDescriptions(root).map((stage) => stage.id);
-  const workflowList = [...stages, 'changes', 'status', 'feedback', 'doctor'].join(' · ');
+  const commandList = [...stages, 'changes', 'status', 'feedback', 'doctor'].join(' · ');
 
-  return source.replaceAll(WORKFLOWS_TOKEN, workflowList);
+  return source.replaceAll(COMMANDS_TOKEN, commandList);
 }
 
 /**
@@ -409,7 +409,7 @@ function main() {
     const agenticSdlcRuntimeCli = path.join(agenticSdlcSkillAbs, 'scripts', 'sdlc.js');
     const result = spawnSync(
       process.execPath,
-      [agenticSdlcRuntimeCli, '--list-workflows'],
+      [agenticSdlcRuntimeCli, '--list-commands'],
       {
         cwd: destAbs,
         encoding: 'utf8',

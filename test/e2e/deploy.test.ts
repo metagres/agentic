@@ -93,7 +93,7 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
   // delegation rule; the stable marker phrase mirrors the deploy smoke gate.
   const skillMdContent = fs.readFileSync(path.join(skillDir, 'SKILL.md'), 'utf8');
   assert.ok(
-    skillMdContent.includes('is run via that agent'),
+    skillMdContent.includes('delegate the stage to that agent'),
     'generated SKILL.md must contain the delegation-rule marker phrase'
   );
   // CLI-only artifact rule: the generated SKILL.md states that change
@@ -322,7 +322,7 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
 
   const cli = spawnSync(
     process.execPath,
-    [path.join(skillDir, 'scripts', 'sdlc.js'), '--list-workflows'],
+    [path.join(skillDir, 'scripts', 'sdlc.js'), '--list-commands'],
     {
       encoding: 'utf8',
       cwd: dest

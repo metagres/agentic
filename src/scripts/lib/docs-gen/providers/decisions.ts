@@ -19,6 +19,22 @@ const REL_PATH = 'docs/current/decisions.md';
 const HEADERS = ['Date', 'Context', 'Decision', 'Rationale', 'Status', 'Evidence'];
 const CHANGES_DIR = 'docs/changes';
 
+/**
+ * Curated rows: decisions recorded outside the design.yaml extraction,
+ * merged by context key like every other row (the key never collides with
+ * an extracted slug, so the row survives regeneration).
+ */
+const CURATED_ROWS: string[][] = [
+  [
+    '2026-09-10',
+    'cli-terminology-contract (DEC-017)',
+    'The envelope identity field is renamed to command and the status/changes data key naming the stage to run becomes stage (one term, one meaning — AGENTS.md §2.9); the registry listing flag becomes --list-commands with data key data.commands[], with no compatibility aliases. The delegation-directive machinery is removed from all envelopes, superseding the CMP-002 prepend placement in normalizeEnvelope: envelopes carry facts and actionable next steps only, and delegation rules live solely in the deployed skill, enforced by the deploy-smoke marker phrase.',
+    'The word "workflow" named two concepts (the envelope identity field and the pipeline stage to run), and per-envelope delegation prepends duplicated instructions the orchestrator skill already owns while inflating every envelope; the slim status/changes shapes keep the loop actionable through stage, agent, and suggested_command.',
+    'accepted',
+    'src/scripts/lib/cli.ts, src/schemas/cli-envelope.schema.yaml, bin/deploy-to-agent.ts, src/skills/agentic-sdlc/SKILL.md',
+  ],
+];
+
 interface DecisionEntry {
   id?: string;
   title?: string;
@@ -73,7 +89,10 @@ function decisionRows(root: string, existing: string): string[][] {
     }
   }
 
-  return mergeTableRows(existingRows, generated, { keyColumn: 1, sortBy: 0 });
+  return mergeTableRows(existingRows, [...generated, ...CURATED_ROWS], {
+    keyColumn: 1,
+    sortBy: 0,
+  });
 }
 
 function implementationAccepted(changeRoot: string): boolean {

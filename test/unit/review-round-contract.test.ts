@@ -653,10 +653,10 @@ test('the envelope keeps exactly the seven frozen top-level fields', () => {
   const rc = setupReadyChange('Add device registration');
 
   const bare = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
-  assert.deepEqual(Object.keys(bare), ['workflow', 'step', 'state', 'instructions', 'data', 'errors', 'warnings']);
+  assert.deepEqual(Object.keys(bare), ['command', 'step', 'state', 'instructions', 'data', 'errors', 'warnings']);
 
   const verdict = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--accept']);
-  assert.deepEqual(Object.keys(verdict), ['workflow', 'step', 'state', 'instructions', 'data', 'errors', 'warnings']);
+  assert.deepEqual(Object.keys(verdict), ['command', 'step', 'state', 'instructions', 'data', 'errors', 'warnings']);
 });
 
 test('the review envelope data carries status and failures and no decision surface', () => {

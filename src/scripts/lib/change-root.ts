@@ -45,7 +45,7 @@ export function requireChangeRoot(
 ): string | null {
   const compose = (message: string) =>
     [
-      'A workflow invocation must be engaged with a change: provide --change <change-name> ' +
+      'A stage invocation must be engaged with a change: provide --change <change-name> ' +
         '(one of data.available_changes). Change identification is the skill\'s job, never a stage step.',
       options.instruction?.trim(),
       message.trim(),

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { writeJson, EXIT, CWD_FLAG_DOC } from './lib/cli.ts';
-import { resolveWorkflow, listWorkflows } from './workflows/index.ts';
+import { resolveCommand, listCommands } from './workflows/index.ts';
 import { VERSION } from './lib/version.ts';
 
 const argv = process.argv.slice(2);
@@ -9,17 +9,17 @@ const command = argv[0];
 if (!command || command === '--help' || command === '-h') {
   writeJson(
     {
-      workflow: 'cli',
+      command: 'cli',
       step: 'help',
       state: 'ok',
       instructions:
         'Usage: sdlc <stage|command> [flags]. ' +
-        'Use --list-workflows to see workflows. ' +
+        'Use --list-commands to see available commands. ' +
         'Use status --change <change-name> for pipeline state. ' +
         CWD_FLAG_DOC,
       data: {
         version: VERSION,
-        workflows: listWorkflows(),
+        commands: listCommands(),
       },
       errors: [],
       warnings: [],
@@ -31,7 +31,7 @@ if (!command || command === '--help' || command === '-h') {
 if (command === '--version') {
   writeJson(
     {
-      workflow: 'cli',
+      command: 'cli',
       step: 'version',
       state: 'ok',
       instructions: `agentic-sdlc version ${VERSION}`,
@@ -45,16 +45,16 @@ if (command === '--version') {
   );
 }
 
-if (command === '--list-workflows') {
+if (command === '--list-commands') {
   writeJson(
     {
-      workflow: 'cli',
+      command: 'cli',
       step: 'list',
       state: 'ok',
-      instructions: 'Available workflows.',
+      instructions: 'Available commands.',
       data: {
         version: VERSION,
-        workflows: listWorkflows(),
+        commands: listCommands(),
       },
       errors: [],
       warnings: [],
@@ -63,24 +63,24 @@ if (command === '--list-workflows') {
   );
 }
 
-const workflow = resolveWorkflow(command);
+const resolved = resolveCommand(command);
 
-if (!workflow) {
+if (!resolved) {
   writeJson(
     {
-      workflow: command,
+      command,
       step: 'blocked',
       state: 'blocked',
       instructions:
-        `Unknown workflow: ${command}. Use --list-workflows to see available workflows.`,
+        `Unknown command: ${command}. Use --list-commands to see available commands.`,
       data: {
         version: VERSION,
-        workflows: listWorkflows(),
+        commands: listCommands(),
       },
       errors: [
         {
           code: 'UNKNOWN_COMMAND',
-          message: `Unknown workflow: ${command}`,
+          message: `Unknown command: ${command}`,
         },
       ],
       warnings: [],
@@ -88,5 +88,5 @@ if (!workflow) {
     EXIT.usage
   );
 } else {
-  await workflow.run(argv.slice(1));
+  await resolved.run(argv.slice(1));
 }

@@ -34,7 +34,7 @@ const ENTITY_COMMANDS: Record<string, string[]> = {
     'sdlc planning',
     'sdlc implementation',
   ],
-  'CLI Envelope': ['sdlc --list-workflows', 'sdlc status', 'sdlc feedback', 'sdlc doctor'],
+  'CLI Envelope': ['sdlc --list-commands', 'sdlc status', 'sdlc feedback', 'sdlc doctor'],
   'Artifact Status': ['sdlc feedback', 'sdlc <review-stage>'],
   'Review Round (review file rounds[])': [
     'sdlc <review-stage>',

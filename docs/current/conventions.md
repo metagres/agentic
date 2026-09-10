@@ -5,7 +5,7 @@
 | Pattern | Where Used | Evidence |
 |---------|------------|----------|
 | Declarative stage folder: one folder per stage carrying all config (stage.yaml + kind-specific files); discovered by directory scan, no central enumeration | every stage | src/stages/, src/scripts/lib/stage-registry.ts |
-| Frozen JSON envelope: every CLI output is {workflow, step, state, instructions, data, errors, warnings}, written via writeJson | all of src/scripts/ | src/scripts/lib/cli.ts, src/schemas/cli-envelope.schema.yaml |
+| Frozen JSON envelope: every CLI output is {command, step, state, instructions, data, errors, warnings}, written via writeJson | all of src/scripts/ | src/scripts/lib/cli.ts, src/schemas/cli-envelope.schema.yaml |
 | Central error catalog: errors/warnings are produced by makeError(code) from errors.yaml; no ad-hoc error text | engine, bins, kinds | src/scripts/lib/error-catalog.ts, src/policies/errors.yaml |
 | Declarative validation: stages declare named checks from the capped catalog in structural-checks.yaml; no stage-specific validation scripts | authoring + tasks stages | src/stages/*/structural-checks.yaml, src/scripts/lib/checks/index.ts |
 | Nested acceptance criteria: requirements artifacts author acceptance criteria inside their owning requirement — each FR and NFR entry carries a required acceptance_criteria array (id, Given-When-Then statement, category happy/edge/negative/boundary); no top-level criteria list and no cross-reference fields (ac_ids, parent_id) between criteria and requirements | requirements stage artifacts | src/stages/requirements/schema.yaml, src/stages/requirements/template.yaml |

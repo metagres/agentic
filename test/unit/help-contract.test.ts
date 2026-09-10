@@ -77,7 +77,7 @@ test('every flags map entry carries a description and a value shape', () => {
 test('every command exposes cwd in its rendered flags map', async () => {
   const { helpEnvelope } = await import('../../src/scripts/lib/help.ts');
   const envelope = helpEnvelope({
-    workflow: 'probe',
+    command: 'probe',
     purpose: 'probe',
     usage: ['sdlc probe'],
     flags: {},

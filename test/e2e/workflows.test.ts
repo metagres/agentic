@@ -26,7 +26,7 @@ test('requirements-review --help returns ok state', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'requirements-review');
+  assert.equal(json.command, 'requirements-review');
   assert.equal(json.state, 'ok');
 });
 
@@ -37,7 +37,7 @@ test('requirements-review requires --change', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'requirements-review');
+  assert.equal(json.command, 'requirements-review');
   assert.equal(json.state, 'blocked');
 });
 
@@ -56,7 +56,7 @@ test('requirements-review reports missing change', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'requirements-review');
+  assert.equal(json.command, 'requirements-review');
   assert.equal(json.state, 'blocked');
   assert.equal(json.data.target, 'requirements');
 });
@@ -68,7 +68,7 @@ test('implementation --help returns ok state', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'implementation');
+  assert.equal(json.command, 'implementation');
   assert.equal(json.state, 'ok');
 });
 
@@ -79,7 +79,7 @@ test('implementation requires --change', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'implementation');
+  assert.equal(json.command, 'implementation');
   assert.equal(json.state, 'blocked');
 });
 
@@ -90,7 +90,7 @@ test('knowledge-extraction --help returns ok state', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'knowledge-extraction');
+  assert.equal(json.command, 'knowledge-extraction');
   assert.equal(json.state, 'ok');
 });
 
@@ -101,7 +101,7 @@ test('docs alias resolves to knowledge-extraction', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'knowledge-extraction');
+  assert.equal(json.command, 'knowledge-extraction');
   assert.equal(json.state, 'ok');
 });
 
@@ -112,7 +112,7 @@ test('the dedicated review command no longer exists', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'review');
+  assert.equal(json.command, 'review');
   assert.equal(json.state, 'blocked');
   assert.ok(json.errors.some((e) => e.code === 'UNKNOWN_COMMAND'));
 });
@@ -124,18 +124,51 @@ test('docs-init is removed and returns UNKNOWN_COMMAND', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'docs-init');
+  assert.equal(json.command, 'docs-init');
   assert.equal(json.state, 'blocked');
   assert.ok(json.errors.some((e) => e.code === 'UNKNOWN_COMMAND'));
 });
 
-test('the workflow list omits docs-init', () => {
-  const res = runCli(['--list-workflows']);
+test('the command list omits docs-init', () => {
+  const res = runCli(['--list-commands']);
 
   assert.equal(res.status, 0, res.stderr);
 
   const json = JSON.parse(res.stdout);
-  const ids = json.data.workflows.map((w) => w.id);
+  const ids = json.data.commands.map((w) => w.id);
 
   assert.ok(!ids.includes('docs-init'), `docs-init must not be listed: ${ids.join(', ')}`);
+});
+
+test('changes lists the slim per-change shape (name, stage, agent, suggested_command, open_feedback)', () => {
+  const tmp = makeTmpProject();
+
+  const req = runCli(['requirements', '--cwd', tmp, '--request', 'Add login']);
+  assert.equal(req.status, 0, req.stderr);
+  const changeDir = path.basename(JSON.parse(req.stdout).data.change_root);
+
+  const res = runCli(['changes', '--cwd', tmp]);
+  assert.equal(res.status, 0, res.stderr);
+
+  const json = JSON.parse(res.stdout);
+  assert.equal(json.command, 'changes');
+  assert.equal(json.state, 'ok');
+
+  const entry = json.data.changes.find((c) => c.change_name === changeDir);
+  assert.ok(entry, JSON.stringify(json.data));
+
+  // Exactly the slim fields — no per-stage pipeline map. The stage is the
+  // first non-settled stage in pipeline order (the tracked design artifact of
+  // design-review is missing in a fresh change).
+  assert.deepEqual(Object.keys(entry).sort(), [
+    'agent',
+    'change_name',
+    'open_feedback',
+    'stage',
+    'suggested_command',
+  ]);
+  assert.equal(entry.stage, 'design-review');
+  assert.equal(entry.agent, 'stage-reviewer');
+  assert.equal(entry.suggested_command, `sdlc design-review --change ${changeDir}`);
+  assert.equal(entry.open_feedback, null);
 });

@@ -28,7 +28,7 @@ test('--version returns version', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'cli');
+  assert.equal(json.command, 'cli');
   assert.equal(json.state, 'ok');
   assert.ok(json.data.version);
 });
@@ -61,18 +61,21 @@ test('status reports requirements as current for a new change', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'status');
-  assert.equal(json.data.current_workflow, 'requirements');
-  assert.equal(json.data.pipeline.requirements.status, 'draft');
-  assert.equal(
-    json.data.pipeline.requirements.agent,
-    'requirements-analyst',
-    'pipeline entries carry the bound agent id'
-  );
-  assert.ok(json.data.suggested_command.includes('requirements'));
+  assert.equal(json.command, 'status');
+  assert.equal(json.data.stage, 'requirements');
+  assert.equal(json.data.agent, 'requirements-analyst');
+  assert.equal(json.data.suggested_command, `sdlc requirements --change ${changeDir}`);
+
+  // Exactly the slim data shape — no per-stage pipeline, no change_root.
+  assert.deepEqual(Object.keys(json.data).sort(), [
+    'agent',
+    'change_name',
+    'stage',
+    'suggested_command',
+  ]);
 });
 
-test('status lists review stages in the pipeline and suggests the review gate when ready', () => {
+test('status suggests the review gate with the reviewer agent when ready', () => {
   const tmp = makeTmpProject();
   fs.mkdirSync(path.join(tmp, 'docs', 'current'), { recursive: true });
   fs.writeFileSync(
@@ -86,18 +89,9 @@ test('status lists review stages in the pipeline and suggests the review gate wh
   const reqJson = JSON.parse(req.stdout);
   const changeDir = path.basename(reqJson.data.change_root);
 
-  // All review stages appear in the pipeline map.
-  let res = runCli(['status', '--cwd', tmp, '--change', changeDir]);
-  assert.equal(res.status, 0, res.stderr);
-  let json = JSON.parse(res.stdout);
-  assert.ok('requirements-review' in json.data.pipeline);
-  assert.ok('design-review' in json.data.pipeline);
-  assert.ok('planning-review' in json.data.pipeline);
-  assert.ok('implementation-review' in json.data.pipeline);
-
   // Fill in a valid requirements artifact, finalize it, and confirm status
   // suggests the requirements-review stage command.
-  res = runCli(
+  let res = runCli(
     ['requirements', '--cwd', tmp, '--change', changeDir, '--update-artifact'],
     JSON.stringify(validRequirements({ request: 'Add login' }))
   );
@@ -109,7 +103,47 @@ test('status lists review stages in the pipeline and suggests the review gate wh
 
   res = runCli(['status', '--cwd', tmp, '--change', changeDir]);
   assert.equal(res.status, 0, res.stderr);
-  json = JSON.parse(res.stdout);
-  assert.equal(json.data.current_workflow, 'requirements-review');
+  const json = JSON.parse(res.stdout);
+  assert.equal(json.data.stage, 'requirements-review');
+  assert.equal(json.data.agent, 'stage-reviewer');
   assert.ok(json.data.suggested_command.includes('requirements-review'));
+});
+
+test('status reports the complete state once every stage is settled', () => {
+  const tmp = makeTmpProject();
+  fs.mkdirSync(path.join(tmp, 'docs', 'current'), { recursive: true });
+  fs.writeFileSync(
+    path.join(tmp, 'docs', 'current', 'architecture.md'),
+    '# architecture.md\n',
+    'utf8'
+  );
+
+  const req = runCli(['requirements', '--cwd', tmp, '--request', 'Add login']);
+  assert.equal(req.status, 0, req.stderr);
+  const reqJson = JSON.parse(req.stdout);
+  const changeDir = path.basename(reqJson.data.change_root);
+  const changeRoot = path.join(tmp, 'docs', 'changes', changeDir);
+
+  // Settle every tracked artifact (review stages track the artifact of the
+  // stage they review; the aggregator completes on status 'complete') so the
+  // slim envelope reports the loop-control complete state.
+  const writeStatus = (file, metadata) => {
+    fs.writeFileSync(
+      path.join(changeRoot, file),
+      JSON.stringify({ metadata }),
+      'utf8'
+    );
+  };
+  writeStatus('requirements.yaml', { status: 'accepted' });
+  writeStatus('design.yaml', { status: 'accepted' });
+  writeStatus('plan.yaml', { status: 'accepted', implementation_status: 'accepted' });
+  writeStatus('docs-delta.yaml', { status: 'complete' });
+
+  const res = runCli(['status', '--cwd', tmp, '--change', changeDir]);
+  assert.equal(res.status, 0, res.stderr);
+  const json = JSON.parse(res.stdout);
+  assert.equal(json.state, 'complete');
+  assert.equal(json.data.stage, 'complete');
+  assert.equal(json.data.agent, null);
+  assert.equal(json.data.suggested_command, null);
 });

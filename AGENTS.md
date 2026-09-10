@@ -20,6 +20,7 @@ Invariant numbering is stable — docs/current cites these rules by number. Neve
 6. (Retired) Codemap files were removed; code-structure exploration belongs to the code intelligence tools and to docs/current/. Do not re-introduce generated documentation layers without a named consumer (docs/current capabilities G-05).
 7. Stage lifecycle commands execute through the deployed CLI (`.opencode/skills/agentic-sdlc/scripts/sdlc.js`), never through `src/` scripts. After any change to stage, agent, schema, or policy sources, refresh the production runtime: `npm run deploy -- --dest .opencode --clean`.
 8. AGENTS.md carries only always-in-force rules. Descriptive or drift-prone content — commands, shapes, counts, layouts, enumerations — belongs in docs/current/, lands through the §3 docs-current duty or knowledge-extraction deltas, and cites the owning source file instead of restating it.
+9. One term, one meaning. Every term in user-facing contracts — commands, flags, envelope fields, data keys — names exactly one concept defined in docs/current/glossary.md; no concept carries two names and no name carries two concepts. Renames remove the old term entirely; compatibility aliases that preserve ambiguity are prohibited.
 
 ## 3. Definition of Done
 

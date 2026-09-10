@@ -15,7 +15,7 @@ export async function runAuthoringStage(stageId: string, argv: string[]): Promis
   if (!stage) {
     writeJson(
       {
-        workflow: stageId,
+        command: stageId,
         step: 'blocked',
         state: 'blocked',
         instructions: `Unknown stage: ${stageId}.`,

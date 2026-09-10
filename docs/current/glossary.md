@@ -42,18 +42,20 @@
 <!-- docs-gen:begin id="glossary-fields-cli-envelope" -->
 | Field | Type | Nullable | Source |
 | --- | --- | --- | --- |
+| command | string | No | src/schemas/cli-envelope.schema.yaml |
 | data | object | No | src/schemas/cli-envelope.schema.yaml |
 | errors | object[] | No | src/schemas/cli-envelope.schema.yaml |
 | instructions | string | No | src/schemas/cli-envelope.schema.yaml |
 | state | enum: ok \| in_progress \| blocked \| complete | No | src/schemas/cli-envelope.schema.yaml |
 | step | string | No | src/schemas/cli-envelope.schema.yaml |
 | warnings | object[] | No | src/schemas/cli-envelope.schema.yaml |
-| workflow | string | No | src/schemas/cli-envelope.schema.yaml |
 <!-- docs-gen:end id="glossary-fields-cli-envelope" -->
 
 | Business Rules | Rule | Location |
 |----------------|------|----------|
 | Frozen shape | no new top-level fields; additionalProperties: false | src/schemas/cli-envelope.schema.yaml |
+| Identity field | the top-level `command` field names the invocable that produced the envelope: a stage id, a cross-cutting command id, or `cli` | src/scripts/lib/cli.ts (normalizeEnvelope) |
+| Status/changes data | status data is exactly {change_name, stage, agent, suggested_command} (+ open_feedback on the open-feedback branch); changes entries are {change_name, stage, agent, suggested_command, open_feedback}; `stage` names the stage to run now (or `complete`), `agent` is its bound agent (null when unbound or complete) — no per-stage pipeline, model pair, or change_root | src/scripts/workflows/status.ts, src/scripts/workflows/changes.ts |
 
 ## Entity: Artifact Status
 
@@ -233,7 +235,7 @@
 |----------------|------|----------|
 | Precedence | effectiveModel = model_override ?? model; deploy renders effectiveModel into frontmatter while source model stays the recommendation | src/scripts/lib/agent-registry.ts, src/scripts/lib/deploy/platforms/opencode.ts |
 | Validation | model must be a member of the enum; empty model_override fails naming file and value; free-form non-empty overrides pass | src/scripts/lib/agent-model-fields.ts, src/policies/errors.yaml |
-| Surfacing | CLI data exposes both model (recommended) and effectiveModel for bound agents | src/scripts/workflows/index.ts, src/scripts/workflows/status.ts |
+| Surfacing | `data.commands[]` entries (from `--list-commands` / `--help`) expose both model (recommended) and effectiveModel for bound agents | src/scripts/workflows/index.ts |
 
 ## Entity: Improvement Review (src/skills/improvement-review)
 

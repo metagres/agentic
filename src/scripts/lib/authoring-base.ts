@@ -40,7 +40,7 @@ export function stepPredicate(
  * Generic authoring step machine (FLW-002, engagement contract): authoring,
  * ready, complete, recovery. The current step is detected purely from
  * artifact state — never from stage hooks or granular in-artifact
- * confirmation flags. A change-less workflow invocation is a usage error
+ * confirmation flags. A change-less stage invocation is a usage error
  * (the engagement backstop), never a step:
  * - no artifact -> authoring (created but empty)
  * - rejected status or any mechanical finding -> recovery (every finding

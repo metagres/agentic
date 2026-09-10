@@ -179,7 +179,7 @@ function usage(stage: StageRecord, code = EXIT.ok) {
   if (code === EXIT.ok) {
     writeJson(
       helpEnvelope({
-        workflow: stage.id,
+        command: stage.id,
         purpose:
           'Knowledge extraction: list the collected living-doc deltas, apply them, then mark the synchronization complete.',
         usage: [
@@ -195,7 +195,7 @@ function usage(stage: StageRecord, code = EXIT.ok) {
 
   writeJson(
     {
-      workflow: stage.id,
+      command: stage.id,
       step: 'help',
       state: 'blocked',
       instructions: `Usage: sdlc ${stage.id} --change <change-name> [--complete] ` + CWD_FLAG_DOC,
@@ -237,7 +237,7 @@ export async function runAggregatorStage(
   const helpStep = Boolean(args['help-step']);
 
   const base: Record<string, unknown> = {
-    workflow: stage.id,
+    command: stage.id,
     step: 'docs_delta',
   };
 

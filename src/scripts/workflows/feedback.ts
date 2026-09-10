@@ -74,7 +74,7 @@ export function runFeedback(argv: string[]) {
   if (args.help) {
     return writeJson(
       helpEnvelope({
-        workflow: 'feedback',
+        command: 'feedback',
         purpose:
           'Pause the current stage and revert a previous stage to draft for corrections; resolve the entry to unblock the flow. --list shows the full history read-only.',
         usage: [
@@ -90,7 +90,7 @@ export function runFeedback(argv: string[]) {
 
   if (!args.change) {
     return writeJson({
-      workflow: 'feedback',
+      command: 'feedback',
       step: 'blocked',
       state: 'blocked',
       instructions: 'Usage: sdlc feedback --change <change-name> --from <stage> --to <stage> --reason "..." [--resolve <FB-id>] ' + CWD_FLAG_DOC,
@@ -106,7 +106,7 @@ export function runFeedback(argv: string[]) {
   } catch (err: unknown) {
     if (err instanceof ResolveRootError) {
       return writeJson({
-        workflow: 'feedback',
+        command: 'feedback',
         step: 'blocked',
         state: 'blocked',
         instructions: err.message,
@@ -138,7 +138,7 @@ export function runFeedback(argv: string[]) {
 
     if (!entry) {
       return writeJson({
-        workflow: 'feedback',
+        command: 'feedback',
         step: 'blocked',
         state: 'blocked',
         instructions: `Feedback entry ${id} not found.`,
@@ -164,10 +164,10 @@ export function runFeedback(argv: string[]) {
     }
 
     return writeJson({
-      workflow: 'feedback',
+      command: 'feedback',
       step: 'resolved',
       state: 'complete',
-      instructions: `Feedback ${id} resolved. ${entry.from_stage} is now unblocked. Resume ${entry.from_stage} workflow.`,
+      instructions: `Feedback ${id} resolved. ${entry.from_stage} is now unblocked. Resume the ${entry.from_stage} stage.`,
       data: { change_root: changeRoot, resolved_id: id },
       errors: [],
       warnings: [],
@@ -179,7 +179,7 @@ export function runFeedback(argv: string[]) {
   if (args.list) {
     if (args.from || args.to || args.reason || args.resolve) {
       return writeJson({
-        workflow: 'feedback',
+        command: 'feedback',
         step: 'blocked',
         state: 'blocked',
         instructions: '--list is read-only: it cannot combine with --from/--to/--reason or --resolve.',
@@ -190,7 +190,7 @@ export function runFeedback(argv: string[]) {
     }
 
     return writeJson({
-      workflow: 'feedback',
+      command: 'feedback',
       step: 'list',
       state: 'ok',
       instructions:
@@ -209,7 +209,7 @@ export function runFeedback(argv: string[]) {
   // Handle new feedback creation
   if (!args.from || !args.to || !args.reason) {
     return writeJson({
-      workflow: 'feedback',
+      command: 'feedback',
       step: 'blocked',
       state: 'blocked',
       instructions: 'Usage: sdlc feedback --change <change-name> --from <stage> --to <stage> --reason "..." ' + CWD_FLAG_DOC,
@@ -229,7 +229,7 @@ export function runFeedback(argv: string[]) {
 
   if (!fromStage || !toStage) {
     return writeJson({
-      workflow: 'feedback',
+      command: 'feedback',
       step: 'blocked',
       state: 'blocked',
       instructions: `Invalid stage. Valid stages: ${registry.map((s) => s.id).join(', ')}`,
@@ -243,7 +243,7 @@ export function runFeedback(argv: string[]) {
   const downstream = downstreamStageIds(to, registry);
   if (!downstream.includes(from)) {
     return writeJson({
-      workflow: 'feedback',
+      command: 'feedback',
       step: 'blocked',
       state: 'blocked',
       instructions: `Cannot provide feedback from ${from} to ${to}. Target stage must precede source stage.`,
@@ -283,7 +283,7 @@ export function runFeedback(argv: string[]) {
   writeYamlAtomic(feedbackPath, feedbackDoc);
 
   return writeJson({
-    workflow: 'feedback',
+    command: 'feedback',
     step: 'created',
     state: 'complete',
     instructions: `Reverted ${to} to draft and blocked ${downstream.filter((d) => d !== to).join(', ') || 'none'}. Run scripts/sdlc.js ${to} --change <change-name> to resolve the issue, re-review, then run: sdlc feedback --change <change-name> --resolve ${id}`,

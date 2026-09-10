@@ -17,17 +17,17 @@ function runCli(args) {
 
 const CROSS_CUTTING_IDS = ['status', 'feedback', 'doctor'];
 
-test('--list-workflows lists discovered stages plus cross-cutting commands', () => {
-  const res = runCli(['--list-workflows']);
+test('--list-commands lists discovered stages plus cross-cutting commands', () => {
+  const res = runCli(['--list-commands']);
 
   assert.equal(res.status, 0, res.stderr);
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'cli');
+  assert.equal(json.command, 'cli');
   assert.equal(json.state, 'ok');
 
-  const ids = json.data.workflows.map((w) => w.id);
+  const ids = json.data.commands.map((w) => w.id);
 
   // Every stage discovered by the registry appears without any TypeScript
   // change; the expectation derives from the registry itself.
@@ -47,13 +47,13 @@ test('--list-workflows lists discovered stages plus cross-cutting commands', () 
 });
 
 test('unknown command returns blocked state', () => {
-  const res = runCli(['not-a-workflow']);
+  const res = runCli(['not-a-command']);
 
   assert.equal(res.status, 2);
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'not-a-workflow');
+  assert.equal(json.command, 'not-a-command');
   assert.equal(json.state, 'blocked');
 });
 
@@ -64,6 +64,6 @@ test('--help returns ok state', () => {
 
   const json = JSON.parse(res.stdout);
 
-  assert.equal(json.workflow, 'cli');
+  assert.equal(json.command, 'cli');
   assert.equal(json.state, 'ok');
 });
