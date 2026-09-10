@@ -1,25 +1,5 @@
 version: 1
 steps:
-  needs_input:
-    title: Needs input
-    markdown: |
-      One question per turn: which change to plan. If `data.existing_changes` lists several, present that list and let the user pick; otherwise ask for the change name.
-
-      Run the matching command. Report one line: which command ran.
-    commands:
-      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
-
-  init:
-    title: Initialization
-    markdown: |
-      The script created the initial plan artifact. The required predecessor stages must be accepted before authoring begins.
-
-      Read requirements.yaml and design.yaml — the FR/NFR/AC ids tasks must reference live in requirements.yaml, the DEC ids in design.yaml. Read the living docs relevant to the change — AGENTS.md section 4 maps docs/current by session goal. Chain reads silently.
-
-      Report one line: artifact initialized (path) + docs consulted.
-    commands:
-      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
-
   authoring:
     title: Authoring
     markdown: |

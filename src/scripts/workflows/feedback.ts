@@ -4,6 +4,7 @@ import { writeYamlAtomic, readYaml } from '../lib/yaml-io.ts';
 import { resolveRootOrError, ResolveRootError } from '../lib/resolve-root.ts';
 import { today, nextId } from '../lib/ids.ts';
 import { makeError } from '../lib/error-catalog.ts';
+import { helpEnvelope, rejectUnknownFlags, FEEDBACK_FLAGS } from '../lib/help.ts';
 import { loadStageRegistry, getStageById } from '../lib/stage-registry.ts';
 import type { StageRecord } from '../lib/stage-registry.ts';
 
@@ -67,7 +68,25 @@ function setTrackedStatus(
 
 export function runFeedback(argv: string[]) {
   const args = parseArgs(argv);
+  rejectUnknownFlags('feedback', args, FEEDBACK_FLAGS);
   const cwd = resolveCwd(args);
+
+  if (args.help) {
+    return writeJson(
+      helpEnvelope({
+        workflow: 'feedback',
+        purpose:
+          'Pause the current stage and revert a previous stage to draft for corrections; resolve the entry to unblock the flow. --list shows the full history read-only.',
+        usage: [
+          'sdlc feedback --change <change-name> --from <stage> --to <stage> --reason "..."',
+          'sdlc feedback --change <change-name> --resolve <FB-id>',
+          'sdlc feedback --change <change-name> --list',
+        ],
+        flags: FEEDBACK_FLAGS,
+      }),
+      EXIT.ok
+    );
+  }
 
   if (!args.change) {
     return writeJson({
@@ -150,6 +169,38 @@ export function runFeedback(argv: string[]) {
       state: 'complete',
       instructions: `Feedback ${id} resolved. ${entry.from_stage} is now unblocked. Resume ${entry.from_stage} workflow.`,
       data: { change_root: changeRoot, resolved_id: id },
+      errors: [],
+      warnings: [],
+    }, EXIT.ok);
+  }
+
+  // Read-only listing (FR-005): every entry with all recorded fields; --list
+  // is incompatible with the creation and resolve modes.
+  if (args.list) {
+    if (args.from || args.to || args.reason || args.resolve) {
+      return writeJson({
+        workflow: 'feedback',
+        step: 'blocked',
+        state: 'blocked',
+        instructions: '--list is read-only: it cannot combine with --from/--to/--reason or --resolve.',
+        data: { change_root: changeRoot },
+        errors: [makeError('USAGE', { message: '--list conflicts with creation or resolve flags.' })],
+        warnings: [],
+      }, EXIT.usage);
+    }
+
+    return writeJson({
+      workflow: 'feedback',
+      step: 'list',
+      state: 'ok',
+      instructions:
+        (feedbackDoc.entries?.length || 0) === 0
+          ? 'No feedback entries recorded for this change.'
+          : `${feedbackDoc.entries.length} feedback entr(ies).`,
+      data: {
+        change_root: changeRoot,
+        feedback: feedbackDoc.entries,
+      },
       errors: [],
       warnings: [],
     }, EXIT.ok);

@@ -83,13 +83,14 @@ for (const [stageId, keys] of Object.entries(expectedKeys)) {
       );
     }
 
-    // Requirements initialization contract (CMP-010, AC-016): the template must
-    // start with both confirmation flags false so a freshly created change
-    // routes into init (context loading) and then discovery first.
+    // Requirements initialization contract (engagement contract, FR-012): the
+    // template must start with discovery_reviewed false so a freshly created
+    // change routes into discovery first; the init step and its
+    // context_loaded flag are retired.
     if (stageId === 'requirements') {
-      if (metadata.discovery_reviewed !== false || metadata.context_loaded !== false) {
+      if (metadata.discovery_reviewed !== false) {
         throw new Error(
-          'requirements template must initialize discovery_reviewed and context_loaded to false'
+          'requirements template must initialize discovery_reviewed to false'
         );
       }
 

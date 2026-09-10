@@ -102,10 +102,10 @@ test('finalize on a finding-bearing artifact lists every finding with the lint p
   // No dangling ` - ` bullet: every list line is `- [check] finding — fix`.
   assert.doesNotMatch(out.instructions, /\n\s*-\s*$/);
   assert.match(out.instructions, /- \[unique-ids\] /);
-  // The diagnostic pointer names the lint surface.
+  // The diagnostic pointer names the CLI-native lint surface.
   assert.match(
     out.instructions,
-    /Run node bin\/lint-artifact\.ts --target requirements --artifact .* for details\./
+    /Run sdlc requirements --change <change-name> --lint for the findings-only view\./
   );
 });
 

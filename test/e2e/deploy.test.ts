@@ -102,6 +102,12 @@ test('deploy bundle smoke test', { timeout: 240000 }, () => {
     skillMdContent.includes('only via the sdlc CLI'),
     'generated SKILL.md must contain the artifact-rule marker phrase'
   );
+  // Delegation precedence for review rounds (review verdict input contract):
+  // step 4 states that semantic check names are passed verbatim.
+  assert.ok(
+    skillMdContent.includes('pass the declared semantic check names verbatim'),
+    'generated SKILL.md must carry the verbatim semantic check names line'
+  );
 
   const expectedSchemas = [
     'stage.schema.yaml',

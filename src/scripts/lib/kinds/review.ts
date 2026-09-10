@@ -13,20 +13,15 @@ import { buildStepVars, renderStepHelp, renderTemplate } from '../step-render.ts
 import { validateArtifact } from '../validate.ts';
 import { evaluateGate } from '../requires-graph.ts';
 import { makeError } from '../error-catalog.ts';
+import { helpEnvelope, rejectUnknownFlags, REVIEW_FLAGS } from '../help.ts';
 import {
   FailureFileError,
   parseFailuresFile,
+  parseFailuresStdin,
   validateSemanticFailures,
 } from '../review-findings.ts';
 import type { Failure } from '../review-findings.ts';
 import type { WarningItem, Finding } from '../types.ts';
-
-export interface ReviewRunOptions {
-  // Legacy 'review --target X' interim routing (TASK-008): report workflow
-  // 'review' and data.target as the original target label.
-  workflowLabel?: string;
-  targetLabel?: string;
-}
 
 function semanticChecksFor(stage: StageRecord): string[] {
   if (!stage.files.semanticChecks) return [];
@@ -77,13 +72,13 @@ function failureLines(failures: Failure[]): string {
 export async function runReviewStage(
   stage: StageRecord,
   argv: string[],
-  cwd: string,
-  options: ReviewRunOptions = {}
+  cwd: string
 ): Promise<void> {
   const args = parseArgs(argv);
-  const workflow = options.workflowLabel || stage.id;
+  rejectUnknownFlags(stage.id, args, REVIEW_FLAGS);
+  const workflow = stage.id;
   const targetStage = stage.reviews ? getStageById(cwd, stage.reviews) : null;
-  const targetLabel = options.targetLabel || stage.reviews || stage.id;
+  const targetLabel = stage.reviews || stage.id;
 
   // Step-data-driven surface (DM-003): the envelope step id, the instruction
   // base markdown, and the opt-in step_help payload all come from the stage's
@@ -104,34 +99,42 @@ export async function runReviewStage(
   let stepId = 'review';
 
   const usage = (code: number, message: string | null = null) => {
-    const instructions =
-      options.workflowLabel === 'review'
-        ? 'Usage: sdlc review --target <requirements|design|plan|implementation> --change <change-name> [--accept|--reject] [--failures <file>] [--dry-run] ' +
-          CWD_FLAG_DOC
-        : `Usage: sdlc ${stage.id} --change <change-name> [--accept|--reject] [--failures <file>] [--dry-run] ` +
-          CWD_FLAG_DOC;
+    if (code === EXIT.ok) {
+      writeJson(
+        helpEnvelope({
+          workflow: stage.id,
+          purpose: `Review gate for ${targetLabel}: run the mechanical + semantic checks and record the verdict.`,
+          usage: [
+            `sdlc ${stage.id} --change <change-name>`,
+            `sdlc ${stage.id} --change <change-name> --list-semantic-checks`,
+            `sdlc ${stage.id} --change <change-name> --dry-run`,
+            `sdlc ${stage.id} --change <change-name> --accept`,
+            `sdlc ${stage.id} --change <change-name> --reject --failures <file|->`,
+          ],
+          flags: REVIEW_FLAGS,
+          extraData: targetStage ? { reviews: targetStage.id } : {},
+        }),
+        code
+      );
+      return;
+    }
+
     writeJson(
       {
         workflow,
         step: 'help',
-        state: code === EXIT.ok ? 'ok' : 'blocked',
-        instructions,
+        state: 'blocked',
+        instructions:
+          `Usage: sdlc ${stage.id} --change <change-name> [--accept|--reject] [--failures <file|->] [--list-semantic-checks] [--dry-run] ` +
+          CWD_FLAG_DOC,
         data: {
           ...(targetStage ? { reviews: targetStage.id } : {}),
-          known_targets: options.workflowLabel === 'review' ? ['requirements', 'design', 'plan', 'implementation'] : undefined,
         },
-        errors:
-          code === EXIT.ok
-            ? []
-            : [
-                makeError('USAGE', {
-                  message:
-                    message ||
-                    (options.workflowLabel === 'review'
-                      ? 'review requires --target <requirements|design|plan|implementation> and --change <change-name>'
-                      : `review requires --change <change-name>`),
-                }),
-              ],
+        errors: [
+          makeError('USAGE', {
+            message: message || `review requires --change <change-name>`,
+          }),
+        ],
         warnings: [],
       },
       code
@@ -143,26 +146,20 @@ export async function runReviewStage(
     return;
   }
 
-  // Interim routing: the dedicated review command requires --target.
-  if (options.workflowLabel === 'review' && !args.target) {
-    usage(EXIT.usage);
-    return;
-  }
-
   if (!args.change) {
     writeJson(
       {
         workflow,
-        step: 'needs_input',
+        step: 'blocked',
         state: 'blocked',
         instructions: compose(
-          markdownFor('needs_input', null),
+          "A workflow invocation must be engaged with a change: provide --change <change-name> (one of data.available_changes). Change identification is the skill's job, never a stage step.",
           'Provide --change <change-name>.'
         ),
         data: {
           target: targetLabel,
           target_artifact: stage.artifact,
-          ...(helpStep ? { step_help: helpFor('needs_input', null) } : {}),
+          available_changes: [],
         },
         errors: [makeError('MISSING_CHANGE_DIR')],
         warnings: [],
@@ -180,16 +177,15 @@ export async function runReviewStage(
       writeJson(
         {
           workflow,
-          step: 'needs_input',
+          step: 'blocked',
           state: 'blocked',
-          instructions: compose(markdownFor('needs_input', null), err.message),
+          instructions: compose('', err.message),
           data: {
             target: targetLabel,
             target_artifact: stage.artifact,
             candidates: err.candidates || [],
             available_changes: err.available || [],
             searched: err.searched || undefined,
-            ...(helpStep ? { step_help: helpFor('needs_input', null) } : {}),
           },
           errors: [
             makeError(
@@ -212,6 +208,33 @@ export async function runReviewStage(
       return;
     }
     throw err;
+  }
+
+  // Declared-checks listing (informational): prints the target stage's
+  // declared semantic checks and exits without opening, refreshing, or
+  // writing any round — a pure read over the stage's semantic-checks.yaml.
+  if (args['list-semantic-checks']) {
+    const listStage = targetStage || stage;
+    const checks = semanticChecksFor(listStage);
+    writeJson(
+      {
+        workflow,
+        step: 'list_checks',
+        state: 'ok',
+        instructions:
+          `The ${listStage.id} stage declares ${checks.length} semantic checks. ` +
+          `A check's name is its full question text, copied verbatim — checklist numbers are list positions, not names; ` +
+          `record at most one entry per failed check, merging all of that check's findings into the single entry's evidence.`,
+        data: {
+          target: targetLabel,
+          semantic_checks: checks,
+        },
+        errors: [],
+        warnings: [],
+      },
+      EXIT.ok
+    );
+    return;
   }
 
   // Detected step (DM-003): the verdict flags select the accept/reject steps;
@@ -242,57 +265,6 @@ export async function runReviewStage(
   // mutation so the artifact and review file stay untouched.
   const failuresFile =
     typeof args.failures === 'string' ? String(args.failures).trim() : '';
-
-  if (args.note !== undefined) {
-    writeJson(
-      {
-        workflow,
-        step: stepId,
-        state: 'blocked',
-        instructions:
-          '--note was removed. Rejections are evidence-backed: run --reject --failures <file> with a top-level YAML list of the failed semantic checks as {check, evidence}; mechanical failures are CLI-computed and need no input.',
-        data: {
-          target: targetLabel,
-          target_artifact: stage.artifact,
-          change_root: changeRoot,
-        },
-        errors: [
-          makeError('USAGE', {
-            message:
-              '--note was removed. Rejections are evidence-backed: use --reject --failures <file> ({check, evidence} entries).',
-          }),
-        ],
-        warnings: [],
-      },
-      EXIT.usage
-    );
-    return;
-  }
-
-  if (args.findings !== undefined) {
-    writeJson(
-      {
-        workflow,
-        step: stepId,
-        state: 'blocked',
-        instructions:
-          '--findings was renamed to --failures. Supply a top-level YAML list of the failed semantic checks as {check, evidence} entries.',
-        data: {
-          target: targetLabel,
-          target_artifact: stage.artifact,
-          change_root: changeRoot,
-        },
-        errors: [
-          makeError('USAGE', {
-            message: '--findings was renamed to --failures ({check, evidence} entries).',
-          }),
-        ],
-        warnings: [],
-      },
-      EXIT.usage
-    );
-    return;
-  }
 
   if (failuresFile && args.accept) {
     writeJson(
@@ -341,9 +313,10 @@ export async function runReviewStage(
     return;
   }
 
-  if (failuresFile && !fs.existsSync(failuresFile)) {
+  if (failuresFile && failuresFile !== '-' && !fs.existsSync(failuresFile)) {
     // The --failures value resolves relative to the process working
-    // directory, matching --record-answers behavior (assumption 5).
+    // directory, matching --record-answers behavior (assumption 5); the
+    // special value '-' reads the failures YAML from stdin instead of a file.
     writeJson(
       {
         workflow,
@@ -372,7 +345,7 @@ export async function runReviewStage(
 
   if (failuresFile) {
     try {
-      semanticFailures = parseFailuresFile(failuresFile);
+      semanticFailures = failuresFile === '-' ? parseFailuresStdin() : parseFailuresFile(failuresFile);
     } catch (err: unknown) {
       if (err instanceof FailureFileError) {
         writeJson(
@@ -530,7 +503,8 @@ export async function runReviewStage(
     // path dispositioned the semantic checklist.
     if (semanticFailures) {
       try {
-        validateSemanticFailures(semanticFailures, semanticChecksFor(trackedStage));
+        const stageChecks = semanticChecksFor(trackedStage);
+        validateSemanticFailures(semanticFailures, stageChecks);
       } catch (err: unknown) {
         if (err instanceof FailureFileError) {
           writeJson(
@@ -545,6 +519,9 @@ export async function runReviewStage(
                 artifact: artifactPath,
                 change_root: changeRoot,
                 failures: [],
+                // The declared checks ride the refusal so the retry needs no
+                // extra listing call.
+                semantic_checks: semanticChecksFor(trackedStage),
               },
               errors: [makeError(err.code, { message: err.message })],
               warnings: [],
@@ -659,7 +636,7 @@ export async function runReviewStage(
           markdownFor('review', changeRoot),
           `The ${trackedStage.id} artifact passed mechanical validation. Review the semantic checklist:\n\n${stageChecks
             .map((c, i) => `${i + 1}. ${c}`)
-            .join('\n')}\n\nVerdict guidance: --accept accepts the artifact (failures recorded as []); --reject --failures <file> records the failed semantic checks as a top-level YAML list of {check, evidence}. Complete the verdict in this session — a review without a recorded verdict is an incomplete review, and a bare re-invocation only refreshes the open round.`
+            .join('\n')}\n\nThe numbers above are list positions, not names: a semantic check's name is its full question text, copied verbatim; record at most one entry per failed check, merging all of that check's findings into the single entry's evidence.\n\nVerdict guidance: --accept accepts the artifact (failures recorded as []); --reject --failures <file> records the failed semantic checks as a top-level YAML list of {check, evidence}. Complete the verdict in this session — a review without a recorded verdict is an incomplete review, and a bare re-invocation only refreshes the open round.`
         );
       } else {
         state = 'blocked';
@@ -751,6 +728,10 @@ export async function runReviewStage(
           review_file: reviewPath,
           status: roundStatus,
           failures: roundFailures,
+          // Structured checklist (bare invocations only): the declared checks
+          // ride the review envelope so copying a check name into a --failures
+          // entry is mechanical; verdict envelopes stay lean.
+          ...(args.accept || args.reject ? {} : { semantic_checks: semanticChecksFor(trackedStage) }),
           dry_run: dryRun,
           artifact_status: metadata[trackedStage.statusField] as string | null || null,
           round: recordedRound,
@@ -789,16 +770,3 @@ export async function runReviewStage(
   }
 }
 
-/**
- * Interim entry for the dedicated review command (TASK-008): --target maps to
- * the <target>-review stage until TASK-009 removes the command.
- */
-export function reviewTargetToStageId(target: string | null | undefined): string | null {
-  if (!target) return null;
-  const normalized = String(target).replace(/\.yaml$/, '');
-  const aliases: Record<string, string> = {
-    plan: 'planning',
-  };
-  const stageId = aliases[normalized] || normalized;
-  return `${stageId}-review`;
-}

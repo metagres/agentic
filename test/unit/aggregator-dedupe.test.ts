@@ -10,32 +10,32 @@ function delta(overrides: Delta): Delta {
     target_doc: 'docs/current/architecture.md',
     change: 'Modify',
     reason: 'Placeholder reason that is long enough.',
-    phase: 'Requirements',
+    stage: 'requirements',
     ...overrides,
   };
 }
 
-test('three-phase same-doc Modify collapses to one entry and the latest phase reason survives', () => {
+test('same-doc Modify entries collapse to one and the latest stage reason survives', () => {
   const input = [
-    delta({ phase: 'Requirements', reason: 'Requirements-phase framing of the edit.' }),
-    delta({ phase: 'Design', reason: 'Design-phase refinement of the same edit.' }),
-    delta({ phase: 'Planning', reason: 'Planning-phase final wording of the edit.' }),
+    delta({ stage: 'requirements', reason: 'requirements-stage framing of the edit.' }),
+    delta({ stage: 'design', reason: 'design-stage refinement of the same edit.' }),
+    delta({ stage: 'planning', reason: 'planning-stage final wording of the edit.' }),
   ];
 
   const result = dedupeDeltas(input);
 
   assert.equal(result.length, 1);
-  assert.equal(result[0].phase, 'Planning');
-  assert.equal(result[0].reason, 'Planning-phase final wording of the edit.');
+  assert.equal(result[0].stage, 'planning');
+  assert.equal(result[0].reason, 'planning-stage final wording of the edit.');
   assert.equal(result[0].target_doc, 'docs/current/architecture.md');
   assert.equal(result[0].change, 'Modify');
 });
 
 test('same target_doc with different change types stays separate', () => {
   const input = [
-    delta({ change: 'Add', phase: 'Requirements', reason: 'Add the section once.' }),
-    delta({ change: 'Modify', phase: 'Design', reason: 'Modify the same section later.' }),
-    delta({ change: 'Remove', phase: 'Planning', reason: 'Remove a sibling section.' }),
+    delta({ change: 'Add', stage: 'requirements', reason: 'Add the section once.' }),
+    delta({ change: 'Modify', stage: 'design', reason: 'Modify the same section later.' }),
+    delta({ change: 'Remove', stage: 'planning', reason: 'Remove a sibling section.' }),
   ];
 
   const result = dedupeDeltas(input);
@@ -50,18 +50,18 @@ test('same target_doc with different change types stays separate', () => {
 test('distinct non-null anchors on the same doc+change are preserved as separate entries', () => {
   const input = [
     delta({
-      phase: 'Requirements',
+      stage: 'requirements',
       target_anchor: '## Registration Flow',
       reason: 'Edit the registration flow section.',
     }),
     delta({
-      phase: 'Design',
+      stage: 'design',
       target_anchor: '## Device Lifecycle',
       reason: 'Edit the device lifecycle section.',
     }),
-    // A later phase restates the first anchored edit: it wins within its anchor.
+    // A later stage restates the first anchored edit: it wins within its anchor.
     delta({
-      phase: 'Planning',
+      stage: 'planning',
       target_anchor: '## Registration Flow',
       reason: 'Final wording for the registration flow section.',
     }),
@@ -76,25 +76,25 @@ test('distinct non-null anchors on the same doc+change are preserved as separate
   assert.equal(byAnchor.get('## Device Lifecycle')?.reason, 'Edit the device lifecycle section.');
 });
 
-test('output order is deterministic: target_doc, then change, then phase', () => {
+test('output order is deterministic: target_doc, then change, then stage', () => {
   const input = [
-    delta({ target_doc: 'docs/current/glossary.md', change: 'Add', phase: 'Design' }),
-    delta({ target_doc: 'docs/current/api-contract.md', change: 'Modify', phase: 'Planning' }),
-    delta({ target_doc: 'docs/current/architecture.md', change: 'Remove', phase: 'Requirements' }),
-    delta({ target_doc: 'docs/current/architecture.md', change: 'Add', phase: 'Design' }),
-    // Later entry wins within the architecture+Add group, regardless of phase name.
-    delta({ target_doc: 'docs/current/architecture.md', change: 'Add', phase: 'Requirements' }),
+    delta({ target_doc: 'docs/current/glossary.md', change: 'Add', stage: 'design' }),
+    delta({ target_doc: 'docs/current/api-contract.md', change: 'Modify', stage: 'planning' }),
+    delta({ target_doc: 'docs/current/architecture.md', change: 'Remove', stage: 'requirements' }),
+    delta({ target_doc: 'docs/current/architecture.md', change: 'Add', stage: 'design' }),
+    // Later entry wins within the architecture+Add group, regardless of stage name.
+    delta({ target_doc: 'docs/current/architecture.md', change: 'Add', stage: 'requirements' }),
   ];
 
   const result = dedupeDeltas(input);
 
   assert.deepEqual(
-    result.map((d) => [d.target_doc, d.change, d.phase]),
+    result.map((d) => [d.target_doc, d.change, d.stage]),
     [
-      ['docs/current/api-contract.md', 'Modify', 'Planning'],
-      ['docs/current/architecture.md', 'Add', 'Requirements'],
-      ['docs/current/architecture.md', 'Remove', 'Requirements'],
-      ['docs/current/glossary.md', 'Add', 'Design'],
+      ['docs/current/api-contract.md', 'Modify', 'planning'],
+      ['docs/current/architecture.md', 'Add', 'requirements'],
+      ['docs/current/architecture.md', 'Remove', 'requirements'],
+      ['docs/current/glossary.md', 'Add', 'design'],
     ]
   );
 

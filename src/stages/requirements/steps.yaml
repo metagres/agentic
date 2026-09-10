@@ -1,37 +1,5 @@
 version: 1
 steps:
-  needs_input:
-    title: Needs input
-    markdown: |
-      One question per turn.
-
-      Ask whether this is an existing change or a new request. Existing change:
-      present `data.existing_changes` via the question tool and let the user pick
-      one. New request: ask for the request text.
-
-      If the request text is a solution proposal, re-anchor first:
-      "What problem does X solve for you?"
-
-      Run the matching command. Report one line: which command ran.
-    commands:
-      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
-
-  init:
-    title: Initialization
-    markdown: |
-      The script created the initial requirements artifact.
-
-      Read the living docs relevant to the change — AGENTS.md section 4 maps
-      docs/current by session goal. Read only what is needed. Chain reads silently.
-
-      Confirm with --complete-step --step init. Report one line: artifact title
-      + request summary + living docs consulted.
-    commands:
-      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
-    complete_when:
-      field: metadata.context_loaded
-      equals: true
-
   discovery:
     title: Discovery
     markdown: |

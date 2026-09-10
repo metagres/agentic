@@ -2,6 +2,7 @@ import { getStageById, getStageDescriptions } from '../lib/stage-registry.ts';
 import { getAgentModelFields } from '../lib/agent-registry.ts';
 import { runStage } from '../lib/kinds/index.ts';
 import { runStatus } from './status.ts';
+import { runChanges } from './changes.ts';
 import { runFeedback } from './feedback.ts';
 import { runDoctor } from './doctor.ts';
 import { parseArgs, resolveCwd } from '../lib/cli.ts';
@@ -17,6 +18,12 @@ interface WorkflowEntry {
 // They are never bound to a dedicated agent: agent is null, meaning the
 // current agent runs the command.
 const CROSS_CUTTING: Record<string, WorkflowEntry> = {
+  changes: {
+    id: 'changes',
+    description: 'List every change with tracked per-stage statuses and open feedback.',
+    agent: null,
+    run(argv: string[]) { runChanges(argv); },
+  },
   status: {
     id: 'status',
     description: 'Show pipeline state for a change.',

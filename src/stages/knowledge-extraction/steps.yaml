@@ -1,12 +1,5 @@
 version: 1
 steps:
-  needs_input:
-    title: Needs input
-    markdown: |
-      Ask the user which change to synchronize.
-    commands:
-      - "Run {{SDLC}} {{stage}} --help (or {{SDLC}} {{stage}} --describe-step <step>) and choose the invocation yourself."
-
   docs_delta:
     title: Collect deltas
     markdown: |

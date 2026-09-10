@@ -12,259 +12,247 @@ metadata:
   delta_reviewed: true
   discovery_reviewed: true
   scenarios_reviewed: false
-problem_statement: "The design and planning artifacts carry metadata fields based_on_requirements
-  and based_on_design holding predecessor version strings. Validation deliberately ignores these
-  values (provenance only per DEC-010) and traceability is enforced live by ref-exists against the
-  current predecessor artifacts, so with exactly one active version of each artifact per change the
-  recorded versions have no machine consumer and no enforced meaning. They are nonetheless
-  schema-required, propagate to implementation artifacts through schema_from planning, and are
-  duplicated across templates, hooks, and tests. Separately, artifact creation is ungated: a
-  non-root authoring stage can instantiate its artifact before its required stages are accepted, and
-  the only early signal is an init-step predicate over these same fields. The engine shall carry no
-  redundant dependency state, and pipeline position shall be declared solely by stage descriptors."
+problem_statement: 'The design and planning artifacts carry metadata fields based_on_requirements and
+  based_on_design holding predecessor version strings. Validation deliberately ignores these values (provenance
+  only per DEC-010) and traceability is enforced live by ref-exists against the current predecessor artifacts,
+  so with exactly one active version of each artifact per change the recorded versions have no machine
+  consumer and no enforced meaning. They are nonetheless schema-required, propagate to implementation
+  artifacts through schema_from planning, and are duplicated across templates, hooks, and tests. Separately,
+  artifact creation is ungated: a non-root authoring stage can instantiate its artifact before its required
+  stages are accepted, and the only early signal is an init-step predicate over these same fields. The
+  engine shall carry no redundant dependency state, and pipeline position shall be declared solely by
+  stage descriptors.'
 discovery_log:
-  - id: DL-001
-    question: Who consumes the based_on_* version fields today, and what is lost if they are removed?
-    answer: "No machine consumer: validation deliberately ignores them (DEC-010 provenance-only; a unit
-      test proves a version mismatch produces no finding) and traceability is enforced live via
-      ref-exists against the current predecessor. Sole value is human drift auditing, which nothing
-      acts on. Maintainer approved full removal."
-    lens: stakeholder
-    resolved: true
-  - id: DL-002
-    question: What should the CLI surface after the fields are removed?
-    answer: Hooks stop exposing based_on_requirements/based_on_design in the envelope. The creation-gate
-      blocked envelope reuses the existing STAGE_GATE_BLOCKED shape naming each unsatisfied
-      requirement with its current status, identical to the finalize-time gate.
-    lens: interface
-    resolved: true
-  - id: DL-003
-    question: What happens to existing artifacts that still carry the fields?
-    answer: One-time metadata-only strip of both keys from all docs/changes/*/design.yaml and plan.yaml;
-      no version bump; review files untouched. Mandatory because metadata declares
-      additionalProperties:false, so leftover keys would fail validation.
-    lens: data
-    resolved: true
-  - id: DL-004
-    question: What happens when a stage is started out of order?
-    answer: "Artifact creation is gated: a non-root authoring stage refuses to create its artifact (via
-      --change+--request or lazy instantiation) while its acceptance gate is unsatisfied, returning
-      a blocked envelope; a stage with empty requires is unaffected. The finalize-time gate keeps
-      its existing behavior."
-    lens: failure
-    resolved: true
-  - id: DL-005
-    question: Must the creation gate be data-driven?
-    answer: "Yes: the gate derives everything from the stage descriptor's requires list; no engine code
-      may special-case a stage id or artifact filename to decide what may start a pipeline. Deleting
-      requires from design/stage.yaml alone must make design a valid starting stage with zero code
-      change."
-    lens: constraint
-    resolved: true
+- id: DL-001
+  question: Who consumes the based_on_* version fields today, and what is lost if they are removed?
+  answer: 'No machine consumer: validation deliberately ignores them (DEC-010 provenance-only; a unit
+    test proves a version mismatch produces no finding) and traceability is enforced live via ref-exists
+    against the current predecessor. Sole value is human drift auditing, which nothing acts on. Maintainer
+    approved full removal.'
+  lens: stakeholder
+  resolved: true
+- id: DL-002
+  question: What should the CLI surface after the fields are removed?
+  answer: Hooks stop exposing based_on_requirements/based_on_design in the envelope. The creation-gate
+    blocked envelope reuses the existing STAGE_GATE_BLOCKED shape naming each unsatisfied requirement
+    with its current status, identical to the finalize-time gate.
+  lens: interface
+  resolved: true
+- id: DL-003
+  question: What happens to existing artifacts that still carry the fields?
+  answer: One-time metadata-only strip of both keys from all docs/changes/*/design.yaml and plan.yaml;
+    no version bump; review files untouched. Mandatory because metadata declares additionalProperties:false,
+    so leftover keys would fail validation.
+  lens: data
+  resolved: true
+- id: DL-004
+  question: What happens when a stage is started out of order?
+  answer: 'Artifact creation is gated: a non-root authoring stage refuses to create its artifact (via
+    --change+--request or lazy instantiation) while its acceptance gate is unsatisfied, returning a blocked
+    envelope; a stage with empty requires is unaffected. The finalize-time gate keeps its existing behavior.'
+  lens: failure
+  resolved: true
+- id: DL-005
+  question: Must the creation gate be data-driven?
+  answer: 'Yes: the gate derives everything from the stage descriptor''s requires list; no engine code
+    may special-case a stage id or artifact filename to decide what may start a pipeline. Deleting requires
+    from design/stage.yaml alone must make design a valid starting stage with zero code change.'
+  lens: constraint
+  resolved: true
 assumptions:
-  - type: verified
-    text: Each change folder holds exactly one active requirements.yaml and design.yaml, so there is no
-      multi-version predecessor whose version a successor could disambiguate.
-    source: Repository layout and the sdlc CLI change-folder model.
-  - type: verified
-    text: No validation layer reads the based_on_* values, and a deliberately mismatched version
-      produces no finding.
-    source: src/scripts/lib/validate.ts DEC-010 comment and test/unit/validate.test.ts.
-  - type: verified
-    text: Stage metadata schemas declare additionalProperties false, so artifacts retaining the removed
-      keys fail validation after the schema update.
-    source: src/stages/design/schema.yaml and src/stages/planning/schema.yaml metadata objects.
-  - type: unverified
-    text: No external automation or downstream tool parses based_on_* keys from artifacts or CLI
-      envelopes.
-    risk: Low. The toolkit is self-contained and deployed skills are regenerated build artifacts.
-    impact: An unknown consumer would silently lose the keys. Mitigated by delta entries recording the
-      envelope change.
-    severity: low
+- type: verified
+  text: Each change folder holds exactly one active requirements.yaml and design.yaml, so there is no
+    multi-version predecessor whose version a successor could disambiguate.
+  source: Repository layout and the sdlc CLI change-folder model.
+- type: verified
+  text: No validation layer reads the based_on_* values, and a deliberately mismatched version produces
+    no finding.
+  source: src/scripts/lib/validate.ts DEC-010 comment and test/unit/validate.test.ts.
+- type: verified
+  text: Stage metadata schemas declare additionalProperties false, so artifacts retaining the removed
+    keys fail validation after the schema update.
+  source: src/stages/design/schema.yaml and src/stages/planning/schema.yaml metadata objects.
+- type: unverified
+  text: No external automation or downstream tool parses based_on_* keys from artifacts or CLI envelopes.
+  risk: Low. The toolkit is self-contained and deployed skills are regenerated build artifacts.
+  impact: An unknown consumer would silently lose the keys. Mitigated by delta entries recording the envelope
+    change.
+  severity: low
 functional_requirements:
-  - id: FR-001
-    description: When the design, planning, or implementation artifact contract is processed, the system
-      shall treat the metadata fields based_on_requirements and based_on_design as nonexistent,
-      having removed them from every stage schema, template, hook envelope exposure, and
-      instantiation output.
-    acceptance_criteria:
-      - id: AC-001
-        statement: Given the updated stage schemas and templates, When bin/lint-artifact.ts validates a
-          design artifact whose metadata omits based_on_requirements, Then validation returns zero
-          findings referencing based_on_.
-        category: happy
-      - id: AC-002
-        statement: Given an existing design.yaml that still carries metadata.based_on_requirements, When it
-          is validated after the schema update, Then validation returns a schema finding naming
-          based_on_requirements as a forbidden additional property.
-        category: negative
-      - id: AC-003
-        statement: Given the repository source tree after the change, When src/ and bin/ are searched for
-          the string based_on_, Then no occurrence exists outside test files and docs/changes
-          history.
-        category: boundary
-  - id: FR-002
-    description: When an authoring stage whose descriptor declares a non-empty requires list is invoked
-      in a way that would create its artifact, the system shall evaluate the acceptance gate first
-      and, when the gate is unsatisfied, refuse to create the artifact and return a blocked envelope
-      with error STAGE_GATE_BLOCKED naming each unsatisfied requirement with its current status and
-      required status.
-    acceptance_criteria:
-      - id: AC-004
-        statement: Given a change whose requirements.yaml does not exist or is not accepted, When sdlc
-          design is invoked with --request to create a new change, Then the envelope is blocked with
-          STAGE_GATE_BLOCKED naming requirements-review with artifact requirements.yaml status
-          missing and required accepted, and no design.yaml file is created.
-        category: happy
-      - id: AC-005
-        statement: Given a change whose requirements.yaml has status accepted, When sdlc design is invoked
-          with --change for that change, Then design.yaml is instantiated and the envelope state is
-          not blocked.
-        category: happy
-      - id: AC-006
-        statement: Given a change whose requirements.yaml has status draft and whose design.yaml does not
-          exist, When an authoring command that lazily instantiates the design artifact is invoked,
-          Then no design.yaml is written and the envelope is blocked naming the unsatisfied
-          requirement.
-        category: negative
-      - id: AC-007
-        statement: Given a stage descriptor whose requires list is empty, When its authoring command creates
-          a new change with --request, Then the artifact is created without gate evaluation and the
-          envelope is not blocked.
-        category: boundary
-  - id: FR-003
-    description: When the creation gate decides whether an authoring stage may start a pipeline, the
-      system shall derive the decision solely from the stage descriptor requires list and the
-      tracked-artifact resolution of the requires graph, without special-casing any stage id or
-      artifact filename in engine code.
-    acceptance_criteria:
-      - id: AC-008
-        statement: Given src/stages/design/stage.yaml with its requires list removed and no other repository
-          change, When sdlc design is invoked with --request, Then the change directory and
-          design.yaml are created with no blocked envelope and without any TypeScript change.
-        category: happy
-      - id: AC-009
-        statement: Given the engine source under src/scripts/, When the artifact-creation and gate code
-          paths are searched for the literals requirements.yaml, design.yaml, or a hardcoded stage
-          id participating in a creation or gate decision, Then no such occurrence exists outside
-          stage folders, display-only listings, and tests.
-        category: negative
-  - id: FR-004
-    description: When the step machine detects the current step for the design or planning stage, the
-      system shall treat the init step as complete once the artifact exists, with no completion
-      predicate over based_on_ metadata and no init guidance naming a specific predecessor artifact.
-    acceptance_criteria:
-      - id: AC-010
-        statement: Given a design artifact created through the gated creation path, When the authoring
-          envelope is rendered, Then the detected step is authoring and no envelope data key
-          references based_on_.
-        category: happy
-      - id: AC-011
-        statement: Given the steps.yaml files of the design and planning stages after the change, When their
-          init steps are inspected, Then no complete_when predicate references metadata.based_on_
-          and the init markdown names no specific predecessor artifact filename.
-        category: edge
-  - id: FR-005
-    description: When this change is applied to the repository, the system shall strip
-      based_on_requirements and based_on_design from the metadata of every existing docs/changes
-      design.yaml and plan.yaml without altering any other metadata field, version, status, or
-      review file.
-    acceptance_criteria:
-      - id: AC-012
-        statement: Given every existing change folder under docs/changes after the migration, When
-          bin/lint-artifact.ts validates each design.yaml and plan.yaml against the updated schemas,
-          Then every artifact returns zero blocking findings.
-        category: happy
-      - id: AC-013
-        statement: Given a migrated artifact with status accepted, When its content is compared to the
-          pre-migration version, Then the only difference is the absence of the two based_on_
-          metadata keys and version, status, created, and all review files are unchanged.
-        category: boundary
-  - id: FR-006
-    description: When the test suite runs after this change, the system shall cover the blocked and
-      allowed creation-gate paths and the config-only re-rooting criterion, and shall contain no
-      assertion on based_on_ fields.
-    acceptance_criteria:
-      - id: AC-014
-        statement: Given the updated test suite, When npm run validate runs, Then it passes including new
-          tests covering the blocked creation path, the allowed creation path, and the re-rooting
-          criterion of FR-003.
-        category: happy
-      - id: AC-015
-        statement: Given the test suite after the change, When the tests are searched for assertions on
-          based_on_ fields, Then none exist because the former cross-check unit test and the
-          end-to-end null-value assertion are removed.
-        category: negative
+- id: FR-001
+  description: When the design, planning, or implementation artifact contract is processed, the system
+    shall treat the metadata fields based_on_requirements and based_on_design as nonexistent, having removed
+    them from every stage schema, template, hook envelope exposure, and instantiation output.
+  acceptance_criteria:
+  - id: AC-001
+    statement: Given the updated stage schemas and templates, When bin/lint-artifact.ts validates a design
+      artifact whose metadata omits based_on_requirements, Then validation returns zero findings referencing
+      based_on_.
+    category: happy
+  - id: AC-002
+    statement: Given an existing design.yaml that still carries metadata.based_on_requirements, When it
+      is validated after the schema update, Then validation returns a schema finding naming based_on_requirements
+      as a forbidden additional property.
+    category: negative
+  - id: AC-003
+    statement: Given the repository source tree after the change, When src/ and bin/ are searched for
+      the string based_on_, Then no occurrence exists outside test files and docs/changes history.
+    category: boundary
+- id: FR-002
+  description: When an authoring stage whose descriptor declares a non-empty requires list is invoked
+    in a way that would create its artifact, the system shall evaluate the acceptance gate first and,
+    when the gate is unsatisfied, refuse to create the artifact and return a blocked envelope with error
+    STAGE_GATE_BLOCKED naming each unsatisfied requirement with its current status and required status.
+  acceptance_criteria:
+  - id: AC-004
+    statement: Given a change whose requirements.yaml does not exist or is not accepted, When sdlc design
+      is invoked with --request to create a new change, Then the envelope is blocked with STAGE_GATE_BLOCKED
+      naming requirements-review with artifact requirements.yaml status missing and required accepted,
+      and no design.yaml file is created.
+    category: happy
+  - id: AC-005
+    statement: Given a change whose requirements.yaml has status accepted, When sdlc design is invoked
+      with --change for that change, Then design.yaml is instantiated and the envelope state is not blocked.
+    category: happy
+  - id: AC-006
+    statement: Given a change whose requirements.yaml has status draft and whose design.yaml does not
+      exist, When an authoring command that lazily instantiates the design artifact is invoked, Then no
+      design.yaml is written and the envelope is blocked naming the unsatisfied requirement.
+    category: negative
+  - id: AC-007
+    statement: Given a stage descriptor whose requires list is empty, When its authoring command creates
+      a new change with --request, Then the artifact is created without gate evaluation and the envelope
+      is not blocked.
+    category: boundary
+- id: FR-003
+  description: When the creation gate decides whether an authoring stage may start a pipeline, the system
+    shall derive the decision solely from the stage descriptor requires list and the tracked-artifact
+    resolution of the requires graph, without special-casing any stage id or artifact filename in engine
+    code.
+  acceptance_criteria:
+  - id: AC-008
+    statement: Given src/stages/design/stage.yaml with its requires list removed and no other repository
+      change, When sdlc design is invoked with --request, Then the change directory and design.yaml are
+      created with no blocked envelope and without any TypeScript change.
+    category: happy
+  - id: AC-009
+    statement: Given the engine source under src/scripts/, When the artifact-creation and gate code paths
+      are searched for the literals requirements.yaml, design.yaml, or a hardcoded stage id participating
+      in a creation or gate decision, Then no such occurrence exists outside stage folders, display-only
+      listings, and tests.
+    category: negative
+- id: FR-004
+  description: When the step machine detects the current step for the design or planning stage, the system
+    shall treat the init step as complete once the artifact exists, with no completion predicate over
+    based_on_ metadata and no init guidance naming a specific predecessor artifact.
+  acceptance_criteria:
+  - id: AC-010
+    statement: Given a design artifact created through the gated creation path, When the authoring envelope
+      is rendered, Then the detected step is authoring and no envelope data key references based_on_.
+    category: happy
+  - id: AC-011
+    statement: Given the steps.yaml files of the design and planning stages after the change, When their
+      init steps are inspected, Then no complete_when predicate references metadata.based_on_ and the
+      init markdown names no specific predecessor artifact filename.
+    category: edge
+- id: FR-005
+  description: When this change is applied to the repository, the system shall strip based_on_requirements
+    and based_on_design from the metadata of every existing docs/changes design.yaml and plan.yaml without
+    altering any other metadata field, version, status, or review file.
+  acceptance_criteria:
+  - id: AC-012
+    statement: Given every existing change folder under docs/changes after the migration, When bin/lint-artifact.ts
+      validates each design.yaml and plan.yaml against the updated schemas, Then every artifact returns
+      zero blocking findings.
+    category: happy
+  - id: AC-013
+    statement: Given a migrated artifact with status accepted, When its content is compared to the pre-migration
+      version, Then the only difference is the absence of the two based_on_ metadata keys and version,
+      status, created, and all review files are unchanged.
+    category: boundary
+- id: FR-006
+  description: When the test suite runs after this change, the system shall cover the blocked and allowed
+    creation-gate paths and the config-only re-rooting criterion, and shall contain no assertion on based_on_
+    fields.
+  acceptance_criteria:
+  - id: AC-014
+    statement: Given the updated test suite, When npm run validate runs, Then it passes including new
+      tests covering the blocked creation path, the allowed creation path, and the re-rooting criterion
+      of FR-003.
+    category: happy
+  - id: AC-015
+    statement: Given the test suite after the change, When the tests are searched for assertions on based_on_
+      fields, Then none exist because the former cross-check unit test and the end-to-end null-value assertion
+      are removed.
+    category: negative
 non_functional_requirements:
-  - id: NFR-001
-    description: When engine code evaluates whether an authoring stage may create its artifact, the
-      system shall depend only on descriptor data so that any reordering of the pipeline achieved
-      purely by editing stage.yaml requires lists enforces identically at creation and finalize with
-      zero engine change.
-    acceptance_criteria:
-      - id: AC-016
-        statement: Given a synthetic stage registry in a temporary stages directory where an arbitrary stage
-          declares an empty requires list, When the creation gate is evaluated for that stage
-          through the engine, Then the decision is derived from descriptor data alone and the stage
-          is allowed to create its artifact.
-        category: happy
-      - id: AC-017
-        statement: Given any alternative pipeline order expressed only through requires lists in stage.yaml
-          files, When the full lifecycle is exercised, Then creation-time and finalize-time
-          enforcement agree without any engine code change.
-        category: edge
+- id: NFR-001
+  description: When engine code evaluates whether an authoring stage may create its artifact, the system
+    shall depend only on descriptor data so that any reordering of the pipeline achieved purely by editing
+    stage.yaml requires lists enforces identically at creation and finalize with zero engine change.
+  acceptance_criteria:
+  - id: AC-016
+    statement: Given a synthetic stage registry in a temporary stages directory where an arbitrary stage
+      declares an empty requires list, When the creation gate is evaluated for that stage through the
+      engine, Then the decision is derived from descriptor data alone and the stage is allowed to create
+      its artifact.
+    category: happy
+  - id: AC-017
+    statement: Given any alternative pipeline order expressed only through requires lists in stage.yaml
+      files, When the full lifecycle is exercised, Then creation-time and finalize-time enforcement agree
+      without any engine code change.
+    category: edge
 out_of_scope:
-  - Introducing a based_on descriptor field in stage.yaml. The requires graph remains the single
-    dependency declaration.
-  - Staleness detection or warnings when a predecessor artifact is revised after a successor
-    artifact was authored.
-  - Changes to finalize-time gate semantics, review stages, the tasks kind, or the aggregator kind.
-  - Reordering the shipped pipeline. Requirements stays first in the shipped descriptor set, but its
-    position stops being knowable to engine code.
-  - The listExistingChanges display heuristic that reads the three artifact filenames for the change
-    listing.
+- Introducing a based_on descriptor field in stage.yaml. The requires graph remains the single dependency
+  declaration.
+- Staleness detection or warnings when a predecessor artifact is revised after a successor artifact was
+  authored.
+- Changes to finalize-time gate semantics, review stages, the tasks kind, or the aggregator kind.
+- Reordering the shipped pipeline. Requirements stays first in the shipped descriptor set, but its position
+  stops being knowable to engine code.
+- The listExistingChanges display heuristic that reads the three artifact filenames for the change listing.
 failure_paths:
-  - Out-of-order stage start. The CLI returns a blocked envelope with STAGE_GATE_BLOCKED naming each
-    unsatisfied requirement with its current status, and no artifact file is written.
-  - Legacy artifact still carrying removed keys. JSON Schema validation returns a finding naming the
-    additional property, and remediation is the one-time migration strip of FR-005.
+- Out-of-order stage start. The CLI returns a blocked envelope with STAGE_GATE_BLOCKED naming each unsatisfied
+  requirement with its current status, and no artifact file is written.
+- Legacy artifact still carrying removed keys. JSON Schema validation returns a finding naming the additional
+  property, and remediation is the one-time migration strip of FR-005.
 risks_and_dependencies:
-  - Depends on evaluateGate and tracked-artifact resolution in src/scripts/lib/requires-graph.ts,
-    reused unchanged by the creation path.
-  - Stage templates and steps change the behavior surfaced by the deployed skill, so deployment
-    regeneration is required and covered by deploy smoke.
-  - External tooling that parsed based_on_ envelope keys would lose them. The assumption that no
-    such tooling exists is unverified and recorded with low severity.
+- Depends on evaluateGate and tracked-artifact resolution in src/scripts/lib/requires-graph.ts, reused
+  unchanged by the creation path.
+- Stage templates and steps change the behavior surfaced by the deployed skill, so deployment regeneration
+  is required and covered by deploy smoke.
+- External tooling that parsed based_on_ envelope keys would lose them. The assumption that no such tooling
+  exists is unverified and recorded with low severity.
 delta:
-  - phase: Requirements
-    target_doc: docs/current/capabilities.md
-    target_anchor: "## SDLC Goals"
-    entity_id: null
-    change: Modify
-    reason: Stage lifecycle behavior changes. Artifact creation becomes gated by the acceptance gate and
-      the based_on_ provenance fields are removed.
-    date: 2026-09-03
-  - phase: Requirements
-    target_doc: docs/current/architecture.md
-    target_anchor: null
-    entity_id: null
-    change: Modify
-    reason: The authoring kind creation path now evaluates the acceptance gate, instantiateArtifact no
-      longer stamps predecessor versions, and the init step predicates are removed.
-    date: 2026-09-03
-  - phase: Requirements
-    target_doc: docs/current/api-contract.md
-    target_anchor: null
-    entity_id: null
-    change: Modify
-    reason: CLI envelopes change. Creation of non-root authoring artifacts can return blocked
-      STAGE_GATE_BLOCKED and based_on_ keys disappear from envelope data.
-    date: 2026-09-03
-  - phase: Requirements
-    target_doc: docs/current/decisions.md
-    target_anchor: null
-    entity_id: null
-    change: Add
-    reason: Record the decision superseding the DEC-010 provenance-only rationale. Fields are removed
-      entirely, creation is gated, and the gate is data-driven with no hardcoded root stage.
-    date: 2026-09-03
+- target_doc: docs/current/capabilities.md
+  target_anchor: '## SDLC Goals'
+  entity_id: null
+  change: Modify
+  reason: Stage lifecycle behavior changes. Artifact creation becomes gated by the acceptance gate and
+    the based_on_ provenance fields are removed.
+  date: 2026-09-03
+  stage: requirements
+- target_doc: docs/current/architecture.md
+  target_anchor: null
+  entity_id: null
+  change: Modify
+  reason: The authoring kind creation path now evaluates the acceptance gate, instantiateArtifact no longer
+    stamps predecessor versions, and the init step predicates are removed.
+  date: 2026-09-03
+  stage: requirements
+- target_doc: docs/current/api-contract.md
+  target_anchor: null
+  entity_id: null
+  change: Modify
+  reason: CLI envelopes change. Creation of non-root authoring artifacts can return blocked STAGE_GATE_BLOCKED
+    and based_on_ keys disappear from envelope data.
+  date: 2026-09-03
+  stage: requirements
+- target_doc: docs/current/decisions.md
+  target_anchor: null
+  entity_id: null
+  change: Add
+  reason: Record the decision superseding the DEC-010 provenance-only rationale. Fields are removed entirely,
+    creation is gated, and the gate is data-driven with no hardcoded root stage.
+  date: 2026-09-03
+  stage: requirements

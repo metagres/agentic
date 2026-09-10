@@ -197,18 +197,16 @@
         "additionalProperties": true,
         "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
         "required": [
-          "phase",
+          "stage",
           "target_doc",
           "change",
           "reason",
           "date"
         ],
         "properties": {
-          "phase": {
+          "stage": {
             "type": "string",
-            "enum": [
-              "Design"
-            ]
+            "const": "design"
           },
           "target_doc": {
             "type": "string"

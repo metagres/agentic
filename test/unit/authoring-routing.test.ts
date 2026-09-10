@@ -33,20 +33,16 @@ function makeEnv(overrides: {
   } as AuthorEnv;
 }
 
-test('detectStep maps artifact state onto the six-step tour', () => {
-  // No change root -> needs_input.
-  assert.equal(detectStep(makeEnv({ changeRoot: null })), 'needs_input');
+test('detectStep maps artifact state onto the four-step tour', () => {
+  // No artifact -> authoring (created but empty; the engagement backstop owns
+  // change-less invocations, and change identification is skill-owned).
+  assert.equal(detectStep(makeEnv({ artifact: null })), 'authoring');
+  assert.equal(detectStep(makeEnv({ artifact: { metadata: {} } })), 'discovery');
 
-  // No artifact -> init.
-  assert.equal(detectStep(makeEnv({ artifact: null })), 'init');
-
-  // Created but context not loaded (init predicate unsatisfied) -> init.
-  assert.equal(detectStep(makeEnv({ artifact: { metadata: {} } })), 'init');
-
-  // Context loaded, discovery unconfirmed -> discovery.
+  // Discovery unconfirmed -> discovery.
   assert.equal(
     detectStep(
-      makeEnv({ artifact: { metadata: { title: 'T', request_summary: 'R', context_loaded: true } } })
+      makeEnv({ artifact: { metadata: { title: 'T', request_summary: 'R' } } })
     ),
     'discovery'
   );
@@ -56,7 +52,7 @@ test('detectStep maps artifact state onto the six-step tour', () => {
     detectStep(
       makeEnv({
         artifact: {
-          metadata: { title: 'T', request_summary: 'R', context_loaded: true, discovery_reviewed: true },
+          metadata: { title: 'T', request_summary: 'R', discovery_reviewed: true },
           problem_statement: '',
         },
       })
@@ -69,7 +65,7 @@ test('detectStep maps artifact state onto the six-step tour', () => {
     detectStep(
       makeEnv({
         artifact: {
-          metadata: { title: 'T', request_summary: 'R', context_loaded: true, discovery_reviewed: true },
+          metadata: { title: 'T', request_summary: 'R', discovery_reviewed: true },
           problem_statement: 'P',
         },
       })
@@ -82,7 +78,7 @@ test('detectStep maps artifact state onto the six-step tour', () => {
     detectStep(
       makeEnv({
         artifact: {
-          metadata: { title: 'T', request_summary: 'R', context_loaded: true, discovery_reviewed: true, status: 'ready-for-review' },
+          metadata: { title: 'T', request_summary: 'R', discovery_reviewed: true, status: 'ready-for-review' },
           problem_statement: 'P',
         },
       })
@@ -93,7 +89,7 @@ test('detectStep maps artifact state onto the six-step tour', () => {
     detectStep(
       makeEnv({
         artifact: {
-          metadata: { title: 'T', request_summary: 'R', context_loaded: true, discovery_reviewed: true, status: 'accepted' },
+          metadata: { title: 'T', request_summary: 'R', discovery_reviewed: true, status: 'accepted' },
           problem_statement: 'P',
         },
       })
@@ -106,7 +102,7 @@ test('detectStep maps artifact state onto the six-step tour', () => {
     detectStep(
       makeEnv({
         artifact: {
-          metadata: { title: 'T', request_summary: 'R', context_loaded: true, discovery_reviewed: true, status: 'rejected' },
+          metadata: { title: 'T', request_summary: 'R', discovery_reviewed: true, status: 'rejected' },
           problem_statement: 'P',
         },
       })
@@ -120,7 +116,7 @@ test('detectStep maps artifact state onto the six-step tour', () => {
     detectStep(
       makeEnv({
         artifact: {
-          metadata: { title: 'T', request_summary: 'R', context_loaded: true, discovery_reviewed: true },
+          metadata: { title: 'T', request_summary: 'R', discovery_reviewed: true },
           problem_statement: 'P',
         },
         findings: [{ finding: 'duplicate id' }],
@@ -136,7 +132,7 @@ test('detectStep routes removed legacy step ids nowhere', () => {
   const step = detectStep(
     makeEnv({
       artifact: {
-        metadata: { title: 'T', request_summary: 'R', clarity: 'vague', context_loaded: true, discovery_reviewed: true },
+        metadata: { title: 'T', request_summary: 'R', clarity: 'vague', discovery_reviewed: true },
         problem_statement: 'P',
         discovery_log: [],
         assumptions: [],

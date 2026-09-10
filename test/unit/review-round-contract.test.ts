@@ -505,6 +505,33 @@ test('a malformed --failures file refuses the invocation naming the entry with n
   }
 });
 
+test('an unknown check name is refused with the full submitted value, the verbatim rule, and the listing path', () => {
+  const rc = setupReadyChange('Add device registration');
+  // The numbered pseudo-name that triggered the original failure: longer than
+  // the old 80-char truncation window, so a re-truncation fails this test.
+  const submitted = `${REQUIREMENTS_CHECKS[0].slice(0, 60)} ... (paraphrased tail padded to exceed eighty characters in total length)`;
+  const file = writeFailuresFile(rc, 'unknown.yaml', [{ check: submitted, evidence: 'y' }]);
+
+  const out = runCli(rc.tmp, [
+    'requirements-review',
+    '--change',
+    rc.changeDir,
+    '--reject',
+    '--failures',
+    file,
+  ]);
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.errors[0].code, 'SEMANTIC_FAILURE_INVALID');
+  const message = String(out.errors[0].message);
+  assert.ok(message.includes(submitted), 'refusal carries the full submitted value');
+  assert.match(message, /Copy the declared check text verbatim — numbers are not names/);
+  assert.match(message, /--list-semantic-checks/);
+  // The refusal envelope carries the declared checks: the retry needs no
+  // extra listing call.
+  assert.deepEqual(out.data.semantic_checks, REQUIREMENTS_CHECKS);
+  assertNothingWritten(rc, out);
+});
+
 test('a duplicate semantic failure entry is refused with nothing written', () => {
   const rc = setupReadyChange('Add device registration');
   const failure = semanticFailure(rc);
@@ -520,6 +547,11 @@ test('a duplicate semantic failure entry is refused with nothing written', () =>
   ]);
   assert.equal(out.state, 'blocked');
   assert.equal(out.errors[0].code, 'SEMANTIC_FAILURE_INVALID');
+  // The refusal carries the FULL untruncated check text and the merge rule,
+  // so the reviewer can fix the file without re-deriving the rule.
+  const message = String(out.errors[0].message);
+  assert.ok(message.includes(failure.check), 'refusal names the full check text');
+  assert.match(message, /One entry per failed check: merge all findings of that check into the single entry's evidence/);
   assertNothingWritten(rc, out);
 });
 
@@ -563,7 +595,7 @@ test('a tracked artifact rejected is gate-blocked with required ready-for-review
   assert.equal(artifactStatus(rc), 'rejected');
 });
 
-test('the removed --note flag is refused with a migration message and nothing written', () => {
+test('the removed --note flag is refused by the closed vocabulary and nothing written', () => {
   const rc = setupReadyChange('Add device registration');
 
   const out = runCli(rc.tmp, [
@@ -575,12 +607,12 @@ test('the removed --note flag is refused with a migration message and nothing wr
     'A note.',
   ]);
   assert.equal(out.state, 'blocked');
-  assert.equal(out.errors[0].code, 'USAGE');
-  assert.match(String(out.errors[0].message), /--note was removed/);
+  assert.equal(out.errors[0].code, 'UNKNOWN_FLAG');
+  assert.deepEqual(out.data.unknown_flags, ['--note']);
   assertNothingWritten(rc, out);
 });
 
-test('the removed --findings flag is refused with a rename hint and nothing written', () => {
+test('the removed --findings flag is refused by the closed vocabulary and nothing written', () => {
   const rc = setupReadyChange('Add device registration');
   const file = writeFailuresFile(rc, 'failures.yaml', [semanticFailure(rc)]);
 
@@ -593,8 +625,8 @@ test('the removed --findings flag is refused with a rename hint and nothing writ
     file,
   ]);
   assert.equal(out.state, 'blocked');
-  assert.equal(out.errors[0].code, 'USAGE');
-  assert.match(String(out.errors[0].message), /--findings was renamed to --failures/);
+  assert.equal(out.errors[0].code, 'UNKNOWN_FLAG');
+  assert.deepEqual(out.data.unknown_flags, ['--findings']);
   assertNothingWritten(rc, out);
 });
 
@@ -649,6 +681,53 @@ test('bare-passing instructions list all semantic checks and the verdict guidanc
   for (const check of REQUIREMENTS_CHECKS) {
     assert.ok(out.instructions.includes(check), `instructions list the check: ${check.slice(0, 40)}`);
   }
+});
+
+test('bare-review envelope carries the declared checks and the naming rules; verdict envelopes stay lean', () => {
+  const rc = setupReadyChange('Add device registration');
+
+  const bare = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
+  // Structured checklist: copying a check name into a --failures entry must
+  // be mechanical, not re-typed from prose.
+  assert.deepEqual(bare.data.semantic_checks, REQUIREMENTS_CHECKS);
+  assert.match(bare.instructions, /The numbers above are list positions, not names/);
+  assert.match(bare.instructions, /copied verbatim/);
+  assert.match(bare.instructions, /record at most one entry per failed check/);
+
+  const accept = runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir, '--accept']);
+  assert.equal('semantic_checks' in accept.data, false);
+});
+
+test('--list-semantic-checks prints the declared checks and writes nothing', () => {
+  const rc = setupReadyChange('Add device registration');
+  runCli(rc.tmp, ['requirements-review', '--change', rc.changeDir]);
+  assert.equal(readRounds(rc).length, 1);
+
+  const out = runCli(rc.tmp, [
+    'requirements-review',
+    '--change',
+    rc.changeDir,
+    '--list-semantic-checks',
+  ]);
+  assert.equal(out.state, 'ok');
+  assert.equal(out.step, 'list_checks');
+  assert.deepEqual(out.data.semantic_checks, REQUIREMENTS_CHECKS);
+  // No round opened, refreshed, or written: the open round is untouched.
+  assert.equal(out.data.round, undefined);
+  assert.equal(readRounds(rc).length, 1);
+  assert.equal(readRounds(rc)[0].status, 'open');
+});
+
+test('--list-semantic-checks still requires a resolvable change and writes nothing', () => {
+  const tmp = makeProject();
+
+  const noChange = runCli(tmp, ['requirements-review', '--list-semantic-checks']);
+  assert.equal(noChange.state, 'blocked');
+  assert.equal(noChange.errors[0].code, 'MISSING_CHANGE_DIR');
+
+  const unknown = runCli(tmp, ['requirements-review', '--change', 'no-such-change', '--list-semantic-checks']);
+  assert.equal(unknown.state, 'blocked');
+  assert.equal(unknown.errors[0].code, 'CHANGE_DIR_NOT_FOUND');
 });
 
 test('bare-with-failures instructions say mechanical checks failed and list the failures', () => {
@@ -709,4 +788,33 @@ test('the --failures path resolves relative to the process working directory', (
   ]);
   assert.equal(out.data.status, 'rejected');
   assert.deepEqual((readRounds(rc)[0].failures as unknown[])[0], failure);
+});
+
+// ---------------------------------------------------------------------------
+// Steps-contract lint: the naming and merge rules must survive future
+// steps.yaml rewrites in all four review stages.
+// ---------------------------------------------------------------------------
+
+test('every review stage keeps the verbatim-name and merge rules in review and reject steps', () => {
+  for (const stageId of [
+    'requirements-review',
+    'design-review',
+    'planning-review',
+    'implementation-review',
+  ]) {
+    const stepsPath = path.join(root, 'src', 'stages', stageId, 'steps.yaml');
+    const steps = readYaml(stepsPath) as {
+      steps: Record<string, { markdown?: string }>;
+    };
+
+    const review = steps.steps.review?.markdown || '';
+    assert.match(review, /checklist numbers are list positions, not names/, stageId);
+    assert.match(review, /full question text copied verbatim/, stageId);
+    assert.match(review, /A mechanical failure line looks like/, stageId);
+
+    const reject = steps.steps.reject?.markdown || '';
+    assert.match(reject, /quote the checklist question verbatim/, stageId);
+    assert.match(reject, /One entry per failed check: merge all findings of that check into the single entry's evidence/, stageId);
+    assert.match(reject, /a duplicate entry for a check is refused/, stageId);
+  }
 });

@@ -45,6 +45,15 @@ errors:
   TASK_NOT_FOUND:
     message: Task not found in plan.yaml.
     fix: Use a valid TASK-NNN id.
+  TASK_DEPENDS_ON_UNKNOWN:
+    message: Unknown depends_on task id.
+    fix: Use task ids from data.known_task_ids.
+  TASK_REMOVE_NOT_ALLOWED:
+    message: Done tasks cannot be removed.
+    fix: Mark the task skipped instead, or keep the record.
+  UNKNOWN_FLAG:
+    message: Unknown flag for this command.
+    fix: Check the flags map with --help and retry with declared flags only.
   INVALID_TASK_STATUS:
     message: Invalid task status.
     fix: Use pending, in_progress, done, blocked, or skipped.
@@ -54,9 +63,6 @@ errors:
   TASK_DONE_REQUIRES_NOTE:
     message: Marking a task done requires a non-empty implementation note.
     fix: Re-run the update with --note describing what was implemented.
-  CANNOT_COMPLETE:
-    message: Knowledge extraction cannot complete.
-    fix: Resolve validation errors and mark entries extracted.
   IMPLEMENTATION_NOT_ACCEPTED:
     message: Implementation review is not accepted.
     fix: Complete implementation review before completing knowledge extraction.
@@ -94,18 +100,9 @@ errors:
   UNKNOWN_STAGE_FILTER:
     message: Unknown stage filter.
     fix: Use --stage requirements, design, or planning.
-  MISSING_EXTRACTION_NOTE:
-    message: Marking a docs-delta entry extracted requires a note.
-    fix: Provide --note with at least 10 characters.
-  MISSING_MARK_TARGET:
-    message: Marking extracted requires an entry id or target doc.
-    fix: Provide --entry-id or --target-doc.
   ENTRY_ID_NOT_FOUND:
     message: No docs-delta entry matched the provided entry id.
     fix: Use a valid DD-... entry id from docs-delta.yaml.
-  TARGET_DOC_NOT_FOUND:
-    message: No docs-delta entries matched the provided target doc.
-    fix: Use a target_doc listed in docs-delta.yaml.
   UNPLANNED_FILE:
     message: A task changed a file not listed in the plan.
     fix: Update the plan or explain the incidental change.
@@ -118,9 +115,6 @@ errors:
   ARTIFACT_INITIALIZED:
     message: A new artifact was initialized.
     fix: Continue the workflow and fill in the artifact.
-  DOCS_DELTA_VALIDATION:
-    message: Docs-delta validation found problems.
-    fix: Fix docs-delta entries before completing knowledge extraction.
   NODE_VERSION_UNSUPPORTED:
     message: Node.js version is not supported.
     fix: Use Node.js 20 or newer.
@@ -181,4 +175,4 @@ errors:
     fix: Supply both fields on every entry as a top-level YAML list; no other fields are accepted.
   SEMANTIC_FAILURE_INVALID:
     message: A --failures entry names a check that is not declared in the target stage's semantic-checks.yaml or duplicates another entry.
-    fix: Name only declared semantic checks, one entry per failed check, with non-empty evidence.
+    fix: Copy the declared check text verbatim (numbers are not names), one entry per failed check — merge all evidence for a check into that entry; run --list-semantic-checks to print the declared checks.

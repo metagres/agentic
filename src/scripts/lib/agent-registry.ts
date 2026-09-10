@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { loadStageRegistry } from './stage-registry.ts';
 import { resolveAgentsDir } from './paths.ts';
 import { readYaml } from './yaml-io.ts';
 import { validateWithSchema } from './schema.ts';
@@ -22,7 +23,30 @@ export interface AgentRecord {
   temperature: number;
   mode: string;
   permissions: Record<string, string>;
+  /** Stage kinds the agent is bound to (from the stage descriptors), used by
+   *  the deploy renderer to path-scope file-write grants per kind (FR-007). */
+  stageKinds: string[];
   systemPrompt: string;
+}
+
+/**
+ * Stage kinds the agent is bound to, from the stage registry (FR-007). The
+ * registry is cached, so per-agent calls are cheap; a missing stages
+ * directory degrades to no bindings (deny-scope rendering) instead of
+ * failing the deploy.
+ */
+function stageKindsFor(cwd: string, agentId: string): string[] {
+  try {
+    return [
+      ...new Set(
+        loadStageRegistry(cwd)
+          .filter((stage) => stage.agent === agentId)
+          .map((stage) => stage.kind)
+      ),
+    ];
+  } catch {
+    return [];
+  }
 }
 
 function loadAgentFile(file: string, cwd: string): AgentRecord {
@@ -75,6 +99,7 @@ function loadAgentFile(file: string, cwd: string): AgentRecord {
     temperature: Number(descriptor.temperature ?? 0),
     mode: typeof descriptor.mode === 'string' ? descriptor.mode : 'all',
     permissions: (descriptor.permissions as Record<string, string>) || {},
+    stageKinds: stageKindsFor(cwd, id),
     systemPrompt,
   };
 }

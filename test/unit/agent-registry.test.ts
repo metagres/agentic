@@ -9,6 +9,7 @@ import {
   loadAgentRegistry,
   getAgentById,
 } from '../../src/scripts/lib/agent-registry.ts';
+import { findPromptMarkers } from '../../src/scripts/lib/agent-prompt-marker.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../..');
@@ -298,4 +299,27 @@ test('the shipped YAML system_prompt ends with the output-discipline block', () 
       `'${agent.id}' system_prompt ends with the discipline block`
     );
   }
+});
+
+test('the stage-reviewer prompt carries the check-naming, merge, and chat-discipline convention marker-free', () => {
+  const reviewer = getAgentById(repoRoot, 'stage-reviewer');
+  assert.ok(reviewer, 'the stage-reviewer agent loads');
+
+  // Verdict input contract: verbatim check names, one merged entry per check,
+  // and the chat report carries only the verdict plus failed check names.
+  assert.match(
+    reviewer.systemPrompt,
+    /name checks by their full declared checklist text — never a number, paraphrase, or abbreviation/
+  );
+  assert.match(
+    reviewer.systemPrompt,
+    /all findings of one check merge into that entry's evidence/
+  );
+  assert.match(
+    reviewer.systemPrompt,
+    /the chat report is the one-line verdict plus the failed check names — never the full evidence/
+  );
+
+  // The rule text must stay marker-safe (no CLI flags or envelope phrases).
+  assert.deepEqual(findPromptMarkers(reviewer.systemPrompt), []);
 });

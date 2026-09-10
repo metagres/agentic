@@ -206,8 +206,8 @@ test('a mutation with an unchanged step renders a terse ack without the directiv
   let out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
   const changeDir = path.basename(String(out.data.change_root));
 
-  // Move to the discovery step first (step transition -> full rendering).
-  out = runCli(tmp, ['requirements', '--change', changeDir, '--complete-step', '--step', 'init']);
+  // The fresh artifact lands on the discovery step directly (no init step).
+  out = runCli(tmp, ['requirements', '--change', changeDir]);
   assert.equal(out.step, 'discovery', JSON.stringify(out));
   assert.ok(
     String(out.instructions).includes('bound to the dedicated agent'),

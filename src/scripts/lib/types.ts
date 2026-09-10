@@ -40,7 +40,6 @@ export interface Ctx {
 export interface StageDef {
   id: string;
   artifactFile: string;
-  deltaPhase: string;
   initialArtifact: (request: string, env: Record<string, unknown>) => Record<string, unknown>;
   nextIds?: (artifact: Record<string, unknown>) => Record<string, string>;
   preconditionWarnings?: (env: Record<string, unknown>) => WarningItem[];

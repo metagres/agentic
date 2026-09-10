@@ -85,9 +85,6 @@
         },
         "discovery_reviewed": {
           "type": "boolean"
-        },
-        "context_loaded": {
-          "type": "boolean"
         }
       }
     },
@@ -265,18 +262,16 @@
         "additionalProperties": true,
         "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
         "required": [
-          "phase",
+          "stage",
           "target_doc",
           "change",
           "reason",
           "date"
         ],
         "properties": {
-          "phase": {
+          "stage": {
             "type": "string",
-            "enum": [
-              "Requirements"
-            ]
+            "const": "requirements"
           },
           "target_doc": {
             "type": "string"

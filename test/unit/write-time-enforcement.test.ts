@@ -148,7 +148,7 @@ test('a done transition with a note is accepted and the interpreter owns the sta
   ]);
 });
 
-test('update-artifact normalizes delta entries lacking phase and date', () => {
+test('update-artifact normalizes delta entries lacking stage and date', () => {
   const tmp = tmpRepo('agentic-wte-');
 
   let out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
@@ -178,7 +178,7 @@ test('update-artifact normalizes delta entries lacking phase and date', () => {
     delta: Record<string, unknown>[];
   };
   assert.equal(saved.delta.length, 1);
-  assert.equal(saved.delta[0].phase, 'Requirements');
+  assert.equal(saved.delta[0].stage, 'requirements');
   assert.equal(saved.delta[0].date, today());
   assert.equal(saved.delta[0].target_doc, 'docs/current/architecture.md');
 });

@@ -7,6 +7,7 @@ import { safeReadYaml } from '../context.ts';
 import { requireChangeRoot } from '../change-root.ts';
 import { today } from '../ids.ts';
 import { makeError } from '../error-catalog.ts';
+import { helpEnvelope, rejectUnknownFlags, TASKS_FLAGS } from '../help.ts';
 import { evaluateGate } from '../requires-graph.ts';
 import { loadStepDefinitions } from '../steps-loader.ts';
 import { buildStepVars, renderStepHelp, renderTemplate } from '../step-render.ts';
@@ -21,14 +22,36 @@ const ALLOWED_TASK_STATUS = [
 ];
 
 function usage(stage: StageRecord, code = EXIT.ok) {
+  if (code === EXIT.ok) {
+    writeJson(
+      helpEnvelope({
+        workflow: stage.id,
+        purpose:
+          'Implementation stage: update task status and manage the task list of the accepted plan.',
+        usage: [
+          `sdlc ${stage.id} --change <change-name>`,
+          `sdlc ${stage.id} --change <change-name> --task-id TASK-001 --status in_progress --note "..." --files "create:src/a.ts,modify:src/b.ts"`,
+          `sdlc ${stage.id} --change <change-name> --task-add "Title" --covers FR-001 --acceptance-ids AC-001 --description "..." --depends-on TASK-001 --files "..."`,
+          `sdlc ${stage.id} --change <change-name> --task-remove TASK-002`,
+        ],
+        flags: TASKS_FLAGS,
+        extraData: { allowed_task_status: ALLOWED_TASK_STATUS },
+      }),
+      code
+    );
+    return;
+  }
+
   writeJson(
     {
       workflow: stage.id,
       step: 'help',
-      state: code === EXIT.ok ? 'ok' : 'blocked',
+      state: 'blocked',
       instructions:
         `Usage: sdlc ${stage.id} --change <change-name> ` +
         '[--task-id TASK-001 --status in_progress --note "..." --files "create:src/a.ts,modify:src/b.ts"] ' +
+        '[--task-add "Title" --covers FR-001 --acceptance-ids AC-001 --description "..." --depends-on TASK-001 --files "..."] ' +
+        '[--task-remove TASK-002] ' +
         CWD_FLAG_DOC,
       data: {
         allowed_task_status: ALLOWED_TASK_STATUS,
@@ -110,12 +133,167 @@ function computeProgress(plan: Record<string, unknown>) {
   };
 }
 
+type TaskMutationResult =
+  | { blocked: Record<string, unknown>; exit: number }
+  | { taskId: string };
+
+function blockedEnvelope(
+  ctx: { changeRoot: string; planPath: string },
+  instructions: string,
+  error: ReturnType<typeof makeError>,
+  exit: number,
+  extraData: Record<string, unknown> = {}
+): { blocked: Record<string, unknown>; exit: number } {
+  return {
+    blocked: {
+      state: 'blocked',
+      instructions,
+      data: {
+        change_root: ctx.changeRoot,
+        plan: ctx.planPath,
+        ...extraData,
+      },
+      errors: [error],
+      warnings: [],
+    },
+    exit,
+  };
+}
+
+function nextTaskId(tasks: Record<string, unknown>[]): string {
+  let max = 0;
+  for (const task of tasks) {
+    const id = String(task?.id ?? '');
+    if (id.startsWith('TASK-')) {
+      const n = Number(id.slice(5));
+      if (Number.isInteger(n) && n > max) max = n;
+    }
+  }
+  return `TASK-${String(max + 1).padStart(3, '0')}`;
+}
+
+function splitList(value: unknown): string[] {
+  return String(value ?? '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function applyTaskAdd(
+  plan: Record<string, unknown>,
+  titleArg: string,
+  args: Record<string, unknown>,
+  ctx: { changeRoot: string; planPath: string }
+): TaskMutationResult {
+  const title = String(titleArg ?? '').trim();
+  const tasks = (Array.isArray(plan.tasks) ? plan.tasks : []) as Record<string, unknown>[];
+
+  if (!title) {
+    return blockedEnvelope(
+      ctx,
+      '--task-add requires a non-empty title.',
+      makeError('USAGE', { message: '--task-add requires a non-empty title.' }),
+      EXIT.usage
+    );
+  }
+
+  const covers = splitList(args['covers']);
+  const acceptanceIds = splitList(args['acceptance-ids']);
+
+  if (covers.length === 0 || acceptanceIds.length === 0) {
+    return blockedEnvelope(
+      ctx,
+      '--task-add requires --covers and --acceptance-ids: a task must verify at least one acceptance criterion of the requirements it covers.',
+      makeError('USAGE', {
+        message: '--task-add requires --covers and --acceptance-ids.',
+      }),
+      EXIT.usage
+    );
+  }
+
+  const dependsOn = splitList(args['depends-on']);
+  const knownIds = tasks.map((task) => String(task?.id ?? '')).filter(Boolean);
+  const unknown = dependsOn.filter((dep) => !knownIds.includes(dep));
+
+  if (unknown.length > 0) {
+    return blockedEnvelope(
+      ctx,
+      `Unknown depends_on id(s): ${unknown.join(', ')}.`,
+      makeError('TASK_DEPENDS_ON_UNKNOWN', {
+        message: `Unknown depends_on id(s): ${unknown.join(', ')}`,
+        fix: 'Use task ids from data.known_task_ids.',
+      }),
+      EXIT.usage,
+      { known_task_ids: knownIds, requested_depends_on: dependsOn }
+    );
+  }
+
+  const task: Record<string, unknown> = {
+    id: nextTaskId(tasks),
+    title,
+    description: String(args.description ?? '').trim(),
+    type: 'implementation',
+    status: 'pending',
+    covers,
+    acceptance_ids: acceptanceIds,
+  };
+
+  if (args.complexity) task.complexity = String(args.complexity);
+  if (dependsOn.length > 0) task.depends_on = dependsOn;
+
+  if (args.files) {
+    task.files = parseFiles(String(args.files));
+  }
+
+  (plan.tasks as Record<string, unknown>[]).push(task);
+  return { taskId: String(task.id) };
+}
+
+function applyTaskRemove(
+  plan: Record<string, unknown>,
+  taskId: string,
+  ctx: { changeRoot: string; planPath: string }
+): TaskMutationResult {
+  const tasks = (Array.isArray(plan.tasks) ? plan.tasks : []) as Record<string, unknown>[];
+  const index = tasks.findIndex((task) => String(task?.id ?? '') === taskId);
+
+  if (index === -1) {
+    return blockedEnvelope(
+      ctx,
+      `Task ${taskId} was not found in plan.yaml.`,
+      makeError('TASK_NOT_FOUND', { message: `Task ${taskId} not found in plan.yaml.` }),
+      EXIT.actionFailed,
+      {
+        task_id: taskId,
+        known_task_ids: tasks.map((task) => String(task?.id ?? '')).filter(Boolean),
+      }
+    );
+  }
+
+  if (String(tasks[index].status) === 'done') {
+    return blockedEnvelope(
+      ctx,
+      `Task ${taskId} is done and cannot be removed: the implementation record stays in the plan.`,
+      makeError('TASK_REMOVE_NOT_ALLOWED', {
+        message: `Task ${taskId} is done; done tasks cannot be removed.`,
+        fix: 'Mark the task skipped instead, or keep the record.',
+      }),
+      EXIT.actionFailed,
+      { task_id: taskId }
+    );
+  }
+
+  tasks.splice(index, 1);
+  return { taskId };
+}
+
 export async function runTasksStage(
   stage: StageRecord,
   argv: string[],
   cwd: string
 ): Promise<void> {
   const args = parseArgs(argv);
+  rejectUnknownFlags(stage.id, args, TASKS_FLAGS);
 
   if (args.help) {
     usage(stage, EXIT.ok);
@@ -140,13 +318,10 @@ export async function runTasksStage(
 
   const base: Record<string, unknown> = {
     workflow: stage.id,
-    step: 'needs_input',
+    step: 'progress',
   };
 
-  const changeRoot = requireChangeRoot(args as ParseArgsResult, cwd, base, {
-    markdown: markdownFor('needs_input', null),
-    ...(helpStep ? { stepHelp: helpFor('needs_input', null) } : {}),
-  });
+  const changeRoot = requireChangeRoot(args as ParseArgsResult, cwd, base);
   if (!changeRoot) return;
 
   // Detected step: complete only when implementation reaches its terminal
@@ -212,6 +387,72 @@ export async function runTasksStage(
 
     let updatedTaskId: string | null = null;
     let mutation = false;
+
+    const adding = args['task-add'] !== undefined && args['task-add'] !== false;
+    const removing = args['task-remove'] !== undefined && args['task-remove'] !== false;
+
+    if (adding || removing) {
+      // Task management verbs are mutually exclusive with each other and
+      // with the status-update flags: one invocation performs one mutation.
+      const conflicts =
+        (adding && removing) ||
+        (adding && (args['task-id'] || args.status)) ||
+        (removing && (args['task-id'] || args.status));
+
+      if (conflicts) {
+        writeJson(
+          {
+            ...base,
+            state: 'blocked',
+            instructions:
+              'Use one mutation per invocation: --task-add, --task-remove, or --task-id with --status.',
+            data: {
+              change_root: changeRoot,
+              plan: planPath,
+            },
+            errors: [makeError('USAGE', { message: 'Conflicting task mutation flags.' })],
+            warnings: [],
+          },
+          EXIT.usage
+        );
+        return;
+      }
+    }
+
+    if (adding) {
+      const addResult = applyTaskAdd(
+        plan,
+        String(args['task-add']),
+        args as Record<string, unknown>,
+        {
+          changeRoot,
+          planPath,
+        }
+      );
+
+      if ('blocked' in addResult) {
+        writeJson({ ...base, ...addResult.blocked }, EXIT.usage);
+        return;
+      }
+
+      updatedTaskId = addResult.taskId;
+      mutation = true;
+    }
+
+    if (removing) {
+      const removeResult = applyTaskRemove(plan, String(args['task-remove']), {
+        changeRoot,
+        planPath,
+      });
+
+      if ('blocked' in removeResult) {
+        writeJson({ ...base, ...removeResult.blocked }, removeResult.exit);
+        return;
+      }
+
+      updatedTaskId = removeResult.taskId;
+      mutation = true;
+    }
 
     if (args['task-id'] || args.status) {
       if (!args['task-id'] || !args.status) {
@@ -376,9 +617,16 @@ export async function runTasksStage(
     let nextImplementationStatus: string | null = previousImplementationStatus;
     if (progress.complete) {
       nextImplementationStatus = 'ready-for-review';
-    } else if (progress.in_progress > 0 || progress.done > 0) {
+    } else if (
+      // A mutation that touches a review-settled plan (task added or removed)
+      // reopens the implementation: the ready-for-review/accepted state was
+      // computed for the previous task set (FR-003 removal transition).
+      mutation &&
+      (previousImplementationStatus === 'ready-for-review' ||
+        previousImplementationStatus === 'accepted')
+    ) {
       nextImplementationStatus = 'in_progress';
-    } else if (mutation && previousImplementationStatus === 'accepted') {
+    } else if (progress.in_progress > 0 || progress.done > 0) {
       nextImplementationStatus = 'in_progress';
     } else if (!previousImplementationStatus) {
       nextImplementationStatus = 'pending';
@@ -423,14 +671,22 @@ export async function runTasksStage(
     } else if (terse && updatedTaskId) {
       const tasks = (Array.isArray(plan.tasks) ? plan.tasks : []) as Record<string, unknown>[];
       const found = tasks.find((t: Record<string, unknown>) => t.id === updatedTaskId);
-      instructions = `Task ${updatedTaskId} is now ${(found?.status as string) || 'unknown'}.`;
+      instructions = removing
+        ? `Task ${updatedTaskId} removed.`
+        : adding
+          ? `Task ${updatedTaskId} added${found ? ' (pending)' : ''}.`
+          : `Task ${updatedTaskId} is now ${(found?.status as string) || 'unknown'}.`;
     } else if (updatedTaskId) {
       const tasks = (Array.isArray(plan.tasks) ? plan.tasks : []) as Record<string, unknown>[];
       const found = tasks.find((t: Record<string, unknown>) => t.id === updatedTaskId);
       instructions = compose(
         markdownFor('progress', changeRoot),
-        `Task ${updatedTaskId} is now ${(found?.status as string) || 'unknown'}. ` +
-          'Continue implementation and update task state as work proceeds.'
+        removing
+          ? `Task ${updatedTaskId} removed.`
+          : adding
+            ? `Task ${updatedTaskId} added${found ? ' (pending)' : ''}.`
+            : `Task ${updatedTaskId} is now ${(found?.status as string) || 'unknown'}. ` +
+              'Continue implementation and update task state as work proceeds.'
       );
     } else {
       instructions = compose(

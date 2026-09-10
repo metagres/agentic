@@ -43,7 +43,10 @@ const PERMISSION_KEYS: readonly PermissionKey[] = [
 export const KIND_PERMISSION_CONTRACTS: Record<StageKind, PermissionContract> = {
   authoring: {
     file_read: 'allow',
-    file_write: 'allow',
+    // Deny ceiling (FR-007): authoring agents' only write-tool target is the
+    // .tmp scratch (granted by the renderer path-scoping); all durable
+    // artifact writes route through the CLI via bash.
+    file_write: 'deny',
     shell: 'allow',
     subagent: 'allow',
     web: 'deny',
@@ -66,7 +69,9 @@ export const KIND_PERMISSION_CONTRACTS: Record<StageKind, PermissionContract> = 
   },
   aggregator: {
     file_read: 'allow',
-    file_write: 'allow',
+    // Deny ceiling (FR-007): the curator's structured write tools are scoped
+    // to docs/current/** plus .tmp by the renderer; the neutral level is deny.
+    file_write: 'deny',
     shell: 'allow',
     subagent: 'allow',
     web: 'deny',

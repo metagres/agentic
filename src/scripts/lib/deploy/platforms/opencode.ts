@@ -65,6 +65,68 @@ const PROTECTED_WRITE_PATTERNS: readonly (readonly [string, string])[] = [
   [`${PROTECTED_ARTIFACT_DIR}/**`, 'deny'],
 ];
 
+/** Allow patterns for the scratch payload directory (FR-007): the CLI's
+ *  <file|-> input fallback lives under <project-root>/.tmp, so authoring and
+ *  curator agents get their write tools back exactly there. */
+const SCRATCH_WRITE_PATTERNS: readonly (readonly [string, string])[] = [
+  ['.tmp/**', 'allow'],
+  ['**/.tmp/**', 'allow'],
+];
+
+/** Allow patterns for the living docs (FR-007): the knowledge-curator applies
+ *  knowledge-extraction deltas by editing docs/current in place. */
+const CURATOR_WRITE_PATTERNS: readonly (readonly [string, string])[] = [
+  ['docs/current/**', 'allow'],
+  ['**/docs/current/**', 'allow'],
+  ...SCRATCH_WRITE_PATTERNS,
+];
+
+/** The per-kind write scope derived from the agent's bound stage kinds. */
+export type WriteScope = 'tasks' | 'authoring' | 'aggregator' | 'none';
+
+export function writeScopeForKinds(kinds: string[]): WriteScope {
+  if (kinds.includes('tasks')) return 'tasks';
+  if (kinds.includes('aggregator')) return 'aggregator';
+  if (kinds.includes('authoring')) return 'authoring';
+  return 'none';
+}
+
+/**
+ * Path-scopes the v2 permission map (FR-007): every file-write target whose
+ * neutral level is not already a full deny carries the protected
+ * change-artifact deny patterns after the agent's catch-all base level, so
+ * the agent keeps its level for all other paths while docs/changes/** is
+ * always denied. Authoring and curator agents (deny base) additionally get
+ * their kind's allow patterns between the base deny and the protected deny;
+ * a flat 'deny' needs no object (nothing is writable either way).
+ */
+function scopeProtectedPaths(
+  permission: Record<string, string>,
+  writeScope: WriteScope
+): Record<string, string | Record<string, string>> {
+  const scoped: Record<string, string | Record<string, string>> = {};
+  for (const [target, level] of Object.entries(permission)) {
+    if (NEUTRAL_TO_TARGET.file_write.includes(target) && level !== 'deny') {
+      scoped[target] = { '*': level, ...Object.fromEntries(PROTECTED_WRITE_PATTERNS) };
+    } else if (NEUTRAL_TO_TARGET.file_write.includes(target) && writeScope === 'authoring') {
+      scoped[target] = {
+        '*': 'deny',
+        ...Object.fromEntries(SCRATCH_WRITE_PATTERNS),
+        ...Object.fromEntries(PROTECTED_WRITE_PATTERNS),
+      };
+    } else if (NEUTRAL_TO_TARGET.file_write.includes(target) && writeScope === 'aggregator') {
+      scoped[target] = {
+        '*': 'deny',
+        ...Object.fromEntries(CURATOR_WRITE_PATTERNS),
+        ...Object.fromEntries(PROTECTED_WRITE_PATTERNS),
+      };
+    } else {
+      scoped[target] = level;
+    }
+  }
+  return scoped;
+}
+
 /**
  * Maps the agent's neutral permissions onto the OpenCode target tool keys.
  * Returns the flat v2 `permission` map (target -> neutral level; the v2
@@ -92,27 +154,6 @@ function translatePermissions(agent: AgentRecord): {
   return { permission, tools };
 }
 
-/**
- * Path-scopes the v2 permission map: every file-write target whose neutral
- * level is not already a full deny carries the protected change-artifact
- * deny patterns after the agent's catch-all base level, so the agent keeps
- * its level for all other paths while docs/changes/** is always denied. A
- * flat 'deny' needs no object (nothing is writable either way).
- */
-function scopeProtectedPaths(
-  permission: Record<string, string>
-): Record<string, string | Record<string, string>> {
-  const scoped: Record<string, string | Record<string, string>> = {};
-  for (const [target, level] of Object.entries(permission)) {
-    if (NEUTRAL_TO_TARGET.file_write.includes(target) && level !== 'deny') {
-      scoped[target] = { '*': level, ...Object.fromEntries(PROTECTED_WRITE_PATTERNS) };
-    } else {
-      scoped[target] = level;
-    }
-  }
-  return scoped;
-}
-
 /** Renders the frontmatter header: opening `---`, YAML block, closing `---`,
  *  and a trailing blank line before the body. */
 function renderFrontmatter(fields: Record<string, unknown>): string {
@@ -122,6 +163,7 @@ function renderFrontmatter(fields: Record<string, unknown>): string {
 
 function renderOpenCodeAgent(agent: AgentRecord, format: 'v1' | 'v2'): RenderedAgent {
   const { permission, tools } = translatePermissions(agent);
+  const writeScope = writeScopeForKinds(agent.stageKinds ?? []);
 
   const fields: Record<string, unknown> = {
     description: agent.description,
@@ -133,7 +175,7 @@ function renderOpenCodeAgent(agent: AgentRecord, format: 'v1' | 'v2'): RenderedA
     temperature: agent.temperature,
   };
   if (format === 'v2') {
-    fields.permission = scopeProtectedPaths(permission);
+    fields.permission = scopeProtectedPaths(permission, writeScope);
   } else {
     fields.tools = tools;
   }

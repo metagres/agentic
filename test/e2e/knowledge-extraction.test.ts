@@ -38,7 +38,7 @@ test('knowledge extraction lists deltas and completes', () => {
     request: 'Add architecture note',
     delta: [
       {
-        phase: 'Requirements',
+        stage: 'requirements',
         target_doc: 'docs/current/architecture.md',
         change: 'Add',
         reason: 'Add device registration architecture section.',

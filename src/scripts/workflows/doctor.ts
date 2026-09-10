@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs, writeJson, EXIT, resolveCwd } from '../lib/cli.ts';
 import { makeError } from '../lib/error-catalog.ts';
+import { helpEnvelope, rejectUnknownFlags, DOCTOR_FLAGS } from '../lib/help.ts';
 import { resolveRuntimeDir } from '../lib/paths.ts';
 import { loadStageRegistry } from '../lib/stage-registry.ts';
 import { computePipelineOrder } from '../lib/requires-graph.ts';
@@ -27,8 +28,22 @@ function findManifest() {
 
 export function runDoctor(argv: string[]): void {
   const args = parseArgs(argv);
+  rejectUnknownFlags('doctor', args, DOCTOR_FLAGS);
   const cwd = resolveCwd(args);
   const strict = Boolean(args.strict);
+
+  if (args.help) {
+    writeJson(
+      helpEnvelope({
+        workflow: 'doctor',
+        purpose: 'Check runtime contracts: schemas, policies, stages, docs index, manifest, and Node version.',
+        usage: ['sdlc doctor [--strict]'],
+        flags: DOCTOR_FLAGS,
+      }),
+      EXIT.ok
+    );
+    return;
+  }
 
   const checks: { id: string; passed: boolean; details: string }[] = [];
   const errors: { code: string; message: string }[] = [];

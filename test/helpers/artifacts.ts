@@ -23,10 +23,10 @@ function discoveryLog() {
   ];
 }
 
-function defaultDelta(phase) {
+function defaultDelta(stage) {
   return [
     {
-      phase,
+      stage,
       target_doc: 'docs/current/architecture.md',
       change: 'Add',
       reason: 'Add an architecture section describing this change for the living docs.',
@@ -54,7 +54,6 @@ export function validRequirements({
       assumptions_reviewed: true,
       delta_reviewed: true,
       discovery_reviewed: true,
-      context_loaded: true,
     },
     problem_statement:
       'Operators cannot register devices, so onboarding requires manual database edits.',
@@ -100,7 +99,7 @@ export function validRequirements({
     out_of_scope: ['Device update and deletion are out of scope.'],
     failure_paths: ['Duplicate external identifier is rejected with 409.'],
     risks_and_dependencies: ['External identifier uniqueness depends on client data.'],
-    delta: Array.isArray(delta) ? delta : defaultDelta('Requirements'),
+    delta: Array.isArray(delta) ? delta : defaultDelta('requirements'),
   };
 }
 
@@ -141,7 +140,7 @@ export function validDesign({
         status: 'accepted',
       },
     ],
-    delta: Array.isArray(delta) ? delta : defaultDelta('Design'),
+    delta: Array.isArray(delta) ? delta : defaultDelta('design'),
   };
 }
 
@@ -186,6 +185,6 @@ export function validPlan({
       },
     ],
     risks: [],
-    delta: Array.isArray(delta) ? delta : defaultDelta('Planning'),
+    delta: Array.isArray(delta) ? delta : defaultDelta('planning'),
   };
 }

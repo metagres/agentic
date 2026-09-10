@@ -1,0 +1,422 @@
+metadata:
+  id: REQ-001
+  title: Complete the sdlc CLI surface so agents manage all change artifacts exclusive...
+  stage: requirements
+  status: accepted
+  version: 0.1.0
+  created: 2026-09-09
+  updated: 2026-09-10
+  request_summary: 'Complete the sdlc CLI surface so agents manage all change artifacts exclusively through
+    the CLI: uniform file-or-stdin input, id-keyed list merges, task add/remove, changes/feedback listing,
+    authoring lint, uniform help with closed flag vocabulary, phase-to-stage delta retirement, engagement
+    contract with skill-owned change identification, four-step authoring tour, and stage-agent write-permission
+    tightening'
+  clarity: clear
+  assumptions_reviewed: true
+  delta_reviewed: true
+  discovery_reviewed: true
+  context_loaded: true
+problem_statement: Agents working with the agentic-sdlc must create and modify every docs/changes artifact
+  exclusively through the sdlc CLI, but the current surface leaves legitimate operations without a CLI
+  path. The tasks kind cannot add or remove plan tasks; temp-file and stdin input is inconsistent across
+  flags; there is no all-changes listing; no authoring lint exists and the recovery envelope points at
+  the undeployed bin/lint-artifact.ts; help payloads drift from the flags actually parsed; delta entries
+  carry a phase field that always equals the stage; bare stage invocations fall into a needs_input step
+  that cannot know which change is meant. At the same time the deployed authoring and aggregator agents
+  hold write permissions far beyond their durable-write needs, and four flags exist only as mechanical
+  or dead surface.
+discovery_log:
+- id: DL-001
+  question: Who is the primary stakeholder and what outcome do they need from the CLI surface work?
+  answer: 'The maintainer: agents working with the agentic-sdlc must create and modify every docs/changes
+    artifact exclusively through the sdlc CLI, with zero obstacles for any legitimate operation.'
+  lens: stakeholder
+  resolved: true
+- id: DL-002
+  question: How should artifact content reach the CLI — stdin, temp files, or both?
+  answer: 'Uniform <file|-> convention on --update-artifact and --append-delta: bare flag or ''-'' reads
+    stdin (primary documented path), a path reads a temp file under .tmp/sdlc with prescribed unique naming;
+    the CLI never deletes caller files; stdin documented first.'
+  lens: interface
+  resolved: true
+- id: DL-003
+  question: Should task management on the implementation stage stay feedback-loop only or gain lightweight
+    flags?
+  answer: Lightweight --task-add and --task-remove flags on the tasks kind; --task-remove refuses done
+    tasks; ids auto-allocated; unknown depends_on rejected with a new error code.
+  lens: interface
+  resolved: true
+- id: DL-004
+  question: How uniform must the mutation surface be across stage kinds?
+  answer: Uniform upsert semantics for authoring stages (--update-artifact creates-if-missing and merges
+    with id-keyed list merge); review, tasks, and aggregator keep kind-specific verbs because generic
+    edits would bypass round governance and the planning review.
+  lens: interface
+  resolved: true
+- id: DL-005
+  question: How should delta entries identify their producing stage after the phase observation?
+  answer: 'Retire phase entirely: delta entries carry stage: <stage-id> (lowercase id, per-stage enum
+    preserved in each stage schema); delta_phase descriptor property and deltaPhase plumbing removed;
+    the aggregator''s source_stage/source_artifact annotations are dropped as redundant; dedupe sorts
+    by stage; a one-time sweep renames baked phase keys.'
+  lens: data
+  resolved: true
+- id: DL-006
+  question: What happens on unknown or typo'd CLI flags, and who owns temp-file collisions?
+  answer: 'Closed per-command flag vocabulary: unknown flags fail loudly with a new UNKNOWN_FLAG code
+    pointing at --help (--cwd globally allowed). Temp-file collisions are handled by prescribed unique
+    naming only; the CLI never deletes inputs; same-change concurrent sessions stay last-write-wins and
+    are recorded as a known limitation.'
+  lens: failure
+  resolved: true
+- id: DL-007
+  question: What happens when a workflow stage is invoked without a change?
+  answer: 'That is a usage error, not a workflow step: needs_input steps are removed from all stages;
+    the envelope returns MISSING_CHANGE_DIR with data.existing_changes and engagement instructions; change
+    identification is skill-owned.'
+  lens: failure
+  resolved: true
+- id: DL-008
+  question: Which write permissions do the deployed stage agents actually need?
+  answer: Only implementation-engineer keeps broad repo writes; authoring agents get write tools denied
+    except .tmp/**; knowledge-curator additionally gets docs/current/**; review stays fully denied; engine
+    contracts tighten to deny-ceilings accordingly.
+  lens: constraint
+  resolved: true
+- id: DL-009
+  question: Which envelope and validation constraints must hold?
+  answer: Seven frozen top-level envelope fields; new payload only under data; flags only (no new structural
+    checks); every new error code lands in errors.yaml with tests; no agent-specific paths; npm run validate
+    plus deploy and smoke must pass.
+  lens: constraint
+  resolved: true
+- id: DL-010
+  question: Which flags are mechanical enough to remove from the surface?
+  answer: --bump-version (mechanical lifecycle rules), --keep-status (strict draft-reset), --next-ids
+    (step envelope carries next_ids), the legacy review --target command and its --note/--findings tombstones.
+  lens: scope
+  resolved: true
+- id: DL-011
+  question: What does done look like for the help surface and authoring tour?
+  answer: Every command answers --help with usage plus a data.flags map enforced by completeness tests;
+    the authoring tour shrinks to four canonical steps (authoring, ready, complete, recovery) with needs_input
+    and init removed and change identification owned by the skill.
+  lens: outcome
+  resolved: true
+assumptions:
+- type: verified
+  text: OpenCode permission objects resolve path rules last-match-wins; the renderer already relies on
+    this for the docs/changes deny.
+- type: verified
+  text: The deployed skill payload bundles only sdlc.js plus stages, schemas and policies, so bin/lint-artifact.ts
+    is unavailable at runtime.
+- type: verified
+  text: Delta dedupe keeps the latest entry by collection order; the phase value was only a presentation
+    tie-break, so the rename preserves semantics.
+- type: unverified
+  text: Absolute-path allow patterns for .tmp/** may need dest-root-aware rendering; if the renderer cannot
+    express them, relative .tmp/** forms ship and the smoke asserts the result.
+functional_requirements:
+- id: FR-001
+  description: When --update-artifact or --append-delta is invoked with a bare flag or with '-', the system
+    shall read the YAML payload from stdin; when invoked with a filesystem path, the system shall read
+    the payload from that file, and in both cases the CLI shall leave the input source unmodified and
+    undeleted.
+  acceptance_criteria:
+  - id: AC-002
+    statement: Given a YAML payload piped on stdin, When sdlc design --change <name> --update-artifact
+      - runs, Then the artifact merges the payload and the process exits 0.
+    category: happy
+  - id: AC-003
+    statement: Given a payload file under .tmp/sdlc and the identical payload on stdin, When each variant
+      runs in turn, Then both produce the same merged artifact and the file still exists after the file-path
+      invocation.
+    category: boundary
+  - id: AC-004
+    statement: Given --append-delta <file> with a delta targeting a docs/current anchor, When the CLI
+      applies it, Then the same docs-index and anchor validation runs as for the stdin path.
+    category: edge
+- id: FR-002
+  description: When --update-artifact merges input where the value of a key is an array on both sides
+    and every member on both sides carries a non-empty id, the system shall merge the lists by id (update
+    matching entries in place preserving order, append new ids at the end); in all other cases it shall
+    replace the value with the input.
+  acceptance_criteria:
+  - id: AC-005
+    statement: Given an artifact with decisions DEC-001 and DEC-002 and an input carrying an updated DEC-002
+      plus a new DEC-003, When --update-artifact runs, Then DEC-002 is updated in place at its position,
+      DEC-003 is appended, and DEC-001 is untouched.
+    category: happy
+  - id: AC-006
+    statement: Given an input list where at least one member lacks an id, When --update-artifact runs,
+      Then the whole value is replaced with the input list.
+    category: boundary
+  - id: AC-007
+    statement: Given any --update-artifact merge, When the artifact is written, Then metadata.status (unless
+      the draft-reset rule applies), metadata.created and metadata.version survive unchanged.
+    category: negative
+- id: FR-003
+  description: When the implementation stage is invoked with --task-add <title>, the system shall append
+    a new task with the next TASK-NNN id, optional --description, --depends-on (validated against known
+    task ids) and --files entries; when invoked with --task-remove TASK-NNN it shall remove that task
+    unless its status is done, and both shall recompute progress and implementation_status through the
+    existing transition logic.
+  acceptance_criteria:
+  - id: AC-008
+    statement: Given a plan with tasks TASK-001 through TASK-003, When --task-add "Title" --description
+      "d" --depends-on TASK-001 --files "create:a.ts" runs, Then TASK-004 is appended with those fields
+      and status pending.
+    category: happy
+  - id: AC-009
+    statement: Given --task-add with --depends-on TASK-999, When the CLI validates it, Then the write
+      is refused with TASK_DEPENDS_ON_UNKNOWN naming the bad id and the known ids.
+    category: negative
+  - id: AC-010
+    statement: Given TASK-002 with status done, When --task-remove TASK-002 runs, Then the removal is
+      refused with a dedicated error and the plan file is unchanged.
+    category: negative
+  - id: AC-011
+    statement: Given a review-settled plan whose last remaining task is TASK-003 with status skipped,
+      When --task-remove TASK-003 runs, Then implementation_status flips from ready-for-review back to
+      in_progress and progress counts are recomputed.
+    category: edge
+- id: FR-004
+  description: When the new cross-cutting command 'sdlc changes' is invoked without --change, the system
+    shall return one read-only envelope listing every docs/changes directory with its tracked per-stage
+    statuses, current suggested workflow, and an open-feedback flag.
+  acceptance_criteria:
+  - id: AC-012
+    statement: Given three existing changes, When sdlc changes runs, Then data.changes lists all three
+      with per-stage tracked statuses and no file is written.
+    category: happy
+  - id: AC-013
+    statement: Given docs/changes with no directories, When sdlc changes runs, Then data.changes is empty
+      with state ok.
+    category: boundary
+- id: FR-005
+  description: When 'sdlc feedback --change <name> --list' runs, the system shall return every feedback
+    entry with id, from_stage, to_stage, reason, status and timestamps, read-only; --list combined with
+    creation flags or --resolve is a usage error.
+  acceptance_criteria:
+  - id: AC-014
+    statement: Given a feedback store with one open and one resolved entry, When --list runs, Then both
+      entries are returned with all recorded fields.
+    category: happy
+  - id: AC-015
+    statement: Given --list together with --from, --to and --reason, When the CLI parses the invocation,
+      Then it exits with a usage error naming the conflict.
+    category: negative
+- id: FR-006
+  description: When an authoring stage is invoked with --lint, the system shall run the mechanical validation
+    and return a findings-only envelope without writing the artifact, and the finalize-recovery envelope
+    shall name 'sdlc <stage> --change <name> --lint' instead of node bin/lint-artifact.ts.
+  acceptance_criteria:
+  - id: AC-016
+    statement: Given an artifact with a mechanical violation, When --lint runs, Then the envelope lists
+      every finding and the artifact bytes are unchanged.
+    category: happy
+  - id: AC-017
+    statement: Given the finalize-block path, When the blocked envelope is rendered, Then its instructions
+      reference the --lint invocation and no undeployed bin/ path.
+    category: negative
+- id: FR-007
+  description: When the opencode renderer emits a deployed agent, the system shall path-scope file-write
+    permissions by stage kind, with authoring agents denying edit/write/apply_patch at base and allowing
+    .tmp/** patterns, the knowledge-curator denying base and allowing docs/current/** plus .tmp/**, the
+    implementation agent keeping allow minus docs/changes, and review agents staying fully denied; the
+    engine permission contracts shall declare deny-ceilings for authoring and aggregator file_write.
+  acceptance_criteria:
+  - id: AC-018
+    statement: Given the deployed requirements-analyst agent, When its rendered frontmatter is inspected,
+      Then edit/write/apply_patch are denied at base, .tmp/** allow patterns precede the docs/changes
+      deny, and read/search/shell/subagent levels are unchanged.
+    category: happy
+  - id: AC-019
+    statement: Given the deployed knowledge-curator, When its rendered frontmatter is inspected, Then
+      docs/current/** and .tmp/** are allowed and every other write path is denied.
+    category: boundary
+  - id: AC-020
+    statement: Given an authoring-stage agent declaring file_write allow, When checkAgentCompatibility
+      runs, Then the binding fails the deny-ceiling contract.
+    category: negative
+- id: FR-008
+  description: When the flag-reduction set ships, the system shall remove --bump-version, --keep-status,
+    --next-ids, the legacy 'sdlc review --target' command and the review --note/--findings tombstones;
+    finalize shall keep the mechanical version rules (first finalize leaves the version, finalize from
+    rejected bumps patch, finalize from accepted bumps minor) and any mutation shall apply the strict
+    draft-reset rule.
+  acceptance_criteria:
+  - id: AC-021
+    statement: Given an artifact with status rejected, When --finalize --confirm-semantic runs, Then the
+      version bumps patch and --bump-version is no longer an accepted flag (UNKNOWN_FLAG).
+    category: happy
+  - id: AC-022
+    statement: Given an accepted artifact, When any mutation runs, Then the status resets to draft because
+      --keep-status no longer exists.
+    category: negative
+  - id: AC-023
+    statement: Given 'sdlc review --target requirements', When the CLI resolves the command, Then it exits
+      with UNKNOWN_COMMAND.
+    category: negative
+  - id: AC-024
+    statement: Given a bare authoring invocation in the authoring step, When the envelope renders, Then
+      data.next_ids is present without any --next-ids flag.
+    category: boundary
+- id: FR-009
+  description: When a stage or command receives a flag outside its declared closed vocabulary, the system
+    shall refuse the invocation with UNKNOWN_FLAG on the usage exit, naming the flag and pointing at --help,
+    with --cwd allowed on every command.
+  acceptance_criteria:
+  - id: AC-025
+    statement: Given 'sdlc design --change <name> --updat-artifact' (typo), When the CLI parses it, Then
+      the envelope carries UNKNOWN_FLAG naming the flag and the process exits with the usage code.
+    category: negative
+  - id: AC-026
+    statement: Given any command with --cwd <root>, When it runs, Then the flag is accepted and the invocation
+      resolves against that root.
+    category: happy
+- id: FR-010
+  description: When any sdlc command is invoked with --help, the system shall return an envelope whose
+    data carries usage patterns and a flags map (flag, description, value shape, required), built through
+    one shared builder, including explicit --help branches for feedback and doctor, and completeness tests
+    shall fail when a flag parsed by a command is absent from its flags map.
+  acceptance_criteria:
+  - id: AC-027
+    statement: Given each of the twelve commands, When sdlc <command> --help runs, Then data.flags documents
+      every accepted flag with description and value shape.
+    category: happy
+  - id: AC-028
+    statement: Given the help-completeness unit test, When a command reads a flag absent from its flags
+      map, Then the test fails naming the flag.
+    category: negative
+  - id: AC-029
+    statement: Given any --help envelope, When it is emitted, Then the seven top-level fields are unchanged
+      and all additions live under data.
+    category: boundary
+- id: FR-011
+  description: When delta entries are authored or normalized, the system shall stamp stage with the lowercase
+    stage id (per-stage enum preserved in each stage schema) instead of phase; the delta_phase descriptor
+    property, the deltaPhase plumbing and the aggregator source_stage/source_artifact annotations shall
+    be removed, dedupe shall sort by stage, and a one-time sweep shall rename baked phase keys in existing
+    docs/changes artifacts.
+  acceptance_criteria:
+  - id: AC-030
+    statement: Given --append-delta with an entry lacking stage, When the CLI normalizes it, Then the
+      entry carries stage equal to the authoring stage id.
+    category: happy
+  - id: AC-031
+    statement: Given a delta entry on the design artifact with stage requirements, When schema validation
+      runs against the design stage enum, Then the entry fails.
+    category: negative
+  - id: AC-032
+    statement: Given every existing docs/changes artifact delta entry, When the sweep completes and validation
+      runs, Then no entry carries phase and every entry carries the correct stage.
+    category: boundary
+- id: FR-012
+  description: 'When the engagement contract ships, the system shall remove the needs_input step from
+    every stage and the init step from every authoring stage (tour: authoring, ready, complete, recovery
+    plus declared extras), refuse change-less workflow invocations with MISSING_CHANGE_DIR plus data.existing_changes
+    and engagement instructions, carry the four-shape change-identification protocol in the generated
+    SKILL.md, and strip every AGENTS.md-restating living-docs sentence from step texts.'
+  acceptance_criteria:
+  - id: AC-033
+    statement: Given a bare 'sdlc design' invocation without --change, When the CLI responds, Then it
+      returns a blocked usage envelope with MISSING_CHANGE_DIR, data.existing_changes and engagement instructions,
+      and no steps.yaml of any stage declares needs_input or init.
+    category: negative
+  - id: AC-034
+    statement: Given the generated SKILL.md, When the deploy smoke runs, Then it contains the change-identification
+      section covering the four invocation shapes.
+    category: happy
+  - id: AC-035
+    statement: Given 'sdlc requirements --help' or 'sdlc requirements --describe' without --change, When
+      the CLI responds, Then the metadata surfaces still render.
+    category: boundary
+- id: FR-013
+  description: When the hygiene set ships, the system shall retire the catalog-only codes CANNOT_COMPLETE,
+    MISSING_EXTRACTION_NOTE, MISSING_MARK_TARGET, TARGET_DOC_NOT_FOUND and DOCS_DELTA_VALIDATION after
+    verifying zero references, and shall record the same-change last-write-wins limitation in docs/current.
+  acceptance_criteria:
+  - id: AC-036
+    statement: Given the retired codes, When npm run validate runs, Then none of the five codes appears
+      in src/policies/errors.yaml or any emitter.
+    category: negative
+  - id: AC-037
+    statement: Given the known limitation, When docs/current renders, Then the last-write-wins statement
+      is present in the conventions capability row.
+    category: happy
+non_functional_requirements:
+- id: NFR-001
+  description: When all tasks of this change are done, the system shall pass npm run validate with zero
+    blocking findings, with npm run check:all as the full-coverage confirmation.
+  acceptance_criteria:
+  - id: AC-040
+    statement: Given all change tasks done, When npm run validate runs, Then it exits 0 with zero blocking
+      findings.
+    category: happy
+  - id: AC-041
+    statement: Given all change tasks done, When npm run check:all runs, Then it exits 0 covering validate,
+      unit, e2e and deploy smoke.
+    category: happy
+- id: NFR-002
+  description: When any envelope of this change is emitted, the system shall keep the seven frozen top-level
+    fields with new payload only under data, and envelope-semantics changes shall be recorded as initial-baseline
+    candidates per the envelope_sizes notes block.
+  acceptance_criteria:
+  - id: AC-042
+    statement: Given any new or changed command envelope, When it is emitted, Then the top-level fields
+      are exactly workflow, step, state, instructions, data, errors, warnings.
+    category: boundary
+out_of_scope:
+- Change-level locking for concurrent CLI mutations (last-write-wins documented as a limitation).
+- Artifact read-back command (the Read tool remains the read surface for docs/changes).
+- Generic --update-artifact on the tasks, review and aggregator kinds.
+- Change slug renaming, archiving or deletion.
+failure_paths:
+- 'Deployed permission scope renders wrong (patterns ordered incorrectly, absolute-path forms unrepresentable):
+  an authoring agent could still write repo files or lose the .tmp/ scratch grant; npm run deploy:smoke
+  and the rendered-frontmatter tests expose it before any deploy (R1).'
+- 'Step-machine removals leave a stale reference (tests, steps.yaml validator, SKILL template still expecting
+  needs_input or init): npm run validate fails on unit or policy validation until every reference is updated
+  (R2).'
+- 'Phase-to-stage sweep leaves mixed vocabulary (an artifact entry still carrying phase or a wrong stage
+  value): the stage schema enum and validation fail the fast gate until the sweep is completed (R3).'
+- 'The .tmp/** allow grant cannot be expressed as intended on some runtime: authoring agents fall back
+  to bash-only scratch (heredocs), which remains available, and the smoke record documents the rendered
+  result (AS-004 residual risk).'
+risks_and_dependencies:
+- Renderer permission changes alter deployed agent capabilities; npm run deploy:smoke and validate gate
+  the output.
+- Removing needs_input and init changes step machines and envelopes; all affected unit and e2e tests are
+  updated inside this change.
+- The phase-to-stage sweep touches settled docs/changes artifacts mechanically; delta-entry schemas use
+  additionalProperties true, so mixed state stays valid during rollout.
+delta:
+- target_doc: docs/current/conventions.md
+  change: Modify
+  target_anchor: '## Patterns'
+  reason: The permission model and the concurrency limitation change the meaning of the CLI-only row and
+    must be reflected where agents read it.
+  statement: Write permissions are path-scoped per stage kind (authoring deny plus .tmp/**, knowledge-curator
+    docs/current/** plus .tmp/**, implementation broad minus docs/changes, review denied); concurrent
+    sessions mutating one change are last-write-wins.
+  date: 2026-09-09
+  stage: requirements
+- target_doc: docs/current/capabilities.md
+  change: Add
+  reason: The completed CLI surface is a new capability set that capabilities.md must list for session
+    routing.
+  statement: Complete sdlc CLI artifact surface — agents manage every docs/changes artifact through the
+    CLI with uniform file-or-stdin input, id-keyed list merges, task add/remove, changes and feedback
+    listing, authoring lint, a help contract with closed flag vocabulary, the engagement contract (change-less
+    workflow invocations are usage errors), and skill-owned change identification.
+  date: 2026-09-10
+  stage: requirements
+- target_doc: docs/current/api-contract.md
+  change: Add
+  reason: The CLI contract gains commands and a help contract that api-contract.md documents.
+  statement: New commands sdlc changes and sdlc feedback --list, authoring --lint, tasks --task-add/--task-remove,
+    the uniform <file|-> input convention, the UNKNOWN_FLAG closed vocabulary, and the per-command --help
+    flags map.
+  date: 2026-09-10
+  stage: requirements

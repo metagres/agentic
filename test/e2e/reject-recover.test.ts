@@ -195,3 +195,60 @@ test('semantic rejection loop: --reject --failures records the failed checks and
   assert.equal(revAfter.rounds.length, 2);
   assert.deepEqual(revAfter.rounds.map((r) => r.status), ['rejected', 'accepted']);
 });
+
+test('--failures - reads the failures YAML from stdin: valid records, invalid refuses with nothing written', () => {
+  const tmp = makeTmpProject();
+  let out = run(tmp, ['requirements', '--request', 'Add stdin reject']);
+  const changeRoot = out.data.change_root;
+  const changeDir = path.basename(changeRoot);
+
+  out = run(
+    tmp,
+    ['requirements', '--change', changeDir, '--update-artifact'],
+    JSON.stringify(validRequirements({ request: 'Add stdin reject' }))
+  );
+  assert.notEqual(out.state, 'blocked');
+  out = run(tmp, ['requirements', '--change', changeDir, '--finalize', '--confirm-semantic']);
+  assert.equal(out.state, 'complete', JSON.stringify(out));
+
+  const check = readYaml(
+    path.join(root, 'src', 'stages', 'requirements', 'semantic-checks.yaml')
+  ).checks[0] as string;
+
+  // Empty stdin: refused as a malformed failures document, nothing written.
+  out = run(tmp, ['requirements-review', '--change', changeDir, '--reject', '--failures', '-'], '');
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.errors[0].code, 'FAILURE_ENTRY_INVALID');
+  assert.equal(fs.existsSync(path.join(changeRoot, 'requirements-review.yaml')), false);
+
+  // Duplicate stdin entries: refused with the merge-rule message, nothing written.
+  const dupYaml = [
+    `- check: ${JSON.stringify(check)}`,
+    '  evidence: "first finding"',
+    `- check: ${JSON.stringify(check)}`,
+    '  evidence: "second finding"',
+    '',
+  ].join('\n');
+  out = run(tmp, ['requirements-review', '--change', changeDir, '--reject', '--failures', '-'], dupYaml);
+  assert.equal(out.state, 'blocked');
+  assert.equal(out.errors[0].code, 'SEMANTIC_FAILURE_INVALID');
+  assert.match(String(out.errors[0].message), /One entry per failed check: merge all findings of that check into the single entry's evidence/);
+  assert.equal(fs.existsSync(path.join(changeRoot, 'requirements-review.yaml')), false);
+
+  // Valid stdin YAML: the round is recorded rejected with the entries.
+  const validYaml = [
+    `- check: ${JSON.stringify(check)}`,
+    '  evidence: "The problem statement proposes a solution."',
+    '',
+  ].join('\n');
+  out = run(tmp, ['requirements-review', '--change', changeDir, '--reject', '--failures', '-'], validYaml);
+  assert.equal(out.state, 'blocked', JSON.stringify(out));
+  assert.equal(out.data.status, 'rejected');
+  assert.equal(out.data.artifact_status, 'rejected');
+
+  const rev = readYaml(path.join(changeRoot, 'requirements-review.yaml'));
+  assert.equal(rev.rounds.length, 1);
+  assert.equal(rev.rounds[0].status, 'rejected');
+  assert.equal(rev.rounds[0].semantic_checks_passed, false);
+  assert.equal(rev.rounds[0].failures[0].check, check);
+});

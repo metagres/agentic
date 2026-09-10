@@ -7,7 +7,6 @@
 | --- | --- | --- | --- |
 | agent | string | Yes | src/schemas/stage.schema.yaml |
 | artifact | string | No | src/schemas/stage.schema.yaml |
-| delta_phase | string | Yes | src/schemas/stage.schema.yaml |
 | id | string | No | src/schemas/stage.schema.yaml |
 | kind | enum: authoring \| review \| tasks \| aggregator | No | src/schemas/stage.schema.yaml |
 | next_ids | object | Yes | src/schemas/stage.schema.yaml |
@@ -86,8 +85,9 @@
 | Legacy rounds | rounds without a status field are treated as closed and never modified | src/scripts/lib/kinds/review.ts (isOpenRound) |
 | Failure-only rounds | rounds record failures only — never passed checks; mechanical failures are always CLI-computed from validateArtifact output (fix folded into evidence) and never reviewer-supplied; every mechanical finding blocks by definition | src/scripts/lib/kinds/review.ts, src/scripts/lib/validate.ts |
 | Forced rejection | --accept with any mechanical finding is impossible: the round is recorded rejected, the artifact status is flipped to rejected, and the envelope is blocked explaining the fix-first requirement (REVIEW_NOT_PASSING) | src/scripts/lib/kinds/review.ts, src/policies/errors.yaml |
-| Evidence-backed rejections | --reject with passing mechanical checks requires --failures <file>: a top-level YAML list of failed semantic checks {check, evidence}, each check declared in the target stage's semantic-checks.yaml, non-empty evidence, no duplicates, no completeness requirement; violations refuse the invocation with nothing written | src/scripts/lib/review-findings.ts, src/policies/errors.yaml |
+| Evidence-backed rejections | --reject with passing mechanical checks requires --failures <file> (or --failures - for stdin): a top-level YAML list of failed semantic checks {check, evidence}, each check named by its full declared question text copied verbatim (checklist numbers are list positions, not names), non-empty evidence, one entry per failed check with all findings of that check merged into the single entry's evidence, no completeness requirement; violations refuse the invocation with nothing written (SEMANTIC_FAILURE_INVALID refusals carry data.semantic_checks) | src/scripts/lib/review-findings.ts, src/policies/errors.yaml |
 | Verdict scoping | --failures is valid only with --reject and only while mechanical checks pass; --accept and bare invocations refuse it; the removed --note and --findings flags are refused with migration messages | src/scripts/lib/kinds/review.ts |
+| Declared-checks listing | --list-semantic-checks (requires --change) prints the target stage's declared semantic checks (step list_checks, data.semantic_checks) without opening, refreshing, or writing any round; bare-review envelopes also carry data.semantic_checks so copying a check name into a --failures entry is mechanical | src/scripts/lib/kinds/review.ts |
 | Terminal artifacts | an accepted tracked artifact refuses any invocation (already accepted; re-review requires the author to update and re-finalize); a rejected one is gate-blocked — the review gate admits ready-for-review only | src/scripts/lib/kinds/review.ts, src/scripts/lib/requires-graph.ts |
 
 ## Entity: Docs Delta (docs-delta.yaml)

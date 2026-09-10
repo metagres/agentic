@@ -1,0 +1,10 @@
+entries:
+  - id: FB-001
+    from_stage: implementation
+    to_stage: requirements
+    reason: "AC-011 contradicts AC-010: a done task cannot be removed (AC-010 refuses the removal) yet
+      AC-011 removes the last done task to reopen the implementation. The reopen transition must
+      instead cover removing the last remaining skipped task from a review-settled plan."
+    status: resolved
+    created_at: 2026-09-09
+    resolved_at: 2026-09-09

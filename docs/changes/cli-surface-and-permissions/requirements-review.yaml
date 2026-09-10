@@ -1,0 +1,29 @@
+metadata:
+  artifact: requirements.yaml
+  target: requirements
+  latest_round: 3
+  created: 2026-09-09
+  updated: 2026-09-10
+  latest_status: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-09T20:00:41.031Z
+    artifact_version: 0.1.0
+    status: accepted
+    mechanical_checks_passed: true
+    semantic_checks_passed: true
+    failures: []
+  - round: 2
+    reviewed_at: 2026-09-09T20:09:33.004Z
+    artifact_version: 0.1.0
+    status: accepted
+    mechanical_checks_passed: true
+    semantic_checks_passed: true
+    failures: []
+  - round: 3
+    reviewed_at: 2026-09-10T06:00:18.928Z
+    artifact_version: 0.1.0
+    status: accepted
+    mechanical_checks_passed: true
+    semantic_checks_passed: true
+    failures: []

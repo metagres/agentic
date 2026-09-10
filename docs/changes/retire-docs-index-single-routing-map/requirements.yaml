@@ -6,471 +6,442 @@ metadata:
   version: 0.1.1
   created: 2026-09-09
   updated: 2026-09-09
-  request_summary: "Retire docs/current/index.md as a persisted knowledge index. AGENTS.md section 4
-    (Session Context Routing) becomes the single, validated map of docs/current: the agent picks
-    documents from the table based on the session goal. Consequences to implement: delta-target
-    validation reads the docs/current directory (readdir) instead of parsing index.md; the 7
-    mechanical cross-checks keep failing the docs-gen gate but stop being persisted anywhere; the
-    dead-reference scan (STALE-REF) becomes a hard failing check and the 2 known stale refs in
-    src/policies/errors.yaml get fixed; DOCS_INDEX_MISSING is renamed DOCS_CURRENT_MISSING; stage
-    steps no longer tell agents to read docs/current/index.md (AGENTS.md is always auto-loaded);
-    knowledge-init skill no longer creates index.md; AGENTS.md gains routing rows for
-    docs/changes/<slug>/ (in-progress and accepted change artifacts) and docs/ideas/ (deferred
-    corrections for a later session); a bidirectional consistency check ensures AGENTS.md mentions
-    exactly the docs that exist in docs/current and vice versa."
+  request_summary: 'Retire docs/current/index.md as a persisted knowledge index. AGENTS.md section 4 (Session
+    Context Routing) becomes the single, validated map of docs/current: the agent picks documents from
+    the table based on the session goal. Consequences to implement: delta-target validation reads the
+    docs/current directory (readdir) instead of parsing index.md; the 7 mechanical cross-checks keep failing
+    the docs-gen gate but stop being persisted anywhere; the dead-reference scan (STALE-REF) becomes a
+    hard failing check and the 2 known stale refs in src/policies/errors.yaml get fixed; DOCS_INDEX_MISSING
+    is renamed DOCS_CURRENT_MISSING; stage steps no longer tell agents to read docs/current/index.md (AGENTS.md
+    is always auto-loaded); knowledge-init skill no longer creates index.md; AGENTS.md gains routing rows
+    for docs/changes/<slug>/ (in-progress and accepted change artifacts) and docs/ideas/ (deferred corrections
+    for a later session); a bidirectional consistency check ensures AGENTS.md mentions exactly the docs
+    that exist in docs/current and vice versa.'
   clarity: clear
   assumptions_reviewed: true
   delta_reviewed: true
   discovery_reviewed: true
   context_loaded: true
-problem_statement: The docs/current index page duplicates the session routing table that already
-  lives in the always-loaded AGENTS rules file, so agents must discover and read a second file to
-  learn which living docs exist. The same index page is the delta-target registry for knowledge
-  extraction, coupling target validation to a rendered table. Seven mechanical cross-checks and the
-  dead-reference scan are persisted into the index as status tables instead of failing the gate,
-  which has let two stale references survive in the central error policy. The renamed error code,
-  the knowledge-init skill outputs, four stage step instructions, and several test suites all
-  reference the index page.
+problem_statement: The docs/current index page duplicates the session routing table that already lives
+  in the always-loaded AGENTS rules file, so agents must discover and read a second file to learn which
+  living docs exist. The same index page is the delta-target registry for knowledge extraction, coupling
+  target validation to a rendered table. Seven mechanical cross-checks and the dead-reference scan are
+  persisted into the index as status tables instead of failing the gate, which has let two stale references
+  survive in the central error policy. The renamed error code, the knowledge-init skill outputs, four
+  stage step instructions, and several test suites all reference the index page.
 discovery_log:
-  - id: DL-001
-    question: Why retire docs/current/index.md instead of keeping the duplicated table?
-    answer: "The user decided AGENTS.md is the handier home: it is auto-loaded by the runtime while
-      index.md must be discovered. AGENTS.md §4 (Session Context Routing) becomes the single map of
-      docs/current with per-document explanations so the agent picks what to load per task; index.md
-      is removed with all its dependencies."
-    lens: stakeholder
-    resolved: true
-  - id: DL-002
-    question: What replaces index.md as the routing entry point for agents?
-    answer: AGENTS.md §4's table. Stage step instructions that say "Read docs/current/index.md" are
-      removed entirely (requirements, design, planning, implementation steps.yaml) because AGENTS.md
-      is always loaded.
-    lens: interface
-    resolved: true
-  - id: DL-003
-    question: What replaces index.md as the delta-target registry for knowledge extraction?
-    answer: A readdir of docs/current/*.md (sorted). loadDocsIndex in src/scripts/lib/docs-index.ts is
-      rewritten to directory reading; parseDocsIndex and the purpose/when/notes fields die;
-      authoring.ts delta_allowed_target_docs comes from the directory.
-    lens: data
-    resolved: true
-  - id: DL-004
-    question: What happens to the 7 cross-checks currently rendered into index.md?
-    answer: 'They remain enforcement-only: they keep throwing during docs:generate/docs:check (inside
-      npm run validate) but nothing is persisted anywhere. Persisting an "all clear" table was
-      historical (DEC-003/DEC-004); the checks are purely mechanical, no LLM judgment needed.'
-    lens: failure
-    resolved: true
-  - id: DL-005
-    question: What happens to the STALE-REF dead-reference scan?
-    answer: "It becomes a hard failing check (no rendering anywhere) and the 2 known stale refs in
-      src/policies/errors.yaml are fixed: line 68 ILLEGAL_STATUS_TRANSITION references missing
-      src/policies/lifecycle.yaml; line 129 MANIFEST_INVALID references missing
-      bin/deploy-to-agent.mjs (the real file is bin/deploy-to-agent.ts)."
-    lens: failure
-    resolved: true
-  - id: DL-006
-    question: What happens to DOCS_INDEX_MISSING?
-    answer: Renamed to DOCS_CURRENT_MISSING in src/policies/errors.yaml (catalog update + test per
-      invariant 5), doctor workflow warning updated, message reworded to "docs/current not found;
-      delta target validation was skipped."
-    lens: failure
-    resolved: true
-  - id: DL-007
-    question: What is added to AGENTS.md §4?
-    answer: "A sentence stating the table is the authoritative map / selection menu keyed by session
-      goal; two new routing rows: docs/changes/<slug>/ (change artifacts —
-      requirements/design/plan/review, in progress or accepted; there is no separate archive) and
-      docs/ideas/ (deferred corrections noticed mid-session to be picked up in a later session)."
-    lens: interface
-    resolved: true
-  - id: DL-008
-    question: How is AGENTS.md ↔ docs/current consistency enforced?
-    answer: "Bidirectional check inside the existing lintAgentsMarkdown policy
-      (bin/validate-agents-md.ts, npm run validate:agents-md): the docs/current→AGENTS.md direction
-      already exists (routing-completeness); add the AGENTS.md→docs/current direction (any
-      docs/current/<name>.md mentioned in AGENTS.md must exist in docs/current). No new
-      stage-specific validation scripts (invariant 4); the check is a design-review event with
-      tests."
-    lens: data
-    resolved: true
-  - id: DL-009
-    question: What constraints govern this change?
-    answer: "AGENTS.md invariants: docs/current is written only by knowledge extraction except
-      docs-gen-owned content (invariant 1); declarative validation, extend existing checks
-      (invariant 4); new/changed error codes update src/policies/errors.yaml and add tests
-      (invariant 5); after stage/skill/policy source changes refresh the deployed runtime with npm
-      run deploy -- --dest .opencode --clean (invariant 7); AGENTS.md content caps (90 lines, 16
-      table lines, section allowlist) enforced by validate:agents-md; the One Rule: npm run validate
-      must pass."
-    lens: constraint
-    resolved: true
-  - id: DL-010
-    question: Should docs/ideas and docs/changes be part of the routing?
-    answer: "Yes: docs/changes/<slug>/ holds all change artifacts (accepted or in progress; accepted
-      ones are rendered into docs/current/decisions.md); docs/ideas/<slug>.md is where an agent
-      records something that must be corrected but cannot be done during the current session."
-    lens: stakeholder
-    resolved: true
+- id: DL-001
+  question: Why retire docs/current/index.md instead of keeping the duplicated table?
+  answer: 'The user decided AGENTS.md is the handier home: it is auto-loaded by the runtime while index.md
+    must be discovered. AGENTS.md §4 (Session Context Routing) becomes the single map of docs/current
+    with per-document explanations so the agent picks what to load per task; index.md is removed with
+    all its dependencies.'
+  lens: stakeholder
+  resolved: true
+- id: DL-002
+  question: What replaces index.md as the routing entry point for agents?
+  answer: AGENTS.md §4's table. Stage step instructions that say "Read docs/current/index.md" are removed
+    entirely (requirements, design, planning, implementation steps.yaml) because AGENTS.md is always loaded.
+  lens: interface
+  resolved: true
+- id: DL-003
+  question: What replaces index.md as the delta-target registry for knowledge extraction?
+  answer: A readdir of docs/current/*.md (sorted). loadDocsIndex in src/scripts/lib/docs-index.ts is rewritten
+    to directory reading; parseDocsIndex and the purpose/when/notes fields die; authoring.ts delta_allowed_target_docs
+    comes from the directory.
+  lens: data
+  resolved: true
+- id: DL-004
+  question: What happens to the 7 cross-checks currently rendered into index.md?
+  answer: 'They remain enforcement-only: they keep throwing during docs:generate/docs:check (inside npm
+    run validate) but nothing is persisted anywhere. Persisting an "all clear" table was historical (DEC-003/DEC-004);
+    the checks are purely mechanical, no LLM judgment needed.'
+  lens: failure
+  resolved: true
+- id: DL-005
+  question: What happens to the STALE-REF dead-reference scan?
+  answer: 'It becomes a hard failing check (no rendering anywhere) and the 2 known stale refs in src/policies/errors.yaml
+    are fixed: line 68 ILLEGAL_STATUS_TRANSITION references missing src/policies/lifecycle.yaml; line
+    129 MANIFEST_INVALID references missing bin/deploy-to-agent.mjs (the real file is bin/deploy-to-agent.ts).'
+  lens: failure
+  resolved: true
+- id: DL-006
+  question: What happens to DOCS_INDEX_MISSING?
+  answer: Renamed to DOCS_CURRENT_MISSING in src/policies/errors.yaml (catalog update + test per invariant
+    5), doctor workflow warning updated, message reworded to "docs/current not found; delta target validation
+    was skipped."
+  lens: failure
+  resolved: true
+- id: DL-007
+  question: What is added to AGENTS.md §4?
+  answer: 'A sentence stating the table is the authoritative map / selection menu keyed by session goal;
+    two new routing rows: docs/changes/<slug>/ (change artifacts — requirements/design/plan/review, in
+    progress or accepted; there is no separate archive) and docs/ideas/ (deferred corrections noticed
+    mid-session to be picked up in a later session).'
+  lens: interface
+  resolved: true
+- id: DL-008
+  question: How is AGENTS.md ↔ docs/current consistency enforced?
+  answer: 'Bidirectional check inside the existing lintAgentsMarkdown policy (bin/validate-agents-md.ts,
+    npm run validate:agents-md): the docs/current→AGENTS.md direction already exists (routing-completeness);
+    add the AGENTS.md→docs/current direction (any docs/current/<name>.md mentioned in AGENTS.md must exist
+    in docs/current). No new stage-specific validation scripts (invariant 4); the check is a design-review
+    event with tests.'
+  lens: data
+  resolved: true
+- id: DL-009
+  question: What constraints govern this change?
+  answer: 'AGENTS.md invariants: docs/current is written only by knowledge extraction except docs-gen-owned
+    content (invariant 1); declarative validation, extend existing checks (invariant 4); new/changed error
+    codes update src/policies/errors.yaml and add tests (invariant 5); after stage/skill/policy source
+    changes refresh the deployed runtime with npm run deploy -- --dest .opencode --clean (invariant 7);
+    AGENTS.md content caps (90 lines, 16 table lines, section allowlist) enforced by validate:agents-md;
+    the One Rule: npm run validate must pass.'
+  lens: constraint
+  resolved: true
+- id: DL-010
+  question: Should docs/ideas and docs/changes be part of the routing?
+  answer: 'Yes: docs/changes/<slug>/ holds all change artifacts (accepted or in progress; accepted ones
+    are rendered into docs/current/decisions.md); docs/ideas/<slug>.md is where an agent records something
+    that must be corrected but cannot be done during the current session.'
+  lens: stakeholder
+  resolved: true
 assumptions:
-  - type: verified
-    text: "After index.md is retired, docs/current holds exactly 9 documents: api-contract.md,
-      architecture.md, capabilities.md, conventions.md, decisions.md, dependencies.md, glossary.md,
-      known-issues.md, operations.md."
-    source: docs/current/ directory listing (session observation)
-    risk: ""
-  - type: verified
-    text: The existing routing-completeness direction (docs/current → AGENTS.md) inside
-      lintAgentsMarkdown reads the docs/current directory, so it auto-adapts when index.md is
-      removed; only the AGENTS.md → docs/current direction is new.
-    source: bin/validate-agents-md.ts, npm run validate:agents-md
-    risk: ""
-  - type: verified
-    text: index.md mentions inside generated regions (api-contract.md error-catalog row for
-      DOCS_INDEX_MISSING) regenerate through npm run docs:generate; deltas may not target generated
-      regions (DELTA_TARGETS_GENERATED_REGION).
-    source: docs-gen.yaml, docs/current/api-contract.md (api-contract-error-catalog region),
-      src/scripts/lib/kinds/aggregator.ts
-    risk: ""
-  - type: verified
-    text: docs/changes/ holds 19 change folders and docs/ideas/ holds 12 idea files; both directories
-      exist, so the two new AGENTS.md routing rows point at real targets.
-    source: docs/changes/, docs/ideas/ directory listings (session observation)
-    risk: ""
-  - type: verified
-    text: AGENTS.md is 50 lines with an 11-line routing table against caps of 90 total lines and 16
-      table lines, so the authoritative-map sentence and two new rows fit without cap changes.
-    source: AGENTS.md, bin/validate-agents-md.ts caps
+- type: verified
+  text: 'After index.md is retired, docs/current holds exactly 9 documents: api-contract.md, architecture.md,
+    capabilities.md, conventions.md, decisions.md, dependencies.md, glossary.md, known-issues.md, operations.md.'
+  source: docs/current/ directory listing (session observation)
+  risk: ''
+- type: verified
+  text: The existing routing-completeness direction (docs/current → AGENTS.md) inside lintAgentsMarkdown
+    reads the docs/current directory, so it auto-adapts when index.md is removed; only the AGENTS.md →
+    docs/current direction is new.
+  source: bin/validate-agents-md.ts, npm run validate:agents-md
+  risk: ''
+- type: verified
+  text: index.md mentions inside generated regions (api-contract.md error-catalog row for DOCS_INDEX_MISSING)
+    regenerate through npm run docs:generate; deltas may not target generated regions (DELTA_TARGETS_GENERATED_REGION).
+  source: docs-gen.yaml, docs/current/api-contract.md (api-contract-error-catalog region), src/scripts/lib/kinds/aggregator.ts
+  risk: ''
+- type: verified
+  text: docs/changes/ holds 19 change folders and docs/ideas/ holds 12 idea files; both directories exist,
+    so the two new AGENTS.md routing rows point at real targets.
+  source: docs/changes/, docs/ideas/ directory listings (session observation)
+  risk: ''
+- type: verified
+  text: AGENTS.md is 50 lines with an 11-line routing table against caps of 90 total lines and 16 table
+    lines, so the authoritative-map sentence and two new rows fit without cap changes.
+  source: AGENTS.md, bin/validate-agents-md.ts caps
 functional_requirements:
-  - id: FR-001
-    description: "When npm run docs:generate runs after this change, the system shall not create,
-      render, or persist docs/current/index.md: the index whole-file entry is removed from
-      docs-gen.yaml and its provider (src/scripts/lib/docs-gen/providers/index-crosscheck.ts) no
-      longer writes any document."
-    acceptance_criteria:
-      - id: AC-001
-        statement: Given the change implemented, When npm run docs:generate runs, Then no
-          docs/current/index.md is written and the remaining generated documents are produced as
-          before.
-        category: happy
-      - id: AC-002
-        statement: Given docs-gen.yaml without the index entry, When npm run docs:check runs, Then no drift
-          finding names an index region or index file.
-        category: negative
-      - id: AC-003
-        statement: Given the change implemented, When docs/current is listed, Then index.md is absent and
-          exactly the 9 remaining documents are present.
-        category: boundary
-  - id: FR-002
-    description: When docs:generate or docs:check runs, the system shall execute the 7 mechanical
-      cross-checks with unchanged pass/fail semantics and fail the run on any violation, while
-      persisting no check output to any file.
-    acceptance_criteria:
-      - id: AC-004
-        statement: Given a clean repository tree, When npm run validate runs (docs:check inside), Then the 7
-          cross-checks execute, pass, and no document content changes.
-        category: happy
-      - id: AC-005
-        statement: Given an injected cross-check violation, When docs:generate or docs:check runs, Then the
-          run exits non-zero naming the failing check and no document is modified.
-        category: negative
-      - id: AC-006
-        statement: Given the index provider removed, When the cross-check suite runs, Then all 7 checks
-          still execute independently with the same pass/fail semantics as before the retirement.
-        category: boundary
-  - id: FR-003
-    description: When the dead-reference scan (scanDeadReferences) runs during docs:generate or
-      docs:check, the system shall treat every stale reference as a hard failure of the run and
-      shall render the finding into no document, including known-issues.md.
-    acceptance_criteria:
-      - id: AC-007
-        statement: Given every path referenced from scanned sources exists, When the dead-reference scan
-          runs, Then the run passes with zero stale-reference findings.
-        category: happy
-      - id: AC-008
-        statement: Given a scanned file citing a non-existent path, When the scan runs during docs:check,
-          Then the run fails naming the file and the missing path, and no rendered document contains
-          the finding.
-        category: negative
-      - id: AC-009
-        statement: Given the known-issues provider consumes scanDeadReferences, When npm run docs:generate
-          runs, Then known-issues.md contains no STALE-REF rows.
-        category: edge
-  - id: FR-004
-    description: "When the dead-reference scan runs on src/policies/errors.yaml after the fix, the
-      system shall report zero stale references for that file: the ILLEGAL_STATUS_TRANSITION entry
-      no longer cites the non-existent src/policies/lifecycle.yaml, and the MANIFEST_INVALID entry
-      cites bin/deploy-to-agent.ts."
-    acceptance_criteria:
-      - id: AC-010
-        statement: Given the corrected src/policies/errors.yaml, When the dead-reference scan runs, Then it
-          reports zero stale references for that file.
-        category: happy
-      - id: AC-011
-        statement: Given src/policies/errors.yaml still citing src/policies/lifecycle.yaml or
-          bin/deploy-to-agent.mjs, When the dead-reference scan runs, Then the run fails as a hard
-          check per FR-003.
-        category: negative
-      - id: AC-012
-        statement: Given the MANIFEST_INVALID fix, When the scan resolves its cited path, Then
-          bin/deploy-to-agent.ts exists on disk.
-        category: boundary
-  - id: FR-005
-    description: When a component reports missing docs/current during delta-target validation, the
-      system shall emit DOCS_CURRENT_MISSING from src/policies/errors.yaml with the message
-      "docs/current not found; delta target validation was skipped.", and no component shall emit
-      DOCS_INDEX_MISSING.
-    acceptance_criteria:
-      - id: AC-013
-        statement: Given the renamed catalog entry, When src/policies/errors.yaml is read, Then the
-          DOCS_CURRENT_MISSING row carries the message 'docs/current not found; delta target
-          validation was skipped.' and a fix text.
-        category: happy
-      - id: AC-014
-        statement: Given the codebase after the change, When src/ is searched for DOCS_INDEX_MISSING, Then
-          zero occurrences remain in the catalog or its emitters.
-        category: negative
-      - id: AC-015
-        statement: Given doctor running in a tree without docs/current, When the doctor workflow reports,
-          Then its warning carries code DOCS_CURRENT_MISSING and the reworded message.
-        category: edge
-      - id: AC-016
-        statement: Given the renamed catalog entry, When npm run docs:generate regenerates the api-contract
-          error-catalog region, Then the region lists DOCS_CURRENT_MISSING and contains no
-          DOCS_INDEX_MISSING row.
-        category: boundary
-  - id: FR-006
-    description: When loadDocsIndex is invoked for delta-target validation, the system shall return the
-      sorted list of docs/current/*.md read from the directory; parseDocsIndex and the
-      purpose/when/notes fields are removed and no module imports them.
-    acceptance_criteria:
-      - id: AC-017
-        statement: Given docs/current with exactly the 9 remaining documents, When a requirements envelope
-          is produced, Then data.delta_allowed_target_docs lists exactly those 9 documents in sorted
-          order.
-        category: happy
-      - id: AC-018
-        statement: Given a non-.md entry inside docs/current, When a requirements envelope is produced, Then
-          data.delta_allowed_target_docs does not list that entry.
-        category: edge
-      - id: AC-019
-        statement: Given docs/current absent, When a requirements envelope is produced, Then the envelope
-          carries the DOCS_CURRENT_MISSING warning with the reworded message.
-        category: negative
-      - id: AC-020
-        statement: Given exactly one .md file in docs/current, When a requirements envelope is produced,
-          Then data.delta_allowed_target_docs contains exactly that document.
-        category: boundary
-  - id: FR-007
-    description: When a stage step instruction is rendered for requirements, design, planning, or
-      implementation, the system shall contain no instruction to read docs/current/index.md, because
-      AGENTS.md §4 is always loaded.
-    acceptance_criteria:
-      - id: AC-021
-        statement: Given the four stage steps.yaml files updated, When a step instruction is rendered, Then
-          no step text directs the agent to read docs/current/index.md.
-        category: happy
-      - id: AC-022
-        statement: Given src/stages/*/steps.yaml, When a search for docs/current/index.md runs across
-          requirements, design, planning, and implementation, Then zero matches are found.
-        category: negative
-      - id: AC-023
-        statement: Given the deployed runtime after npm run deploy -- --dest .opencode --clean, When its
-          step instructions are rendered, Then they match the updated sources and reference no
-          index.md.
-        category: boundary
-  - id: FR-008
-    description: When AGENTS.md §4 (Session Context Routing) is updated, the system shall present the
-      table as the authoritative map and selection menu of docs/current keyed by session goal, add
-      exactly two routing rows (docs/changes/<slug>/ for change artifacts in progress or accepted,
-      with no separate archive; docs/ideas/ for deferred corrections picked up in a later session),
-      and remove the instruction to start every session from docs/current/index.md.
-    acceptance_criteria:
-      - id: AC-024
-        statement: Given the updated AGENTS.md §4, When the section is read, Then it states the table is the
-          authoritative map/selection menu keyed by session goal and carries the
-          docs/changes/<slug>/ and docs/ideas/ rows.
-        category: happy
-      - id: AC-025
-        statement: Given AGENTS.md after the update, When a search for docs/current/index.md runs over the
-          file, Then zero matches are found (the start-every-session instruction is gone).
-        category: negative
-      - id: AC-026
-        statement: Given the docs/changes routing row, When it is read, Then it describes change artifacts
-          (requirements/design/plan/review) as in progress or accepted with no separate archive.
-        category: edge
-      - id: AC-027
-        statement: Given the two new routing rows, When AGENTS.md structure is inspected, Then both rows
-          live inside the existing §4 table and no new section is added.
-        category: boundary
-  - id: FR-009
-    description: When npm run validate:agents-md runs, the system shall fail when AGENTS.md mentions a
-      docs/current/<name>.md that does not exist in docs/current, implemented as a new direction
-      inside the existing lintAgentsMarkdown policy (bin/validate-agents-md.ts) with tests, not as a
-      new stage-specific validation script.
-    acceptance_criteria:
-      - id: AC-028
-        statement: Given AGENTS.md mentioning only existing docs/current documents, When npm run
-          validate:agents-md runs, Then the new direction reports zero findings.
-        category: happy
-      - id: AC-029
-        statement: Given AGENTS.md mentioning docs/current/index.md after the retirement, When npm run
-          validate:agents-md runs, Then it exits non-zero naming docs/current/index.md as a missing
-          document.
-        category: negative
-      - id: AC-030
-        statement: Given AGENTS.md mentioning docs/changes/<slug>/ and docs/ideas/ paths, When npm run
-          validate:agents-md runs, Then the new direction does not flag them (its scope is
-          docs/current/<name>.md mentions).
-        category: edge
-      - id: AC-031
-        statement: Given the existing routing-completeness direction, When a docs/current document is absent
-          from the AGENTS.md table, Then npm run validate:agents-md still fails (existing direction
-          preserved).
-        category: boundary
-  - id: FR-010
-    description: "When the knowledge-init skill runs, the system shall produce a docs/current set
-      without index.md: the SKILL.md outputs list, its precondition, and the index-generation and
-      cross-check sections no longer create or reference index.md."
-    acceptance_criteria:
-      - id: AC-032
-        statement: Given the updated SKILL.md, When knowledge-init runs on a tree without docs/current, Then
-          it creates the 9 remaining documents and no index.md.
-        category: happy
-      - id: AC-033
-        statement: Given the updated SKILL.md, When its outputs list, precondition, and index-related
-          sections are read, Then none directs creating, generating, or reading
-          docs/current/index.md.
-        category: negative
-      - id: AC-034
-        statement: Given the deployed skill bundle after redeploy, When the deployed SKILL.md is compared
-          with its source, Then neither references index.md.
-        category: boundary
+- id: FR-001
+  description: 'When npm run docs:generate runs after this change, the system shall not create, render,
+    or persist docs/current/index.md: the index whole-file entry is removed from docs-gen.yaml and its
+    provider (src/scripts/lib/docs-gen/providers/index-crosscheck.ts) no longer writes any document.'
+  acceptance_criteria:
+  - id: AC-001
+    statement: Given the change implemented, When npm run docs:generate runs, Then no docs/current/index.md
+      is written and the remaining generated documents are produced as before.
+    category: happy
+  - id: AC-002
+    statement: Given docs-gen.yaml without the index entry, When npm run docs:check runs, Then no drift
+      finding names an index region or index file.
+    category: negative
+  - id: AC-003
+    statement: Given the change implemented, When docs/current is listed, Then index.md is absent and
+      exactly the 9 remaining documents are present.
+    category: boundary
+- id: FR-002
+  description: When docs:generate or docs:check runs, the system shall execute the 7 mechanical cross-checks
+    with unchanged pass/fail semantics and fail the run on any violation, while persisting no check output
+    to any file.
+  acceptance_criteria:
+  - id: AC-004
+    statement: Given a clean repository tree, When npm run validate runs (docs:check inside), Then the
+      7 cross-checks execute, pass, and no document content changes.
+    category: happy
+  - id: AC-005
+    statement: Given an injected cross-check violation, When docs:generate or docs:check runs, Then the
+      run exits non-zero naming the failing check and no document is modified.
+    category: negative
+  - id: AC-006
+    statement: Given the index provider removed, When the cross-check suite runs, Then all 7 checks still
+      execute independently with the same pass/fail semantics as before the retirement.
+    category: boundary
+- id: FR-003
+  description: When the dead-reference scan (scanDeadReferences) runs during docs:generate or docs:check,
+    the system shall treat every stale reference as a hard failure of the run and shall render the finding
+    into no document, including known-issues.md.
+  acceptance_criteria:
+  - id: AC-007
+    statement: Given every path referenced from scanned sources exists, When the dead-reference scan runs,
+      Then the run passes with zero stale-reference findings.
+    category: happy
+  - id: AC-008
+    statement: Given a scanned file citing a non-existent path, When the scan runs during docs:check,
+      Then the run fails naming the file and the missing path, and no rendered document contains the finding.
+    category: negative
+  - id: AC-009
+    statement: Given the known-issues provider consumes scanDeadReferences, When npm run docs:generate
+      runs, Then known-issues.md contains no STALE-REF rows.
+    category: edge
+- id: FR-004
+  description: 'When the dead-reference scan runs on src/policies/errors.yaml after the fix, the system
+    shall report zero stale references for that file: the ILLEGAL_STATUS_TRANSITION entry no longer cites
+    the non-existent src/policies/lifecycle.yaml, and the MANIFEST_INVALID entry cites bin/deploy-to-agent.ts.'
+  acceptance_criteria:
+  - id: AC-010
+    statement: Given the corrected src/policies/errors.yaml, When the dead-reference scan runs, Then it
+      reports zero stale references for that file.
+    category: happy
+  - id: AC-011
+    statement: Given src/policies/errors.yaml still citing src/policies/lifecycle.yaml or bin/deploy-to-agent.mjs,
+      When the dead-reference scan runs, Then the run fails as a hard check per FR-003.
+    category: negative
+  - id: AC-012
+    statement: Given the MANIFEST_INVALID fix, When the scan resolves its cited path, Then bin/deploy-to-agent.ts
+      exists on disk.
+    category: boundary
+- id: FR-005
+  description: When a component reports missing docs/current during delta-target validation, the system
+    shall emit DOCS_CURRENT_MISSING from src/policies/errors.yaml with the message "docs/current not found;
+    delta target validation was skipped.", and no component shall emit DOCS_INDEX_MISSING.
+  acceptance_criteria:
+  - id: AC-013
+    statement: Given the renamed catalog entry, When src/policies/errors.yaml is read, Then the DOCS_CURRENT_MISSING
+      row carries the message 'docs/current not found; delta target validation was skipped.' and a fix
+      text.
+    category: happy
+  - id: AC-014
+    statement: Given the codebase after the change, When src/ is searched for DOCS_INDEX_MISSING, Then
+      zero occurrences remain in the catalog or its emitters.
+    category: negative
+  - id: AC-015
+    statement: Given doctor running in a tree without docs/current, When the doctor workflow reports,
+      Then its warning carries code DOCS_CURRENT_MISSING and the reworded message.
+    category: edge
+  - id: AC-016
+    statement: Given the renamed catalog entry, When npm run docs:generate regenerates the api-contract
+      error-catalog region, Then the region lists DOCS_CURRENT_MISSING and contains no DOCS_INDEX_MISSING
+      row.
+    category: boundary
+- id: FR-006
+  description: When loadDocsIndex is invoked for delta-target validation, the system shall return the
+    sorted list of docs/current/*.md read from the directory; parseDocsIndex and the purpose/when/notes
+    fields are removed and no module imports them.
+  acceptance_criteria:
+  - id: AC-017
+    statement: Given docs/current with exactly the 9 remaining documents, When a requirements envelope
+      is produced, Then data.delta_allowed_target_docs lists exactly those 9 documents in sorted order.
+    category: happy
+  - id: AC-018
+    statement: Given a non-.md entry inside docs/current, When a requirements envelope is produced, Then
+      data.delta_allowed_target_docs does not list that entry.
+    category: edge
+  - id: AC-019
+    statement: Given docs/current absent, When a requirements envelope is produced, Then the envelope
+      carries the DOCS_CURRENT_MISSING warning with the reworded message.
+    category: negative
+  - id: AC-020
+    statement: Given exactly one .md file in docs/current, When a requirements envelope is produced, Then
+      data.delta_allowed_target_docs contains exactly that document.
+    category: boundary
+- id: FR-007
+  description: When a stage step instruction is rendered for requirements, design, planning, or implementation,
+    the system shall contain no instruction to read docs/current/index.md, because AGENTS.md §4 is always
+    loaded.
+  acceptance_criteria:
+  - id: AC-021
+    statement: Given the four stage steps.yaml files updated, When a step instruction is rendered, Then
+      no step text directs the agent to read docs/current/index.md.
+    category: happy
+  - id: AC-022
+    statement: Given src/stages/*/steps.yaml, When a search for docs/current/index.md runs across requirements,
+      design, planning, and implementation, Then zero matches are found.
+    category: negative
+  - id: AC-023
+    statement: Given the deployed runtime after npm run deploy -- --dest .opencode --clean, When its step
+      instructions are rendered, Then they match the updated sources and reference no index.md.
+    category: boundary
+- id: FR-008
+  description: When AGENTS.md §4 (Session Context Routing) is updated, the system shall present the table
+    as the authoritative map and selection menu of docs/current keyed by session goal, add exactly two
+    routing rows (docs/changes/<slug>/ for change artifacts in progress or accepted, with no separate
+    archive; docs/ideas/ for deferred corrections picked up in a later session), and remove the instruction
+    to start every session from docs/current/index.md.
+  acceptance_criteria:
+  - id: AC-024
+    statement: Given the updated AGENTS.md §4, When the section is read, Then it states the table is the
+      authoritative map/selection menu keyed by session goal and carries the docs/changes/<slug>/ and
+      docs/ideas/ rows.
+    category: happy
+  - id: AC-025
+    statement: Given AGENTS.md after the update, When a search for docs/current/index.md runs over the
+      file, Then zero matches are found (the start-every-session instruction is gone).
+    category: negative
+  - id: AC-026
+    statement: Given the docs/changes routing row, When it is read, Then it describes change artifacts
+      (requirements/design/plan/review) as in progress or accepted with no separate archive.
+    category: edge
+  - id: AC-027
+    statement: Given the two new routing rows, When AGENTS.md structure is inspected, Then both rows live
+      inside the existing §4 table and no new section is added.
+    category: boundary
+- id: FR-009
+  description: When npm run validate:agents-md runs, the system shall fail when AGENTS.md mentions a docs/current/<name>.md
+    that does not exist in docs/current, implemented as a new direction inside the existing lintAgentsMarkdown
+    policy (bin/validate-agents-md.ts) with tests, not as a new stage-specific validation script.
+  acceptance_criteria:
+  - id: AC-028
+    statement: Given AGENTS.md mentioning only existing docs/current documents, When npm run validate:agents-md
+      runs, Then the new direction reports zero findings.
+    category: happy
+  - id: AC-029
+    statement: Given AGENTS.md mentioning docs/current/index.md after the retirement, When npm run validate:agents-md
+      runs, Then it exits non-zero naming docs/current/index.md as a missing document.
+    category: negative
+  - id: AC-030
+    statement: Given AGENTS.md mentioning docs/changes/<slug>/ and docs/ideas/ paths, When npm run validate:agents-md
+      runs, Then the new direction does not flag them (its scope is docs/current/<name>.md mentions).
+    category: edge
+  - id: AC-031
+    statement: Given the existing routing-completeness direction, When a docs/current document is absent
+      from the AGENTS.md table, Then npm run validate:agents-md still fails (existing direction preserved).
+    category: boundary
+- id: FR-010
+  description: 'When the knowledge-init skill runs, the system shall produce a docs/current set without
+    index.md: the SKILL.md outputs list, its precondition, and the index-generation and cross-check sections
+    no longer create or reference index.md.'
+  acceptance_criteria:
+  - id: AC-032
+    statement: Given the updated SKILL.md, When knowledge-init runs on a tree without docs/current, Then
+      it creates the 9 remaining documents and no index.md.
+    category: happy
+  - id: AC-033
+    statement: Given the updated SKILL.md, When its outputs list, precondition, and index-related sections
+      are read, Then none directs creating, generating, or reading docs/current/index.md.
+    category: negative
+  - id: AC-034
+    statement: Given the deployed skill bundle after redeploy, When the deployed SKILL.md is compared
+      with its source, Then neither references index.md.
+    category: boundary
 non_functional_requirements:
-  - id: NFR-001
-    description: When any code or YAML change of this change is complete, the system shall pass npm run
-      validate with zero blocking findings (One Rule), with npm run check:all as the full-coverage
-      confirmation.
-    acceptance_criteria:
-      - id: AC-035
-        statement: Given all change tasks done, When npm run validate runs, Then it exits 0 with zero
-          blocking findings.
-        category: happy
-      - id: AC-036
-        statement: Given all change tasks done, When npm run check:all runs, Then it exits 0 (validate +
-          unit + e2e + deploy smoke).
-        category: boundary
-      - id: AC-037
-        statement: Given a hand edit inside a generated docs/current region, When npm run validate runs,
-          Then docs:check fails naming the drifted region.
-        category: negative
-  - id: NFR-002
-    description: When stage, agent, schema, or policy sources change (steps.yaml,
-      src/policies/errors.yaml, src/skills/knowledge-init/SKILL.md), the system shall refresh the
-      deployed runtime via npm run deploy -- --dest .opencode --clean before the change completes,
-      and npm run deploy:smoke shall pass.
-    acceptance_criteria:
-      - id: AC-038
-        statement: Given source changes to steps.yaml, errors.yaml, or the knowledge-init SKILL.md, When npm
-          run deploy -- --dest .opencode --clean runs, Then the deployed runtime carries the updated
-          steps, error codes, and skill text.
-        category: happy
-      - id: AC-039
-        statement: Given the redeployed runtime, When npm run deploy:smoke runs, Then it passes (CLI
-          --list-workflows, skill frontmatter, per-agent checks).
-        category: edge
-      - id: AC-040
-        statement: Given --clean, When deploy runs, Then stale rendered agents whose source definitions no
-          longer exist are removed from the destination.
-        category: boundary
-  - id: NFR-003
-    description: When AGENTS.md is modified by this change, the system shall stay within the
-      validate:agents-md caps of 90 total lines, 16 table lines, and the section allowlist.
-    acceptance_criteria:
-      - id: AC-041
-        statement: Given the updated AGENTS.md, When npm run validate:agents-md runs, Then zero cap or
-          section-allowlist findings are reported.
-        category: happy
-      - id: AC-042
-        statement: Given the routing table grown from 11 to 13 lines, When npm run validate:agents-md runs,
-          Then the 16-line table cap holds with headroom.
-        category: boundary
-      - id: AC-043
-        statement: Given any edit pushing AGENTS.md past 90 total lines or the table past 16 lines, When npm
-          run validate:agents-md runs, Then it exits non-zero.
-        category: negative
-  - id: NFR-004
-    description: When the check or error-catalog surface changes (docs-index rewrite,
-      DOCS_CURRENT_MISSING rename, agents-md bidirectional direction, docs-gen engine), the system
-      shall carry updated unit and e2e tests covering the new behavior in
-      test/unit/docs-index.test.ts, test/unit/agents-md-policy.test.ts,
-      test/unit/docs-gen-engine.test.ts, the doctor e2e, and the authoring tests (invariant 5).
-    acceptance_criteria:
-      - id: AC-044
-        statement: Given the updated suites, When npm run test:unit runs, Then it exits 0 including the
-          rewritten docs-index, agents-md-policy, and docs-gen-engine cases.
-        category: happy
-      - id: AC-046
-        statement: Given the doctor e2e running without docs/current, When it executes, Then the reported
-          warning carries the renamed DOCS_CURRENT_MISSING code.
-        category: edge
+- id: NFR-001
+  description: When any code or YAML change of this change is complete, the system shall pass npm run
+    validate with zero blocking findings (One Rule), with npm run check:all as the full-coverage confirmation.
+  acceptance_criteria:
+  - id: AC-035
+    statement: Given all change tasks done, When npm run validate runs, Then it exits 0 with zero blocking
+      findings.
+    category: happy
+  - id: AC-036
+    statement: Given all change tasks done, When npm run check:all runs, Then it exits 0 (validate + unit
+      + e2e + deploy smoke).
+    category: boundary
+  - id: AC-037
+    statement: Given a hand edit inside a generated docs/current region, When npm run validate runs, Then
+      docs:check fails naming the drifted region.
+    category: negative
+- id: NFR-002
+  description: When stage, agent, schema, or policy sources change (steps.yaml, src/policies/errors.yaml,
+    src/skills/knowledge-init/SKILL.md), the system shall refresh the deployed runtime via npm run deploy
+    -- --dest .opencode --clean before the change completes, and npm run deploy:smoke shall pass.
+  acceptance_criteria:
+  - id: AC-038
+    statement: Given source changes to steps.yaml, errors.yaml, or the knowledge-init SKILL.md, When npm
+      run deploy -- --dest .opencode --clean runs, Then the deployed runtime carries the updated steps,
+      error codes, and skill text.
+    category: happy
+  - id: AC-039
+    statement: Given the redeployed runtime, When npm run deploy:smoke runs, Then it passes (CLI --list-workflows,
+      skill frontmatter, per-agent checks).
+    category: edge
+  - id: AC-040
+    statement: Given --clean, When deploy runs, Then stale rendered agents whose source definitions no
+      longer exist are removed from the destination.
+    category: boundary
+- id: NFR-003
+  description: When AGENTS.md is modified by this change, the system shall stay within the validate:agents-md
+    caps of 90 total lines, 16 table lines, and the section allowlist.
+  acceptance_criteria:
+  - id: AC-041
+    statement: Given the updated AGENTS.md, When npm run validate:agents-md runs, Then zero cap or section-allowlist
+      findings are reported.
+    category: happy
+  - id: AC-042
+    statement: Given the routing table grown from 11 to 13 lines, When npm run validate:agents-md runs,
+      Then the 16-line table cap holds with headroom.
+    category: boundary
+  - id: AC-043
+    statement: Given any edit pushing AGENTS.md past 90 total lines or the table past 16 lines, When npm
+      run validate:agents-md runs, Then it exits non-zero.
+    category: negative
+- id: NFR-004
+  description: When the check or error-catalog surface changes (docs-index rewrite, DOCS_CURRENT_MISSING
+    rename, agents-md bidirectional direction, docs-gen engine), the system shall carry updated unit and
+    e2e tests covering the new behavior in test/unit/docs-index.test.ts, test/unit/agents-md-policy.test.ts,
+    test/unit/docs-gen-engine.test.ts, the doctor e2e, and the authoring tests (invariant 5).
+  acceptance_criteria:
+  - id: AC-044
+    statement: Given the updated suites, When npm run test:unit runs, Then it exits 0 including the rewritten
+      docs-index, agents-md-policy, and docs-gen-engine cases.
+    category: happy
+  - id: AC-046
+    statement: Given the doctor e2e running without docs/current, When it executes, Then the reported
+      warning carries the renamed DOCS_CURRENT_MISSING code.
+    category: edge
 out_of_scope:
-  - "Changing the logic or set of the 7 mechanical cross-checks: they continue enforcement-only with
-    unchanged semantics (FR-002)."
-  - "Creating any successor persisted routing or index artifact in docs/current: AGENTS.md §4 is the
-    map; no file replaces index.md."
-  - "Hand-editing docs/current generated regions (api-contract error catalog, glossary field tables,
-    decisions rows): they regenerate via npm run docs:generate."
-  - "Changing operations.md command rows or any CLI command surface: no command shapes change."
-  - "Introducing an archive area for accepted changes: docs/changes/<slug>/ holds both in-progress
-    and accepted artifacts."
-  - "Implementing any source change from the requirements stage: this artifact specifies behavior;
-    implementation happens in the implementation stage."
+- 'Changing the logic or set of the 7 mechanical cross-checks: they continue enforcement-only with unchanged
+  semantics (FR-002).'
+- 'Creating any successor persisted routing or index artifact in docs/current: AGENTS.md §4 is the map;
+  no file replaces index.md.'
+- 'Hand-editing docs/current generated regions (api-contract error catalog, glossary field tables, decisions
+  rows): they regenerate via npm run docs:generate.'
+- 'Changing operations.md command rows or any CLI command surface: no command shapes change.'
+- 'Introducing an archive area for accepted changes: docs/changes/<slug>/ holds both in-progress and accepted
+  artifacts.'
+- 'Implementing any source change from the requirements stage: this artifact specifies behavior; implementation
+  happens in the implementation stage.'
 failure_paths:
-  - "AGENTS.md exceeds the 90-line or 16-table-line cap or adds a non-allowlisted section: npm run
-    validate:agents-md exits non-zero and the change cannot finalize (R1)."
-  - "Partial retirement (docs-gen.yaml entry removed but the provider or a scanDeadReferences
-    consumer left behind): docs:generate/docs:check fails inside npm run validate, blocking
-    completion until the removal is completed (R2)."
-  - "Deployed-runtime drift: .opencode step instructions, doctor warnings, or the deployed
-    knowledge-init skill keep the retired index.md behavior; npm run deploy:smoke and rendered step
-    instructions expose the drift until npm run deploy -- --dest .opencode --clean runs (R3)."
-  - "A test fixture still referencing index.md (docs-index, agents-md-policy, docs-gen-engine,
-    doctor e2e, authoring tests): npm run validate fails on unit tests until the fixtures are
-    updated (R4)."
-  - "A stale reference survives the errors.yaml fix: the dead-reference scan fails the run hard and
-    persists nothing (FR-003) (R5)."
-  - "docs/current directory missing at authoring time: the CLI warns DOCS_CURRENT_MISSING with the
-    reworded message and skips delta-target validation."
+- 'AGENTS.md exceeds the 90-line or 16-table-line cap or adds a non-allowlisted section: npm run validate:agents-md
+  exits non-zero and the change cannot finalize (R1).'
+- 'Partial retirement (docs-gen.yaml entry removed but the provider or a scanDeadReferences consumer left
+  behind): docs:generate/docs:check fails inside npm run validate, blocking completion until the removal
+  is completed (R2).'
+- 'Deployed-runtime drift: .opencode step instructions, doctor warnings, or the deployed knowledge-init
+  skill keep the retired index.md behavior; npm run deploy:smoke and rendered step instructions expose
+  the drift until npm run deploy -- --dest .opencode --clean runs (R3).'
+- 'A test fixture still referencing index.md (docs-index, agents-md-policy, docs-gen-engine, doctor e2e,
+  authoring tests): npm run validate fails on unit tests until the fixtures are updated (R4).'
+- 'A stale reference survives the errors.yaml fix: the dead-reference scan fails the run hard and persists
+  nothing (FR-003) (R5).'
+- 'docs/current directory missing at authoring time: the CLI warns DOCS_CURRENT_MISSING with the reworded
+  message and skips delta-target validation.'
 risks_and_dependencies:
-  - "R1: AGENTS.md cap budget — the authoritative-map sentence and two new rows consume cap space
-    (currently 50 lines, 11 table rows against caps 90/16); an over-cap edit fails the fast gate."
-  - "R2: coordinated removal across docs-gen.yaml, the index provider, and scanDeadReferences
-    consumers (known-issues provider) — a partial removal leaves docs:check drift or a dangling
-    import."
-  - "R3: deployed-runtime drift — steps.yaml, src/policies/errors.yaml, and the knowledge-init
-    SKILL.md are deployed build artifacts (invariant 7); without npm run deploy -- --dest .opencode
-    --clean the runtime keeps the index.md behavior."
-  - "R4: test-fixture coupling — test/unit/docs-index.test.ts, test/unit/agents-md-policy.test.ts,
-    test/unit/docs-gen-engine.test.ts, the doctor e2e, and authoring tests reference index.md and
-    fail until updated in the same change."
-  - "R5: ILLEGAL_STATUS_TRANSITION fix target — src/policies/lifecycle.yaml does not exist, so the
-    replacement citation is a design-stage decision; a wrong citation re-triggers the hard STALE-REF
-    failure."
+- 'R1: AGENTS.md cap budget — the authoritative-map sentence and two new rows consume cap space (currently
+  50 lines, 11 table rows against caps 90/16); an over-cap edit fails the fast gate.'
+- 'R2: coordinated removal across docs-gen.yaml, the index provider, and scanDeadReferences consumers
+  (known-issues provider) — a partial removal leaves docs:check drift or a dangling import.'
+- 'R3: deployed-runtime drift — steps.yaml, src/policies/errors.yaml, and the knowledge-init SKILL.md
+  are deployed build artifacts (invariant 7); without npm run deploy -- --dest .opencode --clean the runtime
+  keeps the index.md behavior.'
+- 'R4: test-fixture coupling — test/unit/docs-index.test.ts, test/unit/agents-md-policy.test.ts, test/unit/docs-gen-engine.test.ts,
+  the doctor e2e, and authoring tests reference index.md and fail until updated in the same change.'
+- 'R5: ILLEGAL_STATUS_TRANSITION fix target — src/policies/lifecycle.yaml does not exist, so the replacement
+  citation is a design-stage decision; a wrong citation re-triggers the hard STALE-REF failure.'
 delta:
-  - phase: Requirements
-    target_doc: docs/current/conventions.md
-    target_anchor: File Organization
-    change: Modify
-    reason: "Replace the docs/current index contract row: AGENTS.md section 4 (Session Context Routing)
-      becomes the sole validated map of docs/current (authoritative selection menu keyed by session
-      goal, with routing rows for docs/changes/<slug>/ and docs/ideas/), and the delta-target
-      registry becomes a docs/current directory scan; index.md is retired."
-    date: 2026-09-09
-  - phase: Requirements
-    target_doc: docs/current/architecture.md
-    target_anchor: Folder Responsibilities
-    change: Modify
-    reason: "The docs/current folder row no longer counts index.md: the folder holds the 9 remaining
-      documents and the routing map lives in AGENTS.md section 4."
-    date: 2026-09-09
+- target_doc: docs/current/conventions.md
+  target_anchor: File Organization
+  change: Modify
+  reason: 'Replace the docs/current index contract row: AGENTS.md section 4 (Session Context Routing)
+    becomes the sole validated map of docs/current (authoritative selection menu keyed by session goal,
+    with routing rows for docs/changes/<slug>/ and docs/ideas/), and the delta-target registry becomes
+    a docs/current directory scan; index.md is retired.'
+  date: 2026-09-09
+  stage: requirements
+- target_doc: docs/current/architecture.md
+  target_anchor: Folder Responsibilities
+  change: Modify
+  reason: 'The docs/current folder row no longer counts index.md: the folder holds the 9 remaining documents
+    and the routing map lives in AGENTS.md section 4.'
+  date: 2026-09-09
+  stage: requirements

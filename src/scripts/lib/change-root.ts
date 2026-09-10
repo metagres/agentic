@@ -30,14 +30,11 @@ function contextualFix(err: ResolveRootError): Record<string, string> {
 
 export interface ChangeRootOptions {
   /**
-   * Step-data-driven surface (DM-003): the rendered needs_input markdown from
-   * the caller's steps.yaml. When supplied it bases the instructions, with the
-   * resolution message as the annex; failure paths without it keep the bare
-   * message.
+   * Engagement instruction (FR-012): what the caller wants done once a change
+   * is engaged (e.g. 'run the review gate'). Composed after the generic
+   * engagement sentence; failure paths without it keep the bare message.
    */
-  markdown?: string;
-  /** Opt-in step_help payload (DEC-003) for the needs_input envelopes. */
-  stepHelp?: Record<string, unknown>;
+  instruction?: string;
 }
 
 export function requireChangeRoot(
@@ -47,19 +44,25 @@ export function requireChangeRoot(
   options: ChangeRootOptions = {}
 ): string | null {
   const compose = (message: string) =>
-    [options.markdown?.trim(), message.trim()].filter(Boolean).join('\n\n');
-  const helpData = options.stepHelp ? { step_help: options.stepHelp } : {};
+    [
+      'A workflow invocation must be engaged with a change: provide --change <change-name> ' +
+        '(one of data.available_changes). Change identification is the skill\'s job, never a stage step.',
+      options.instruction?.trim(),
+      message.trim(),
+    ]
+      .filter(Boolean)
+      .join('\n\n');
 
   if (!args.change) {
     writeJson(
       {
         ...base,
+        step: 'blocked',
         state: 'blocked',
-        instructions: compose('Provide --change <change-name>.'),
+        instructions: compose(''),
         data: {
           available_changes: listChangeDirNames(changesDirFor(cwd)),
           searched: changesDirFor(cwd),
-          ...helpData,
         },
         errors: [makeError('MISSING_CHANGE_DIR')],
         warnings: [],
@@ -87,7 +90,6 @@ export function requireChangeRoot(
             candidates: err.candidates || [],
             available_changes: err.available || [],
             searched: err.searched || undefined,
-            ...helpData,
           },
           errors: [
             makeError(code, {

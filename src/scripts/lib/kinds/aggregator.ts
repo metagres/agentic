@@ -9,6 +9,7 @@ import { safeReadYaml } from '../context.ts';
 import { requireChangeRoot } from '../change-root.ts';
 import { today } from '../ids.ts';
 import { makeError } from '../error-catalog.ts';
+import { helpEnvelope, rejectUnknownFlags, AGGREGATOR_FLAGS } from '../help.ts';
 import { evaluateGate } from '../requires-graph.ts';
 import { loadStepDefinitions } from '../steps-loader.ts';
 import { buildStepVars, renderStepHelp, renderTemplate } from '../step-render.ts';
@@ -111,11 +112,11 @@ function deltaAnchorIdentity(delta: Record<string, unknown>): string | null {
  * Deduplicates collected deltas before they are presented as deltas_to_apply.
  * Entries are grouped by target_doc + change (different change types on the
  * same doc stay separate). Within a group the latest entry wins — entry order
- * follows artifact/phase collection order, so later phases overwrite earlier
+ * follows artifact/stage collection order, so later stages overwrite earlier
  * ones — unless the group carries distinct non-null anchors that cannot be
  * merged: those anchored edits are kept as separate entries (conservative:
  * never drop a distinct anchored edit). Output is sorted by target_doc, then
- * change, then phase so presentation is deterministic.
+ * change, then stage so presentation is deterministic.
  */
 export function dedupeDeltas(
   deltas: Record<string, unknown>[]
@@ -170,16 +171,33 @@ export function dedupeDeltas(
     if (byDoc !== 0) return byDoc;
     const byChange = String(a.change ?? '').localeCompare(String(b.change ?? ''));
     if (byChange !== 0) return byChange;
-    return String(a.phase ?? '').localeCompare(String(b.phase ?? ''));
+    return String(a.stage ?? '').localeCompare(String(b.stage ?? ''));
   });
 }
 
 function usage(stage: StageRecord, code = EXIT.ok) {
+  if (code === EXIT.ok) {
+    writeJson(
+      helpEnvelope({
+        workflow: stage.id,
+        purpose:
+          'Knowledge extraction: list the collected living-doc deltas, apply them, then mark the synchronization complete.',
+        usage: [
+          `sdlc ${stage.id} --change <change-name>`,
+          `sdlc ${stage.id} --change <change-name> --complete`,
+        ],
+        flags: AGGREGATOR_FLAGS,
+      }),
+      code
+    );
+    return;
+  }
+
   writeJson(
     {
       workflow: stage.id,
       step: 'help',
-      state: code === EXIT.ok ? 'ok' : 'blocked',
+      state: 'blocked',
       instructions: `Usage: sdlc ${stage.id} --change <change-name> [--complete] ` + CWD_FLAG_DOC,
       data: {},
       errors: [],
@@ -195,6 +213,7 @@ export async function runAggregatorStage(
   cwd: string
 ): Promise<void> {
   const args = parseArgs(argv) as ParseArgsResult;
+  rejectUnknownFlags(stage.id, args, AGGREGATOR_FLAGS);
 
   if (args.help) {
     usage(stage, EXIT.ok);
@@ -219,13 +238,10 @@ export async function runAggregatorStage(
 
   const base: Record<string, unknown> = {
     workflow: stage.id,
-    step: 'needs_input',
+    step: 'docs_delta',
   };
 
-  const changeRoot = requireChangeRoot(args, cwd, base, {
-    markdown: markdownFor('needs_input', null),
-    ...(helpStep ? { stepHelp: helpFor('needs_input', null) } : {}),
-  });
+  const changeRoot = requireChangeRoot(args, cwd, base);
   if (!changeRoot) return;
 
   // Detected step: the --complete verdict closes the stage; the default
@@ -277,17 +293,15 @@ export async function runAggregatorStage(
       const artifact = safeReadYaml(artifactPath) as Record<string, unknown> | null;
 
       if (artifact && Array.isArray(artifact.delta)) {
+        // Entries are self-describing (FR-011): each carries the producing
+        // stage in its stage field; no collection annotations are added.
         (artifact.delta as Record<string, unknown>[]).forEach((delta) => {
-          collectedDeltas.push({
-            ...delta,
-            source_stage: cfg.id,
-            source_artifact: cfg.artifact,
-          });
+          collectedDeltas.push({ ...delta });
         });
       }
     }
 
-    // Near-duplicate entries across phases (same target_doc + change) are
+    // Near-duplicate entries across stages (same target_doc + change) are
     // collapsed before presentation; distinct anchored edits survive.
     const deltasToApply = dedupeDeltas(collectedDeltas);
 

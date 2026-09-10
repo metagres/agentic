@@ -31,7 +31,9 @@ function analystPattern(overrides: Record<string, string> = {}): Record<string, 
   return {
     file_read: 'allow',
     search: 'deny',
-    file_write: 'allow',
+    // FR-007: the neutral level is a deny ceiling; the renderer path-scopes
+    // the structured write tools (.tmp scratch, docs/current for the curator).
+    file_write: 'deny',
     shell: 'allow',
     subagent: 'allow',
     web: 'deny',
@@ -96,7 +98,7 @@ function sixAgentRoster(): CompatibilityAgent[] {
 test('KIND_PERMISSION_CONTRACTS encode the accepted kind matrix', () => {
   assert.deepEqual(KIND_PERMISSION_CONTRACTS.authoring, {
     file_read: 'allow',
-    file_write: 'allow',
+    file_write: 'deny',
     shell: 'allow',
     subagent: 'allow',
     web: 'deny',
@@ -119,7 +121,7 @@ test('KIND_PERMISSION_CONTRACTS encode the accepted kind matrix', () => {
   });
   assert.deepEqual(KIND_PERMISSION_CONTRACTS.aggregator, {
     file_read: 'allow',
-    file_write: 'allow',
+    file_write: 'deny',
     shell: 'allow',
     subagent: 'allow',
     web: 'deny',
@@ -167,7 +169,7 @@ test('computeEffectivePermissions: override values outside allow/deny and unknow
     }),
     {
       file_read: 'allow',
-      file_write: 'allow',
+      file_write: 'deny',
       shell: 'deny',
       subagent: 'allow',
       web: 'deny',
@@ -275,7 +277,9 @@ test('multi-binding: the union of floors is enforced with a single finding', () 
 
 test('multi-binding: a floor contributed by only one binding still binds (union)', () => {
   // search is floored by tasks but unconstrained by authoring; the union keeps
-  // the floor alive through the authoring-stage binding.
+  // the floor alive through the authoring-stage binding. file_write is now a
+  // deny ceiling from the authoring side AND an allow floor from the tasks
+  // side — an unsatisfiable pair reported as a conflict for both stages.
   const findings = checkAgentCompatibility(
     [
       stage('requirements', 'authoring', 'shared'),
@@ -284,6 +288,14 @@ test('multi-binding: a floor contributed by only one binding still binds (union)
     [agentDef('shared', analystPattern({ search: 'ask', web: 'deny' }))]
   );
   assert.deepEqual(findings, [
+    {
+      stage: 'implementation',
+      agent: 'shared',
+      key: 'file_write',
+      required: 'allow',
+      actual: 'deny',
+      conflict_with: 'requirements',
+    },
     { stage: 'implementation', agent: 'shared', key: 'search', required: 'allow', actual: 'ask' },
   ]);
 });

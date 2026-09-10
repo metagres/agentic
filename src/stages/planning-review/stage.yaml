@@ -8,5 +8,3 @@ status_field: status
 requires: []
 reviews: planning
 review_file: plan-review.yaml
-permissions:
-  file_write: allow

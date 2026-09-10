@@ -18,6 +18,7 @@ import { validateArtifact } from '../validate.ts';
 import { evaluateGate } from '../requires-graph.ts';
 import type { GateResult } from '../requires-graph.ts';
 import { makeError } from '../error-catalog.ts';
+import { helpEnvelope, rejectUnknownFlags, AUTHORING_FLAGS } from '../help.ts';
 import type { Failure } from '../review-findings.ts';
 import type { StageRecord } from '../stage-registry.ts';
 import type { ParseArgsResult, WarningItem, Finding } from '../types.ts';
@@ -247,22 +248,81 @@ function markMutated(env: AuthorEnv): void {
   if (!artifact.metadata) artifact.metadata = {};
   const meta = artifact.metadata as Record<string, unknown>;
 
-  if (env.args['keep-status']) {
-    meta.updated = today();
-    return;
-  }
-
+  // Strict draft-reset (FR-008): every mutation reopens the artifact —
+  // rejected stays rejected until finalize passes again, everything else
+  // becomes draft. There is no keep-status escape hatch.
   const status = meta.status as string | undefined;
 
   if (status === 'rejected') {
     // Keep rejected until finalize passes again.
-  } else if (status === 'draft') {
-    // Keep draft.
-  } else {
+  } else if (status !== 'draft') {
     meta.status = 'draft';
   }
 
   meta.updated = today();
+}
+
+/**
+ * Uniform <file|-> payload input (FR-001): a bare flag or '-' reads stdin
+ * (the documented default), a filesystem path reads that file. The input
+ * source is never written or deleted — the caller owns its lifecycle; the
+ * documented scratch convention points payloads at .tmp/sdlc/ under the
+ * project root with prescribed unique names.
+ */
+function readPayloadDocument(raw: unknown, flagName: string): unknown {
+  if (raw === true || raw === undefined || String(raw).trim() === '-') {
+    const text = readStdin();
+    if (!text.trim()) {
+      throw new Error(`${flagName} requires YAML on stdin.`);
+    }
+    return parseYamlString(text, 'stdin');
+  }
+
+  const file = String(raw).trim();
+  if (!fs.existsSync(file)) {
+    throw new Error(`${flagName} file not found: ${file}`);
+  }
+  return readYaml(file);
+}
+
+/**
+ * Id-keyed list merge (FR-002): when both sides of a key are non-empty
+ * arrays whose members all carry non-empty ids, entries merge by id —
+ * matching entries update in place preserving order, new ids append. Any
+ * other shape (mixed members, scalars, string lists, either side empty)
+ * returns null and the caller keeps whole-list replacement.
+ */
+function mergeListById(existing: unknown, input: unknown): unknown[] | null {
+  if (!Array.isArray(existing) || !Array.isArray(input)) return null;
+  if (existing.length === 0 || input.length === 0) return null;
+
+  const allIded = (list: unknown[]) =>
+    list.every(
+      (member) =>
+        member !== null &&
+        typeof member === 'object' &&
+        typeof (member as Record<string, unknown>).id === 'string' &&
+        String((member as Record<string, unknown>).id).trim() !== ''
+    );
+
+  if (!allIded(existing) || !allIded(input)) return null;
+
+  const merged = (existing as Record<string, unknown>[]).map((entry) => ({ ...entry }));
+  const indexById = new Map<string, number>();
+  merged.forEach((entry, idx) => indexById.set(String(entry.id), idx));
+
+  for (const raw of input as Record<string, unknown>[]) {
+    const id = String(raw.id);
+    const idx = indexById.get(id);
+    if (idx === undefined) {
+      indexById.set(id, merged.length);
+      merged.push({ ...raw });
+    } else {
+      merged[idx] = { ...merged[idx], ...raw };
+    }
+  }
+
+  return merged;
 }
 
 function mergeArtifact(
@@ -274,6 +334,14 @@ function mergeArtifact(
     ...existing,
     ...input,
   } as Record<string, unknown>;
+
+  // Id-keyed list merge (FR-002): object arrays identified by id merge
+  // per-entry instead of replacing the whole list; every other shape keeps
+  // the shallow replace semantics above.
+  for (const key of Object.keys(input)) {
+    const mergedList = mergeListById(existing?.[key], input[key]);
+    if (mergedList) out[key] = mergedList;
+  }
 
   const existingMeta = (existing?.metadata as Record<string, unknown> | undefined) || {};
   const inputMeta = (input?.metadata as Record<string, unknown> | undefined) || {};
@@ -296,12 +364,10 @@ function mergeArtifact(
 }
 
 function applyUpdateArtifact(env: AuthorEnv): void {
-  const raw = readStdin();
-  if (!raw.trim()) {
-    throw new Error('--update-artifact requires YAML on stdin.');
-  }
-
-  const input = parseYamlString(raw, 'stdin') as Record<string, unknown>;
+  const input = readPayloadDocument(
+    env.args['update-artifact'],
+    '--update-artifact'
+  ) as Record<string, unknown>;
 
   const base: Record<string, unknown> =
     env.artifact ||
@@ -398,12 +464,10 @@ export function recordAnswersBatch(env: AuthorEnv): void {
 }
 
 function appendDelta(env: AuthorEnv): void {
-  const raw = readStdin();
-  if (!raw.trim()) {
-    throw new Error('--append-delta requires YAML on stdin.');
-  }
-
-  const parsed = parseYamlString(raw, 'stdin') as Record<string, unknown>;
+  const parsed = readPayloadDocument(
+    env.args['append-delta'],
+    '--append-delta'
+  ) as Record<string, unknown>;
   const entries: unknown = Array.isArray(parsed) ? parsed : (parsed as Record<string, unknown>)?.delta;
 
   if (!Array.isArray(entries)) {
@@ -487,8 +551,6 @@ function completeStep(env: AuthorEnv): void {
     meta.assumptions_reviewed = true;
   } else if (step === 'delta') {
     meta.delta_reviewed = true;
-  } else if (step === 'init') {
-    meta.context_loaded = true;
   } else if (step === 'discovery') {
     meta.discovery_reviewed = true;
   } else {
@@ -561,17 +623,13 @@ function finalizeArtifact(env: AuthorEnv): void {
 
   const meta = (env.artifact as Record<string, unknown>).metadata as Record<string, unknown>;
 
-  let bumpKind = env.args['bump-version'] as string | undefined;
-  if (bumpKind && !['major', 'minor', 'patch'].includes(bumpKind)) {
-    throw new Error('--bump-version must be major, minor, or patch.');
-  }
-
-  if (!bumpKind) {
-    if (meta.status === 'rejected') {
-      bumpKind = 'patch';
-    } else if (meta.status === 'accepted') {
-      bumpKind = 'minor';
-    }
+  // Mechanical version rules (FR-008): first finalize leaves the version,
+  // finalize from rejected bumps patch, finalize from accepted bumps minor.
+  let bumpKind: string | undefined;
+  if (meta.status === 'rejected') {
+    bumpKind = 'patch';
+  } else if (meta.status === 'accepted') {
+    bumpKind = 'minor';
   }
 
   if (bumpKind) {
@@ -649,46 +707,111 @@ function describeStep(stage: StageRecord, stepId: string, cwd: string) {
 function helpPayload(stage: StageRecord) {
   const stepDefinitions = loadStepDefinitions(stage) || {};
   const stepIds = Object.keys(stepDefinitions);
-  const usage = [
-    `sdlc ${stage.id} --change <change-name>`,
-    `sdlc ${stage.id} --request "<request>"`,
-    `sdlc ${stage.id} --change <change-name> --next-ids`,
-    `sdlc ${stage.id} --change <change-name> --update-artifact < ${stage.artifact}`,
-    `sdlc ${stage.id} --change <change-name> --append-delta < delta.yaml`,
-    `sdlc ${stage.id} --change <change-name> --complete-step --step <step>`,
-    `sdlc ${stage.id} --change <change-name> --finalize [--confirm-semantic]`,
-    `sdlc ${stage.id} --describe`,
-    `sdlc ${stage.id} --describe-step <step>`,
-  ];
 
-  return {
+  return helpEnvelope({
     workflow: stage.id,
-    step: 'help',
-    state: 'ok',
-    instructions: [
-      `Usage: sdlc ${stage.id} --change <change-name>`,
-      ``,
-      `Available ${stage.id} commands:`,
-      ...usage.map((command) => `  ${command}`),
-      ``,
-      CWD_FLAG_DOC,
-    ].join('\n'),
-    data: {
+    purpose: `${stage.title} authoring stage. Payload flags accept [file|-]: stdin (default, documented first) or a temp file under .tmp/sdlc (prescribed unique names); the CLI never deletes input files. --update-artifact creates the artifact when missing (upsert) and merges the payload.`,
+    usage: [
+      `sdlc ${stage.id} --change <change-name>`,
+      `sdlc ${stage.id} --request "<request>"`,
+      `sdlc ${stage.id} --change <change-name> --update-artifact [file|-]`,
+      `sdlc ${stage.id} --change <change-name> --append-delta [file|-]`,
+      `sdlc ${stage.id} --change <change-name> --complete-step --step <step>`,
+      `sdlc ${stage.id} --change <change-name> --lint`,
+      `sdlc ${stage.id} --change <change-name> --finalize [--confirm-semantic]`,
+      `sdlc ${stage.id} --describe`,
+      `sdlc ${stage.id} --describe-step <step>`,
+    ],
+    flags: AUTHORING_FLAGS,
+    extraData: {
       artifact: stage.artifact,
       steps: stepIds,
-      usage,
     },
-    errors: [],
-    warnings: [],
-  };
+  });
 }
 
-export async function runAuthoringStage(
-  stage: StageRecord,
+/**
+ * Findings-only lint (FR-006): runs the mechanical validation for the
+ * stage's artifact and returns the findings without writing, without the
+ * step machine, and without step guidance. The deployable replacement for
+ * the retired bin/lint-artifact.ts pointer.
+ */
+function runLint(stage: StageRecord, args: ParseArgsResult, cwd: string): void {
+  if (!args.change) {
+    writeJson(
+      {
+        workflow: stage.id,
+        step: 'lint',
+        state: 'blocked',
+        instructions:
+          `Usage: sdlc ${stage.id} --change <change-name> --lint. ` + CWD_FLAG_DOC,
+        data: {},
+        errors: [makeError('MISSING_CHANGE_DIR')],
+        warnings: [],
+      },
+      EXIT.usage
+    );
+    return;
+  }
+
+  try {
+    const changeRoot = resolveRootOrError(String(args.change), { cwd });
+    const artifactPath = path.join(changeRoot, stage.artifact);
+    const artifact = safeReadYaml(artifactPath) as Record<string, unknown> | null;
+
+    const findings = validateArtifact(stage.id, artifact, cwd, changeRoot);
+
+    writeJson(
+      {
+        workflow: stage.id,
+        step: 'lint',
+        state: findings.length > 0 ? 'blocked' : 'ok',
+        instructions:
+          findings.length > 0
+            ? `${findings.length} mechanical finding(s). Fix them and re-run --lint before finalizing.`
+            : 'Mechanical checks pass.',
+        data: {
+          change_root: changeRoot,
+          artifact: artifactPath,
+          errors: findings,
+        },
+        errors: [],
+        warnings: [],
+      },
+      EXIT.ok
+    );
+  } catch (err: unknown) {
+    if (!(err instanceof ResolveRootError)) throw err;
+
+    writeJson(
+      {
+        workflow: stage.id,
+        step: 'lint',
+        state: 'blocked',
+        instructions: err.message,
+        data: {
+          available_changes: err.available || [],
+          searched: err.searched || undefined,
+        },
+        errors: [
+          makeError(
+            err.candidates.length > 0 ? 'AMBIGUOUS_CHANGE_DIR' : 'CHANGE_DIR_NOT_FOUND',
+            { message: err.message }
+          ),
+        ],
+        warnings: [],
+      },
+      EXIT.ambiguous
+    );
+  }
+}
+
+export async function runAuthoringStage(  stage: StageRecord,
   argv: string[],
   cwd: string
 ): Promise<void> {
   const args = parseArgs(argv) as ParseArgsResult;
+  rejectUnknownFlags(stage.id, args, AUTHORING_FLAGS);
 
   if (args.help) {
     writeJson(helpPayload(stage), EXIT.ok);
@@ -706,8 +829,40 @@ export async function runAuthoringStage(
     return;
   }
 
+  // Findings-only lint (FR-006): validate without mutating, without the step
+  // machine, and without step guidance. Requires a change: there is nothing
+  // to lint otherwise.
+  if (args['lint']) {
+    runLint(stage, args, cwd);
+    return;
+  }
+
   const warnings: WarningItem[] = [];
   let changeRoot: string | null = null;
+
+  // Engagement backstop (FR-012): a workflow invocation without --change or
+  // --request is a usage error, never a conversational step. Change
+  // identification belongs to the skill (or the caller), never to a stage.
+  if (!args.change && !args.request) {
+    writeJson(
+      {
+        workflow: stage.id,
+        step: 'blocked',
+        state: 'blocked',
+        instructions:
+          `A ${stage.id} invocation must be engaged with a change. Provide --change <change-name> ` +
+          '(one of data.existing_changes) or --request "<request>" to start a new change. ' +
+          "Change identification is the skill's job: ask which change to work on, or start a new request.",
+        data: {
+          existing_changes: listExistingChanges(cwd),
+        },
+        errors: [makeError('MISSING_CHANGE_DIR')],
+        warnings,
+      },
+      EXIT.usage
+    );
+    return;
+  }
 
   try {
     if (args.change) {
@@ -732,7 +887,7 @@ export async function runAuthoringStage(
             writeJson(
               {
                 workflow: stage.id,
-                step: 'needs_input',
+                step: 'blocked',
                 state: 'blocked',
                 instructions: createErr.message,
                 data: {
@@ -763,7 +918,7 @@ export async function runAuthoringStage(
           writeJson(
             {
               workflow: stage.id,
-              step: 'needs_input',
+              step: 'blocked',
               state: 'blocked',
               instructions: err.message,
               data: {
@@ -843,29 +998,8 @@ export async function runAuthoringStage(
     // transition, blocked state, or bare invocation renders full.
     const preFindings = validateArtifact(stage.id, env.artifact, env.cwd, env.changeRoot);
     const preStepEnv: AuthorEnv = { ...env, findings: preFindings };
-    const stepBefore = changeRoot ? detectStep(preStepEnv) : 'needs_input';
+    const stepBefore = detectStep(preStepEnv);
     let mutated = false;
-
-    if (args['next-ids']) {
-      ensureArtifact(env);
-      writeJson(
-        {
-          workflow: stage.id,
-          step: 'next_ids',
-          state: 'ok',
-          instructions: 'Use data.next_ids when adding new items to the artifact.',
-          data: {
-            change_root: changeRoot,
-            artifact: artifactPath,
-            next_ids: nextIdsFromArrays(env.artifact || {}, stage.nextIds),
-          },
-          errors: [],
-          warnings,
-        },
-        EXIT.ok
-      );
-      return;
-    }
 
     if (args['update-artifact']) {
       ensureArtifact(env);
@@ -959,9 +1093,9 @@ export async function runAuthoringStage(
             step: 'recovery',
             state: 'blocked',
             instructions:
-              'Cannot finalize. Fix the following validation failures:\n' +
+              `Cannot finalize. Fix the following validation failures:\n` +
               findingLines(findings) +
-              `\n\nRun node bin/lint-artifact.ts --target ${stage.id} --artifact ${artifactPath} for details.`,
+              `\n\nRun sdlc ${stage.id} --change <change-name> --lint for the findings-only view.`,
             data: {
               change_root: changeRoot,
               artifact: artifactPath,
@@ -1015,7 +1149,7 @@ export async function runAuthoringStage(
     };
 
     const stepDefinitions = loadStepDefinitions(stage) || {};
-    const step = changeRoot ? detectStep(stepEnv) : 'needs_input';
+    const step = detectStep(stepEnv);
 
     const cli = cliInvocation(cwd);
     const templateVars = buildStepVars(stage.id, changeRoot, cwd);
@@ -1040,9 +1174,7 @@ export async function runAuthoringStage(
       },
     };
 
-    if (step === 'needs_input') {
-      data.existing_changes = listExistingChanges(cwd);
-    } else if (step === 'authoring') {
+    if (step === 'authoring') {
       data.next_ids = nextIdsFromArrays(env.artifact || {}, stage.nextIds);
       data.delta_allowed_target_docs = loadDocsIndex(cwd).map((doc) => doc.file);
     } else if (step === 'recovery') {

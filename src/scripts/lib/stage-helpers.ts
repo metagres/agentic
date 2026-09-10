@@ -10,13 +10,14 @@ export function deltaComplete(artifact: Record<string, unknown>): boolean {
 }
 
 /**
- * Shared delta normalization (API-003): defaults phase from the stage's delta
- * phase and date to today for entries that omit them, so --append-delta and
- * --update-artifact produce identically shaped delta entries.
+ * Shared delta normalization (API-003, FR-011): stamps the producing stage id
+ * (lowercase) and defaults date to today for entries that omit them, so
+ * --append-delta and --update-artifact produce identically shaped delta
+ * entries. stage replaces the retired phase field.
  */
 export function normalizeDeltaEntries(
   entries: unknown,
-  stage: { deltaPhase: string | null }
+  stage: { id: string }
 ): Record<string, unknown>[] {
   if (!Array.isArray(entries)) return [];
 
@@ -25,7 +26,7 @@ export function normalizeDeltaEntries(
       raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
     return {
       ...entry,
-      phase: entry.phase || stage.deltaPhase,
+      stage: entry.stage || stage.id,
       date: entry.date || today(),
     };
   });

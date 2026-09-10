@@ -8,5 +8,3 @@ status_field: status
 requires: []
 reviews: design
 review_file: design-review.yaml
-permissions:
-  file_write: allow

@@ -37,11 +37,11 @@ graph TD
 | Folder | Declared Role | Actual Exports/Entry | Mismatch? | Evidence |
 |--------|-------------------|----------------------|-----------|----------|
 | src/scripts/ | CLI runtime: dispatch, workflow resolution, envelope | src/scripts/sdlc.ts (npm bin `sdlc`) | No | package.json, src/scripts/sdlc.ts |
-| src/scripts/lib/ | Engine core: discovery, requires-DAG + acceptance gate, validation orchestrator, artifact-path resolver, step machine, delegation-directive composer, agent registry + kind permission contracts + prompt markers | stage-registry.ts, requires-graph.ts, validate.ts, artifact-paths.ts, agent-registry.ts, agent-permissions.ts, agent-prompt-marker.ts, delegation.ts | No | src/scripts/lib/ |
+| src/scripts/lib/ | Engine core: discovery, requires-DAG + acceptance gate, validation orchestrator, artifact-path resolver, step machine, delegation-directive composer, agent registry + kind permission contracts + prompt markers, help contract (usage + flags maps + closed-vocabulary guard) | stage-registry.ts, requires-graph.ts, validate.ts, artifact-paths.ts, agent-registry.ts, agent-permissions.ts, agent-prompt-marker.ts, delegation.ts, help.ts | No | src/scripts/lib/ |
 | src/scripts/lib/checks/ | Capped catalog of eleven named generic structural checks; array selections address nested collections through segment([].segment)* path selectors resolved by the shared artifact-path resolver | index.ts catalog | No | src/scripts/lib/checks/index.ts, src/scripts/lib/artifact-paths.ts |
 | src/scripts/lib/kinds/ | Four kind interpreters (authoring, review, tasks, aggregator); the authoring creation path evaluates the acceptance gate (evaluateGate reused; blocked STAGE_GATE_BLOCKED envelope, no artifact written) and instantiates artifacts without predecessor-version stamping (baseVersion helper and init step predicates removed) | authoring.ts, review.ts, tasks.ts, aggregator.ts | No | src/scripts/lib/kinds/ |
 | src/scripts/lib/deploy/platforms/ | Deployment-layer platform renderer registry: platform + version → renderer (directory, naming, frontmatter, permission translation) | index.ts (getRenderer), opencode.ts (v1/v2) | No | src/scripts/lib/deploy/platforms/ |
-| src/scripts/workflows/ | Cross-cutting commands + single skillManifest | index.ts (resolveWorkflow, listWorkflows) | No | src/scripts/workflows/index.ts |
+| src/scripts/workflows/ | Cross-cutting commands (changes inventory, status, feedback, doctor) + single skillManifest | index.ts (resolveWorkflow, listWorkflows), changes.ts (read-only changes inventory — also the skill's change-identification surface) | No | src/scripts/workflows/index.ts |
 | src/stages/ | Structural source of truth: 9 stage folders, declarative config | stage.yaml per folder (5 authoring/tasks, 4 review) | No | src/stages/ |
 | src/agents/ | Agent definitions: one YAML file per agent, discovered by scan, validated by the engine-owned agent meta-schema | <agent-id>.yaml per agent (6 shipped) | No | src/agents/, src/schemas/agent.schema.yaml |
 | src/skills/ | Version-controlled skill sources: knowledge-init (deployed) + agent-audit and improvement-review (dev-only, excluded from the deployed bundle); improvement-review is the first dev-only skill to bundle scripts (four deterministic helpers under scripts/) | src/skills/knowledge-init/SKILL.md, src/skills/agent-audit/SKILL.md, src/skills/improvement-review/SKILL.md + scripts/ | No | src/skills/ |
@@ -80,7 +80,7 @@ Local ESM import edges between repo modules, resolved from relative specifiers b
 | bin/ | src/scripts/workflows/ | 1 |
 | src/scripts/ | src/scripts/lib/ | 2 |
 | src/scripts/ | src/scripts/workflows/ | 1 |
-| src/scripts/lib/ | src/scripts/lib/ | 40 |
+| src/scripts/lib/ | src/scripts/lib/ | 42 |
 | src/scripts/lib/ | src/scripts/lib/checks/ | 1 |
 | src/scripts/lib/ | src/scripts/lib/kinds/ | 1 |
 | src/scripts/lib/checks/ | src/scripts/lib/ | 20 |
@@ -93,11 +93,11 @@ Local ESM import edges between repo modules, resolved from relative specifiers b
 | src/scripts/lib/docs-gen/providers/ | src/scripts/lib/checks/ | 1 |
 | src/scripts/lib/docs-gen/providers/ | src/scripts/lib/docs-gen/ | 23 |
 | src/scripts/lib/docs-gen/providers/ | src/scripts/lib/docs-gen/providers/ | 8 |
-| src/scripts/lib/kinds/ | src/scripts/lib/ | 53 |
+| src/scripts/lib/kinds/ | src/scripts/lib/ | 57 |
 | src/scripts/lib/kinds/ | src/scripts/lib/docs-gen/ | 1 |
 | src/scripts/lib/kinds/ | src/scripts/lib/kinds/ | 4 |
-| src/scripts/workflows/ | src/scripts/lib/ | 23 |
+| src/scripts/workflows/ | src/scripts/lib/ | 32 |
 | src/scripts/workflows/ | src/scripts/lib/kinds/ | 1 |
-| src/scripts/workflows/ | src/scripts/workflows/ | 3 |
+| src/scripts/workflows/ | src/scripts/workflows/ | 5 |
 | src/skills/improvement-review/scripts/ | src/skills/improvement-review/scripts/ | 1 |
 <!-- docs-gen:end id="architecture-import-graph" -->

@@ -1,266 +1,253 @@
 metadata:
   id: REQ-001
-  title: Concise agent output - shared discipline fragment, failures-only review reports, terse
-    implementation notes
+  title: Concise agent output - shared discipline fragment, failures-only review reports, terse implementation
+    notes
   stage: requirements
   status: accepted
   version: 0.1.0
   created: 2026-09-07
   updated: 2026-09-07
-  request_summary: "Agents working SDLC stages are too verbose in chat replies, review reports, and
-    implementation notes. R1 (deploy-time shared output-discipline fragment): render one shared
-    fragment into every agent's effective system_prompt at deploy. Reply rules: no
-    preamble/acknowledgments/self-introduction; no restating the user's request or step
-    instructions; no recapping CLI envelope output; step done = one line + artifact path; blocked =
-    what/why/what-is-needed only; plain English, no token cap. Reasoning rules: no restating
-    request/instructions in reasoning; no audience-addressed filler; fragment-style reasoning
-    (habit-shifting, not enforceable). Touches agent meta-schema, agent registry, deploy platform
-    renderers, startup validation, unit test. Non-goals: per-agent overrides, max_tokens caps,
-    telegraphic language rules. R2 (review reports failures-only): the four review stages report
-    only findings (blocking + advisory) with quoted evidence and exact locations; never list passed
-    checks; zero findings = one line + verdict. Touches 4 review steps.yaml and stage-reviewer
-    prompt. R3 (terse implementation notes): keep enforcement (write-time guard +
-    required-note-for-status); guidance becomes one sentence - what changed + how verified
-    (test/lint/manual, command if applicable) - sized for AI consumers first, humans second. Touches
-    GUARDRAILS in tasks.ts and implementation steps.yaml. Motivating evidence: review rounds list
-    passed semantic checks; implementation notes re-narrate files already recorded in
-    files/files_changed (e.g. plan.yaml line 113 in remove-based-on-provenance change)."
+  request_summary: 'Agents working SDLC stages are too verbose in chat replies, review reports, and implementation
+    notes. R1 (deploy-time shared output-discipline fragment): render one shared fragment into every agent''s
+    effective system_prompt at deploy. Reply rules: no preamble/acknowledgments/self-introduction; no
+    restating the user''s request or step instructions; no recapping CLI envelope output; step done =
+    one line + artifact path; blocked = what/why/what-is-needed only; plain English, no token cap. Reasoning
+    rules: no restating request/instructions in reasoning; no audience-addressed filler; fragment-style
+    reasoning (habit-shifting, not enforceable). Touches agent meta-schema, agent registry, deploy platform
+    renderers, startup validation, unit test. Non-goals: per-agent overrides, max_tokens caps, telegraphic
+    language rules. R2 (review reports failures-only): the four review stages report only findings (blocking
+    + advisory) with quoted evidence and exact locations; never list passed checks; zero findings = one
+    line + verdict. Touches 4 review steps.yaml and stage-reviewer prompt. R3 (terse implementation notes):
+    keep enforcement (write-time guard + required-note-for-status); guidance becomes one sentence - what
+    changed + how verified (test/lint/manual, command if applicable) - sized for AI consumers first, humans
+    second. Touches GUARDRAILS in tasks.ts and implementation steps.yaml. Motivating evidence: review
+    rounds list passed semantic checks; implementation notes re-narrate files already recorded in files/files_changed
+    (e.g. plan.yaml line 113 in remove-based-on-provenance change).'
   clarity: clear
   assumptions_reviewed: false
   delta_reviewed: false
   discovery_reviewed: false
   scenarios_reviewed: false
-problem_statement: "Agents executing SDLC stages produce verbose chat: they restate step
-  instructions, recap what the CLI envelope already reported, and narrate obvious actions before
-  acting. Review rounds enumerate passed semantic checks, burying the findings that matter.
-  Implementation notes re-narrate file lists the plan already records structurally, growing to ten
-  lines where one sentence carries the consumer value. The signal a maintainer needs - what
-  completed, where the artifact is, what blocks progress - sits inside narration. Stage prompts and
-  step instructions currently say nothing about output shape, so every agent defaults to its model's
-  chatty habits."
+problem_statement: 'Agents executing SDLC stages produce verbose chat: they restate step instructions,
+  recap what the CLI envelope already reported, and narrate obvious actions before acting. Review rounds
+  enumerate passed semantic checks, burying the findings that matter. Implementation notes re-narrate
+  file lists the plan already records structurally, growing to ten lines where one sentence carries the
+  consumer value. The signal a maintainer needs - what completed, where the artifact is, what blocks progress
+  - sits inside narration. Stage prompts and step instructions currently say nothing about output shape,
+  so every agent defaults to its model''s chatty habits.'
 discovery_log:
-  - id: DL-001
-    question: Where do you observe the verbosity you want to eliminate?
-    answer: "Chat replies during stage work: prose between tool calls, restated step instructions,
-      recaps of CLI envelope output. Review reports listing passed checks and bloated implementation
-      notes were cited as further evidence."
-    lens: stakeholder
-    resolved: true
-  - id: DL-002
-    question: Through which surface should the discipline be enforced?
-    answer: Deploy-time shared fragment rendered into every agent's effective system_prompt (all nine
-      stages bind one of six agents, so the prompt layer is a complete lever); review reporting
-      rules in the four review steps.yaml; note guidance in tasks.ts GUARDRAILS and implementation
-      steps.yaml.
-    lens: interface
-    resolved: true
-  - id: DL-003
-    question: What should happen to the per-task implementation note?
-    answer: "Keep the write-time guard and required-note-for-status check; guidance becomes one
-      sentence: what changed + how verified (test/lint/manual, command if applicable). Primary
-      consumers are AI agents (implementation-review, knowledge extraction), humans secondary."
-    lens: data
-    resolved: true
-  - id: DL-004
-    question: What is the failure mode of compression and how is it bounded?
-    answer: "Structural discipline chosen over telegraphic style so compression cannot eat substance:
-      blocked reports must still carry unblock info; no max_tokens cap; reasoning rules are
-      habit-shifting only, never enforced, and accepted as such."
-    lens: failure
-    resolved: true
-  - id: DL-005
-    question: Which constraints bind the solution?
-    answer: No per-agent overrides; no telegraphic language rules; no YAML include mechanism; single
-      source of truth for the fragment; npm run validate plus deploy:smoke must pass; real deploy
-      must refresh .opencode before lifecycle work continues (invariant 12); prompt purity
-      validation must still pass.
-    lens: constraint
-    resolved: true
+- id: DL-001
+  question: Where do you observe the verbosity you want to eliminate?
+  answer: 'Chat replies during stage work: prose between tool calls, restated step instructions, recaps
+    of CLI envelope output. Review reports listing passed checks and bloated implementation notes were
+    cited as further evidence.'
+  lens: stakeholder
+  resolved: true
+- id: DL-002
+  question: Through which surface should the discipline be enforced?
+  answer: Deploy-time shared fragment rendered into every agent's effective system_prompt (all nine stages
+    bind one of six agents, so the prompt layer is a complete lever); review reporting rules in the four
+    review steps.yaml; note guidance in tasks.ts GUARDRAILS and implementation steps.yaml.
+  lens: interface
+  resolved: true
+- id: DL-003
+  question: What should happen to the per-task implementation note?
+  answer: 'Keep the write-time guard and required-note-for-status check; guidance becomes one sentence:
+    what changed + how verified (test/lint/manual, command if applicable). Primary consumers are AI agents
+    (implementation-review, knowledge extraction), humans secondary.'
+  lens: data
+  resolved: true
+- id: DL-004
+  question: What is the failure mode of compression and how is it bounded?
+  answer: 'Structural discipline chosen over telegraphic style so compression cannot eat substance: blocked
+    reports must still carry unblock info; no max_tokens cap; reasoning rules are habit-shifting only,
+    never enforced, and accepted as such.'
+  lens: failure
+  resolved: true
+- id: DL-005
+  question: Which constraints bind the solution?
+  answer: No per-agent overrides; no telegraphic language rules; no YAML include mechanism; single source
+    of truth for the fragment; npm run validate plus deploy:smoke must pass; real deploy must refresh
+    .opencode before lifecycle work continues (invariant 12); prompt purity validation must still pass.
+  lens: constraint
+  resolved: true
 assumptions:
-  - type: verified
-    text: All nine stages bind one of the six agent definitions, so rendering the fragment into every
-      agent system_prompt covers all stage work.
-    source: src/stages/*/stage.yaml agent fields (9 of 9 bound)
-  - type: verified
-    text: The opencode platform renderer emits the agent system prompt verbatim as the body of the
-      rendered agent file, so a fragment added at render time reaches the runtime.
-    source: src/scripts/lib/deploy/platforms/opencode.ts renderOpenCodeAgent
-  - type: unverified
-    text: System-prompt instructions shift reasoning-channel habits (less restatement, less filler) even
-      though no mechanism enforces them.
-    risk: Reasoning may stay verbose; accepted as habit-shifting guidance.
-    severity: low
-  - type: unverified
-    text: A rules-only fragment of roughly a dozen lines is short enough not to dilute role prompts.
-    risk: Prompt length grows for every agent; mitigated by rules-only content with no examples.
-    severity: low
+- type: verified
+  text: All nine stages bind one of the six agent definitions, so rendering the fragment into every agent
+    system_prompt covers all stage work.
+  source: src/stages/*/stage.yaml agent fields (9 of 9 bound)
+- type: verified
+  text: The opencode platform renderer emits the agent system prompt verbatim as the body of the rendered
+    agent file, so a fragment added at render time reaches the runtime.
+  source: src/scripts/lib/deploy/platforms/opencode.ts renderOpenCodeAgent
+- type: unverified
+  text: System-prompt instructions shift reasoning-channel habits (less restatement, less filler) even
+    though no mechanism enforces them.
+  risk: Reasoning may stay verbose; accepted as habit-shifting guidance.
+  severity: low
+- type: unverified
+  text: A rules-only fragment of roughly a dozen lines is short enough not to dilute role prompts.
+  risk: Prompt length grows for every agent; mitigated by rules-only content with no examples.
+  severity: low
 functional_requirements:
-  - id: FR-001
-    description: When any agent definition is rendered to a platform agent file, the system shall
-      include the shared output-discipline fragment in the rendered effective system prompt.
-    acceptance_criteria:
-      - id: AC-001
-        statement: Given the six agent descriptors under src/agents/, When npm run deploy renders them, Then
-          every rendered agent file's prompt body contains the shared output-discipline fragment.
-        category: happy
-      - id: AC-002
-        statement: Given agent descriptors across all modes (subagent, primary, all), When deploy renders
-          each one, Then each rendered prompt contains the fragment, with no agent exempt.
-        category: boundary
-      - id: AC-003
-        statement: Given a rendered agent prompt that lacks the fragment, When the deploy smoke test runs,
-          Then the smoke test fails and names the agent file missing the fragment.
-        category: negative
-      - id: AC-004
-        statement: Given the requirements-analyst descriptor whose role voice is interview questioning, When
-          the fragment is rendered, Then the fragment appears additively after the role prompt and
-          the role prompt text is unchanged.
-        category: edge
-  - id: FR-002
-    description: When the shared output-discipline fragment is defined, the system shall keep it as one
-      source of truth rendered into every agent rather than duplicated into agent descriptors.
-    acceptance_criteria:
-      - id: AC-005
-        statement: Given the fragment source definition, When any rendered agent prompt is inspected, Then
-          the fragment text in that prompt matches the single source definition.
-        category: happy
-      - id: AC-006
-        statement: Given an agent descriptor whose system_prompt embeds the fragment text, When npm run
-          validate runs, Then validation fails and names the descriptor carrying the unauthorized
-          copy.
-        category: negative
-  - id: FR-003
-    description: When the shared output-discipline fragment is authored, the system shall include reply
-      rules that mandate no preamble, acknowledgments, or self-introduction; no restating the user's
-      request or the step instructions; no recapping CLI envelope output; step completion reported
-      as one line naming the artifact path; blocked states reporting what is blocked, why, and what
-      unblocks; plain English sentences with no token cap.
-    acceptance_criteria:
-      - id: AC-007
-        statement: Given the rendered fragment, When its text is inspected, Then all five reply rules appear
-          in the fragment text.
-        category: happy
-      - id: AC-008
-        statement: Given the fragment text, When its wording is inspected, Then it contains no token-count
-          cap and no telegraphic language rules (no article omission, no symbol-over-words
-          substitution, no first-person ban).
-        category: boundary
-  - id: FR-004
-    description: When the shared output-discipline fragment is authored, the system shall include
-      reasoning rules that instruct no restating of the request or instructions in the reasoning
-      channel, no audience-addressed filler phrases, and reasoning in fragments of facts, options,
-      and decisions.
-    acceptance_criteria:
-      - id: AC-009
-        statement: Given the rendered fragment, When its text is inspected, Then the three reasoning rules
-          appear in the fragment text.
-        category: happy
-      - id: AC-010
-        statement: Given the fragment text, When its wording is inspected, Then the reasoning rules are
-          phrased as guidance with no enforcement claim and no numeric cap.
-        category: boundary
-  - id: FR-005
-    description: When a review stage reports its result, the review step instructions shall direct the
-      reviewer to report only blocking and advisory findings, each with quoted evidence and its
-      exact location, and to report a one-line verdict when zero findings exist.
-    acceptance_criteria:
-      - id: AC-011
-        statement: Given the four review stage steps.yaml files, When their review-step markdown is
-          inspected, Then each instructs failures-only reporting with quoted evidence and exact
-          locations.
-        category: happy
-      - id: AC-012
-        statement: Given a review round with zero findings, When the reviewer reports, Then the report is
-          one line stating no blocking findings plus the verdict, with no checklist enumeration.
-        category: negative
-      - id: AC-013
-        statement: Given a review round with both blocking and advisory findings, When the reviewer reports,
-          Then every finding carries quoted evidence and an exact location and no passed check is
-          listed.
-        category: edge
-  - id: FR-006
-    description: When the implementation stage instructs on task implementation notes, the guidance
-      shall require one sentence stating what changed and how it was verified, naming the test,
-      lint, or manual check applied.
-    acceptance_criteria:
-      - id: AC-014
-        statement: Given the GUARDRAILS text in the tasks interpreter and the implementation steps.yaml,
-          When either is inspected, Then both state the one-sentence what-changed-plus-how-verified
-          guidance.
-        category: happy
-      - id: AC-015
-        statement: Given a task marked done with an empty note, When the CLI processes the transition, Then
-          the CLI rejects the transition with TASK_DONE_REQUIRES_NOTE.
-        category: negative
-      - id: AC-016
-        statement: Given a one-sentence note carrying what changed and the verification method, When
-          implementation-review or knowledge extraction consumes the plan, Then the note supplies
-          what was done and how it was proven with no further narration required.
-        category: boundary
+- id: FR-001
+  description: When any agent definition is rendered to a platform agent file, the system shall include
+    the shared output-discipline fragment in the rendered effective system prompt.
+  acceptance_criteria:
+  - id: AC-001
+    statement: Given the six agent descriptors under src/agents/, When npm run deploy renders them, Then
+      every rendered agent file's prompt body contains the shared output-discipline fragment.
+    category: happy
+  - id: AC-002
+    statement: Given agent descriptors across all modes (subagent, primary, all), When deploy renders
+      each one, Then each rendered prompt contains the fragment, with no agent exempt.
+    category: boundary
+  - id: AC-003
+    statement: Given a rendered agent prompt that lacks the fragment, When the deploy smoke test runs,
+      Then the smoke test fails and names the agent file missing the fragment.
+    category: negative
+  - id: AC-004
+    statement: Given the requirements-analyst descriptor whose role voice is interview questioning, When
+      the fragment is rendered, Then the fragment appears additively after the role prompt and the role
+      prompt text is unchanged.
+    category: edge
+- id: FR-002
+  description: When the shared output-discipline fragment is defined, the system shall keep it as one
+    source of truth rendered into every agent rather than duplicated into agent descriptors.
+  acceptance_criteria:
+  - id: AC-005
+    statement: Given the fragment source definition, When any rendered agent prompt is inspected, Then
+      the fragment text in that prompt matches the single source definition.
+    category: happy
+  - id: AC-006
+    statement: Given an agent descriptor whose system_prompt embeds the fragment text, When npm run validate
+      runs, Then validation fails and names the descriptor carrying the unauthorized copy.
+    category: negative
+- id: FR-003
+  description: When the shared output-discipline fragment is authored, the system shall include reply
+    rules that mandate no preamble, acknowledgments, or self-introduction; no restating the user's request
+    or the step instructions; no recapping CLI envelope output; step completion reported as one line naming
+    the artifact path; blocked states reporting what is blocked, why, and what unblocks; plain English
+    sentences with no token cap.
+  acceptance_criteria:
+  - id: AC-007
+    statement: Given the rendered fragment, When its text is inspected, Then all five reply rules appear
+      in the fragment text.
+    category: happy
+  - id: AC-008
+    statement: Given the fragment text, When its wording is inspected, Then it contains no token-count
+      cap and no telegraphic language rules (no article omission, no symbol-over-words substitution, no
+      first-person ban).
+    category: boundary
+- id: FR-004
+  description: When the shared output-discipline fragment is authored, the system shall include reasoning
+    rules that instruct no restating of the request or instructions in the reasoning channel, no audience-addressed
+    filler phrases, and reasoning in fragments of facts, options, and decisions.
+  acceptance_criteria:
+  - id: AC-009
+    statement: Given the rendered fragment, When its text is inspected, Then the three reasoning rules
+      appear in the fragment text.
+    category: happy
+  - id: AC-010
+    statement: Given the fragment text, When its wording is inspected, Then the reasoning rules are phrased
+      as guidance with no enforcement claim and no numeric cap.
+    category: boundary
+- id: FR-005
+  description: When a review stage reports its result, the review step instructions shall direct the reviewer
+    to report only blocking and advisory findings, each with quoted evidence and its exact location, and
+    to report a one-line verdict when zero findings exist.
+  acceptance_criteria:
+  - id: AC-011
+    statement: Given the four review stage steps.yaml files, When their review-step markdown is inspected,
+      Then each instructs failures-only reporting with quoted evidence and exact locations.
+    category: happy
+  - id: AC-012
+    statement: Given a review round with zero findings, When the reviewer reports, Then the report is
+      one line stating no blocking findings plus the verdict, with no checklist enumeration.
+    category: negative
+  - id: AC-013
+    statement: Given a review round with both blocking and advisory findings, When the reviewer reports,
+      Then every finding carries quoted evidence and an exact location and no passed check is listed.
+    category: edge
+- id: FR-006
+  description: When the implementation stage instructs on task implementation notes, the guidance shall
+    require one sentence stating what changed and how it was verified, naming the test, lint, or manual
+    check applied.
+  acceptance_criteria:
+  - id: AC-014
+    statement: Given the GUARDRAILS text in the tasks interpreter and the implementation steps.yaml, When
+      either is inspected, Then both state the one-sentence what-changed-plus-how-verified guidance.
+    category: happy
+  - id: AC-015
+    statement: Given a task marked done with an empty note, When the CLI processes the transition, Then
+      the CLI rejects the transition with TASK_DONE_REQUIRES_NOTE.
+    category: negative
+  - id: AC-016
+    statement: Given a one-sentence note carrying what changed and the verification method, When implementation-review
+      or knowledge extraction consumes the plan, Then the note supplies what was done and how it was proven
+      with no further narration required.
+    category: boundary
 non_functional_requirements:
-  - id: NFR-001
-    description: When the shared output-discipline fragment is rendered, the system shall keep the
-      fragment to rules only, with no worked examples, no role content, and no repetition of stage
-      instructions.
-    acceptance_criteria:
-      - id: AC-017
-        statement: Given the fragment text, When its content is inspected, Then it contains rules only, with
-          no examples and no role narration.
-        category: happy
-      - id: AC-018
-        statement: Given the fragment text, When its length is measured, Then it fits within twelve lines so
-          a reader takes it in at a glance.
-        category: boundary
-  - id: NFR-002
-    description: When the deploy smoke test runs, the system shall verify fragment presence in every
-      rendered agent file across both renderer formats.
-    acceptance_criteria:
-      - id: AC-019
-        statement: Given a completed deploy smoke run, When its result is inspected, Then fragment presence
-          was checked in all rendered agent files.
-        category: happy
-      - id: AC-020
-        statement: Given a newly added agent descriptor, When the deploy smoke test runs, Then the fragment
-          check covers the new agent without per-agent registration.
-        category: edge
+- id: NFR-001
+  description: When the shared output-discipline fragment is rendered, the system shall keep the fragment
+    to rules only, with no worked examples, no role content, and no repetition of stage instructions.
+  acceptance_criteria:
+  - id: AC-017
+    statement: Given the fragment text, When its content is inspected, Then it contains rules only, with
+      no examples and no role narration.
+    category: happy
+  - id: AC-018
+    statement: Given the fragment text, When its length is measured, Then it fits within twelve lines
+      so a reader takes it in at a glance.
+    category: boundary
+- id: NFR-002
+  description: When the deploy smoke test runs, the system shall verify fragment presence in every rendered
+    agent file across both renderer formats.
+  acceptance_criteria:
+  - id: AC-019
+    statement: Given a completed deploy smoke run, When its result is inspected, Then fragment presence
+      was checked in all rendered agent files.
+    category: happy
+  - id: AC-020
+    statement: Given a newly added agent descriptor, When the deploy smoke test runs, Then the fragment
+      check covers the new agent without per-agent registration.
+    category: edge
 out_of_scope:
-  - Per-agent overrides of the fragment; no conflict between the rules and any role voice was
-    identified.
-  - Token caps (max_tokens) or token budgets in prompts.
-  - Telegraphic language rules (first-person bans, article omission, symbol-over-words substitution).
-  - Hard enforcement of reasoning brevity (max_steps); not controllable from the system-prompt layer.
-  - A YAML include mechanism for agent configs.
-  - Changes to artifact schemas or templates; discipline lands in prompts, step instructions, and
-    guidance text only.
-  - Platform reasoning-effort settings; pursuing them requires verifying opencode support and is a
-    separate effort.
+- Per-agent overrides of the fragment; no conflict between the rules and any role voice was identified.
+- Token caps (max_tokens) or token budgets in prompts.
+- Telegraphic language rules (first-person bans, article omission, symbol-over-words substitution).
+- Hard enforcement of reasoning brevity (max_steps); not controllable from the system-prompt layer.
+- A YAML include mechanism for agent configs.
+- Changes to artifact schemas or templates; discipline lands in prompts, step instructions, and guidance
+  text only.
+- Platform reasoning-effort settings; pursuing them requires verifying opencode support and is a separate
+  effort.
 failure_paths:
-  - If prompt-level reasoning rules fail to shift model behavior, reasoning stays verbose while
-    substance remains correct; the degradation is accepted because no enforcement exists at this
-    layer.
-  - If a fragment wording mistake propagates to all six agents, npm run validate, the deploy smoke
-    test, and dogfooding sessions catch it, and the single source makes rollback one edit.
-  - If terseness guidance causes an agent to omit unblock details, the blocked-report rule (what is
-    blocked, why, what unblocks) binds the content and chat review catches the violation.
-  - If the deploy smoke test fails after renderer changes, .opencode/ is not refreshed and lifecycle
-    work halts until the renderer is fixed, per invariant 12.
+- If prompt-level reasoning rules fail to shift model behavior, reasoning stays verbose while substance
+  remains correct; the degradation is accepted because no enforcement exists at this layer.
+- If a fragment wording mistake propagates to all six agents, npm run validate, the deploy smoke test,
+  and dogfooding sessions catch it, and the single source makes rollback one edit.
+- If terseness guidance causes an agent to omit unblock details, the blocked-report rule (what is blocked,
+  why, what unblocks) binds the content and chat review catches the violation.
+- If the deploy smoke test fails after renderer changes, .opencode/ is not refreshed and lifecycle work
+  halts until the renderer is fixed, per invariant 12.
 risks_and_dependencies:
-  - Prompt-level reasoning rules may not change model reasoning habits; accepted as habit-shifting
-    guidance with no enforcement path.
-  - The fragment changes all six agents at once, so a wording mistake propagates everywhere at once.
-  - Compression pressure could push agents to omit unblock details when blocked.
-  - Deployment depends on both opencode renderer formats rendering the fragment, on prompt purity
-    validation passing, and on a real deploy refreshing .opencode/ before lifecycle work continues.
+- Prompt-level reasoning rules may not change model reasoning habits; accepted as habit-shifting guidance
+  with no enforcement path.
+- The fragment changes all six agents at once, so a wording mistake propagates everywhere at once.
+- Compression pressure could push agents to omit unblock details when blocked.
+- Deployment depends on both opencode renderer formats rendering the fragment, on prompt purity validation
+  passing, and on a real deploy refreshing .opencode/ before lifecycle work continues.
 delta:
-  - phase: Requirements
-    target_doc: docs/current/architecture.md
-    change: Add
-    reason: Deploy renders a shared output-discipline fragment, defined once, into every agent's
-      effective system prompt.
-    date: 2026-09-07
-  - phase: Requirements
-    target_doc: docs/current/conventions.md
-    change: Add
-    reason: Agent output discipline - terse chat replies (done = one line + artifact path; blocked =
-      unblock info only), failures-only review reports, one-sentence implementation notes.
-    date: 2026-09-07
+- target_doc: docs/current/architecture.md
+  change: Add
+  reason: Deploy renders a shared output-discipline fragment, defined once, into every agent's effective
+    system prompt.
+  date: 2026-09-07
+  stage: requirements
+- target_doc: docs/current/conventions.md
+  change: Add
+  reason: Agent output discipline - terse chat replies (done = one line + artifact path; blocked = unblock
+    info only), failures-only review reports, one-sentence implementation notes.
+  date: 2026-09-07
+  stage: requirements

@@ -33,21 +33,18 @@ function run(tmp: string, args: string[], input?: string) {
   return JSON.parse(res.stdout);
 }
 
-// The requirements tour routes through the init confirmation (context loading)
-// and the discovery confirmation (interview gate): a fresh artifact enters
-// init, an unconfirmed discovery flag pins the interview open, and one-call
-// finalize evaluates the mechanical and semantic gates together.
-test('an in-flight artifact routes through init and the confirmed discovery gate', () => {
+// The requirements tour routes through the discovery confirmation (interview
+// gate): a fresh artifact enters discovery directly (engagement contract — no
+// init step), an unconfirmed discovery flag pins the interview open, and
+// one-call finalize evaluates the mechanical and semantic gates together.
+test('an in-flight artifact routes through the confirmed discovery gate', () => {
   const tmp = makeTmpProject();
 
   let out = run(tmp, ['requirements', '--request', 'Add device registration']);
   const changeRoot = out.data.change_root;
   const changeDir = path.basename(changeRoot);
 
-  // Fresh artifact: context not loaded -> init.
-  assert.equal(out.step, 'init', JSON.stringify(out));
-
-  out = run(tmp, ['requirements', '--change', changeDir, '--complete-step', '--step', 'init']);
+  // Fresh artifact: discovery unconfirmed -> discovery.
   assert.equal(out.step, 'discovery', JSON.stringify(out));
 
   // Content present and mechanically clean but discovery unconfirmed: the

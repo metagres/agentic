@@ -13,6 +13,5 @@ next_ids:
   API: apis
   DEC: decisions
 produces_delta: true
-delta_phase: Design
 title_prefix: "Design: "
 title_default: Untitled design

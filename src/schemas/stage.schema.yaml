@@ -82,9 +82,6 @@
     "produces_delta": {
       "type": "boolean"
     },
-    "delta_phase": {
-      "type": "string"
-    },
     "title_prefix": {
       "type": "string"
     },

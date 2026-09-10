@@ -8,8 +8,6 @@ import type { WarningItem, Finding } from './types.ts';
 // stage declares in steps.yaml. Any other step declared in steps.yaml is an
 // extra step driven by its complete_when predicate.
 export const CANONICAL_STEPS = new Set([
-  'needs_input',
-  'init',
   'authoring',
   'ready',
   'complete',
@@ -39,26 +37,24 @@ export function stepPredicate(
 }
 
 /**
- * Generic authoring step machine (FLW-002): needs_input, init, authoring,
- * ready, complete, recovery. The current step is detected purely from artifact
- * state — never from stage hooks or granular in-artifact confirmation flags:
- * - no change root -> needs_input; no artifact -> init
- * - init predicate unsatisfied -> init (created but empty)
+ * Generic authoring step machine (FLW-002, engagement contract): authoring,
+ * ready, complete, recovery. The current step is detected purely from
+ * artifact state — never from stage hooks or granular in-artifact
+ * confirmation flags. A change-less workflow invocation is a usage error
+ * (the engagement backstop), never a step:
+ * - no artifact -> authoring (created but empty)
  * - rejected status or any mechanical finding -> recovery (every finding
  *   blocks by definition)
  * - ready-for-review / accepted -> complete, otherwise the tour runs through
  *   ready (authoring predicate satisfied) or authoring (still drafting).
- * Stage-declared extra steps beyond the canonical six remain declarative and
- * are evaluated through their complete_when predicates from steps.yaml.
+ * Stage-declared extra steps beyond the canonical four remain declarative
+ * and are evaluated through their complete_when predicates from steps.yaml.
  */
 export function detectStep(env: AuthorEnv): string {
-  if (!env.changeRoot) return 'needs_input';
   const artifact = env.artifact;
-  if (!artifact) return 'init';
+  if (!artifact) return 'authoring';
   const metadata = (artifact.metadata as Record<string, unknown>) || {};
   if (metadata?.status === 'rejected') return 'recovery';
-
-  if (!evaluatePredicate(stepPredicate(env, 'init'), artifact)) return 'init';
 
   const findingCount = (env.findings as unknown[])?.length || 0;
   if (findingCount > 0) return 'recovery';
@@ -83,9 +79,6 @@ export function isReadyForReview(env: AuthorEnv): { ready: boolean; reasons: str
     return { ready: false, reasons };
   }
 
-  if (!evaluatePredicate(stepPredicate(env, 'init'), artifact)) {
-    reasons.push('init is not complete');
-  }
   if (!evaluatePredicate(stepPredicate(env, 'authoring'), artifact)) {
     reasons.push('authoring is not complete');
   }

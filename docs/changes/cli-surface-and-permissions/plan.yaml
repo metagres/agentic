@@ -1,0 +1,539 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: cli-surface-and-permissions"
+  stage: planning
+  status: accepted
+  version: 0.1.0
+  created: 2026-09-09
+  updated: 2026-09-10
+  implementation_status: accepted
+  delta_reviewed: true
+tasks:
+  - id: TASK-001
+    title: Uniform <file|-> input channel on authoring mutations
+    description: Extend the authoring kind so --update-artifact and --append-delta accept a bare flag,
+      '-' (stdin), or a file path; document stdin-first usage, the .tmp/sdlc scratch convention and
+      upsert semantics in the help usage lines; the CLI never deletes or writes input files.
+    type: implementation
+    complexity: medium
+    status: done
+    covers:
+      - FR-001
+    acceptance_ids:
+      - AC-002
+      - AC-003
+      - AC-004
+    design_refs:
+      - DEC-001
+      - DEC-003
+    files:
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: test/unit/update-artifact.test.ts
+        operation: modify
+    started_at: 2026-09-09
+    files_changed: []
+    implementation_note: readPayloadDocument helper added to authoring.ts; --update-artifact and
+      --append-delta accept bare flag, '-' (stdin) or file path; inputs never deleted or modified;
+      help usage lines updated with [file|-], upsert and .tmp/sdlc convention;
+      test/unit/payload-input.test.ts covers stdin, file survival, refusals (AC-002/003/004).
+    completed_at: 2026-09-09
+  - id: TASK-002
+    title: Id-keyed list merge in mergeArtifact
+    description: Extend mergeArtifact so object arrays whose members all carry non-empty ids merge by id
+      (update in place preserving order, append new); mixed, scalar, and string lists keep replace
+      semantics; metadata preservation unchanged.
+    type: implementation
+    complexity: medium
+    status: done
+    covers:
+      - FR-002
+    acceptance_ids:
+      - AC-005
+      - AC-006
+      - AC-007
+    design_refs:
+      - DEC-010
+    files:
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: test/unit/merge-artifact.test.ts
+        operation: create
+    implementation_note: "mergeListById added to authoring.ts and wired into mergeArtifact: object
+      arrays with non-empty ids on both sides merge per-entry (update in place preserving order,
+      append new); mixed/scalar/empty lists replace; metadata preservation intact; covered in
+      payload-input tests (AC-005/006/007)."
+    completed_at: 2026-09-09
+    files_changed: []
+  - id: TASK-003
+    title: Task add and remove on the tasks kind
+    description: Add --task-add (title, --description, --depends-on validated with
+      TASK_DEPENDS_ON_UNKNOWN, --files planned entries, next-id allocation) and --task-remove
+      (refuses done tasks with a new code) to tasks.ts; recompute progress and implementation_status
+      through the existing logic; add both codes to errors.yaml with tests.
+    type: implementation
+    complexity: medium
+    status: done
+    covers:
+      - FR-003
+    acceptance_ids:
+      - AC-008
+      - AC-009
+      - AC-010
+      - AC-011
+    design_refs:
+      - DEC-004
+    files:
+      - path: src/scripts/lib/kinds/tasks.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+      - path: test/unit/tasks-kind.test.ts
+        operation: modify
+    started_at: 2026-09-09
+    files_changed: []
+    implementation_note: applyTaskAdd/applyTaskRemove added with next-id allocation, depends_on
+      validation (TASK_DEPENDS_ON_UNKNOWN), done-removal refusal (TASK_REMOVE_NOT_ALLOWED), required
+      --covers/--acceptance-ids for schema-valid tasks, mutual exclusivity, and the reopen
+      transition for review-settled plans; both codes added to errors.yaml;
+      test/unit/task-management.test.ts covers AC-008..011 including the FB-001-corrected
+      skipped-removal reopen.
+    completed_at: 2026-09-09
+  - id: TASK-004
+    title: sdlc changes inventory command
+    description: Add the read-only cross-cutting changes command listing every change with tracked
+      per-stage statuses, suggested workflow, and open-feedback flag; register it in the
+      cross-cutting map with a flags table.
+    type: implementation
+    complexity: low
+    status: done
+    covers:
+      - FR-004
+      - FR-012
+    acceptance_ids:
+      - AC-012
+      - AC-013
+    files:
+      - path: src/scripts/workflows/changes.ts
+        operation: create
+      - path: src/scripts/workflows/index.ts
+        operation: modify
+    implementation_note: src/scripts/workflows/changes.ts adds the read-only cross-cutting inventory
+      (per-stage tracked statuses, first unsettled stage as current workflow, open-feedback flag,
+      empty-repo ok); registered in CROSS_CUTTING; status.ts exports trackedStage/readStageStatus
+      for reuse (AC-012/013).
+    completed_at: 2026-09-09
+    files_changed: []
+  - id: TASK-005
+    title: feedback --list
+    description: Add a read-only --list mode to the feedback command returning every entry with all
+      recorded fields; usage error when --list combines with creation flags or --resolve.
+    type: implementation
+    complexity: low
+    status: done
+    covers:
+      - FR-005
+    acceptance_ids:
+      - AC-014
+      - AC-015
+    files:
+      - path: src/scripts/workflows/feedback.ts
+        operation: modify
+    implementation_note: feedback --list returns every entry with all recorded fields read-only;
+      conflicts with --from/--to/--reason/--resolve are usage errors (AC-014/015).
+    completed_at: 2026-09-09
+    files_changed: []
+  - id: TASK-006
+    title: Authoring --lint and recovery pointer rewrite
+    description: Add the findings-only --lint flag on authoring stages (no mutation, no step guidance)
+      and replace the finalize-block and recovery pointers to bin/lint-artifact.ts with the --lint
+      invocation.
+    type: implementation
+    complexity: low
+    status: done
+    covers:
+      - FR-006
+    acceptance_ids:
+      - AC-016
+      - AC-017
+    design_refs:
+      - DEC-002
+    files:
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+    implementation_note: "runLint added on authoring stages: findings-only envelope, no mutation,
+      MISSING_CHANGE_DIR when change-less, resolve errors surfaced; finalize-block pointer rewritten
+      from bin/lint-artifact.ts to 'sdlc <stage> --change <name> --lint' (AC-016/017)."
+    completed_at: 2026-09-09
+    files_changed: []
+  - id: TASK-007
+    title: Renderer permission path-scoping and contract tightening
+    description: Extend scopeProtectedPaths with per-kind write scoping (authoring deny base plus
+      .tmp/** allows, knowledge-curator deny plus docs/current/** and .tmp/**, tasks and review
+      unchanged, careful last-match-wins ordering, relative and absolute pattern forms as
+      expressible); tighten KIND_PERMISSION_CONTRACTS to deny-ceilings for authoring and aggregator
+      file_write; update the six agent YAMLs and the compatibility tests; extend the deploy smoke
+      pattern assertions.
+    type: implementation
+    complexity: high
+    status: done
+    covers:
+      - FR-007
+    acceptance_ids:
+      - AC-018
+      - AC-019
+      - AC-020
+    design_refs:
+      - DEC-009
+    files:
+      - path: src/scripts/lib/deploy/platforms/opencode.ts
+        operation: modify
+      - path: src/scripts/lib/agent-permissions.ts
+        operation: modify
+      - path: src/agents/requirements-analyst.yaml
+        operation: modify
+      - path: src/agents/systems-architect.yaml
+        operation: modify
+      - path: src/agents/task-planner.yaml
+        operation: modify
+      - path: src/agents/knowledge-curator.yaml
+        operation: modify
+      - path: bin/deploy-to-agent.ts
+        operation: modify
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: Renderer path-scoping per stage kind (scopeProtectedPaths + writeScopeForKinds
+      with scratch/curator allow patterns ordered before the protected deny); AgentRecord gains
+      stageKinds from the stage registry; authoring and aggregator contracts tightened to file_write
+      deny-ceilings; the five scoped agents declare deny; the four review-stage file_write overrides
+      removed (failures ride --failures - via bash); tests extended for the rendered scopes
+      (AC-018/019/020).
+    completed_at: 2026-09-10
+  - id: TASK-008
+    title: Flag surface reduction
+    description: Remove --bump-version (keep mechanical version rules and update the three steps.yaml
+      recovery texts), --keep-status (strict draft-reset in markMutated), --next-ids (step envelope
+      already carries next_ids), the legacy review --target routing (reviewTargetToStageId,
+      ReviewRunOptions labels) and the review --note/--findings tombstones; update tests.
+    type: refactor
+    complexity: medium
+    status: done
+    covers:
+      - FR-008
+    acceptance_ids:
+      - AC-021
+      - AC-022
+      - AC-023
+      - AC-024
+    design_refs:
+      - DEC-005
+    files:
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+      - path: src/stages/requirements/steps.yaml
+        operation: modify
+      - path: src/stages/design/steps.yaml
+        operation: modify
+      - path: src/stages/planning/steps.yaml
+        operation: modify
+    implementation_note: "See the corresponding unit coverage: TASK-008 removed
+      bump-version/keep-status/next-ids/review-target/tombstones with mechanical version rules and
+      strict draft-reset preserved; TASK-009 added src/scripts/lib/help.ts with per-command flag
+      tables rendered by --help and completeness tests; TASK-010 wired rejectUnknownFlags into every
+      command with the UNKNOWN_FLAG catalog code; test/unit/help-contract.test.ts and
+      test/unit/unknown-flag.test.ts cover AC-021..029."
+    completed_at: 2026-09-10
+    files_changed: []
+  - id: TASK-009
+    title: Help contract builder and per-command flag tables
+    description: Add src/scripts/lib/help.ts producing the uniform help envelope (instructions,
+      data.usage, data.flags with description/value/required); declare flag tables for every
+      command; add explicit --help branches for feedback and doctor; add the completeness unit test
+      binding parsed flags to documented flags.
+    type: implementation
+    complexity: medium
+    status: done
+    covers:
+      - FR-010
+    acceptance_ids:
+      - AC-027
+      - AC-028
+      - AC-029
+    design_refs:
+      - DEC-006
+    files:
+      - path: src/scripts/lib/help.ts
+        operation: create
+      - path: src/scripts/workflows/feedback.ts
+        operation: modify
+      - path: src/scripts/workflows/doctor.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/review.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/tasks.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/aggregator.ts
+        operation: modify
+      - path: src/scripts/workflows/status.ts
+        operation: modify
+      - path: test/unit/help-contract.test.ts
+        operation: create
+    started_at: 2026-09-09
+    files_changed: []
+    implementation_note: "See the corresponding unit coverage: TASK-008 removed
+      bump-version/keep-status/next-ids/review-target/tombstones with mechanical version rules and
+      strict draft-reset preserved; TASK-009 added src/scripts/lib/help.ts with per-command flag
+      tables rendered by --help and completeness tests; TASK-010 wired rejectUnknownFlags into every
+      command with the UNKNOWN_FLAG catalog code; test/unit/help-contract.test.ts and
+      test/unit/unknown-flag.test.ts cover AC-021..029."
+    completed_at: 2026-09-10
+  - id: TASK-010
+    title: UNKNOWN_FLAG closed-vocabulary guard
+    description: Refuse flags outside a command's declared vocabulary with UNKNOWN_FLAG on the usage
+      exit before change resolution or artifact effects; allowlist --cwd globally; add the code to
+      errors.yaml with tests.
+    type: implementation
+    complexity: medium
+    status: done
+    covers:
+      - FR-009
+    acceptance_ids:
+      - AC-025
+      - AC-026
+    design_refs:
+      - DEC-006
+    depends_on:
+      - TASK-009
+    files:
+      - path: src/scripts/lib/cli.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+      - path: test/unit/unknown-flag.test.ts
+        operation: create
+    implementation_note: "See the corresponding unit coverage: TASK-008 removed
+      bump-version/keep-status/next-ids/review-target/tombstones with mechanical version rules and
+      strict draft-reset preserved; TASK-009 added src/scripts/lib/help.ts with per-command flag
+      tables rendered by --help and completeness tests; TASK-010 wired rejectUnknownFlags into every
+      command with the UNKNOWN_FLAG catalog code; test/unit/help-contract.test.ts and
+      test/unit/unknown-flag.test.ts cover AC-021..029."
+    completed_at: 2026-09-10
+    files_changed: []
+  - id: TASK-011
+    title: phase to stage retirement across deltas
+    description: Rename the delta-entry field phase to stage (lowercase stage id, per-stage enum
+      preserved) in the three authoring schemas; remove delta_phase from stage.schema.yaml and the
+      three descriptors, deltaPhase from StageRecord and types; normalizeDeltaEntries stamps stage;
+      the aggregator drops source_stage/source_artifact and dedupe sorts by stage; sweep baked phase
+      keys in docs/changes artifacts; update tests.
+    type: refactor
+    complexity: medium
+    status: done
+    covers:
+      - FR-011
+    acceptance_ids:
+      - AC-030
+      - AC-031
+      - AC-032
+    design_refs:
+      - DEC-007
+    files:
+      - path: src/schemas/stage.schema.yaml
+        operation: modify
+      - path: src/stages/requirements/schema.yaml
+        operation: modify
+      - path: src/stages/design/schema.yaml
+        operation: modify
+      - path: src/stages/planning/schema.yaml
+        operation: modify
+      - path: src/scripts/lib/stage-helpers.ts
+        operation: modify
+      - path: src/scripts/lib/stage-registry.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/aggregator.ts
+        operation: modify
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: normalizeDeltaEntries stamps stage (stage-helpers), deltaPhase plumbing removed
+      from StageRecord/types, stage.schema.yaml delta_phase dropped, three descriptors updated,
+      three authoring schemas phase->stage with const stage id, aggregator drops
+      source_stage/source_artifact and dedupe sorts by stage, one-time sweep converted 49
+      docs/changes files with zero remaining phase entries; tests updated (helpers, dedupe,
+      write-time-enforcement, e2e). AC-030/031/032.
+    completed_at: 2026-09-10
+  - id: TASK-012
+    title: Engagement contract and skill change-identification
+    description: Remove needs_input from all nine steps.yaml and init from the three authoring stages;
+      drop context_loaded machinery (template, schema, completeStep branch, predicates,
+      isReadyForReview reason); harden the change-less backstop (MISSING_CHANGE_DIR plus
+      existing_changes plus engagement instructions); add the four-shape change-identification
+      section to the SKILL template; strip AGENTS.md-restating sentences from step texts; relax
+      REQUIRED_STEPS_BY_KIND; update step-machine tests and the operations baseline.
+    type: refactor
+    complexity: high
+    status: done
+    covers:
+      - FR-012
+    acceptance_ids:
+      - AC-033
+      - AC-034
+      - AC-035
+    design_refs:
+      - DEC-008
+    depends_on:
+      - TASK-004
+    files:
+      - path: src/stages/requirements/steps.yaml
+        operation: modify
+      - path: src/stages/design/steps.yaml
+        operation: modify
+      - path: src/stages/planning/steps.yaml
+        operation: modify
+      - path: src/stages/implementation/steps.yaml
+        operation: modify
+      - path: src/stages/requirements-review/steps.yaml
+        operation: modify
+      - path: src/stages/design-review/steps.yaml
+        operation: modify
+      - path: src/stages/planning-review/steps.yaml
+        operation: modify
+      - path: src/stages/implementation-review/steps.yaml
+        operation: modify
+      - path: src/stages/knowledge-extraction/steps.yaml
+        operation: modify
+      - path: src/scripts/lib/authoring-base.ts
+        operation: modify
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: bin/deploy-to-agent.ts
+        operation: modify
+      - path: src/stages/requirements/schema.yaml
+        operation: modify
+      - path: src/stages/requirements/template.yaml
+        operation: modify
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: needs_input removed from all nine steps.yaml and init from the three authoring
+      stages; CANONICAL_STEPS and the detectStep tour reduced to four steps; context_loaded
+      machinery removed (schema property, template key, complete-step branch, isReadyForReview
+      reason); engagement backstops in authoring (usage error with existing_changes) and
+      requireChangeRoot (generic engagement text); REQUIRED_STEPS_BY_KIND relaxed; SKILL_TEMPLATE
+      gains the four-shape Change identification section; AGENTS.md-restating sentences stripped
+      from step texts; tests and e2e updated. AC-033/034/035.
+    completed_at: 2026-09-10
+  - id: TASK-013
+    title: Hygiene retirements
+    description: Retire the catalog-only codes CANNOT_COMPLETE, MISSING_EXTRACTION_NOTE,
+      MISSING_MARK_TARGET, TARGET_DOC_NOT_FOUND and DOCS_DELTA_VALIDATION after a zero-reference
+      grep; ensure the last-write-wins limitation lands in the conventions capability row through
+      the delta flow.
+    type: refactor
+    complexity: low
+    status: done
+    covers:
+      - FR-013
+    acceptance_ids:
+      - AC-036
+      - AC-037
+    files:
+      - path: src/policies/errors.yaml
+        operation: modify
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: Zero-reference grep confirmed; CANNOT_COMPLETE, MISSING_EXTRACTION_NOTE,
+      MISSING_MARK_TARGET, TARGET_DOC_NOT_FOUND and DOCS_DELTA_VALIDATION removed from
+      src/policies/errors.yaml; the last-write-wins limitation rides the conventions capability
+      delta for knowledge extraction (AC-036/037).
+    completed_at: 2026-09-10
+  - id: TASK-014
+    title: Living docs, deploy and full verification
+    description: Update curated api-contract.md rows and any other docs/current rows this change drifts;
+      run npm run docs:generate; extend and run the deploy smoke (permission patterns, skill
+      markers, CLI smoke including flags maps); run npm run validate, npm run deploy -- --dest
+      .opencode --clean, npm run deploy:smoke and npm run check:all.
+    type: verification
+    complexity: medium
+    status: done
+    covers:
+      - NFR-001
+      - NFR-002
+    acceptance_ids:
+      - AC-040
+      - AC-041
+      - AC-042
+    depends_on:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-005
+      - TASK-006
+      - TASK-007
+      - TASK-008
+      - TASK-009
+      - TASK-010
+      - TASK-011
+      - TASK-012
+      - TASK-013
+    files:
+      - path: docs/current/api-contract.md
+        operation: modify
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: Curated api-contract rows + engagement/flag/delta/permission/task bullets
+      rewritten; operations four-step baseline updated; docs:generate refreshed docs-gen regions
+      (error catalog, glossary); runtime redeployed (.opencode --clean) and the smoke asserts the
+      rendered permission scopes plus the Change identification section; npm run validate,
+      deploy:smoke and check:all all pass; sweep re-verified (zero phase entries). AC-040/041/042.
+    completed_at: 2026-09-10
+milestones:
+  - id: M1
+    title: Surface additions
+    tasks:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-005
+      - TASK-006
+    done_when: Uniform input, id-keyed merge, task flags, feedback listing and lint land with unit tests.
+  - id: M2
+    title: Commands and help contract
+    tasks:
+      - TASK-004
+      - TASK-009
+      - TASK-010
+    done_when: changes command, help flags maps and the unknown-flag guard pass their tests.
+  - id: M3
+    title: Data and engagement retirement
+    tasks:
+      - TASK-008
+      - TASK-011
+      - TASK-012
+      - TASK-013
+    done_when: Flag reductions, phase-to-stage sweep and the engagement contract pass validation with
+      settled artifacts swept.
+  - id: M4
+    title: Permissions and verification
+    tasks:
+      - TASK-007
+      - TASK-014
+    done_when: Deployed permissions render scoped and validate, deploy, smoke and check:all pass.
+risks:
+  - id: R1
+    description: Rendered permission patterns may be unrepresentable for absolute write-tool paths on
+      some runtimes.
+    mitigation: Relative .tmp/** forms ship first; the deploy smoke asserts the rendered output and the
+      fallback (bash scratch) keeps authoring agents functional.
+  - id: R2
+    description: Step-machine and flag removals can leave stale references across tests, validators, and
+      templates.
+    mitigation: npm run validate plus the updated completeness tests fail loudly; every reference is
+      updated inside this change.
+  - id: R3
+    description: The phase-to-stage sweep touches settled artifacts.
+    mitigation: Entry schemas use additionalProperties true so mixed state stays valid; the sweep is
+      mechanical and covered by validation after.
+delta: []

@@ -26,7 +26,6 @@ export interface StageRecord {
   reviewFile: string | null;
   nextIds: Record<string, string | string[]>;
   producesDelta: boolean;
-  deltaPhase: string | null;
   titlePrefix: string;
   titleDefault: string;
   agent: string | null;
@@ -182,7 +181,6 @@ function loadStageFolder(folder: string, cwd: string): StageRecord {
     reviewFile: descriptor.review_file ? String(descriptor.review_file) : null,
     nextIds: (descriptor.next_ids as Record<string, string | string[]>) || {},
     producesDelta: Boolean(descriptor.produces_delta),
-    deltaPhase: descriptor.delta_phase ? String(descriptor.delta_phase) : null,
     titlePrefix: descriptor.title_prefix ? String(descriptor.title_prefix) : '',
     titleDefault: descriptor.title_default
       ? String(descriptor.title_default)

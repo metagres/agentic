@@ -45,6 +45,7 @@ function makeAgent(overrides: Partial<AgentRecord> = {}): AgentRecord {
       web: 'deny',
       question: 'allow',
     },
+    stageKinds: [],
     systemPrompt: SYSTEM_PROMPT,
     ...overrides,
   };
@@ -104,6 +105,70 @@ test('v2 renderer emits agents/<id>.md with frontmatter fields carried through',
   assert.equal(frontmatter.mode, 'all');
   assert.equal(frontmatter.model, 'opencode-go/kimi-k3');
   assert.equal(frontmatter.temperature, 0.3);
+});
+
+test('authoring-scope agents render deny base with .tmp scratch allows before the protected deny (AC-018)', () => {
+  const agent = makeAgent({
+    id: 'requirements-analyst',
+    stageKinds: ['authoring'],
+    permissions: {
+      file_read: 'allow',
+      search: 'deny',
+      file_write: 'deny',
+      shell: 'allow',
+      subagent: 'allow',
+      web: 'deny',
+      question: 'allow',
+    },
+  });
+  const rendered = getRenderer('opencode').renderAgent(agent);
+  const { frontmatter } = parseRendered(rendered.content);
+
+  const scoped = {
+    '*': 'deny',
+    '.tmp/**': 'allow',
+    '**/.tmp/**': 'allow',
+    '**/docs/changes/**': 'deny',
+    'docs/changes/**': 'deny',
+  };
+  for (const target of ['edit', 'write', 'apply_patch']) {
+    assert.deepEqual(frontmatter.permission[target], scoped);
+  }
+  // read/search/shell/subagent levels unchanged (AC-018).
+  assert.equal(frontmatter.permission.read, 'allow');
+  assert.equal(frontmatter.permission.bash, 'allow');
+  assert.equal(frontmatter.permission.task, 'allow');
+});
+
+test('aggregator-scope agents render docs/current and .tmp allows with the protected deny last (AC-019)', () => {
+  const agent = makeAgent({
+    id: 'knowledge-curator',
+    stageKinds: ['aggregator'],
+    permissions: {
+      file_read: 'allow',
+      search: 'deny',
+      file_write: 'deny',
+      shell: 'allow',
+      subagent: 'allow',
+      web: 'deny',
+      question: 'deny',
+    },
+  });
+  const rendered = getRenderer('opencode').renderAgent(agent);
+  const { frontmatter } = parseRendered(rendered.content);
+
+  const scoped = {
+    '*': 'deny',
+    'docs/current/**': 'allow',
+    '**/docs/current/**': 'allow',
+    '.tmp/**': 'allow',
+    '**/.tmp/**': 'allow',
+    '**/docs/changes/**': 'deny',
+    'docs/changes/**': 'deny',
+  };
+  for (const target of ['edit', 'write', 'apply_patch']) {
+    assert.deepEqual(frontmatter.permission[target], scoped);
+  }
 });
 
 test('v2 permission translation covers all six neutral keys and all three levels', () => {

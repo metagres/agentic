@@ -8,5 +8,3 @@ status_field: implementation_status
 requires: []
 reviews: implementation
 review_file: implementation-review.yaml
-permissions:
-  file_write: allow

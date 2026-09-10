@@ -6,14 +6,28 @@ import { requireChangeRoot } from '../lib/change-root.ts';
 import { loadStageRegistry, getStageById } from '../lib/stage-registry.ts';
 import { getAgentModelFields } from '../lib/agent-registry.ts';
 import { computePipelineOrder, evaluateGate } from '../lib/requires-graph.ts';
+import { helpEnvelope, rejectUnknownFlags, STATUS_FLAGS } from '../lib/help.ts';
 import type { ParseArgsResult } from '../lib/types.ts';
 
 function usage(code: number = EXIT.ok): void {
+  if (code === EXIT.ok) {
+    writeJson(
+      helpEnvelope({
+        workflow: 'status',
+        purpose: 'Show the pipeline state for one change and the suggested next command.',
+        usage: ['sdlc status --change <change-name>'],
+        flags: STATUS_FLAGS,
+      }),
+      code
+    );
+    return;
+  }
+
   writeJson(
     {
       workflow: 'status',
       step: 'help',
-      state: code === EXIT.ok ? 'ok' : 'blocked',
+      state: 'blocked',
       instructions: 'Usage: sdlc status --change <change-name> ' + CWD_FLAG_DOC,
       data: {},
       errors: [],
@@ -24,8 +38,9 @@ function usage(code: number = EXIT.ok): void {
 }
 
 // The tracked artifact of a review stage is the artifact of the stage it
-// reviews; for every other stage it is its own artifact (DEC-008).
-function trackedStage(cwd: string, stageId: string) {
+// reviews; for every other stage it is its own artifact (DEC-008). Exported
+// for the read-only changes inventory (FR-004).
+export function trackedStage(cwd: string, stageId: string) {
   const stage = getStageById(cwd, stageId);
   if (!stage) return null;
   if (stage.kind === 'review' && stage.reviews) {
@@ -51,8 +66,11 @@ function readStageStatus(
   return String(metadata[tracked.statusField] || 'unknown');
 }
 
+export { readStageStatus };
+
 export function runStatus(argv: string[]): void {
   const args = parseArgs(argv) as ParseArgsResult;
+  rejectUnknownFlags('status', args, STATUS_FLAGS);
 
   if (args.help) {
     usage(EXIT.ok);

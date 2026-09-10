@@ -113,12 +113,12 @@ function setupReadyChange(request: string): { tmp: string; changeDir: string } {
 test('review envelopes carry the detected steps.yaml step id', () => {
   const { tmp, changeDir } = setupReadyChange('Add device registration');
 
-  // Missing --change: the needs_input step.
+  // Missing --change: the engagement backstop (never a step).
   const missing = runCli(tmp, ['requirements-review']);
   assertEnvelopeShape(missing);
-  assert.equal(missing.step, 'needs_input');
-  assert.match(missing.instructions, /Ask the user which change to review/);
-  assert.match(missing.instructions, /Provide --change <change-name>\./);
+  assert.equal(missing.step, 'blocked');
+  assert.equal(missing.errors[0].code, 'MISSING_CHANGE_DIR');
+  assert.match(missing.instructions, /Change identification is the skill's job/);
 
   // Bare invocation: the review step.
   const bare = runCli(tmp, ['requirements-review', '--change', changeDir]);
@@ -232,11 +232,12 @@ function seedPlan(
 test('tasks envelopes carry the detected steps.yaml step id', () => {
   const tmp = tmpRepo('agentic-tasks-');
 
-  // Missing --change: the needs_input step.
+  // Missing --change: the engagement backstop (never a step).
   const missing = runCli(tmp, ['implementation']);
   assertEnvelopeShape(missing);
-  assert.equal(missing.step, 'needs_input');
-  assert.match(missing.instructions, /Ask the user which change to implement\./);
+  assert.equal(missing.step, 'blocked');
+  assert.equal(missing.errors[0].code, 'MISSING_CHANGE_DIR');
+  assert.match(missing.instructions, /Change identification is the skill's job/);
 
   const changeDir = seedPlan(tmp, 'step-tasks', ['TASK-001', 'TASK-002'], 'pending');
 
@@ -316,11 +317,12 @@ function seedAcceptedImplementation(tmp: string, changeDir: string): string {
 test('aggregator envelopes carry the detected steps.yaml step id', () => {
   const tmp = tmpRepo('agentic-agg-');
 
-  // Missing --change: the needs_input step.
+  // Missing --change: the engagement backstop (never a step).
   const missing = runCli(tmp, ['knowledge-extraction']);
   assertEnvelopeShape(missing);
-  assert.equal(missing.step, 'needs_input');
-  assert.match(missing.instructions, /Ask the user which change to synchronize\./);
+  assert.equal(missing.step, 'blocked');
+  assert.equal(missing.errors[0].code, 'MISSING_CHANGE_DIR');
+  assert.match(missing.instructions, /Change identification is the skill's job/);
 
   const changeDir = seedAcceptedImplementation(tmp, 'step-agg');
 

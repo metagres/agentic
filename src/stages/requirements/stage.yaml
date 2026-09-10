@@ -14,6 +14,5 @@ next_ids:
     - non_functional_requirements[].acceptance_criteria
   DL: discovery_log
 produces_delta: true
-delta_phase: Requirements
 title_prefix: ""
 title_default: Untitled requirement

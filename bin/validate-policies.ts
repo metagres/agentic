@@ -159,9 +159,9 @@ for (const stageName of fs.readdirSync(stagesDir).sort()) {
   // markdown, so a missing definition can never render empty instructions.
   const REQUIRED_STEPS_BY_KIND: Record<string, string[]> = {
     authoring: [],
-    review: ['needs_input', 'review', 'accept', 'reject'],
-    tasks: ['needs_input', 'progress', 'complete'],
-    aggregator: ['needs_input', 'docs_delta', 'complete'],
+    review: ['review', 'accept', 'reject'],
+    tasks: ['progress', 'complete'],
+    aggregator: ['docs_delta', 'complete'],
   };
   const stepsPath = path.join(folder, 'steps.yaml');
   if (fs.existsSync(stepsPath)) {
