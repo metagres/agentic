@@ -89,8 +89,7 @@ const stepsCache = new Map<string, Record<string, StepDefinition>>();
 
 /**
  * Loader-backed getStepDefinitions over the discovered stages: resolves the
- * workflow id to a stage and returns its steps.yaml definitions. Keeps the
- * skillManifest consumer contract.
+ * workflow id to a stage and returns its steps.yaml definitions.
  */
 export function getStepDefinitions(
   workflowId: string,

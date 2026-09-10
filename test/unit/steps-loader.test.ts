@@ -1,15 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { skillManifest, getStepDefinitions } from '../../src/scripts/workflows/skill-manifest.ts';
-
-test('skill manifest defines the single agentic-sdlc skill', () => {
-  assert.equal(skillManifest.id, 'agentic-sdlc');
-  assert.ok(skillManifest.title, 'skillManifest.title missing');
-  assert.ok(skillManifest.description, 'skillManifest.description missing');
-  assert.match(skillManifest.description, /requirements/);
-  assert.match(skillManifest.description, /knowledge-extraction/);
-});
+import { getStepDefinitions } from '../../src/scripts/lib/steps-loader.ts';
 
 test('getStepDefinitions is loader-backed over the discovered authoring stages', () => {
   const authoringWorkflows = ['requirements', 'design', 'planning'];
