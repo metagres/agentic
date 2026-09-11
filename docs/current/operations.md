@@ -17,10 +17,11 @@
 | npm run test:e2e | end-to-end tests only | package.json |
 | npm run test:unit | unit tests only | package.json |
 | npm run typecheck | tsc --noEmit | package.json |
-| npm run validate | fast gate: schemas + policies (incl. agent definitions: schema, prompt markers, reference resolution, permission compatibility) + templates (incl. skill frontmatter) + agents-md (AGENTS.md rules cap + docs/current citation integrity) + typecheck + unit tests only — no e2e builds | package.json (scripts.validate) |
+| npm run validate | fast gate: schemas + policies (incl. agent definitions: schema, prompt markers, reference resolution, permission compatibility) + templates (incl. skill frontmatter) + skill-refs (skill-body command/flag references against the CLI registries) + agents-md (AGENTS.md rules cap + docs/current citation integrity) + typecheck + unit tests only — no e2e builds | package.json (scripts.validate) |
 | npm run validate:agents-md |  | package.json (scripts.validate:agents-md) |
 | npm run validate:policies | validate errors.yaml + stage folders (descriptors, checks, steps, schemas) + agent definitions (schema, prompt markers, reference resolution, permission compatibility) | package.json, bin/validate-policies.ts |
 | npm run validate:schemas | validate schema assets | package.json |
+| npm run validate:skill-refs | skill-reference drift gate: every command id and flag written as an sdlc invocation in a skill body is verified against listCommands() + aliases and the help.ts flag tables; a miss fails naming the file, line, and reference | package.json (scripts.validate:skill-refs), bin/validate-skill-refs.ts |
 | npm run validate:templates | validate stage-folder templates + skill frontmatter under src/skills/ | package.json, bin/validate-templates.ts |
 | npm test | node --test over unit + e2e | package.json (scripts.test) |
 | node bin/lint-artifact.ts | lint an artifact through the same validateArtifact path | bin/lint-artifact.ts |
@@ -93,7 +94,7 @@ Rows are appended only through a change's knowledge extraction; improvement-revi
 | npm run deploy:smoke | deploy to .tmp/agent with --clean + CLI smoke test | package.json (scripts), bin/deploy-to-agent.ts |
 | Agent root (default .opencode) | npm run deploy / node bin/deploy-to-agent.ts --dest <root> [--platform <id>] [--platform-version <n>] | package.json, bin/deploy-to-agent.ts |
 | Smoke target .tmp/agent | npm run deploy:smoke (dest .tmp/agent, --clean) | package.json (scripts.deploy:smoke) |
-| Payload | two self-contained skills: agentic-sdlc (SKILL.md interpolated from src/skills/agentic-sdlc/SKILL.md + bundled scripts/sdlc.js + stages/ + schemas/ + policies/) and knowledge-init (SKILL.md + manifest.json); six agents rendered into <dest>/agents/<agent-id>.md via the selected platform renderer (default opencode, latest version); --clean removes both skills first and stale rendered agents whose source definitions no longer exist | bin/deploy-to-agent.ts, AGENTS.md §2 |
+| Payload | two self-contained skills: agentic-sdlc (SKILL.md shipped verbatim from src/skills/agentic-sdlc/SKILL.md + bundled scripts/sdlc.js + stages/ + schemas/ + policies/) and knowledge-init (SKILL.md + manifest.json); six agents rendered into <dest>/agents/<agent-id>.md via the selected platform renderer (default opencode, latest version); --clean removes both skills first and stale rendered agents whose source definitions no longer exist | bin/deploy-to-agent.ts, AGENTS.md §2 |
 | Rendered agent frontmatter | carries the invocation mode (omitted → all) beside model and temperature plus the per-agent question tool grant (allow on requirements-analyst, deny on the other five); verified by the existing smoke checks | src/scripts/lib/deploy/platforms/opencode.ts, src/agents/ |
 | Smoke coverage | agentic-sdlc CLI --list-commands run + delegation/artifact marker phrases + per-skill SKILL.md frontmatter check for both managed skills (name equals folder, description non-empty) + per-agent check (frontmatter parses, filename stem matches agent id); report carries skills and agents arrays plus platform and platformVersion | bin/deploy-to-agent.ts |
 <!-- docs-gen:end id="operations-deployment" -->

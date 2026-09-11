@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cli = path.resolve(__dirname, '../../src/scripts/sdlc.ts');
 
 function makeTmpProject() {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-workflows-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-commands-'));
 }
 
 function runCli(args) {
@@ -140,10 +140,12 @@ test('the command list omits docs-init', () => {
   assert.ok(!ids.includes('docs-init'), `docs-init must not be listed: ${ids.join(', ')}`);
 });
 
-test('changes lists the slim per-change shape (name, stage, agent, suggested_command, open_feedback)', () => {
+test('changes lists the slim per-change shape (name, stage, agent, suggested_command, open_feedback, pipeline_state)', () => {
   const tmp = makeTmpProject();
 
-  const req = runCli(['requirements', '--cwd', tmp, '--request', 'Add login']);
+  const initRes = runCli(['init', '--cwd', tmp, '--change', 'add-login']);
+  assert.equal(initRes.status, 0, initRes.stderr);
+  const req = runCli(['requirements', '--cwd', tmp, '--change', 'add-login']);
   assert.equal(req.status, 0, req.stderr);
   const changeDir = path.basename(JSON.parse(req.stdout).data.change_root);
 
@@ -164,6 +166,7 @@ test('changes lists the slim per-change shape (name, stage, agent, suggested_com
     'agent',
     'change_name',
     'open_feedback',
+    'pipeline_state',
     'stage',
     'suggested_command',
   ]);
@@ -171,4 +174,5 @@ test('changes lists the slim per-change shape (name, stage, agent, suggested_com
   assert.equal(entry.agent, 'stage-reviewer');
   assert.equal(entry.suggested_command, `sdlc design-review --change ${changeDir}`);
   assert.equal(entry.open_feedback, null);
+  assert.equal(entry.pipeline_state, 'in_progress');
 });

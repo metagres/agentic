@@ -56,12 +56,13 @@ const ENTITY_COMMANDS: Record<string, string[]> = {
   'Model Override': ['sdlc <stage-id>', 'node bin/deploy-to-agent.ts'],
   'Improvement Review (src/skills/improvement-review)': ['agent skill (not a CLI command)'],
   'Idea Document (docs/ideas/<slug>.md)': ['agent skill (not a CLI command)'],
+  'Command Registry (src/scripts/commands)': ['sdlc init', 'sdlc changes', 'sdlc --list-commands'],
 };
 
 /** Technologies decisions may cite; each must appear in the tech stack. */
 const TECH_VOCABULARY = ['YAML', 'Node.js', 'tsup', 'ajv', 'TypeScript'];
 
-const CROSS_CUTTING = ['status', 'feedback', 'doctor'];
+const CROSS_CUTTING = ['init', 'changes', 'status', 'feedback', 'doctor'];
 
 /**
  * Runs the seven mechanical cross-checks and the dead-reference scan against

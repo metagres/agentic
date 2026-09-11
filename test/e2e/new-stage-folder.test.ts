@@ -144,13 +144,22 @@ test('adding a stage folder requires no TypeScript change', { timeout: 240000 },
   const ids = listJson.data.commands.map((w) => w.id);
   assert.ok(ids.includes('release'), `expected 'release' in ${ids.join(', ')}`);
 
-  // Authoring run from the folder alone: creates the change and the artifact.
+  // Authoring run from the folder alone: init creates the change directory,
+  // the release stage instantiates its artifact into it.
   const project = path.join(tmp, 'project');
   fs.mkdirSync(project, { recursive: true });
 
+  const initCreate = spawnSync(
+    process.execPath,
+    [bundleCli, 'init', '--cwd', project, '--change', 'ship-the-release'],
+    { encoding: 'utf8', cwd: dest }
+  );
+  assert.equal(initCreate.status, 0, initCreate.stderr);
+  assert.equal(JSON.parse(initCreate.stdout).state, 'ok', initCreate.stdout);
+
   const create = spawnSync(
     process.execPath,
-    [bundleCli, 'release', '--cwd', project, '--request', 'Ship the release'],
+    [bundleCli, 'release', '--cwd', project, '--change', 'ship-the-release'],
     { encoding: 'utf8', cwd: dest }
   );
   assert.equal(create.status, 0, create.stderr);

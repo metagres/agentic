@@ -6,7 +6,6 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { slugify } from '../../src/scripts/lib/ids.ts';
 import { safeReadYaml } from '../../src/scripts/lib/context.ts';
 import { recordAnswersBatch } from '../../src/scripts/lib/kinds/authoring.ts';
 import type { AuthorEnv } from '../../src/scripts/lib/authoring-base.ts';
@@ -15,58 +14,6 @@ import hooks from '../../src/stages/requirements/hooks.ts';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '../..');
 const cli = path.join(root, 'src', 'scripts', 'sdlc.ts');
-
-// ---------------------------------------------------------------------------
-// Word-boundary slugs (TASK-009): truncation drops whole words, never
-// mid-word, within the same 60-char budget, with no trailing hyphen.
-// ---------------------------------------------------------------------------
-
-test('slugify keeps short titles unchanged', () => {
-  assert.equal(slugify('Add Device Registration'), 'add-device-registration');
-  assert.equal(slugify('Fix login bug'), 'fix-login-bug');
-});
-
-test('slugify strips punctuation and collapses separators', () => {
-  assert.equal(slugify('  Weird / Text !! '), 'weird-text');
-  assert.equal(slugify('Add -- user & role!!!management'), 'add-user-role-management');
-});
-
-test('slugify truncates long titles at word boundaries without a trailing hyphen', () => {
-  const slug = slugify(
-    'Implement comprehensive observability dashboards for distributed tracing infrastructure'
-  );
-
-  // Old behavior sliced mid-word: ...dashboards-for-distr.
-  assert.equal(slug, 'implement-comprehensive-observability-dashboards-for');
-  assert.ok(slug.length <= 60);
-  assert.ok(!slug.endsWith('-'));
-});
-
-test('slugify keeps exactly-at-budget words whole and drops overflow words whole', () => {
-  // Five 10-char words plus one 5-char word joined by hyphens is exactly 60.
-  const atBudget = 'aaaaaaaaaa bbbbbbbbbb cccccccccc dddddddddd eeeeeeeeee fffff';
-  const slug = slugify(atBudget);
-  assert.equal(slug, 'aaaaaaaaaa-bbbbbbbbbb-cccccccccc-dddddddddd-eeeeeeeeee-fffff');
-  assert.equal(slug.length, 60);
-
-  // One more word pushes past the budget; it is dropped whole, leaving the
-  // exactly-at-budget prefix untouched.
-  assert.equal(
-    slugify(`${atBudget} gggggggggg`),
-    slug
-  );
-});
-
-test('slugify hard-truncates a single word longer than the budget', () => {
-  // A single over-long word cannot be kept whole; the only way to stay within
-  // budget is to slice it (still no trailing hyphen).
-  assert.equal(slugify('a'.repeat(80)), 'a'.repeat(60));
-});
-
-test('slugify falls back to "change" for empty or punctuation-only input', () => {
-  assert.equal(slugify(''), 'change');
-  assert.equal(slugify('!!! ###'), 'change');
-});
 
 // ---------------------------------------------------------------------------
 // Batch discovery recording (--record-answers): every entry routes through the
@@ -267,7 +214,8 @@ function runCli(tmp: string, args: string[], input?: string) {
 
 test('--record-answers persists every batch entry to the artifact (CLI)', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-batch-'));
-  const out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  const out = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
   const changeRoot = out.data.change_root;
   const changeDir = path.basename(changeRoot);
 
@@ -305,7 +253,8 @@ test('--record-answers persists every batch entry to the artifact (CLI)', () => 
 
 test('--record-answers - reads the batch from stdin and allocates sequential DL ids', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-batch-stdin-'));
-  const out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  const out = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
   const changeRoot = out.data.change_root;
   const changeDir = path.basename(changeRoot);
 
@@ -337,7 +286,8 @@ test('--record-answers - reads the batch from stdin and allocates sequential DL 
 
 test('--record-answers - with an invalid entry persists nothing', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-batch-stdin-'));
-  const out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  const out = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
   const changeRoot = out.data.change_root;
   const changeDir = path.basename(changeRoot);
 

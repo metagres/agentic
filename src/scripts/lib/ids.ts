@@ -54,37 +54,11 @@ export function nextIdsFromArrays(
   return result;
 }
 
-// Change-directory slugs (TASK-009): lowercase, punctuation collapsed to
-// single hyphens, and trimmed to the 60-char budget by dropping whole words —
-// never mid-word, never a trailing hyphen. A single word longer than the
-// budget cannot be kept whole; it is hard-truncated as the only way to stay
-// within budget.
-export function slugify(text: string): string {
-  const base = String(text || '')
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-
-  if (!base) return 'change';
-  if (base.length <= 60) return base;
-
-  let kept = '';
-  for (const word of base.split('-')) {
-    const candidate = kept ? `${kept}-${word}` : word;
-    if (candidate.length > 60) break;
-    kept = candidate;
-  }
-
-  return kept || base.slice(0, 60);
-}
-
 export const CHANGE_SLUG_MAX_LENGTH = 60;
 
-// Explicit change names (TASK-001): when --change and --request are both given
-// and no change directory matches, the change is created under the exact
-// provided name. That name must already be a valid slug; this reports the
-// first violation, or null when the name is usable as-is.
+// Change creation is explicit (init contract): the exact slug must already be
+// a valid, unique name — the CLI never derives or suffixes one. This reports
+// the first violation, or null when the name is usable as-is.
 export function validateChangeSlug(name: string): string | null {
   if (/[^a-z0-9-]/.test(name)) {
     return `Change name '${name}' may only contain lowercase letters, digits, and hyphens.`;
@@ -99,16 +73,4 @@ export function validateChangeSlug(name: string): string | null {
     return `Change name '${name}' must not end with a hyphen.`;
   }
   return null;
-}
-
-export function uniqueSlug(baseSlug: string, existingSlugs: string[]): string {
-  if (!existingSlugs.includes(baseSlug)) return baseSlug;
-
-  let n = 2;
-
-  while (existingSlugs.includes(`${baseSlug}-${n}`)) {
-    n += 1;
-  }
-
-  return `${baseSlug}-${n}`;
 }

@@ -36,14 +36,10 @@ test('--version returns version', () => {
 test('status reports requirements as current for a new change', () => {
   const tmp = makeTmpProject();
 
-  const req = runCli([
-    'requirements',
-    '--cwd',
-    tmp,
-    '--request',
-    'Add login',
-  ]);
+  const init = runCli(['init', '--cwd', tmp, '--change', 'add-login']);
+  assert.equal(init.status, 0, init.stderr);
 
+  const req = runCli(['requirements', '--cwd', tmp, '--change', 'add-login']);
   assert.equal(req.status, 0, req.stderr);
 
   const reqJson = JSON.parse(req.stdout);
@@ -84,7 +80,9 @@ test('status suggests the review gate with the reviewer agent when ready', () =>
     'utf8'
   );
 
-  const req = runCli(['requirements', '--cwd', tmp, '--request', 'Add login']);
+  const init = runCli(['init', '--cwd', tmp, '--change', 'add-login']);
+  assert.equal(init.status, 0, init.stderr);
+  const req = runCli(['requirements', '--cwd', tmp, '--change', 'add-login']);
   assert.equal(req.status, 0, req.stderr);
   const reqJson = JSON.parse(req.stdout);
   const changeDir = path.basename(reqJson.data.change_root);
@@ -118,7 +116,9 @@ test('status reports the complete state once every stage is settled', () => {
     'utf8'
   );
 
-  const req = runCli(['requirements', '--cwd', tmp, '--request', 'Add login']);
+  const init = runCli(['init', '--cwd', tmp, '--change', 'add-login']);
+  assert.equal(init.status, 0, init.stderr);
+  const req = runCli(['requirements', '--cwd', tmp, '--change', 'add-login']);
   assert.equal(req.status, 0, req.stderr);
   const reqJson = JSON.parse(req.stdout);
   const changeDir = path.basename(reqJson.data.change_root);

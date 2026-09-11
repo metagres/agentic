@@ -42,7 +42,8 @@ function gateOf(out: Record<string, unknown>): Gate {
 
 test('discovery_gate exposes the stable rule and the policy thresholds per clarity anchor', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-gate-'));
-  let out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  let out = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
   const changeRoot = String(out.data.change_root);
   const changeDir = path.basename(changeRoot);
 

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { listCommands } from '../../src/scripts/workflows/index.ts';
+import { listCommands } from '../../src/scripts/commands/index.ts';
 import { loadStageRegistry, getStageById } from '../../src/scripts/lib/stage-registry.ts';
 import { loadAgentRegistry, getAgentModelFields } from '../../src/scripts/lib/agent-registry.ts';
 import { validateWithSchema } from '../../src/scripts/lib/schema.ts';
@@ -165,7 +165,9 @@ test('status emits the slim envelope with the stage to run and its bound agent',
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-list-commands-'));
 
   // Create a change so the status command has a pipeline to report.
-  const req = runCli(['requirements', '--cwd', tmp, '--request', 'Add login']);
+  const init = runCli(['init', '--cwd', tmp, '--change', 'add-login']);
+  assert.equal(init.status, 0, init.stderr);
+  const req = runCli(['requirements', '--cwd', tmp, '--change', 'add-login']);
   assert.equal(req.status, 0, req.stderr);
   const reqJson = JSON.parse(req.stdout);
   const changeDir = path.basename(reqJson.data.change_root);

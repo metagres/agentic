@@ -1,0 +1,57 @@
+metadata:
+  artifact: requirements.yaml
+  target: requirements
+  latest_round: 2
+  created: 2026-09-10
+  updated: 2026-09-10
+  latest_status: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-10T20:55:08.586Z
+    artifact_version: 0.1.0
+    status: rejected
+    mechanical_checks_passed: true
+    semantic_checks_passed: false
+    failures:
+      - check: Does every Then-clause in acceptance_criteria describe an observable external result (HTTP
+          response, persisted file, log line), not an internal function call?
+        evidence: "AC-053 (requirements.yaml:569-573): its Then-clause is 'they assert those references
+          against the emitting code' — a description of unit-test assertions against internal
+          emitting code, not an observable external result (no envelope field, persisted file, exit
+          code, or log line is named). No other Then-clause violates the check."
+      - check: Does each AC assert system behavior under test, not the existence of tests or a process step?
+        evidence: "AC-053 (requirements.yaml:569-573): 'When the unit tests run, Then they assert those
+          references against the emitting code' asserts the existence and behavior of tests, not
+          system behavior under test. FR-017's unit-test mandate (envelope-field references asserted
+          against the emitting code) needs a system-observable criterion instead — e.g. the
+          validator or test run output naming the asserted envelope fields (data.stage,
+          data.semantic_checks, state values)."
+      - check: Does each requirement describe exactly one verifiable behavior, with no conjunctions joining
+          unrelated behaviors?
+        evidence: FR-014 (requirements.yaml:500-503) joins the SKILL.md command-documentation behavior with
+          removal of the deploy-time token interpolation in bin/deploy-to-agent.ts — a second
+          component's behavior already owned wholly by FR-019 (requirements.yaml:595-599); drop
+          FR-014's trailing clause. FR-005 (requirements.yaml:326-330) joins CLI changes-output
+          behavior with skill-text wording ('and the skill shall state that only in-progress changes
+          are selectable') — split or move the skill-text clause to the skill FR that carries it.
+          FR-012 (requirements.yaml:464-468) joins relocation of the three trailing rule paragraphs
+          with the addition of a path example and a worked example, the latter already carried by
+          AC-037 (requirements.yaml:476-479).
+      - check: Do the acceptance criteria nested under the functional and non-functional requirements cover
+          happy, edge, negative, and boundary cases for the core behaviors, with each criterion
+          verifying the requirement that carries it?
+        evidence: AC-020 (requirements.yaml:364-368) is nested under FR-006 (fixed delegation template) but
+          verifies the DL-001 heartbeat-verification and never-read-stage-envelopes rule, which no
+          FR description declares — an orphan criterion. AC-056 (requirements.yaml:590-594) is
+          nested under FR-018 (workflows rename) but verifies the DL-005 improvement-review
+          idea-to-change flow (init for the confirmed slug, then requirements engagement), which no
+          FR description declares — that flow update is traceable only to discovery_log DL-005, not
+          to any carrying FR. Category coverage across happy/edge/negative/boundary is otherwise
+          present; the defect is criterion-to-requirement verification.
+  - round: 2
+    reviewed_at: 2026-09-10T20:58:30.858Z
+    artifact_version: 0.1.1
+    status: accepted
+    mechanical_checks_passed: true
+    semantic_checks_passed: true
+    failures: []

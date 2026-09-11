@@ -100,12 +100,8 @@ export function rejectUnknownFlags(
 
 export const AUTHORING_FLAGS: FlagTable = {
   change: {
-    description: 'Work on an existing change (fuzzy name resolution). With --request and no match, creates the change under the exact slug.',
+    description: 'Work on an existing change (fuzzy name resolution).',
     value: '<change-name>',
-  },
-  request: {
-    description: 'Start a new change from the request text (or create under --change when combined).',
-    value: '<request>',
   },
   'update-artifact': {
     description: 'Upsert the stage artifact from YAML: creates it when missing, then merges; reads stdin by default or the given file. Id-keyed object lists merge per entry.',
@@ -280,6 +276,14 @@ export const AGGREGATOR_FLAGS: FlagTable = {
 export const STATUS_FLAGS: FlagTable = {
   change: {
     description: 'Show the pipeline state for the given change.',
+    value: '<change-name>',
+    required: true,
+  },
+};
+
+export const INIT_FLAGS: FlagTable = {
+  change: {
+    description: 'The exact slug to create (no fuzzy resolution; creation is explicit).',
     value: '<change-name>',
     required: true,
   },

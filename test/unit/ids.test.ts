@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { nextId, slugify, today, nextIdsFromArrays } from '../../src/scripts/lib/ids.ts';
+import { nextId, validateChangeSlug, today, nextIdsFromArrays } from '../../src/scripts/lib/ids.ts';
 import { readYaml } from '../../src/scripts/lib/yaml-io.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -17,9 +17,21 @@ test('nextId starts at 001 when no ids exist', () => {
   assert.equal(nextId([], 'FR'), 'FR-001');
 });
 
-test('slugify creates safe slugs', () => {
-  assert.equal(slugify('Add Device Registration'), 'add-device-registration');
-  assert.equal(slugify('  Weird / Text !! '), 'weird-text');
+test('validateChangeSlug accepts valid slugs, including exactly-at-budget', () => {
+  assert.equal(validateChangeSlug('a'), null);
+  assert.equal(validateChangeSlug('change-2'), null);
+  assert.equal(validateChangeSlug('add-device-registration'), null);
+  assert.equal(validateChangeSlug('a'.repeat(60)), null);
+});
+
+test('validateChangeSlug rejects invalid charsets, leading hyphens, over-length, and trailing hyphens', () => {
+  assert.match(validateChangeSlug('Bad_Name') as string, /may only contain lowercase letters, digits, and hyphens/);
+  assert.match(validateChangeSlug('UPPER') as string, /may only contain lowercase letters, digits, and hyphens/);
+  assert.match(validateChangeSlug('has space') as string, /may only contain lowercase letters, digits, and hyphens/);
+  assert.match(validateChangeSlug('-leading') as string, /must start with a lowercase letter or digit/);
+  assert.match(validateChangeSlug('') as string, /must start with a lowercase letter or digit/);
+  assert.match(validateChangeSlug('a'.repeat(61)) as string, /maximum is 60/);
+  assert.match(validateChangeSlug('abc-') as string, /must not end with a hyphen/);
 });
 
 test('today returns ISO date', () => {

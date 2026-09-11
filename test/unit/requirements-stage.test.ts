@@ -275,7 +275,8 @@ function runCli(tmp: string, args: string[], input?: string) {
 
 test('complete-step --step discovery sets the confirmation flag (FR-011, AC-014)', () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'agentic-cs-'));
-  let out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  let out = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
   const changeRoot = out.data.change_root;
   const changeDir = path.basename(changeRoot);
 

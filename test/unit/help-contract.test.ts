@@ -9,6 +9,7 @@ import {
   REVIEW_FLAGS,
   TASKS_FLAGS,
   AGGREGATOR_FLAGS,
+  INIT_FLAGS,
   STATUS_FLAGS,
   CHANGES_FLAGS,
   FEEDBACK_FLAGS,
@@ -23,10 +24,11 @@ const COMMAND_SOURCES: [string, Record<string, unknown>][] = [
   ['src/scripts/lib/kinds/review.ts', REVIEW_FLAGS],
   ['src/scripts/lib/kinds/tasks.ts', TASKS_FLAGS],
   ['src/scripts/lib/kinds/aggregator.ts', AGGREGATOR_FLAGS],
-  ['src/scripts/workflows/status.ts', STATUS_FLAGS],
-  ['src/scripts/workflows/changes.ts', CHANGES_FLAGS],
-  ['src/scripts/workflows/feedback.ts', FEEDBACK_FLAGS],
-  ['src/scripts/workflows/doctor.ts', DOCTOR_FLAGS],
+  ['src/scripts/commands/init.ts', INIT_FLAGS],
+  ['src/scripts/commands/status.ts', STATUS_FLAGS],
+  ['src/scripts/commands/changes.ts', CHANGES_FLAGS],
+  ['src/scripts/commands/feedback.ts', FEEDBACK_FLAGS],
+  ['src/scripts/commands/doctor.ts', DOCTOR_FLAGS],
 ];
 
 // The global exemptions of the closed vocabulary: the positional sink, the

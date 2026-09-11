@@ -30,7 +30,8 @@ function run(tmp, args, input) {
 
 test('knowledge extraction lists deltas and completes', () => {
   const tmp = makeTmpProject();
-  let out = run(tmp, ['requirements', '--request', 'Add architecture note']);
+  assert.equal(run(tmp, ['init', '--change', 'add-architecture-note']).state, 'ok');
+  let out = run(tmp, ['requirements', '--change', 'add-architecture-note']);
   const changeRoot = out.data.change_root;
   const changeDir = path.basename(changeRoot);
 

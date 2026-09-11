@@ -201,7 +201,7 @@ Classify each into exactly one of:
 
 ## 7. Step 4 — Unused-surface inventory (grep beside every claim)
 
-For each removal candidate (flags, schema fields, whole workflows, template sections), record
+For each removal candidate (flags, schema fields, whole commands, template sections), record
 the **exact grep command and its match count** beside the removal claim. A candidate with zero
 call-site consumers and zero session usage across multiple cycles is a removal candidate — but
 check the full consumer scope before proposing deletion: `src/`, the deployed skills under
@@ -270,11 +270,14 @@ Then exactly nine H2 sections, in this order:
 9. `## Kickoff (new session)`
 
 A **Governance-test-result** block (section 10) is placed between References and Kickoff, so the
-governance flags precede the kickoff command. The kickoff section ends with a runnable command
-in the explicit-slug form:
+governance flags precede the kickoff commands. The kickoff section ends with the two-command
+form — init is change management, not a stage: the acting skill agent runs it after the slug is
+judged and confirmed, then engages the requirements stage. A slug colliding with an existing
+change adjudicates as resume-or-supersede against that change, never a suffixed variant:
 
 ```sh
-sdlc requirements --change <judged-slug> --request "…"
+sdlc init --change <judged-slug>
+sdlc requirements --change <judged-slug>
 ```
 
 ## 10. Governance test (before kickoff)

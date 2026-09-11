@@ -88,6 +88,9 @@ export function runChanges(argv: string[]): void {
       agent: unsettled ? getStageById(cwd, unsettled)?.agent ?? null : null,
       suggested_command: unsettled ? `sdlc ${unsettled} --change ${name}` : null,
       open_feedback: openFeedback ? String(openFeedback.id) : null,
+      // Selection state (DEC-001): only in_progress changes are selectable;
+      // completed ones are archived.
+      pipeline_state: unsettled ? 'in_progress' : 'complete',
     };
   });
 
@@ -98,7 +101,7 @@ export function runChanges(argv: string[]): void {
       state: 'ok',
       instructions:
         changes.length === 0
-          ? 'No changes exist yet. Start one with: sdlc requirements --request "<request>".'
+          ? 'No changes exist yet. Start one with: sdlc init --change <slug>.'
           : `${changes.length} change(s). Run sdlc status --change <name> for the full pipeline of one change.`,
       data: {
         changes,

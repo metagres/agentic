@@ -53,9 +53,13 @@ interface ReadyChange {
 /** Creates a change with a finalized (ready-for-review) requirements artifact. */
 function setupReadyChange(request: string): ReadyChange {
   const tmp = makeProject();
-  let out = runCli(tmp, ['requirements', '--request', request]);
-  const changeRoot = out.data.change_root;
-  const changeDir = path.basename(changeRoot);
+  const changeDir = request
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  assert.equal(runCli(tmp, ['init', '--change', changeDir]).state, 'ok');
+  let out = runCli(tmp, ['requirements', '--change', changeDir]);
+  const changeRoot = String(out.data.change_root);
   out = runCli(
     tmp,
     ['requirements', '--change', changeDir, '--update-artifact'],

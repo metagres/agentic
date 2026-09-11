@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { writeJson, EXIT, CWD_FLAG_DOC } from './lib/cli.ts';
-import { resolveCommand, listCommands } from './workflows/index.ts';
+import { resolveCommand, listCommands } from './commands/index.ts';
 import { VERSION } from './lib/version.ts';
 
 const argv = process.argv.slice(2);

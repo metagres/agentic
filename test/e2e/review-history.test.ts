@@ -37,7 +37,8 @@ function run(tmp, args, input) {
 test('plain review records by default and dry-run does not', () => {
   const tmp = makeTmpProject();
 
-  let out = run(tmp, ['requirements', '--request', 'Add profile']);
+  assert.equal(run(tmp, ['init', '--change', 'add-profile']).state, 'ok');
+  let out = run(tmp, ['requirements', '--change', 'add-profile']);
   const changeRoot = out.data.change_root;
   const changeDir = path.basename(changeRoot);
 

@@ -33,7 +33,8 @@ function assertEnvelopeShape(payload: Record<string, unknown>) {
 }
 
 function seedChange(tmp: string): string {
-  const out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  const out = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
   assertEnvelopeShape(out);
   return path.basename(String(out.data.change_root));
 }

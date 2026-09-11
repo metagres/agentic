@@ -1,0 +1,732 @@
+metadata:
+  id: PLAN-001
+  title: "Plan: orchestrator-owned-init-and-skill-hardening"
+  stage: planning
+  status: accepted
+  version: 0.1.1
+  created: 2026-09-10
+  updated: 2026-09-10
+  implementation_status: accepted
+tasks:
+  - id: TASK-001
+    title: Rename src/scripts/workflows/ to src/scripts/commands/ (CommandDef)
+    description: >
+      Behavior-preserving rename, first so every later task lands in src/scripts/commands/. Move the
+      five command modules (changes, doctor, feedback, index, status) from src/scripts/workflows/ to
+      src/scripts/commands/, rename WorkflowDef to CommandDef in src/scripts/lib/types.ts, and
+      update the import in src/scripts/sdlc.ts. Rename test/e2e/workflows.test.ts to
+      test/e2e/commands.test.ts and update the workflows references in
+      test/unit/help-contract.test.ts and test/unit/list-commands.test.ts. Reword the one workflows
+      word in src/skills/improvement-review/SKILL.md. The docs/current rows citing
+      src/scripts/workflows paths are updated with TASK-009 so all living-docs edits land together;
+      decisions.md rows are provider-generated historical records (see RISK-003). The existing suite
+      is the behavior-preserving pin and must pass unchanged under the new names.
+    type: refactor
+    status: done
+    complexity: medium
+    covers:
+      - FR-018
+    acceptance_ids:
+      - AC-054
+    depends_on: []
+    files:
+      - path: src/scripts/workflows/changes.ts
+        operation: delete
+      - path: src/scripts/workflows/doctor.ts
+        operation: delete
+      - path: src/scripts/workflows/feedback.ts
+        operation: delete
+      - path: src/scripts/workflows/index.ts
+        operation: delete
+      - path: src/scripts/workflows/status.ts
+        operation: delete
+      - path: src/scripts/commands/changes.ts
+        operation: create
+      - path: src/scripts/commands/doctor.ts
+        operation: create
+      - path: src/scripts/commands/feedback.ts
+        operation: create
+      - path: src/scripts/commands/index.ts
+        operation: create
+      - path: src/scripts/commands/status.ts
+        operation: create
+      - path: src/scripts/lib/types.ts
+        operation: modify
+      - path: src/scripts/sdlc.ts
+        operation: modify
+      - path: test/e2e/workflows.test.ts
+        operation: delete
+      - path: test/e2e/commands.test.ts
+        operation: create
+      - path: test/unit/help-contract.test.ts
+        operation: modify
+      - path: test/unit/list-commands.test.ts
+        operation: modify
+      - path: src/skills/improvement-review/SKILL.md
+        operation: modify
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: "Renamed src/scripts/workflows/ to src/scripts/commands/ (git mv), WorkflowDef
+      to CommandDef in types.ts, sdlc.ts import, test/e2e/workflows.test.ts to commands.test.ts
+      (incl. tmpdir prefix), refs in help-contract/list-commands tests, and the workflows word in
+      improvement-review SKILL.md; docs-gen-owned docs/current regions refreshed via npm run
+      docs:generate to keep docs:check green. Verified: npm test 468 pass, npm run validate exit 0,
+      rg workflows|WorkflowDef in src/ test/ bin/ finds nothing."
+    completed_at: 2026-09-10
+  - id: TASK-002
+    title: Add the init command (mkdir-only change creation)
+    description: >
+      New src/scripts/commands/init.ts registered in src/scripts/commands/index.ts as a
+      cross-cutting command (agent null) with an INIT_FLAGS table (change required) in
+      src/scripts/lib/help.ts. sdlc init --change <slug> validates the slug with the existing
+      validateChangeSlug (INVALID_CHANGE_SLUG, no directory created), refuses an existing
+      docs/changes/<slug> through the ChangeSlugError machinery (CHANGE_DIR_EXISTS, directory
+      untouched, no suffixed variant), then creates only the change directory (creating docs/changes
+      itself when absent) and returns state ok with data.change_name and instructions pointing to
+      the status heartbeat. No --request flag is declared (UNKNOWN_FLAG by the closed-vocabulary
+      guard), no request.md, no artifact seeding, no creation gate, no stage engagement; init
+      deliberately does not reuse createChangeDir, which instantiates artifacts (reuse evaluated and
+      rejected per DEC-005; validateChangeSlug and the ChangeSlugError codes are reused verbatim).
+      Unit tests cover the happy path, INVALID_CHANGE_SLUG, CHANGE_DIR_EXISTS, the --request
+      UNKNOWN_FLAG probe, and that the created directory contains no request.md.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-002
+      - FR-004
+    acceptance_ids:
+      - AC-001
+      - AC-002
+      - AC-003
+      - AC-004
+      - AC-007
+      - AC-013
+    design_refs:
+      - DEC-005
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/scripts/commands/init.ts
+        operation: create
+      - path: src/scripts/commands/index.ts
+        operation: modify
+      - path: src/scripts/lib/help.ts
+        operation: modify
+      - path: test/unit/init-command.test.ts
+        operation: create
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: "Added src/scripts/commands/init.ts (mkdir-only creation: validateChangeSlug ->
+      INVALID_CHANGE_SLUG, ChangeSlugError CHANGE_DIR_EXISTS refusal, ok envelope with
+      data.change_name + heartbeat instructions), registered it as a cross-cutting agent-null
+      command in commands/index.ts, added INIT_FLAGS (change required) to help.ts, and created
+      test/unit/init-command.test.ts (8 tests: happy path, docs/changes bootstrap,
+      INVALID_CHANGE_SLUG x3, CHANGE_DIR_EXISTS untouched/no-suffix, --request UNKNOWN_FLAG, no
+      request.md). Incidental: init pair added to help-contract.test.ts COMMAND_SOURCES; docs-gen
+      regions regenerated (docs:generate) for the new command. Verified: node --test
+      init-command.test.ts 8 pass, npm test 476 pass, npm run validate exit 0."
+    completed_at: 2026-09-10
+  - id: TASK-003
+    title: Add pipeline_state to the changes inventory
+    description: "Extend each data.changes[] entry in src/scripts/commands/changes.ts with
+      pipeline_state (in_progress | complete) derived from the existing unsettled-stage computation;
+      the entry shape becomes change_name, stage, agent, suggested_command, open_feedback,
+      pipeline_state. This task is the single owner of the changes command's zero-changes envelope
+      edit in src/scripts/commands/changes.ts: the envelope stays a non-error empty inventory and
+      its instruction — today \"No changes exist yet. Start one with: sdlc requirements --request
+      \\\"<request>\\\".\" — is reworded here to point at sdlc init; no other task touches that
+      string. The stage field keeps naming the stage to run now (or complete) so pipeline_state
+      names only the selection state. Update the changes-shape assertion in
+      test/e2e/commands.test.ts."
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-005
+    acceptance_ids:
+      - AC-015
+      - AC-016
+      - AC-017
+    design_refs:
+      - DEC-001
+    depends_on:
+      - TASK-001
+    files:
+      - path: src/scripts/commands/changes.ts
+        operation: modify
+      - path: test/e2e/commands.test.ts
+        operation: modify
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: "Extended each data.changes[] entry in src/scripts/commands/changes.ts with
+      pipeline_state (in_progress | complete, derived from the existing unsettled-stage computation)
+      and solely reworded the zero-changes instruction to point at sdlc init --change <slug>;
+      updated the changes-shape assertion in test/e2e/commands.test.ts to pin the six-field shape
+      and pipeline_state=in_progress. Verified: node --test test/e2e/commands.test.ts 11 pass, npm
+      run validate exit 0."
+    completed_at: 2026-09-10
+  - id: TASK-004
+    title: Remove --request from stage commands and retire the dead creation code
+    description: "Delete the --request-only creation branch and the --change+--request explicit-slug
+      creation branch in src/scripts/lib/kinds/authoring.ts (located by structure, not line number),
+      strip the args.request fallbacks at the instantiateArtifact call sites so titles and summaries
+      derive from the change directory name, drop the request entry from AUTHORING_FLAGS in
+      src/scripts/lib/help.ts, reword the AUTHORING_FLAGS.change description to 'Work on an existing
+      change (fuzzy name resolution).', reword the engagement-backstop and ensureArtifact messages
+      and the CHANGE_DIR_NOT_FOUND fix text in src/policies/errors.yaml to point at sdlc init
+      instead of --request, and reword the stale --change+--request comment above validateChangeSlug
+      in src/scripts/lib/ids.ts to the init contract. TASK-003 solely owns the changes
+      empty-inventory instruction reword in src/scripts/commands/changes.ts; that edit is already in
+      place when this task starts (see depends_on) and is not repeated here. Dead-code disposition,
+      grep-verified before each deletion: remove createChangeDir from authoring.ts once its two call
+      sites are gone, then remove the orphaned slugify and uniqueSlug exports from ids.ts (their
+      sole caller was inside createChangeDir); validateChangeSlug stays for init. Verify the
+      '--request' entry in src/scripts/lib/agent-prompt-marker.ts stays unchanged (DEC-003:
+      prompt-purity marker kept). The existing suite pins pre-change behavior (AC-008, AC-059) and
+      is reworked, not discarded: explicit-slug-creation cases (INVALID_CHANGE_SLUG,
+      CHANGE_DIR_EXISTS, exact-slug creation) migrate to the init command tests and that test file
+      is deleted; creation-gate cases rework from direct createChangeDir calls onto the surviving
+      gated first-creation paths, keeping the CreationBlockedError and re-rooting assertions;
+      slug-and-batch loses its slugify block and keeps its batch tests; ids.test.ts loses its
+      slugify case; every unit and e2e setup invocation using requirements --request switches to
+      init plus requirements --change. Done when the suite passes with no --request reference left
+      in src/ or test/ outside the prompt-marker vocabulary."
+    type: refactor
+    status: done
+    complexity: high
+    covers:
+      - FR-003
+      - NFR-001
+    acceptance_ids:
+      - AC-008
+      - AC-009
+      - AC-010
+      - AC-011
+      - AC-059
+      - AC-060
+    design_refs:
+      - DEC-003
+      - DEC-005
+    depends_on:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+    files:
+      - path: src/scripts/lib/kinds/authoring.ts
+        operation: modify
+      - path: src/scripts/lib/help.ts
+        operation: modify
+      - path: src/scripts/lib/ids.ts
+        operation: modify
+      - path: src/policies/errors.yaml
+        operation: modify
+      - path: test/unit/explicit-slug-creation.test.ts
+        operation: delete
+      - path: test/unit/creation-gate.test.ts
+        operation: modify
+      - path: test/unit/slug-and-batch.test.ts
+        operation: modify
+      - path: test/unit/ids.test.ts
+        operation: modify
+      - path: test/unit/init-command.test.ts
+        operation: modify
+      - path: test/unit/payload-input.test.ts
+        operation: modify
+      - path: test/unit/review-round-contract.test.ts
+        operation: modify
+      - path: test/unit/authoring-finalize.test.ts
+        operation: modify
+      - path: test/unit/requirements-stage.test.ts
+        operation: modify
+      - path: test/unit/envelope-state-flags.test.ts
+        operation: modify
+      - path: test/unit/list-commands.test.ts
+        operation: modify
+      - path: test/unit/write-time-enforcement.test.ts
+        operation: modify
+      - path: test/unit/step-driven-envelopes.test.ts
+        operation: modify
+      - path: test/unit/requirements-gate.test.ts
+        operation: modify
+      - path: test/e2e/commands.test.ts
+        operation: modify
+      - path: test/e2e/new-stage-folder.test.ts
+        operation: modify
+      - path: test/e2e/knowledge-extraction.test.ts
+        operation: modify
+      - path: test/e2e/authoring.test.ts
+        operation: modify
+      - path: test/e2e/status.test.ts
+        operation: modify
+      - path: test/e2e/full-pipeline.test.ts
+        operation: modify
+      - path: test/e2e/review-history.test.ts
+        operation: modify
+      - path: test/e2e/requirements-discovery.test.ts
+        operation: modify
+      - path: test/e2e/reject-recover.test.ts
+        operation: modify
+      - path: test/e2e/change-resolution.test.ts
+        operation: modify
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: "Removed both --request creation branches and createChangeDir from
+      authoring.ts, stripped the three args.request fallbacks (titles/summaries now derive from the
+      change directory name), deleted the request flag from AUTHORING_FLAGS and reworded its change
+      description, reworded the engagement-backstop/ensureArtifact messages, the
+      CHANGE_DIR_NOT_FOUND fix text in errors.yaml, and the validateChangeSlug comment to the init
+      contract; removed the orphaned slugify/uniqueSlug exports from ids.ts after a caller grep;
+      kept the '--request' prompt-marker entry (DEC-003); exported assertCreationAllowed so
+      creation-gate tests exercise the same guard the surviving first-creation paths call. Reworked
+      tests: explicit-slug-creation.test.ts deleted (slug cases migrated to init-command/ids tests,
+      resume case moved to init-command), creation-gate re-rooted onto assertCreationAllowed +
+      init-based CLI paths, slug-and-batch lost its slugify block, ids.test.ts gained
+      validateChangeSlug coverage, and every unit/e2e setup switched to init plus requirements
+      --change. Verified: npm test 463 pass, npm run validate exit 0 (after docs:generate refreshed
+      docs-gen regions), rg shows no --request left in src/ or test/ outside the prompt-marker
+      vocabulary and the init UNKNOWN_FLAG probe."
+    completed_at: 2026-09-10
+  - id: TASK-005
+    title: Rewrite the agentic-sdlc skill body
+    description: >
+      Rewrite src/skills/agentic-sdlc/SKILL.md as one coherent editing pass. Frontmatter describes
+      identification only (creation is a separate explicit step; no hardcoded stage enumeration —
+      the CLI owns stage detection). Identification section: orchestrator-exclusive slug derivation
+      per the validateChangeSlug rules, collision presents the existing change and asks
+      new-vs-resume (never auto-suffix), multiple matches present candidates and ask, short
+      imperative input is a request seed, one change per run; new change runs sdlc init --change
+      <slug> then the immediate heartbeat. Fixed delegation template: data.suggested_command
+      verbatim, the CLI path rule (resolve scripts/sdlc.js relative to the skill base directory,
+      invoke from project root, never cd into the skill folder), the change name, and the one-line
+      task statement; payload exceptions only for the collected request text (first delegation) and
+      semantic-check names verbatim (review rounds). Delegation rule: data.agent set means delegate
+      the stage to that agent, else a generic subsession, else stop as an SDLC error — the inline
+      carve-out is deleted; reviewer-authorship conflict grounding reworded skill-only (stop and
+      surface; no author field anywhere). Loop: state values enumerated (in_progress | blocked |
+      complete) with an unknown-value default (follow the top-level instructions field, else stop
+      and report); CLI-failure rule (non-zero exit means blocked envelope, unparseable or empty
+      output means report raw and stop, never guess); heartbeat-first retry after a dead subagent;
+      authoring guard at a review-round rejection with data.round at 3 — stop and escalate (grounded
+      on the existing review envelope field, no CLI change, DEC-002); completion report shape
+      (change name, stages with review verdicts, artifacts, knowledge-extraction outputs, suggested
+      next actions). The stage-detection rule moves into the loop preamble and the artifact-rule and
+      payload stdin/.tmp/sdlc temp-file hygiene rules move into loop step 7; the trailing rule
+      paragraphs disappear. The skill states only in-progress changes are selectable and completed
+      ones are archived (pipeline_state). One concrete path example and one 6-8 line worked example
+      per DEC-009. changes, init, and status are explained inline at their points of use; other
+      lookups go to --list-commands; the trailing Commands token line is dropped. The three
+      deploy-smoke marker phrases survive verbatim (DEC-006).
+    type: implementation
+    status: done
+    complexity: high
+    covers:
+      - FR-002
+      - FR-004
+      - FR-006
+      - FR-007
+      - FR-008
+      - FR-009
+      - FR-010
+      - FR-011
+      - FR-012
+      - FR-013
+      - FR-014
+      - FR-015
+      - FR-016
+      - FR-020
+      - FR-021
+      - FR-022
+      - FR-023
+      - NFR-003
+    acceptance_ids:
+      - AC-005
+      - AC-006
+      - AC-012
+      - AC-014
+      - AC-018
+      - AC-019
+      - AC-020
+      - AC-021
+      - AC-022
+      - AC-023
+      - AC-024
+      - AC-025
+      - AC-026
+      - AC-027
+      - AC-028
+      - AC-029
+      - AC-030
+      - AC-031
+      - AC-032
+      - AC-033
+      - AC-034
+      - AC-035
+      - AC-036
+      - AC-037
+      - AC-038
+      - AC-039
+      - AC-040
+      - AC-041
+      - AC-042
+      - AC-043
+      - AC-044
+      - AC-045
+      - AC-046
+      - AC-047
+      - AC-048
+      - AC-049
+      - AC-050
+      - AC-063
+      - AC-064
+      - AC-065
+      - AC-066
+    design_refs:
+      - DEC-002
+      - DEC-006
+      - DEC-009
+    depends_on:
+      - TASK-002
+      - TASK-003
+      - TASK-004
+    files:
+      - path: src/skills/agentic-sdlc/SKILL.md
+        operation: modify
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: "Rewrote src/skills/agentic-sdlc/SKILL.md in one pass: identification-only
+      frontmatter (no stage enumeration), orchestrator-exclusive slug derivation with collision
+      new-vs-resume (never auto-suffix), multiple-match and request-seed rules, one change per run,
+      init + immediate heartbeat for new changes, request text as first-delegation payload only;
+      fixed delegation template (suggested command verbatim, CLI path rule with concrete
+      <skill-base> example, change name, one-line task statement) with the two payload exceptions;
+      delegation chain bound-agent -> generic subsession -> SDLC error stop with the inline
+      carve-out deleted; loop state vocabulary (in_progress|blocked|complete) with unknown-value
+      default, CLI-failure rule, heartbeat-first dead-subagent retry, heartbeat-only verification,
+      data.round=3 authoring guard, completion report shape; stage-detection rule in the loop
+      preamble and artifact/payload-hygiene rules in step 7; changes/init/status inline,
+      --list-commands for other lookups; one 7-line worked example; trailing Commands token line
+      dropped. The three marker phrases survive verbatim (rg-verified: 'delegate the stage to that
+      agent', 'only via the sdlc CLI', 'Change identification'); no 'unless you are already that
+      agent' and no {{COMMANDS}} remain. Verified: npm run validate exit 0."
+    completed_at: 2026-09-10
+  - id: TASK-006
+    title: Rework the improvement-review kickoff to init plus engagement
+    description: >
+      In src/skills/improvement-review/SKILL.md replace the requirements --request kickoff with the
+      two-command form — sdlc init --change <judged-slug> then sdlc requirements --change
+      <judged-slug> — and state that init is change management, not a stage: the acting skill agent
+      runs it after the slug is judged and confirmed, then engages the requirements stage. A
+      colliding slug adjudicates as resume-or-supersede against the existing change instead of
+      creating a suffixed variant. (The workflows word rewording in this file lands in TASK-001.)
+    type: implementation
+    status: done
+    complexity: low
+    covers:
+      - FR-024
+    acceptance_ids:
+      - AC-056
+    design_refs:
+      - DEC-007
+    depends_on:
+      - TASK-001
+      - TASK-002
+    files:
+      - path: src/skills/improvement-review/SKILL.md
+        operation: modify
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: "Replaced the improvement-review kickoff (requirements --request) with the
+      two-command form — sdlc init --change <judged-slug> then sdlc requirements --change
+      <judged-slug> — and stated init is change management, not a stage: the acting skill agent runs
+      it after the slug is judged and confirmed, then engages requirements; a colliding slug
+      adjudicates as resume-or-supersede, never a suffixed variant. Verified: rg shows no --request
+      left under src/skills/, npm run validate exit 0."
+    completed_at: 2026-09-10
+  - id: TASK-007
+    title: Remove the Commands token from the deploy machinery
+    description: >
+      In bin/deploy-to-agent.ts remove the COMMANDS_TOKEN constant, the source-must-contain-token
+      check, the replaceAll interpolation in renderAgenticSdlcSkill, and the stale comment
+      describing the token as the only deploy-time interpolation; renderAgenticSdlcSkill reduces to
+      read and return. The three marker checks (delegation rule, artifact rule, identification rule)
+      and the uniform frontmatter smoke stay untouched. Sequenced after the skill rewrite so the
+      source no longer carries the token when the requirement is removed.
+    type: refactor
+    status: done
+    complexity: low
+    covers:
+      - FR-019
+      - NFR-002
+    acceptance_ids:
+      - AC-057
+      - AC-058
+      - AC-061
+      - AC-062
+    design_refs:
+      - DEC-006
+    depends_on:
+      - TASK-005
+    files:
+      - path: bin/deploy-to-agent.ts
+        operation: modify
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: "Removed COMMANDS_TOKEN, the source-must-contain-token check, the replaceAll
+      interpolation, and the stale only-deploy-time-interpolation comment from
+      bin/deploy-to-agent.ts; renderAgenticSdlcSkill reduces to read-and-return (shipped verbatim)
+      and the now-unused getStageDescriptions import was dropped. The three marker constants and the
+      uniform frontmatter smoke stay untouched. Verified: npx tsc --noEmit clean, rg finds no
+      COMMANDS_TOKEN/replaceAll in bin/, npm run validate exit 0 (docs:generate refreshed the
+      import-graph region)."
+    completed_at: 2026-09-10
+  - id: TASK-008
+    title: Add the skill-reference validator and envelope-field unit tests
+    description: >
+      New bin/validate-skill-refs.ts following the bin/validate-agents-md.ts pattern (standalone bin
+      script, JSON findings, non-zero exit), wired into package.json as validate:skill-refs inside
+      the npm run validate chain after validate:templates. It extracts command and flag references
+      only from sdlc CLI invocation contexts in every src/skills/*/SKILL.md — token runs whose
+      command token is bare sdlc or a path ending in /sdlc.js or /sdlc.ts, extending to the end of
+      the enclosing line or code span, read as an invocation when the token after the command token
+      is a command-shaped id or a flag; prose runs are skipped — and verifies command ids against
+      listCommands() plus the aliases map and every --<flag> token against the union of the help.ts
+      flag tables plus the top-level --list-commands, --help, --cwd; bare --<flag> tokens outside
+      sdlc invocation contexts are out of scope by construction, with no exemption list (this scope
+      is what keeps the gate green on arrival despite the improvement-review helper scripts' own
+      --verbose flags). A miss fails the run naming the file and the offending reference.
+      test/unit/skill-envelope-refs.test.ts asserts the skill's state vocabulary round-trips through
+      normalizeEnvelope and data.stage and data.semantic_checks against the status and review
+      emitting code. The stage-check catalog is not extended — this is a repo gate recorded as a
+      design-review event.
+    type: implementation
+    status: done
+    complexity: medium
+    covers:
+      - FR-017
+    acceptance_ids:
+      - AC-051
+      - AC-052
+      - AC-053
+    design_refs:
+      - DEC-004
+    depends_on:
+      - TASK-002
+      - TASK-005
+      - TASK-006
+    files:
+      - path: bin/validate-skill-refs.ts
+        operation: create
+      - path: package.json
+        operation: modify
+      - path: test/unit/skill-envelope-refs.test.ts
+        operation: create
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: "Added bin/validate-skill-refs.ts (bin/validate-agents-md.ts pattern:
+      standalone, JSON findings, non-zero exit) wired as validate:skill-refs into npm run validate
+      after validate:templates; it extracts sdlc invocation contexts (command token bare sdlc or a
+      path ending in /sdlc.js|/sdlc.ts, bounded by the enclosing line or code span, read as an
+      invocation when the next token is a flag or a command-shaped id inside a code span/fenced
+      block — prose runs skipped, no exemption list) and verifies command ids against
+      listCommands()+aliases and flags against the help.ts table union plus
+      --list-commands/--help/--cwd; green against the rewritten SKILL.md files and probe-verified to
+      fail naming file+line+reference on a bogus command/flag. Added
+      test/unit/skill-envelope-refs.test.ts (6 tests: state vocabulary round-trips
+      normalizeEnvelope, unknown-state fallback, data.stage/status.ts, data.semantic_checks +
+      data.round/review.ts, skill-field references). Note: the command-shaped lookahead requires
+      code-span/fenced context (a refinement of DEC-004's lookahead, not an exemption list) so
+      improvement-review prose like 'an sdlc invocation ends the run' stays skipped and the gate is
+      green on arrival per RISK-006. Verified: node bin/validate-skill-refs.ts ok:true, negative
+      probe exit 1, node --test skill-envelope-refs 6 pass, npm run validate exit 0."
+    completed_at: 2026-09-10
+  - id: TASK-009
+    title: Update docs/current for the new contracts
+    description: >
+      Land the living-docs content in the same change. api-contract.md: add the init command
+      contract, remove the --request flag rows, pin the changes entry shape with pipeline_state, and
+      reword the change-less-invocation row to the init contract. operations.md: name
+      bin/validate-skill-refs.ts and its chain position, and drop the Commands token description
+      from the deploy row. glossary.md: add the init command, CommandDef, the state vocabulary, and
+      the pipeline_state entry; drop the workflows naming. architecture.md: update the folder-layout
+      rows to src/scripts/commands/ and drop the token interpolation from the skill-to-deploy row.
+      capabilities.md: update the orchestration flow (orchestrator-owned identification and init,
+      fixed delegation template with context hygiene, no inline stage execution, three-run authoring
+      guard, state and CLI-failure handling, completion report shape). Curated rows are edited
+      directly; docs-gen-owned regions and decisions.md are rendered by running npm run
+      docs:generate and verified fresh with docs:check — never hand-edited. Completes the
+      workflows-naming cleanup in docs/current (AC-055) begun in TASK-001.
+    type: documentation
+    status: done
+    complexity: medium
+    covers:
+      - FR-001
+      - FR-005
+      - FR-017
+      - FR-018
+      - FR-019
+    acceptance_ids:
+      - AC-055
+    depends_on:
+      - TASK-001
+      - TASK-002
+      - TASK-003
+      - TASK-004
+      - TASK-005
+      - TASK-006
+      - TASK-007
+      - TASK-008
+    files:
+      - path: docs/current/api-contract.md
+        operation: modify
+      - path: docs/current/operations.md
+        operation: modify
+      - path: docs/current/glossary.md
+        operation: modify
+      - path: docs/current/architecture.md
+        operation: modify
+      - path: docs/current/capabilities.md
+        operation: modify
+      - path: docs/current/decisions.md
+        operation: modify
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: "Landed the living-docs updates: api-contract.md (init command row, --request
+      removed from the stage-command row, changes entry shape pinned with pipeline_state,
+      change-less-invocation/engagement bullet reworded to the init contract, creation-gate row
+      reworded to the surviving gated paths, validate bins row extended, workflows paths fixed);
+      operations.md (validate:skill-refs row named with its chain position in the validate row,
+      deploy payload row drops the token interpolation); glossary.md (Command Registry entity with
+      the init contract, pipeline_state and state-vocabulary rules, workflows paths dropped);
+      architecture.md (command registry diagram/folder rows, verbatim skill-to-deploy row, validate
+      bins); capabilities.md (orchestration-loop row replacing the stale delegation-directives row,
+      verbatim marker phrase, workflows paths dropped); decisions.md regenerated via docs:generate
+      (this change's rows render when implementation is accepted per the provider gate; the three
+      historical workflows rows stay per RISK-003 — surfaced for implementation-review, not edited).
+      Extended the docs-gen crosscheck catalog (ENTITY_COMMANDS + CROSS_CUTTING) for the new
+      glossary entity and the init/changes commands. Verified: npm run docs:generate ok, npm run
+      validate exit 0, npm test all pass, workflows grep clean over the five live-naming docs."
+    completed_at: 2026-09-10
+  - id: TASK-010
+    title: Full verification and deployment refresh
+    description: >
+      Run the full gate chain in order: npm run validate (now including validate:skill-refs), npm
+      run deploy -- --dest .opencode --clean (refresh the production runtime after the stage,
+      command, schema, and policy source changes), npm run deploy:smoke (the three marker checks
+      against the deployed skill), and npm run check:all. Confirm no workflows naming remains in
+      src/ or test/ (docs/current rows verified in TASK-009), no --request reference remains outside
+      the prompt-marker vocabulary, and the deployed .opencode bundle matches the new sources.
+      Blocks completion on any failure.
+    type: verification
+    status: done
+    complexity: medium
+    covers:
+      - FR-003
+      - FR-018
+      - FR-019
+      - NFR-001
+      - NFR-002
+    acceptance_ids:
+      - AC-054
+      - AC-061
+      - AC-062
+    depends_on:
+      - TASK-009
+    started_at: 2026-09-10
+    files_changed: []
+    implementation_note: "Ran the full gate chain in order: npm run validate exit 0 (now including
+      validate:skill-refs), npm run deploy -- --dest .opencode --clean ok:true with all smokes
+      passed, npm run deploy:smoke passed (the three marker phrases verified against the deployed
+      skill: 'delegate the stage to that agent', 'only via the sdlc CLI', 'Change identification'),
+      npm run check:all exit 0. Confirmed: no workflows/WorkflowDef naming left in src/, test/,
+      bin/; no --request reference outside the prompt-marker vocabulary and the init UNKNOWN_FLAG
+      probe; the deployed .opencode bundle matches the new sources (SKILL.md byte-identical modulo
+      the deployer's trailing newline; deployed CLI answers init --help)."
+    completed_at: 2026-09-10
+milestones:
+  - id: M-001
+    title: Commands foundation
+    tasks:
+      - TASK-001
+    done_when: The suite passes with src/scripts/commands/ in place, CommandDef renamed, and no
+      workflows naming left in src/ or test/.
+  - id: M-002
+    title: CLI surface — init, pipeline_state, --request removal
+    tasks:
+      - TASK-002
+      - TASK-003
+      - TASK-004
+    done_when: sdlc init creates mkdir-only changes with refusal semantics and no request.md; changes
+      entries carry pipeline_state; stage commands reject --request with UNKNOWN_FLAG, the dead
+      creation code is removed, and the suite is green.
+  - id: M-003
+    title: Skill, kickoff, and deploy alignment
+    tasks:
+      - TASK-005
+      - TASK-006
+      - TASK-007
+    done_when: The rewritten agentic-sdlc skill and the improvement-review kickoff describe the new
+      contracts, the deploy machinery no longer requires the Commands token, and the three marker
+      phrases survive verbatim.
+  - id: M-004
+    title: Gates and living docs
+    tasks:
+      - TASK-008
+      - TASK-009
+      - TASK-010
+    done_when: validate:skill-refs gates the skill bodies, docs/current matches the shipped contracts,
+      and npm run validate, deploy --clean, deploy:smoke, and check:all all pass.
+risks:
+  - id: RISK-001
+    description: Line numbers cited in the requirements ledger (authoring.ts creation branches and
+      fallbacks, deploy-to-agent.ts token block) may drift before implementation.
+    mitigation: TASK-004 and TASK-007 locate removal targets by structure and behavior, not by line
+      number; the TypeScript build and suite catch dangling references (FP-012).
+  - id: RISK-002
+    description: slugify or uniqueSlug may retain callers outside createChangeDir after the branch removal.
+    mitigation: TASK-004 greps callers before each deletion and removes only verified-orphaned exports;
+      validateChangeSlug is kept for init (D-001).
+  - id: RISK-003
+    description: decisions.md rows are generated by the decisions provider from accepted design
+      artifacts and historical rows contain the workflows naming, so the AC-055 docs/current grep
+      could trip on immutable history.
+    mitigation: TASK-009 updates the four live-naming docs directly and regenerates decisions.md via
+      docs:generate; historical decision records are not rewritten — if the AC-055 grep trips on
+      them, the deviation is surfaced at implementation-review as historical-record scope rather
+      than silently edited.
+  - id: RISK-004
+    description: The skill rewording could drop a deploy-smoke marker phrase ('delegate the stage to
+      that agent', 'only via the sdlc CLI', the identification-rule phrase).
+    mitigation: TASK-005 preserves the three phrases verbatim per DEC-006; TASK-007 keeps the marker
+      constants untouched and TASK-010 runs deploy:smoke to prove it (FP-013).
+  - id: RISK-005
+    description: The orchestration-economy draft (requirements stage, 2026-09-07) overlaps this change's
+      loop-closure intent.
+    mitigation: DEC-008 records the relationship only; no artifact of that change is edited in this run
+      — supersede or adjust in a later session (FP-014).
+  - id: RISK-006
+    description: The validator's green-on-arrival depends on invocation-context scoping; over-broad
+      extraction would red-flag the improvement-review helper scripts' own --verbose flags.
+    mitigation: TASK-008 implements exactly the DEC-004 scope (sdlc/sdlc.js/sdlc.ts command tokens,
+      line-or-code-span extent, command-shaped-or-flag lookahead, no exemption list) and
+      test/unit/skill-envelope-refs.test.ts pins the envelope-field assertions.
+delta:
+  - stage: planning
+    target_doc: docs/current/operations.md
+    target_anchor: null
+    entity_id: API-004
+    change: Modify
+    reason: The deploy documentation describes the agentic-sdlc Commands token interpolation; the
+      removal in this change (TASK-007) requires the deploy row to drop it, beyond the validator
+      addition the design delta already names.
+    date: 2026-09-10
+  - stage: planning
+    target_doc: docs/current/architecture.md
+    target_anchor: null
+    entity_id: API-004
+    change: Modify
+    reason: The skill-source-to-deploy row documents the {{COMMANDS}} token interpolation; the removal
+      in this change (TASK-007) changes the deploy pipeline description, beyond the folder rename
+      rows the requirements delta already names.
+    date: 2026-09-10

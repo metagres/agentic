@@ -97,8 +97,12 @@ function makeProject(): string {
 
 function setupReadyChange(request: string): { tmp: string; changeDir: string } {
   const tmp = makeProject();
-  let out = runCli(tmp, ['requirements', '--request', request]);
-  const changeDir = path.basename(String(out.data.change_root));
+  const changeDir = request
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  assert.equal(runCli(tmp, ['init', '--change', changeDir]).state, 'ok');
+  let out = runCli(tmp, ['requirements', '--change', changeDir]);
   out = runCli(
     tmp,
     ['requirements', '--change', changeDir, '--update-artifact'],

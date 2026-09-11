@@ -6,7 +6,7 @@ import { changesDirFor, resolveRootOrError, ResolveRootError } from '../resolve-
 import { writeYamlAtomic, readStdin, parseYamlString, readYaml } from '../yaml-io.ts';
 import { safeReadYaml } from '../context.ts';
 import { loadDocsIndex, headingExists } from '../docs-index.ts';
-import { today, slugify, uniqueSlug, nextIdsFromArrays, validateChangeSlug } from '../ids.ts';
+import { today, nextIdsFromArrays } from '../ids.ts';
 import { bumpVersion } from '../semver.ts';
 import { titleFromRequest, normalizeDeltaEntries } from '../stage-helpers.ts';
 import { loadStepDefinitions, evaluatePredicate } from '../steps-loader.ts';
@@ -88,11 +88,10 @@ function instantiateArtifact(
 }
 
 /**
- * Explicit-slug creation failure (TASK-001): --change plus --request with no
- * matching change directory creates the change under the exact provided name.
- * Carries the error code and the same candidates/available/searched details
- * as ResolveRootError so the blocked envelope mirrors the existing
- * AMBIGUOUS/available-changes machinery.
+ * Change-slug failure: init (and any mkdir-only creation path) validates the
+ * exact slug and refuses duplicates. Carries the error code and the same
+ * candidates/available/searched details as ResolveRootError so the blocked
+ * envelope mirrors the existing AMBIGUOUS/available-changes machinery.
  */
 export class ChangeSlugError extends Error {
   code: string;
@@ -142,9 +141,10 @@ export class CreationBlockedError extends Error {
  * (empty requires list) and when the artifact file already exists, because
  * the gate guards first creation only; otherwise evaluates the acceptance
  * gate through evaluateGate unchanged and throws CreationBlockedError when
- * unsatisfied.
+ * unsatisfied. Exported for the creation-gate tests, which exercise the same
+ * guard the ensureArtifact and lazy-instantiation first-creation paths call.
  */
-function assertCreationAllowed(stage: StageRecord, changeRoot: string, cwd: string): void {
+export function assertCreationAllowed(stage: StageRecord, changeRoot: string, cwd: string): void {
   if (!stage.requires || stage.requires.length === 0) return;
 
   const artifactPath = path.join(changeRoot, stage.artifact);
@@ -160,64 +160,6 @@ function assertCreationAllowed(stage: StageRecord, changeRoot: string, cwd: stri
   }
 }
 
-export function createChangeDir(
-  cwd: string,
-  request: string,
-  stage: StageRecord,
-  explicitSlug?: string
-): string {
-  const changesDir = changesDirFor(cwd);
-
-  let slug: string | undefined;
-
-  if (explicitSlug !== undefined) {
-    // Explicit-slug creation (TASK-001): the change is created under the exact
-    // provided name. Validation runs before anything is written; a collision
-    // with an existing change directory is rejected naming the candidates.
-    const problem = validateChangeSlug(explicitSlug);
-    if (problem) {
-      throw new ChangeSlugError('INVALID_CHANGE_SLUG', problem, { searched: changesDir });
-    }
-    slug = explicitSlug;
-  }
-
-  fs.mkdirSync(changesDir, { recursive: true });
-
-  const existing = fs
-    .readdirSync(changesDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
-
-  if (slug !== undefined) {
-    if (existing.includes(slug)) {
-      const sorted = [...existing].sort();
-      const shown = sorted.slice(0, 10).join(', ');
-      const more = sorted.length > 10 ? ` (and ${sorted.length - 10} more)` : '';
-      throw new ChangeSlugError(
-        'CHANGE_DIR_EXISTS',
-        `Change '${slug}' already exists; refusing to create a duplicate. Available changes: ${shown}${more}`,
-        { candidates: [slug], available: sorted, searched: changesDir }
-      );
-    }
-  } else {
-    slug = uniqueSlug(slugify(request), existing);
-  }
-
-  const root = path.join(changesDir, slug);
-
-  // Creation gate (DEC-002): evaluated after the root path is computed and
-  // before any mkdir/artifact write, covering both the plain --request path
-  // and the --change+--request explicit-slug path.
-  assertCreationAllowed(stage, root, cwd);
-
-  fs.mkdirSync(root, { recursive: true });
-
-  const artifact = instantiateArtifact(stage, request, root);
-  writeYamlAtomic(path.join(root, stage.artifact), artifact);
-
-  return root;
-}
-
 function saveArtifact(env: AuthorEnv): void {
   if (!env.artifactPath || !env.artifact) return;
   writeYamlAtomic(env.artifactPath, env.artifact);
@@ -225,7 +167,7 @@ function saveArtifact(env: AuthorEnv): void {
 
 function ensureArtifact(env: AuthorEnv): void {
   if (!env.changeRoot) {
-    throw new Error('A change is required. Use --change or --request.');
+    throw new Error('A change is required. Use --change, or create one with sdlc init --change <slug>.');
   }
 
   if (!env.artifact) {
@@ -236,7 +178,7 @@ function ensureArtifact(env: AuthorEnv): void {
 
     env.artifact = instantiateArtifact(
       env.stage,
-      (env.args.request as string) || path.basename(env.changeRoot),
+      path.basename(env.changeRoot),
       env.changeRoot
     );
     saveArtifact(env);
@@ -373,8 +315,7 @@ function applyUpdateArtifact(env: AuthorEnv): void {
     env.artifact ||
     instantiateArtifact(
       env.stage,
-      (env.args.request as string) ||
-        (env.changeRoot ? path.basename(env.changeRoot) : 'change'),
+      env.changeRoot ? path.basename(env.changeRoot) : 'change',
       env.changeRoot || env.cwd
     );
 
@@ -713,7 +654,6 @@ function helpPayload(stage: StageRecord) {
     purpose: `${stage.title} authoring stage. Payload flags accept [file|-]: stdin (default, documented first) or a temp file under .tmp/sdlc (prescribed unique names); the CLI never deletes input files. --update-artifact creates the artifact when missing (upsert) and merges the payload.`,
     usage: [
       `sdlc ${stage.id} --change <change-name>`,
-      `sdlc ${stage.id} --request "<request>"`,
       `sdlc ${stage.id} --change <change-name> --update-artifact [file|-]`,
       `sdlc ${stage.id} --change <change-name> --append-delta [file|-]`,
       `sdlc ${stage.id} --change <change-name> --complete-step --step <step>`,
@@ -840,10 +780,10 @@ export async function runAuthoringStage(  stage: StageRecord,
   const warnings: WarningItem[] = [];
   let changeRoot: string | null = null;
 
-  // Engagement backstop (FR-012): a stage invocation without --change or
-  // --request is a usage error, never a conversational step. Change
-  // identification belongs to the skill (or the caller), never to a stage.
-  if (!args.change && !args.request) {
+  // Engagement backstop (FR-012): a stage invocation without --change is a
+  // usage error, never a conversational step. Change identification and
+  // creation belong to the skill (or the caller), never to a stage.
+  if (!args.change) {
     writeJson(
       {
         command: stage.id,
@@ -851,7 +791,7 @@ export async function runAuthoringStage(  stage: StageRecord,
         state: 'blocked',
         instructions:
           `A ${stage.id} invocation must be engaged with a change. Provide --change <change-name> ` +
-          '(one of data.existing_changes) or --request "<request>" to start a new change. ' +
+          '(one of data.existing_changes); create a new change with sdlc init --change <slug>. ' +
           "Change identification is the skill's job: ask which change to work on, or start a new request.",
         data: {
           existing_changes: listExistingChanges(cwd),
@@ -871,81 +811,34 @@ export async function runAuthoringStage(  stage: StageRecord,
       } catch (err: unknown) {
         if (!(err instanceof ResolveRootError)) throw err;
 
-        // Explicit-slug creation (TASK-001): --change plus --request with no
-        // matching change directory creates the change under the exact
-        // provided name, after slug validation and the uniqueness check.
-        if (args.request && err.candidates.length === 0) {
-          try {
-            changeRoot = createChangeDir(
-              cwd,
-              String(args.request),
-              stage,
-              String(args.change)
-            );
-          } catch (createErr: unknown) {
-            if (!(createErr instanceof ChangeSlugError)) throw createErr;
-            writeJson(
-              {
-                command: stage.id,
-                step: 'blocked',
-                state: 'blocked',
-                instructions: createErr.message,
-                data: {
-                  requested_change: String(args.change),
-                  candidates: createErr.candidates,
-                  available_changes: createErr.available || [],
-                  searched: createErr.searched || undefined,
-                },
-                errors: [
-                  {
-                    code: createErr.code,
-                    message: createErr.message,
-                    ...(createErr.available.length > 0
-                      ? {
-                          fix: 'Use one of data.available_changes as --change (the exact name or a unique part of it), or pick a different name.',
-                        }
-                      : {}),
-                  },
-                ],
-                warnings,
-              },
-              EXIT.usage
-            );
-            return;
-          }
-          // Creation succeeded: continue with the normal flow below.
-        } else {
-          writeJson(
-            {
-              command: stage.id,
-              step: 'blocked',
-              state: 'blocked',
-              instructions: err.message,
-              data: {
-                existing_changes: listExistingChanges(cwd),
-                candidates: err.candidates,
-                available_changes: err.available || [],
-                searched: err.searched || undefined,
-              },
-              errors: [
-                {
-                  code: err.candidates.length > 0 ? 'AMBIGUOUS_CHANGE_DIR' : 'CHANGE_DIR_NOT_FOUND',
-                  message: err.message,
-                  candidates: err.candidates,
-                  ...(err.available.length > 0
-                    ? { fix: 'Use one of data.available_changes as --change (the exact name or a unique part of it).' }
-                    : {}),
-                },
-              ],
-              warnings,
+        writeJson(
+          {
+            command: stage.id,
+            step: 'blocked',
+            state: 'blocked',
+            instructions: err.message,
+            data: {
+              existing_changes: listExistingChanges(cwd),
+              candidates: err.candidates,
+              available_changes: err.available || [],
+              searched: err.searched || undefined,
             },
-            EXIT.ambiguous
-          );
-          return;
-        }
+            errors: [
+              {
+                code: err.candidates.length > 0 ? 'AMBIGUOUS_CHANGE_DIR' : 'CHANGE_DIR_NOT_FOUND',
+                message: err.message,
+                candidates: err.candidates,
+                ...(err.available.length > 0
+                  ? { fix: 'Use one of data.available_changes as --change (the exact name or a unique part of it).' }
+                  : {}),
+              },
+            ],
+            warnings,
+          },
+          EXIT.ambiguous
+        );
+        return;
       }
-    } else if (args.request) {
-      changeRoot = createChangeDir(cwd, String(args.request), stage);
     }
 
     const artifactPath = changeRoot ? path.join(changeRoot, stage.artifact) : null;
@@ -959,11 +852,7 @@ export async function runAuthoringStage(  stage: StageRecord,
       // directory is a first creation and is gated like every other path.
       assertCreationAllowed(stage, changeRoot, cwd);
 
-      artifact = instantiateArtifact(
-        stage,
-        (args.request as string) || path.basename(changeRoot),
-        changeRoot
-      );
+      artifact = instantiateArtifact(stage, path.basename(changeRoot), changeRoot);
       writeYamlAtomic(artifactPath!, artifact);
       warnings.push({
         code: 'ARTIFACT_INITIALIZED',

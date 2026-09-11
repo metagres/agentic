@@ -47,9 +47,13 @@ function runLint(artifactPath: string) {
 
 function setupChange(prefix: string, request = 'Add device registration') {
   const tmp = tmpProject(prefix);
-  let out = runCli(tmp, ['requirements', '--request', request]);
+  const changeDir = request
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  assert.equal(runCli(tmp, ['init', '--change', changeDir]).state, 'ok');
+  let out = runCli(tmp, ['requirements', '--change', changeDir]);
   const changeRoot = String(out.data.change_root);
-  const changeDir = path.basename(changeRoot);
   out = runCli(
     tmp,
     ['requirements', '--change', changeDir, '--update-artifact'],

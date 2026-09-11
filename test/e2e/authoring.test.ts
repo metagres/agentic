@@ -21,16 +21,14 @@ function runCli(args, input) {
   });
 }
 
-test('requirements --request creates change and enters discovery', () => {
+test('requirements --change on an initialized change enters discovery', () => {
   const tmp = makeTmpProject();
 
-  const res = runCli([
-    'requirements',
-    '--cwd',
-    tmp,
-    '--request',
-    'Add login',
-  ]);
+  const initRes = runCli(['init', '--cwd', tmp, '--change', 'add-login']);
+  assert.equal(initRes.status, 0, initRes.stderr);
+  assert.equal(JSON.parse(initRes.stdout).state, 'ok', initRes.stdout);
+
+  const res = runCli(['requirements', '--cwd', tmp, '--change', 'add-login']);
 
   assert.equal(res.status, 0, res.stderr);
 
@@ -51,14 +49,10 @@ test('requirements --request creates change and enters discovery', () => {
 test('planning creation is blocked while the required predecessor is not accepted', () => {
   const tmp = makeTmpProject();
 
-  const req = runCli([
-    'requirements',
-    '--cwd',
-    tmp,
-    '--request',
-    'Add login',
-  ]);
+  const initRes = runCli(['init', '--cwd', tmp, '--change', 'add-login']);
+  assert.equal(initRes.status, 0, initRes.stderr);
 
+  const req = runCli(['requirements', '--cwd', tmp, '--change', 'add-login']);
   assert.equal(req.status, 0, req.stderr);
 
   const reqJson = JSON.parse(req.stdout);
@@ -98,7 +92,9 @@ test('envelope data reports the revalued semantic_complete across the authoring 
   );
 
   // Init on the empty draft: semantic_complete false, no metadata step key.
-  const init = runCli(['requirements', '--cwd', tmp, '--request', 'Add login']);
+  const initRes = runCli(['init', '--cwd', tmp, '--change', 'add-login']);
+  assert.equal(initRes.status, 0, initRes.stderr);
+  const init = runCli(['requirements', '--cwd', tmp, '--change', 'add-login']);
   assert.equal(init.status, 0, init.stderr);
   const initJson = JSON.parse(init.stdout);
   assert.equal(initJson.data.semantic_complete, false);

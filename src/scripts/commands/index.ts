@@ -5,6 +5,7 @@ import { runStatus } from './status.ts';
 import { runChanges } from './changes.ts';
 import { runFeedback } from './feedback.ts';
 import { runDoctor } from './doctor.ts';
+import { runInit } from './init.ts';
 import { parseArgs, resolveCwd } from '../lib/cli.ts';
 
 interface CommandEntry {
@@ -18,6 +19,12 @@ interface CommandEntry {
 // They are never bound to a dedicated agent: agent is null, meaning the
 // current agent runs the command.
 const CROSS_CUTTING: Record<string, CommandEntry> = {
+  init: {
+    id: 'init',
+    description: 'Create a new change directory (mkdir-only; no artifacts, no stage engagement).',
+    agent: null,
+    run(argv: string[]) { runInit(argv); },
+  },
   changes: {
     id: 'changes',
     description: 'List every change with tracked per-stage statuses and open feedback.',

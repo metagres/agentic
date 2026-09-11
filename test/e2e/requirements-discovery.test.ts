@@ -40,7 +40,8 @@ function run(tmp: string, args: string[], input?: string) {
 test('an in-flight artifact routes through the confirmed discovery gate', () => {
   const tmp = makeTmpProject();
 
-  let out = run(tmp, ['requirements', '--request', 'Add device registration']);
+  assert.equal(run(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  let out = run(tmp, ['requirements', '--change', 'add-device-registration']);
   const changeRoot = out.data.change_root;
   const changeDir = path.basename(changeRoot);
 

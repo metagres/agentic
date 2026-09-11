@@ -64,7 +64,8 @@ function fixArtifact(changeRoot) {
 
 test('mechanical rejection loop: CLI-computed failures, recovery exposure, re-finalize, re-review accepted', () => {
   const tmp = makeTmpProject();
-  let out = run(tmp, ['requirements', '--request', 'Add login']);
+  assert.equal(run(tmp, ['init', '--change', 'add-login']).state, 'ok');
+  let out = run(tmp, ['requirements', '--change', 'add-login']);
   const changeRoot = out.data.change_root;
   const changeDir = path.basename(changeRoot);
 
@@ -134,7 +135,8 @@ test('mechanical rejection loop: CLI-computed failures, recovery exposure, re-fi
 
 test('semantic rejection loop: --reject --failures records the failed checks and the loop closes', () => {
   const tmp = makeTmpProject();
-  let out = run(tmp, ['requirements', '--request', 'Add logout']);
+  assert.equal(run(tmp, ['init', '--change', 'add-logout']).state, 'ok');
+  let out = run(tmp, ['requirements', '--change', 'add-logout']);
   const changeRoot = out.data.change_root;
   const changeDir = path.basename(changeRoot);
 
@@ -198,7 +200,8 @@ test('semantic rejection loop: --reject --failures records the failed checks and
 
 test('--failures - reads the failures YAML from stdin: valid records, invalid refuses with nothing written', () => {
   const tmp = makeTmpProject();
-  let out = run(tmp, ['requirements', '--request', 'Add stdin reject']);
+  assert.equal(run(tmp, ['init', '--change', 'add-stdin-reject']).state, 'ok');
+  let out = run(tmp, ['requirements', '--change', 'add-stdin-reject']);
   const changeRoot = out.data.change_root;
   const changeDir = path.basename(changeRoot);
 

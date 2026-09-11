@@ -99,10 +99,11 @@ test('getData derives semantic_complete from artifact metadata status', () => {
   );
 });
 
-test('a change created through --request persists no step key', () => {
+test('a freshly initialized change persists no step key', () => {
   const tmp = tmpProject('agentic-esf-');
 
-  const out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  const out = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
   assertEnvelopeShape(out);
   assert.notEqual(out.state, 'blocked', JSON.stringify(out));
 
@@ -118,8 +119,9 @@ test('a change created through --request persists no step key', () => {
 test('finalize with --confirm-semantic writes ready-for-review and no step key', () => {
   const tmp = tmpProject('agentic-esf-');
 
-  let out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
-  const changeDir = path.basename(String(out.data.change_root));
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  let out = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
+  const changeDir = 'add-device-registration';
   const artifactPath = path.join(String(out.data.change_root), 'requirements.yaml');
 
   out = runCli(
@@ -145,8 +147,9 @@ test('finalize with --confirm-semantic writes ready-for-review and no step key',
 test('a legacy artifact step key survives an engine mutation', () => {
   const tmp = tmpProject('agentic-esf-');
 
-  let out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
-  const changeDir = path.basename(String(out.data.change_root));
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  let out = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
+  const changeDir = 'add-device-registration';
   const artifactPath = path.join(String(out.data.change_root), 'requirements.yaml');
 
   out = runCli(
@@ -181,7 +184,8 @@ test('a legacy artifact step key survives an engine mutation', () => {
 test('the standard authoring envelope carries exactly the seven frozen top-level fields', () => {
   const tmp = tmpProject('agentic-esf-');
 
-  const out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  const out = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
   assertEnvelopeShape(out);
 
   assert.deepEqual(
@@ -203,16 +207,16 @@ test('the standard authoring envelope carries exactly the seven frozen top-level
 test('no emitted envelope instructs delegation (stage, status, changes, help)', () => {
   const tmp = tmpProject('agentic-esf-');
 
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
   const envelopes = [
-    runCli(tmp, ['requirements', '--request', 'Add device registration']),
+    runCli(tmp, ['requirements', '--change', 'add-device-registration']),
     runCli(tmp, ['requirements', '--help']),
     runCli(tmp, ['status', '--help']),
     runCli(tmp, ['changes']),
   ];
 
   // A change exists now, so status resolves to a real stage envelope.
-  const changeDir = path.basename(String(envelopes[0].data.change_root));
-  envelopes.push(runCli(tmp, ['status', '--change', changeDir]));
+  envelopes.push(runCli(tmp, ['status', '--change', 'add-device-registration']));
 
   for (const env of envelopes) {
     assert.equal(
@@ -233,8 +237,9 @@ test('no emitted envelope instructs delegation (stage, status, changes, help)', 
 test('a mutation with an unchanged step renders a terse ack without the marker', () => {
   const tmp = tmpProject('agentic-esf-');
 
-  let out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
-  const changeDir = path.basename(String(out.data.change_root));
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  let out = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
+  const changeDir = 'add-device-registration';
 
   // The fresh artifact lands on the discovery step directly (no init step).
   out = runCli(tmp, ['requirements', '--change', changeDir]);

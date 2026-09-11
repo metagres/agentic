@@ -1,0 +1,60 @@
+metadata:
+  artifact: design.yaml
+  target: design
+  latest_round: 3
+  created: 2026-09-10
+  updated: 2026-09-10
+  latest_status: accepted
+rounds:
+  - round: 1
+    reviewed_at: 2026-09-10T21:04:17.950Z
+    artifact_version: 0.1.0
+    status: rejected
+    mechanical_checks_passed: true
+    semantic_checks_passed: false
+    failures:
+      - check: Are component responsibilities clear, non-overlapping, and testable?
+        evidence: "CMP-002 (design.yaml, components) deletes both production call sites of createChangeDir —
+          \"delete the --request-only creation branch (authoring.ts ~947) and the --change+--request
+          explicit-slug creation branch (~874)\" (actual call sites:
+          src/scripts/lib/kinds/authoring.ts:948 and :879, the only two in src/) — and
+          CMP-001/DEC-005 state init \"deliberately does NOT reuse createChangeDir, which
+          instantiates artifacts\". No component dispositions createChangeDir itself: after the
+          deletions it (authoring.ts:163-219) is dead code and remains the sole caller of
+          slugify/uniqueSlug (\"slug = uniqueSlug(slugify(request), existing);\" authoring.ts:203),
+          so CMP-002's \"Verify then remove the orphaned slugify and uniqueSlug exports from
+          src/scripts/lib/ids.ts (validateChangeSlug stays — init reuses it)\" cannot execute as
+          written — the caller check finds createChangeDir, not orphanhood. The design must
+          disposition createChangeDir (remove it with the branches, or keep it and drop the
+          slugify/uniqueSlug removal)."
+      - check: Are data models consistent with the requirements and APIs?
+        evidence: "(i) API-003 (design.yaml, apis) requires \"--request is removed from AUTHORING_FLAGS and
+          every usage/help string\", but CMP-002's enumerated help.ts edits cover only \"drop the
+          request entry from AUTHORING_FLAGS in help.ts\" — the AUTHORING_FLAGS.change description
+          at src/scripts/lib/help.ts:103 (\"Work on an existing change (fuzzy name resolution). With
+          --request and no match, creates the change under the exact slug.\") still references the
+          removed flag and the removed creation behavior and is left dangling; the stale
+          --change+--request comment above validateChangeSlug (src/scripts/lib/ids.ts:84-87, \"when
+          --change and --request are both given\") is likewise undispositioned. (ii)
+          API-004/DEC-004's flag universe (\"flag tokens against the union of the help.ts flag
+          tables plus --list-commands, --help, --cwd\") fails on arrival:
+          src/skills/improvement-review/SKILL.md lines 112, 117, 120, and 137 carry \"--verbose\" (a
+          measure_artifacts.ts / envelope_sizes.ts / validate_duration.ts / mine_transcript.ts
+          script flag present in no help.ts flag table), and no component dispositions non-CLI
+          script flags — CMP-007 extracts \"--<flag> tokens\" from every src/skills/*/SKILL.md and
+          CMP-008 reworks only the kickoff command and the workflows word, so the new gate as
+          specified is red on the current skill bodies."
+  - round: 2
+    reviewed_at: 2026-09-10T21:08:56.445Z
+    artifact_version: 0.1.1
+    status: accepted
+    mechanical_checks_passed: true
+    semantic_checks_passed: true
+    failures: []
+  - round: 3
+    reviewed_at: 2026-09-10T21:53:37.126Z
+    artifact_version: 0.1.1
+    status: accepted
+    mechanical_checks_passed: true
+    semantic_checks_passed: true
+    failures: []

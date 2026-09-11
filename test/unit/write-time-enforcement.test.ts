@@ -151,7 +151,8 @@ test('a done transition with a note is accepted and the interpreter owns the sta
 test('update-artifact normalizes delta entries lacking stage and date', () => {
   const tmp = tmpRepo('agentic-wte-');
 
-  let out = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  let out = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
   assertEnvelopeShape(out);
   const changeRoot = String(out.data.change_root);
   const changeDir = path.basename(changeRoot);
@@ -186,11 +187,12 @@ test('update-artifact normalizes delta entries lacking stage and date', () => {
 test('the authoring envelope omits step_help by default and restores it with --help-step', () => {
   const tmp = tmpRepo('agentic-help-');
 
-  const first = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).state, 'ok');
+  const first = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
   assertEnvelopeShape(first);
   assert.ok(!('step_help' in first.data), 'step_help must be absent by default');
 
-  const changeDir = path.basename(String(first.data.change_root));
+  const changeDir = 'add-device-registration';
   const second = runCli(tmp, ['requirements', '--change', changeDir, '--help-step']);
   assertEnvelopeShape(second);
   assert.ok(second.data.step_help, '--help-step must restore step_help');

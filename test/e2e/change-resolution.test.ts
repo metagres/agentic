@@ -36,12 +36,15 @@ function runCli(args, opts = {}) {
 test('status resolves a natural-language change name to its slug', () => {
   const tmp = makeTmpProject();
 
+  const init = runCli(['init', '--cwd', tmp, '--change', 'genericize-the-stage-engine']);
+  assert.equal(init.status, 0, init.stderr);
+  assert.equal(JSON.parse(init.stdout).state, 'ok', init.stdout);
   const req = runCli([
     'requirements',
     '--cwd',
     tmp,
-    '--request',
-    'Genericize the stage engine',
+    '--change',
+    'genericize-the-stage-engine',
   ]);
   assert.equal(req.status, 0, req.stderr);
   const reqJson = JSON.parse(req.stdout);
@@ -62,12 +65,15 @@ test('status resolves a natural-language change name to its slug', () => {
 test('status failure lists available changes in the envelope', () => {
   const tmp = makeTmpProject();
 
+  const init = runCli(['init', '--cwd', tmp, '--change', 'genericize-the-stage-engine']);
+  assert.equal(init.status, 0, init.stderr);
+  assert.equal(JSON.parse(init.stdout).state, 'ok', init.stdout);
   const req = runCli([
     'requirements',
     '--cwd',
     tmp,
-    '--request',
-    'Genericize the stage engine',
+    '--change',
+    'genericize-the-stage-engine',
   ]);
   assert.equal(req.status, 0, req.stderr);
 
@@ -85,12 +91,15 @@ test('status failure lists available changes in the envelope', () => {
 test('status from a nested subdir treats that subdir as the project root', () => {
   const tmp = makeTmpProject();
 
+  const init = runCli(['init', '--cwd', tmp, '--change', 'genericize-the-stage-engine']);
+  assert.equal(init.status, 0, init.stderr);
+  assert.equal(JSON.parse(init.stdout).state, 'ok', init.stdout);
   const req = runCli([
     'requirements',
     '--cwd',
     tmp,
-    '--request',
-    'Genericize the stage engine',
+    '--change',
+    'genericize-the-stage-engine',
   ]);
   assert.equal(req.status, 0, req.stderr);
 
@@ -113,12 +122,15 @@ test('status from a nested subdir treats that subdir as the project root', () =>
 test('--cwd override resolves exactly as if invoked from the project root', () => {
   const tmp = makeTmpProject();
 
+  const init = runCli(['init', '--cwd', tmp, '--change', 'genericize-the-stage-engine']);
+  assert.equal(init.status, 0, init.stderr);
+  assert.equal(JSON.parse(init.stdout).state, 'ok', init.stdout);
   const req = runCli([
     'requirements',
     '--cwd',
     tmp,
-    '--request',
-    'Genericize the stage engine',
+    '--change',
+    'genericize-the-stage-engine',
   ]);
   assert.equal(req.status, 0, req.stderr);
 

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-import { createChangeDir, CreationBlockedError } from '../../src/scripts/lib/kinds/authoring.ts';
+import { assertCreationAllowed, CreationBlockedError } from '../../src/scripts/lib/kinds/authoring.ts';
 import { getStageById } from '../../src/scripts/lib/stage-registry.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,7 +56,10 @@ function writeAcceptedRequirements(changeRoot: string): void {
 test('blocked creation: unsatisfied gate returns STAGE_GATE_BLOCKED and writes no artifact (CLI)', () => {
   const tmp = freshProject();
 
-  const { out, status } = runCli(tmp, ['design', '--request', 'Add device registration']);
+  // The change directory is created by init (mkdir-only); the gated design
+  // stage must still refuse to write its artifact.
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).out.state, 'ok');
+  const { out, status } = runCli(tmp, ['design', '--change', 'add-device-registration']);
 
   assert.equal(status, 1, JSON.stringify(out));
   assert.equal(out.state, 'blocked', JSON.stringify(out));
@@ -70,10 +73,10 @@ test('blocked creation: unsatisfied gate returns STAGE_GATE_BLOCKED and writes n
   assert.equal(unsatisfied[0].status, 'missing');
   assert.equal(unsatisfied[0].required, 'accepted');
 
-  const changesDir = path.join(tmp, 'docs', 'changes');
+  const artifactPath = path.join(tmp, 'docs', 'changes', 'add-device-registration', 'design.yaml');
   assert.ok(
-    !fs.existsSync(changesDir) || fs.readdirSync(changesDir).length === 0,
-    'no change directory may be created for a gated, unsatisfied first creation'
+    !fs.existsSync(artifactPath),
+    'no artifact may be written for a gated, unsatisfied first creation'
   );
 });
 
@@ -87,13 +90,7 @@ test('allowed creation: accepted predecessor creates the artifact normally (CLI)
   const changeRoot = path.join(tmp, 'docs', 'changes', 'gated-change');
   writeAcceptedRequirements(changeRoot);
 
-  const { out, status } = runCli(tmp, [
-    'design',
-    '--change',
-    'gated-change',
-    '--request',
-    'Add device registration',
-  ]);
+  const { out, status } = runCli(tmp, ['design', '--change', 'gated-change']);
 
   assert.equal(status, 0, JSON.stringify(out));
   assert.notEqual(out.state, 'blocked', JSON.stringify(out));
@@ -112,7 +109,8 @@ test('allowed creation: accepted predecessor creates the artifact normally (CLI)
 test('root-stage skip: empty requires creates with no predecessor artifacts present (CLI)', () => {
   const tmp = freshProject();
 
-  const { out, status } = runCli(tmp, ['requirements', '--request', 'Add device registration']);
+  assert.equal(runCli(tmp, ['init', '--change', 'add-device-registration']).out.state, 'ok');
+  const { out, status } = runCli(tmp, ['requirements', '--change', 'add-device-registration']);
 
   assert.equal(status, 0, JSON.stringify(out));
   assert.notEqual(out.state, 'blocked', JSON.stringify(out));
@@ -200,9 +198,12 @@ test('re-rooting: deleting requires from the descriptor allows first creation wi
   assert.ok(gated, 'fixture-gated stage record must load');
   assert.deepEqual(gated.requires, ['fixture-review']);
 
-  // The gated descriptor is blocked while the tracked predecessor is missing.
+  // The gated descriptor is blocked while the tracked predecessor is missing:
+  // the same creation-gate guard the ensureArtifact and lazy-instantiation
+  // first-creation paths call.
+  const changeRoot = path.join(tmp, 'docs', 'changes', 'gated-change');
   assert.throws(
-    () => createChangeDir(tmp, 'Create gated artifact', gated as never),
+    () => assertCreationAllowed(gated as never, changeRoot, tmp),
     (err: unknown) => {
       assert.ok(err instanceof CreationBlockedError);
       assert.equal(err.gate.unsatisfied.length, 1);
@@ -211,10 +212,9 @@ test('re-rooting: deleting requires from the descriptor allows first creation wi
       return true;
     }
   );
-  const changesDir = path.join(tmp, 'docs', 'changes');
   assert.ok(
-    !fs.existsSync(changesDir) || fs.readdirSync(changesDir).length === 0,
-    'a blocked gated creation must not create the change directory'
+    !fs.existsSync(path.join(changeRoot, 'fixture-gated.yaml')),
+    'a blocked gated creation must not write the artifact'
   );
 
   // The re-rooted twin — identical descriptor minus the requires list — is
@@ -225,6 +225,5 @@ test('re-rooting: deleting requires from the descriptor allows first creation wi
   assert.ok(open, 'fixture-open stage record must load');
   assert.deepEqual(open.requires, []);
 
-  const openRoot = createChangeDir(tmp, 'Create open artifact', open as never);
-  assert.ok(fs.existsSync(path.join(openRoot, 'fixture-open.yaml')));
+  assert.doesNotThrow(() => assertCreationAllowed(open as never, changeRoot, tmp));
 });

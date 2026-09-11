@@ -8,7 +8,7 @@ errors:
     fix: Pass one of the listed candidates as --change.
   CHANGE_DIR_NOT_FOUND:
     message: No matching change was found.
-    fix: Use one of the changes listed in data.available_changes, or create a new change with --request.
+    fix: Use one of the changes listed in data.available_changes, or create a new change with sdlc init --change <slug>.
   INVALID_CHANGE_SLUG:
     message: The provided --change name is not a valid change slug.
     fix: Use lowercase letters, digits, and hyphens only; start with a letter or digit; at most 60 characters; no trailing hyphen.

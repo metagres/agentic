@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 import { VERSION } from '../src/scripts/lib/version.ts';
-import { getStageDescriptions } from '../src/scripts/lib/stage-registry.ts';
 import { parseYamlString } from '../src/scripts/lib/yaml-io.ts';
 import { loadAgentRegistry } from '../src/scripts/lib/agent-registry.ts';
 import type { AgentRecord } from '../src/scripts/lib/agent-registry.ts';
@@ -176,10 +175,7 @@ const IDENTIFICATION_RULE_MARKER = 'Change identification';
 
 // The agentic-sdlc skill body is version-controlled at
 // src/skills/agentic-sdlc/SKILL.md (same layout as knowledge-init); deploy
-// reads it and interpolates the dynamic command list into this token — the
-// only generated part of the deployed SKILL.md.
-const COMMANDS_TOKEN = '{{COMMANDS}}';
-
+// reads it and ships it verbatim — no deploy-time interpolation.
 function renderAgenticSdlcSkill() {
   const agenticSdlcSkillSource = path.join(
     root,
@@ -193,18 +189,7 @@ function renderAgenticSdlcSkill() {
     fail(`Missing skill source file: ${agenticSdlcSkillSource}`);
   }
 
-  const source = fs.readFileSync(agenticSdlcSkillSource, 'utf8');
-
-  if (!source.includes(COMMANDS_TOKEN)) {
-    fail(
-      `Skill source is missing the commands token '${COMMANDS_TOKEN}': ${agenticSdlcSkillSource}`
-    );
-  }
-
-  const stages = getStageDescriptions(root).map((stage) => stage.id);
-  const commandList = [...stages, 'changes', 'status', 'feedback', 'doctor'].join(' · ');
-
-  return source.replaceAll(COMMANDS_TOKEN, commandList);
+  return fs.readFileSync(agenticSdlcSkillSource, 'utf8');
 }
 
 /**

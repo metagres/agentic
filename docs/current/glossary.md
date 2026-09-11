@@ -55,7 +55,9 @@
 |----------------|------|----------|
 | Frozen shape | no new top-level fields; additionalProperties: false | src/schemas/cli-envelope.schema.yaml |
 | Identity field | the top-level `command` field names the invocable that produced the envelope: a stage id, a cross-cutting command id, or `cli` | src/scripts/lib/cli.ts (normalizeEnvelope) |
-| Status/changes data | status data is exactly {change_name, stage, agent, suggested_command} (+ open_feedback on the open-feedback branch); changes entries are {change_name, stage, agent, suggested_command, open_feedback}; `stage` names the stage to run now (or `complete`), `agent` is its bound agent (null when unbound or complete) — no per-stage pipeline, model pair, or change_root | src/scripts/workflows/status.ts, src/scripts/workflows/changes.ts |
+| Status/changes data | status data is exactly {change_name, stage, agent, suggested_command} (+ open_feedback on the open-feedback branch); changes entries are {change_name, stage, agent, suggested_command, open_feedback, pipeline_state}; `stage` names the stage to run now (or `complete`), `agent` is its bound agent (null when unbound or complete) — no per-stage pipeline, model pair, or change_root | src/scripts/commands/status.ts, src/scripts/commands/changes.ts |
+| Selection state | `pipeline_state` on each changes entry is `in_progress` or `complete` — only in-progress changes are selectable, completed ones are archived; `stage` keeps naming the stage to run now so `pipeline_state` names only the selection state | src/scripts/commands/changes.ts |
+| State vocabulary | the orchestrator loop reads `state` as in_progress \| blocked \| complete (ok marks command success, e.g. init); an unknown value follows the top-level `instructions` field, and if that field is absent the run stops and reports | src/skills/agentic-sdlc/SKILL.md, src/scripts/lib/cli.ts (normalizeEnvelope) |
 
 ## Entity: Artifact Status
 
@@ -235,7 +237,20 @@
 |----------------|------|----------|
 | Precedence | effectiveModel = model_override ?? model; deploy renders effectiveModel into frontmatter while source model stays the recommendation | src/scripts/lib/agent-registry.ts, src/scripts/lib/deploy/platforms/opencode.ts |
 | Validation | model must be a member of the enum; empty model_override fails naming file and value; free-form non-empty overrides pass | src/scripts/lib/agent-model-fields.ts, src/policies/errors.yaml |
-| Surfacing | `data.commands[]` entries (from `--list-commands` / `--help`) expose both model (recommended) and effectiveModel for bound agents | src/scripts/workflows/index.ts |
+| Surfacing | `data.commands[]` entries (from `--list-commands` / `--help`) expose both model (recommended) and effectiveModel for bound agents | src/scripts/commands/index.ts |
+
+## Entity: Command Registry (src/scripts/commands)
+
+| Field | Type | Nullable | Source |
+|-------|------|----------|--------|
+| CommandDef | interface {id, description, run} — the command entry type | No | src/scripts/lib/types.ts |
+| CROSS_CUTTING | map of cross-cutting command ids (init, changes, status, feedback, doctor) to CommandDef entries; agent is null — the invoking agent runs them | No | src/scripts/commands/index.ts |
+| aliases | map of alias → command id (docs, knowledge → knowledge-extraction) | No | src/scripts/commands/index.ts |
+
+| Business Rules | Rule | Location |
+|----------------|------|----------|
+| Resolution | a command matching a discovered stage dispatches to its kind interpreter; cross-cutting commands dispatch separately; unknown commands are refused with UNKNOWN_COMMAND | src/scripts/commands/index.ts, src/scripts/sdlc.ts |
+| Init contract | `sdlc init --change <slug>` is mkdir-only change creation: validates the slug (INVALID_CHANGE_SLUG), refuses duplicates (CHANGE_DIR_EXISTS, no suffixed variant), creates only docs/changes/<slug>, returns state ok with data.change_name and heartbeat-pointing instructions — no request.md, no artifact seeding, no stage engagement | src/scripts/commands/init.ts |
 
 ## Entity: Improvement Review (src/skills/improvement-review)
 

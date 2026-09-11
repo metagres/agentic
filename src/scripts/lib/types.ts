@@ -62,7 +62,7 @@ export interface RunEnv {
   findings?: Finding[];
 }
 
-export interface WorkflowDef {
+export interface CommandDef {
   id: string;
   description: string;
   run: (argv: string[]) => void;
