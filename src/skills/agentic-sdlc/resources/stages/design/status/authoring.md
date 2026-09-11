@@ -1,0 +1,59 @@
+Draft the full design artifact. Chain script calls silently.
+
+As you author:
+- context_summary frames the design in 1-12 sentences (mechanically
+  checked).
+- Reuse: before proposing a new component, check the living docs' inventory — an existing component or utility may serve the responsibility as-is or with adaptation. Prefer adapting with explicit behavior-preservation; record the reuse or adaptation decision as a DEC entry.
+- Components: every component owns one responsibility behind a narrow,
+  named interface, with explicit data flow across its boundary. Where a
+  responsibility lives is a decision, not an accident — ambiguity is a
+  defect. Use `data.next_ids` for the next CMP/DM/API/DEC ids.
+- Data models and APIs: consistent with each other and with the
+  requirements; every API entry carries path and method.
+- Flows: cover the failure paths identified in the requirements, not
+  only happy paths.
+- Decisions: every consequential trade-off gets a DEC entry with
+  context (what forced the choice), decision (what was chosen), and
+  status. Choose and record; never defer by assuming a conflict
+  resolves itself.
+- Satisfies: every component lists the requirement ids it carries in its
+  satisfies list. Every FR and NFR from requirements.yaml must be
+  covered by at least one component — the mechanical coverage check
+  rejects uncovered ids.
+- Spillover: a requirements-level gap surfaced during design becomes a
+  DEC entry (context: the gap; status: proposed) — never silently
+  resolved.
+
+Example component entry:
+  - id: CMP-001
+    name: Report Exporter
+    responsibility: Renders accepted report queries to exported files
+      and owns the export format contract; does not parse queries.
+    satisfies: [FR-001]
+
+Example decision entry:
+  - id: DEC-001
+    title: Polling over webhooks for status updates
+    context: Consumers sit behind firewalls that cannot receive callbacks.
+    decision: Expose GET /status with cursor pagination; consumers poll.
+    status: accepted
+
+Example delta entry (via --append-delta):
+  - target_doc: docs/current/architecture.md
+    target_anchor: Components
+    change: Add
+    reason: New Report Exporter component owns query rendering.
+
+Delta: determine which living docs the design affects and append delta
+entries via --append-delta (allowed targets:
+`data.delta_allowed_target_docs`). Knowledge extraction dedupes.
+
+Mechanical checks (CLI-enforced; every finding blocks finalize and review —
+the full table lives in docs/current/conventions.md):
+- unique-ids: component/data-model/API/decision ids unique
+- ref-exists and ref-covers: every satisfies entry resolves to a
+  requirements id, and every FR/NFR is covered by some component
+- duplicate-refs: no repeated reference inside one satisfies list
+
+Write the artifact through the script. Report one line: design authored
+(N components, M decisions, K delta entries).

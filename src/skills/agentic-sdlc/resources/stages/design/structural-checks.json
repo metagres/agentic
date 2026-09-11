@@ -1,0 +1,50 @@
+{
+  "unique-ids": {
+    "params": {
+      "arrays": [
+        "components",
+        "data_models",
+        "apis",
+        "decisions"
+      ]
+    }
+  },
+  "ref-exists": {
+    "params": {
+      "from": {
+        "array": "components",
+        "field": "satisfies"
+      },
+      "to": {
+        "file": "requirements.yaml",
+        "arrays": [
+          "functional_requirements",
+          "non_functional_requirements"
+        ],
+        "field": "id"
+      }
+    }
+  },
+  "ref-covers": {
+    "params": {
+      "from": {
+        "array": "components",
+        "field": "satisfies"
+      },
+      "to": {
+        "file": "requirements.yaml",
+        "arrays": [
+          "functional_requirements",
+          "non_functional_requirements"
+        ],
+        "field": "id"
+      }
+    }
+  },
+  "duplicate-refs": {
+    "params": {
+      "array": "components",
+      "list_field": "satisfies"
+    }
+  }
+}

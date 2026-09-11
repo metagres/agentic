@@ -1,6 +1,0 @@
-metadata:
-  stage: knowledge-extraction
-  status: complete
-  updated: 2026-09-10
-  change_root: /home/elton/repos/agentic/docs/changes/orchestrator-owned-init-and-skill-hardening
-deltas_applied: 9

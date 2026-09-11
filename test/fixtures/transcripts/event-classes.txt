@@ -1,9 +1,0 @@
-node src/scripts/sdlc.ts requirements --change demo
-{"workflow": "requirements", "step": "discovery", "state": "in_progress", "instructions": "Interview the stakeholder; record answers with --record-answer.", "data": {"discovery_gate": {"passed": false}}}
-node src/scripts/sdlc.ts requirements --change demo --record-answer --lens failure --question q1 --answer a1
-{"workflow": "requirements", "step": "discovery", "state": "in_progress", "instructions": "Interview the stakeholder; record answers with --record-answer.", "data": {"discovery_gate": {"passed": false}}}
-node src/scripts/sdlc.ts requirements --change demo --record-answer --lens failure --question q2 --answer a2
-{"workflow": "requirements", "step": "discovery", "state": "in_progress", "instructions": "Interview the stakeholder; record answers with --record-answer.", "data": {"discovery_gate": {"passed": false}}}
-"error": "The edit tool was called with invalid arguments: SchemaError(Missing key\n  at [\"oldString\"]).\nPlease rewrite the input so it satisfies the expected schema.",
-"error": "Could not find oldString in the file. It must match exactly, including whitespace, indentation, and line endings.",
-codegraph_codegraph_explore finalizeArtifact instructions

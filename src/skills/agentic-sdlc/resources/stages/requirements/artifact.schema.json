@@ -1,0 +1,166 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.org/schemas/requirements-artifact.schema.json",
+    "title": "Requirements Artifact",
+    "description": "Produced by requirements-analyst. It defines the structure of the requirements artifact.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "title", "status", "version",
+        "problem_statement",
+        "assumptions",
+        "functional_requirements",
+        "non_functional_requirements"
+    ],
+    "properties": {
+        "title": {
+            "type": "string",
+            "description": "The title of this document. It must encapsulate the problem being addressed in a short sentence"
+        },
+        "version": {
+            "type": "string",
+            "description": "Bumped on recovery (patch by default)."
+        },
+        "status": {
+            "type": "string",
+            "enum": [
+                "discovery",
+                "authoring",
+                "recovery",
+                "rejected",
+                "ready",
+                "accepted"
+            ],
+            "description": "The status the artifact is currently in."
+        },
+        "problem_statement": {
+            "type": "string",
+            "description": "Empty string permitted before authoring completes; the authoring step's complete_when gate requires non-empty, enforced by the workflow, not by this schema."
+        },
+        "assumptions": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/assumption"
+            }
+        },
+        "functional_requirements": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/requirement_fr"
+            }
+        },
+        "non_functional_requirements": {
+            "type": "array",
+            "items": {
+                "$ref": "#/$defs/requirement_nfr"
+            }
+        }
+    },
+    "$defs": {
+        "assumption": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "text",
+                "status",
+                "source"
+            ],
+            "properties": {
+                "text": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "verified",
+                        "unverified"
+                    ]
+                }
+            }
+        },
+        "acceptance_criterion": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "id",
+                "category",
+                "statement"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^AC-\\d{3,}$"
+                },
+                "category": {
+                    "type": "string",
+                    "enum": [
+                        "happy",
+                        "edge",
+                        "negative",
+                        "boundary"
+                    ]
+                },
+                "statement": {
+                    "type": "string"
+                }
+            }
+        },
+        "requirement_fr": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "id",
+                "description",
+                "acceptance_criteria"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^FR-\\d{3,}$"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "The description of the requirement."
+                },
+                "acceptance_criteria": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/acceptance_criterion"
+                    },
+                    "description": "Nested list of acceptance_criteria for the requirement"
+                }
+            }
+        },
+        "requirement_nfr": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "id",
+                "condition_type",
+                "response",
+                "statement",
+                "acceptance_criteria"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^NFR-\\d{3,}$"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "The description of the requirement."
+                },
+                "acceptance_criteria": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/acceptance_criterion"
+                    },
+                    "description": "Nested list of acceptance_criteria for the requirement"
+                }
+            }
+        }
+    }
+}

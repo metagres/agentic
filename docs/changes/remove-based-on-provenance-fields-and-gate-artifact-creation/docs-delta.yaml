@@ -1,6 +1,0 @@
-metadata:
-  stage: knowledge-extraction
-  status: complete
-  updated: 2026-09-03
-  change_root: /home/elton/repos/agentic/docs/changes/remove-based-on-provenance-fields-and-gate-artifact-creation
-deltas_applied: 4

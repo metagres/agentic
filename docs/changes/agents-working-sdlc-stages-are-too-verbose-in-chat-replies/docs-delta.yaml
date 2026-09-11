@@ -1,6 +1,0 @@
-metadata:
-  stage: knowledge-extraction
-  status: complete
-  updated: 2026-09-07
-  change_root: /home/elton/repos/agentic/docs/changes/agents-working-sdlc-stages-are-too-verbose-in-chat-replies
-deltas_applied: 8

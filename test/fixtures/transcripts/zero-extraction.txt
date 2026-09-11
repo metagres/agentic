@@ -1,3 +1,0 @@
-# post-session notes with no parseable session events
-reviewed the plan and approved it
-wrote the artifact summary and stopped

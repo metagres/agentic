@@ -1,0 +1,21 @@
+{
+  "required-note-for-status": {
+    "params": {
+      "array": "tasks",
+      "statuses": [
+        "done",
+        "blocked",
+        "skipped"
+      ]
+    }
+  },
+  "all-tasks-terminal": {
+    "params": {
+      "array": "tasks",
+      "allowed_statuses": [
+        "done",
+        "skipped"
+      ]
+    }
+  }
+}

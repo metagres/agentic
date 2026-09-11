@@ -1,9 +1,10 @@
-# AGENTS.md — Mandatory Rules for AI Coding Agents
+# Description
+
+# Mandatory Rules for AI Coding Agents
 
 ## 1. The One Rule
 
-Any change touching code or YAML (`src/`, `bin/`, `*.ts`/`*.js`, `package.json`,
-`tsconfig.json`, `tsup.config.ts`, any `*.yaml`) is complete only when
+Any change touching code, scripts or configuration (`src/`, `bin/`, `*.ts`/`*.js`/`*.json`/`*.yaml`/`*.sql`/`*.py`/`*.sh`) is complete only when
 `npm run validate` passes. If it fails, the work is not done — no exceptions.
 Documentation-only changes (`*.md`) are exempt. For full confidence run
 `npm run check:all`. Command semantics: docs/current/operations.md.
@@ -17,9 +18,8 @@ Invariant numbering is stable — docs/current cites these rules by number. Neve
 3. Deployed skills and agents under `.opencode/` are build artifacts — never edit them, never treat them as source.
 4. Validation is declarative: stages declare named checks from the capped catalog; stage-specific validation scripts are prohibited. Adding or changing a check is a design-review event — the catalog in `src/scripts/lib/checks/index.ts` is the single extension path and is never restated elsewhere.
 5. A new check type, error code, or ID prefix updates its catalog (`src/policies/errors.yaml` or the stage folder) and adds a test.
-6. (Retired) Codemap files were removed; code-structure exploration belongs to the code intelligence tools and to docs/current/. Do not re-introduce generated documentation layers without a named consumer (docs/current capabilities G-05).
 7. Stage lifecycle commands execute through the deployed CLI (`.opencode/skills/agentic-sdlc/scripts/sdlc.js`), never through `src/` scripts. After any change to stage, agent, schema, or policy sources, refresh the production runtime: `npm run deploy -- --dest .opencode --clean`.
-8. AGENTS.md carries only always-in-force rules. Descriptive or drift-prone content — commands, shapes, counts, layouts, enumerations — belongs in docs/current/, lands through the §3 docs-current duty or knowledge-extraction deltas, and cites the owning source file instead of restating it.
+8. AGENTS.md carries only always-in-force rules. Descriptive or drift-prone content — commands, shapes, counts, layouts, enumerations — belongs in docs/current.
 9. One term, one meaning. Every term in user-facing contracts — commands, flags, envelope fields, data keys — names exactly one concept defined in docs/current/glossary.md; no concept carries two names and no name carries two concepts. Renames remove the old term entirely; compatibility aliases that preserve ambiguity are prohibited.
 
 ## 3. Definition of Done
@@ -27,7 +27,7 @@ Invariant numbering is stable — docs/current cites these rules by number. Neve
 - The One Rule (§1) is satisfied and no invariant (§2) is violated.
 - No hardcoded agent-specific paths were added.
 - Deployment-related changes: `npm run deploy:smoke` passes.
-- Behavior changed: the affected `docs/current/` content is updated in the same change — direct edits for curated content, the generator for docs-gen-owned regions (§2). A code change without its docs/current update is not done.
+- The affected `docs/current/` content is updated in the same change — direct edits for curated content, the generator for docs-gen-owned regions (§2). A code change without its docs/current update is not done.
 
 ## 4. Session Context Routing
 
@@ -36,7 +36,6 @@ exception (§2). The table below is the authoritative map of docs/current — a
 selection menu keyed by session goal; load only the rows the task needs. When the
 codegraph MCP is available in the runtime, use `codegraph_explore` as the first stop
 for code exploration (structure, call paths, impact) instead of grep/read loops.
-Terminology (stage/kind/gate/step/state/status): docs/current/glossary.md.
 
 | Session goal | Read |
 |---|---|
@@ -49,5 +48,3 @@ Terminology (stage/kind/gate/step/state/status): docs/current/glossary.md.
 | Features, workflows, SDLC goals canon | docs/current/capabilities.md |
 | Library versions and roles | docs/current/dependencies.md |
 | Known defects and markers | docs/current/known-issues.md |
-| Change artifacts — requirements/design/plan/review (in progress or accepted; no separate archive) | docs/changes/<slug>/ |
-| Deferred corrections noticed mid-session | docs/ideas/ (picked up in a later session) |

@@ -1,45 +1,141 @@
 ---
-name: agentic-sdlc
-description: |-
-  Orchestrates the full SDLC lifecycle for ANY code change in this repo — feature, bug fix, refactor, or docs. Identify the change first (creation is a separate, explicit step), then run the orchestrator loop: heartbeat with node scripts/sdlc.js status --change <name>, follow the envelope, and delegate each stage to the agent the CLI assigns.
+name: sdlc
+description: >
+  Workflow and stage-gate logic for triaging, delegating, and tracking
+  requests across a specialist team (requirements-analyst, system-architect,
+  planner, implementation-engineer, stage-reviewer, knowledge-curator). Use
+  this whenever a new stakeholder request comes in, whenever deciding which
+  specialist to route to next, whenever deciding if a review gate applies,
+  whenever handling a stage-reviewer rejection, and whenever reporting
+  status back to a stakeholder. Consult this on every request, not just
+  complex ones — the fast-path rules for trivial requests live here too.
 ---
 
-## Change identification
+# Delivery Orchestration
 
-Change identification belongs to you (the orchestrator), never to a stage step. A stage invocation without a change is a usage error. Identification is read-only: it never creates a change implicitly — creation is a separate, explicit step (init below). Scope the run to exactly one change; a request spanning several changes is split into separate runs, one change per run.
+## The team, and when to call them
 
-Resolve the user input:
-1. Invoked without anything: never guess. Run `node scripts/sdlc.js changes` — the read-only inventory of every change. Empty list → ask what the user wants changed. Non-empty → present the in-progress changes (only in-progress changes are selectable; completed ones are archived) and ask: resume one, or start a new change?
-2. Invoked with text: resolve it against the changes inventory. Exactly one plausible match → confirm "Continue <change>?". Multiple plausible matches → present the candidates and ask the user to choose before proceeding. Short imperative input (e.g. "add a retry limit") is a request seed for a new change, not a reference to an existing change; a solution proposal is re-anchored first ("What problem does X solve for you?").
-3. Invoked with a file path: the file is input material (proposal doc, problem statement, transcript), never an artifact target. Read it, distill the problem statement (re-anchor solution proposals), confirm the distilled request, then proceed as with text.
+- **requirements-analyst** — turns a raw idea or issue into clear, testable
+  requirements and acceptance criteria. Call first for anything ambiguous
+  or underspecified.
+- **system-architect** — assesses technical feasibility, proposes an
+  approach, flags risks and dependencies. Call when a request touches
+  architecture, a new system, or carries nontrivial technical risk.
+- **planner** — turns approved requirements (+ design, if there was one)
+  into a sequenced task list with owners and estimates.
+- **implementation-engineer** — builds what's been planned.
+- **stage-reviewer** — the quality gate. Checks work against criteria
+  before it moves to the next stage, and can send it back.
+- **knowledge-curator** — records decisions, updates docs/specs/runbooks,
+  and closes the loop once delivery is confirmed.
 
-For a new change:
-- Derive the slug yourself — kebab-case per the CLI's validateChangeSlug rules: lowercase letters, digits, and hyphens only; starts with a letter or digit; at most 60 characters; no trailing hyphen.
-- Check the derived slug against the changes inventory. On a collision, present the existing change and ask whether to resume it or create a new change; run init only after the user confirms a new change is intended. Never auto-suffix a colliding slug.
-- On confirmed-new, run `node scripts/sdlc.js init --change <slug>`: it creates only the change directory (no artifacts, no stage engagement) and returns state ok with data.change_name. Run the heartbeat (loop step 1) immediately after.
-- The request text collected during identification is handed to the FIRST stage delegation (requirements) as delegation context — nothing persists it at init time. If the session is lost between init and the first delegation, re-collect the context from the user.
+## Step 1 — Intake
 
-After identifying an existing change, run the heartbeat (`node scripts/sdlc.js status --change <name>`) and engage the suggested command.
+Log the request, assign an ID, classify it (bug / feature / question /
+idea), and assess urgency. This happens for every request, no exceptions.
 
-## Orchestrator loop
+## Step 2 — Choose a path
 
-The skill is an orchestrator. Every cycle: read state from the CLI, delegate the stage, re-check. Never hold pipeline state in memory — the CLI is the only source. The CLI owns stage detection — do not guess which stage to run; `data.stage` names it. `--list-commands` and `--help` are inventory and debugging surfaces, not loop steps; when you need a command or flag this skill does not explain at its point of use, look it up with `node scripts/sdlc.js --list-commands`.
+**Fast path** — use when *all* of these hold:
+- The change is small and well-scoped (e.g. a copy fix, a config tweak, a
+  bug with a clear, reproducible cause).
+- It has no architecture or design impact.
+- There's no ambiguity about what "done" looks like.
 
-1. Heartbeat: from the project root run `node scripts/sdlc.js status --change <change-name>`. Resolve `scripts/sdlc.js` relative to this skill's base directory — concretely: `node <skill-base>/scripts/sdlc.js status --change <name>` — but do not cd into the skill folder: the CLI resolves `docs/changes` from the invocation working directory, which must be the project root. `--change` accepts the exact change name or a unique part of it; if resolution fails, data.available_changes lists the existing changes.
-2. Read the envelope: `data.stage` names the stage to run, `data.agent` the agent bound to it, `data.suggested_command` the stage command to hand over, `state` the loop control. State values are `in_progress`, `blocked`, and `complete`; any other value → follow the top-level `instructions` field, and if that field is absent, stop and report.
-3. If `state` is `complete`, the pipeline is finished for this change — emit the completion report and stop. The report names the change, lists every stage with its review verdict, enumerates the artifacts produced, includes the knowledge-extraction outputs, and lists suggested next actions. No completion report is emitted for any other state.
-4. Otherwise delegate with the fixed template — nothing beyond it except the two payload exceptions below: (a) the suggested command verbatim (`data.suggested_command`), (b) the CLI path rule (resolve `scripts/sdlc.js` relative to the skill base directory, invoke from the project root, never cd into the skill folder), (c) the change name, (d) the one-line task statement: run the command, follow your envelope instructions, report one line of outcome. Payload exceptions: the collected request text rides along on the first delegation (requirements) only; on review rounds, pass the declared semantic check names verbatim from `data.semantic_checks` — never substitute positional numbers for names.
-5. Delegation rule: when `data.agent` is set, delegate the stage to that agent. When the bound agent is missing or not invocable in your runtime, spawn a generic subsession for that stage — it lacks the specialist persona and permissions but remains bound by the envelope and the CLI permissions. When no delegation mechanism exists at all, that is an SDLC error: stop and report to the user; never run a stage inline. A review stage must never be reviewed by the agent that authored the artifact under review: if the bound reviewer is unavailable and you authored or delegated the artifact in this session, or cannot determine who authored it, stop and surface the conflict to the user.
-6. When the subagent finishes, run the heartbeat (step 1) again and repeat. Verification is the heartbeat only: never treat the subagent's report claims as verification, and never read stage envelopes or stage artifacts. If a subagent dies mid-stage, run the heartbeat first and act on the CLI state — a stage still in_progress is re-delegated, never assumed complete.
-7. `blocked` envelopes: follow the `instructions` field — rejected artifacts, open feedback, and gate failures are detours the CLI prescribes; resume the loop once resolved. A CLI invocation that exits non-zero is handled as a blocked envelope: follow its instructions. Output that is unparseable or empty is reported raw and the run stops — never guess a stage. Change artifacts under `docs/changes/` are created and modified only via the sdlc CLI — never edit them directly (deployed agents deny direct writes to that path). Payload input for authoring mutations is stdin-first: pipe YAML through a heredoc, or stage it as a temp file under `<project-root>/.tmp/sdlc/` with a unique name (e.g. `<slug>-<stage>-<epoch>-<pid>.yaml`) and pass the path. The CLI never deletes input files; delete your temp payloads when done.
-8. Authoring guard: at a review-round rejection, read `data.round` on the review envelope — it equals the authoring run count. Below 3, delegate one rework round to the authoring stage agent. At 3 (the initial run plus two rework rounds), stop and escalate to the user; delegate no fourth authoring run. Without a review rejection no cycle cap applies — the loop runs without pausing.
+On the fast path: skip requirements-analyst, system-architect, and
+planner. Go straight to implementation-engineer. The stage-reviewer gate
+before closing **still applies** — see the rule in Step 4, it has no
+exceptions.
 
-## Worked example
+**Full path** — use for everything else:
+1. If ambiguous or underspecified → requirements-analyst. Hold the ticket
+   as "needs clarification" until resolved. If the analyst needs something
+   only the requester can answer, get it from them or relay the question —
+   don't guess on the requester's behalf.
+2. If it touches architecture, a new system, or carries technical risk →
+   system-architect.
+3. stage-reviewer signs off requirements (+ design) before planning
+   starts.
+4. planner sequences the work.
+5. For high-risk or high-visibility requests, have stage-reviewer check
+   the plan too. Skip this for routine work.
+6. implementation-engineer builds it.
+
+If you're unsure which path applies, default to the full path. Misrouting
+a request that turns out to be non-trivial costs more than a small delay
+up front.
+
+## Step 3 — Escalation rules
+
+- **A specialist returns `status: blocked`** (e.g. requirements-analyst
+  after a check has failed review twice) → stop. Escalate to a human. The
+  retry cap already happened inside that specialist's own session — don't
+  re-invoke them a third time yourself, and don't try to count rounds on
+  your end, since you never see the individual rounds.
+- **system-architect flags high risk or high cost** → surface it to the
+  stakeholder for a go/no-go before continuing. Don't proceed on their
+  behalf.
+- **requirements-analyst and system-architect disagree on scope** →
+  present both views to the requester or the designated decision-maker.
+  This is not yours to resolve.
+
+## Delegation contract (keeping your context clean)
+
+Every specialist invocation is a **new session**, not a continuation of
+your own conversation. This is what makes it safe to delegate freely
+without your own context growing unbounded — but only if you respect the
+contract on both ends:
+
+**What you send.** The minimum needed to start the work: the ticket ID,
+the raw request text, and an artifact reference if one already exists.
+Don't pre-digest the request into a mini-brief first — that's the
+specialist's job, not yours, and it just duplicates content into your own
+context on the way out.
+
+**What you accept back.** Only the specialist's final structured handoff —
+never the transcript. For requirements-analyst that's one of:
 
 ```
-node scripts/sdlc.js changes                             # inventory: present in-progress changes, derive the slug
-node scripts/sdlc.js init --change add-retry-limit       # creation: mkdir-only, then heartbeat immediately
-node scripts/sdlc.js status --change add-retry-limit     # heartbeat: read data.stage, data.agent, data.suggested_command
-# delegate requirements to data.agent — fixed template + the collected request text
-node scripts/sdlc.js status --change add-retry-limit     # heartbeat again: verify via CLI state only, repeat
+status: complete
+artifact_ref: <artifact id/path>
+requirements_count: <N>
+acceptance_criteria_count: <M>
+deltas_count: <K>
+clarity: <clear|partial|vague>
+out_of_scope: <true|false>
 ```
+
+or, if it hit its retry cap internally:
+
+```
+status: blocked
+artifact_ref: <artifact id/path>
+blocking_check: <check name>
+rejection_count: <N>
+evidence: <short summary>
+```
+
+If you ever find yourself asking a specialist to paste back its interview
+notes, drafts, or intermediate reasoning, stop — read the artifact_ref
+from the store instead, or if the store isn't queryable, treat that as a
+gap in the specialist's skill definition worth fixing, not something to
+route around by pulling raw context into your own session.
+
+## Step 4 — Closing a ticket
+
+Non-negotiable, on both paths:
+- implementation-engineer's work must pass stage-reviewer against
+  acceptance criteria before the ticket is marked complete.
+- knowledge-curator documents the outcome before you close the loop.
+- Never close, and never tell a stakeholder something is "done," without
+  both of the above having happened.
+
+## Step 5 — Reporting back
+
+Report outcomes in plain language: what happened, what it means for the
+requester, and what's next if anything. Don't narrate which agent did
+what unless asked — that's internal process, not signal the stakeholder
+needs.
+
+If something is blocked, say what's blocking it and what's needed to
+unblock it, rather than a generic "in progress."
