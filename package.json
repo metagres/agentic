@@ -1,9 +1,12 @@
 {
-  "name": "agentic-sdlc-toolkit",
+  "name": "agentic",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Development repository for the agentic SDLC toolkit used by OpenCode-compatible AI coding agents.",
+  "workspaces": [
+    "packages/*"
+  ],
+  "description": "Development repository for the agentic SDLC used by OpenCode-compatible AI coding agents.",
   "engines": {
     "node": ">=20"
   },
@@ -11,30 +14,10 @@
     "sdlc": "src/scripts/sdlc.ts"
   },
   "scripts": {
-    "test": "node --test test/unit/*.test.ts test/e2e/*.test.ts",
-    "deploy": "node bin/deploy-to-agent.ts",
-    "sdlc": "node src/scripts/sdlc.ts",
-    "build": "tsup",
-    "validate:templates": "node bin/validate-templates.ts",
-    "validate:skill-refs": "node bin/validate-skill-refs.ts",
-    "validate:agents-md": "node bin/validate-agents-md.ts",
-    "docs:generate": "node bin/generate-docs.ts",
-    "docs:check": "node bin/generate-docs.ts --check",
-    "validate": "npm run validate:schemas && npm run validate:policies && npm run validate:templates && npm run validate:skill-refs && npm run validate:agents-md && npm run docs:check && npm run typecheck && npm run test:unit",
-    "test:unit": "node --test test/unit/*.test.ts",
-    "test:e2e": "node --test test/e2e/*.test.ts",
-    "validate:schemas": "node bin/validate-schemas.ts",
-    "validate:policies": "node bin/validate-policies.ts",
-    "check:all": "npm run test:all && npm run deploy:smoke",
-    "deploy:smoke": "node bin/deploy-to-agent.ts --dest .tmp/agent --clean",
-    "test:all": "npm run validate && npm run test:unit && npm run test:e2e",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "ajv": "^8.20.0",
-    "ajv-formats": "^3.0.1",
-    "ignore": "^7.0.6",
-    "yaml": "^2.5.1"
+    "ajv": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
