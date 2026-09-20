@@ -6,7 +6,7 @@ import path from 'path';
 import ignore from 'ignore';
 
 // --- CONFIGURATION ---
-const OUTPUT_FILE = 'llm_context.txt';
+const OUTPUT_FILE = 'llsmall.txt';
 const MAX_FILE_SIZE_MB = 2; // Skip files larger than this
 
 // Hard safety nets (always skipped to prevent infinite loops or massive bloat)

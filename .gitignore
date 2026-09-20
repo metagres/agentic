@@ -5,7 +5,7 @@ coverage/
 dist/
 .opencode/
 package-lock.json
-llm_context.txt
+llmsall.txt
 review.txt
 .tmp/
 temp/
