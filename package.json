@@ -8,16 +8,20 @@
   ],
   "description": "Development repository for the agentic SDLC used by OpenCode-compatible AI coding agents.",
   "engines": {
-    "node": ">=20"
+    "node": ">=23"
   },
   "bin": {
     "sdlc": "src/scripts/sdlc.ts"
   },
   "scripts": {
+    "sdlc": "node src/scripts/sdlc.ts",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "test:checks": "npm test --workspace @agentic/checks",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "ignore": "^5.3.0"
+    "ignore": "^5.3.0",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
