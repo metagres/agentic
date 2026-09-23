@@ -46,7 +46,7 @@ Implement state derivation as a pure function with no I/O and no stage-name sema
 ### Testable acceptance criteria
 - Fixture suite covers every routing case in `specification.md §26`.
 - Same fixture with stage renamed from `define` to `specification` produces equivalent state without code change.
-- Static test asserts `src/lib/state/` imports no filesystem, config, or model modules.
+- Static test asserts `packages/sdlc/src/lib/state/` imports no filesystem, config, or model modules.
 - Static test asserts no forbidden literals in the state core:
   - `requirements`
   - `design`

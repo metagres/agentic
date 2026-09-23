@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "ES2022",
+    "module": "ESNext",
     "moduleResolution": "Bundler",
     "outDir": "./dist",
     "rootDir": "./",
@@ -15,10 +15,9 @@
     "types": ["node"]
   },
   "include": [
-    "src/**/*.ts",
-    "bin/**/*.ts",
     "packages/checks/src/**/*.ts",
-    "test/sdlc/**/*.ts"
+    "packages/sdlc/src/**/*.ts",
+    "packages/sdlc/test/**/*.ts"
   ],
   "exclude": ["node_modules", "dist"]
 }
