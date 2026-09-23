@@ -6,6 +6,4 @@ dist/
 .opencode/
 package-lock.json
 llmsall.txt
-review.txt
 .tmp/
-temp/

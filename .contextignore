@@ -1,26 +1,10 @@
 # .contextignore — same syntax as .gitignore
 
-# Dependency / build directories
 node_modules/
 dist/
 build/
-.next/
-.nuxt/
-__pycache__/
-.venv/
-venv/
-target/
-.tmp/
-docs/
-test/
 
-# Lock files (usually noise for an LLM)
 package-lock.json
-yarn.lock
-pnpm-lock.yaml
-poetry.lock
-
-# Compiled / binary artefacts
 *.pyc
 *.pyo
 *.so
@@ -46,25 +30,10 @@ poetry.lock
 .DS_Store
 Thumbs.db
 
-# Test fixtures / large data
-tests/fixtures/large_*.json
-data/
-*.sqlite
-*.db
-
-# Logs
-*.log
-logs/
-
-# But DO include a specific config you want the LLM to see
-!important.config.json
-
 # agents
 .opencode/
-temp/
+.agents/
 .codegraph/
-.codemap/
-**/codemap.md
 
 # ignore files
 .gitignore
